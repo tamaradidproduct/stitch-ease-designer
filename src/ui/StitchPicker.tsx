@@ -68,6 +68,7 @@ export function StitchPicker() {
   const chooseSymbol = useUiStore((s) => s.chooseSymbol);
   const recentIds = useUiStore((s) => s.recentSymbolIds);
   const place = useDocStore((s) => s.place);
+  const erase = useDocStore((s) => s.erase);
 
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
@@ -144,6 +145,11 @@ export function StitchPicker() {
     chooseSymbol(symbol.id);
   };
 
+  const clear = () => {
+    erase(target.col, target.row);
+    closePicker();
+  };
+
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Escape") {
       e.preventDefault();
@@ -154,6 +160,13 @@ export function StitchPicker() {
       e.preventDefault();
       const symbol = flat[active];
       if (symbol) choose(symbol);
+      return;
+    }
+    // Only when the search box is empty, so backspacing out a typed query
+    // never doubles as clearing the stitch underneath it.
+    if ((e.key === "Backspace" || e.key === "Delete") && !query && currentSymbol) {
+      e.preventDefault();
+      clear();
       return;
     }
     const step = e.key === "ArrowDown" ? 1 : e.key === "ArrowUp" ? -1 : 0;
@@ -184,6 +197,26 @@ export function StitchPicker() {
           }}
           spellCheck={false}
         />
+        {currentSymbol && (
+          <button
+            type="button"
+            className="picker__clear"
+            onClick={clear}
+            aria-label="Clear stitch"
+            title="Clear this stitch (Backspace)"
+          >
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+              <path
+                d="M3.5 5h9M6.5 5V3.5h3V5M4.5 5l.5 8h6l.5-8"
+                stroke="currentColor"
+                strokeWidth="1.3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill="none"
+              />
+            </svg>
+          </button>
+        )}
         <button
           type="button"
           className="picker__close"
