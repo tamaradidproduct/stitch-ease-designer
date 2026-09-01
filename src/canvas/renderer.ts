@@ -9,6 +9,7 @@ import {
   cellPx,
   cellToScreenRect,
   visibleCellBounds,
+  worldToScreen,
 } from "./camera";
 import { drawGrid, labelStep } from "./grid";
 import { ceilTo } from "./math";
@@ -24,6 +25,29 @@ export type RenderState = {
   /** Symbol armed in the toolbar, previewed under the cursor. */
   armedSymbolId: string | null;
 };
+
+/**
+ * Crisp screen-space column/row boundaries, computed from the absolute
+ * col/row rather than by offsetting a neighbouring cell's own rounded rect.
+ *
+ * Two adjacent stitches each draw their own border independently. Deriving
+ * cell N+1's left edge as "cell N's rounded position, plus the cell size"
+ * doesn't generally equal independently rounding cell N+1's own position —
+ * Math.round(a) + Math.round(b) isn't Math.round(a + b) — whenever cellPx(cam)
+ * isn't a whole number, which is most zoom levels. That drift crosses a
+ * rounding boundary periodically as it accumulates across columns, which is
+ * why the gap showed up every few cells rather than everywhere or nowhere.
+ * Computing each boundary from the same absolute col/row input every time
+ * guarantees two neighbours agree on their shared edge exactly.
+ */
+export function crispColX(col: number, cam: Camera, vp: Viewport): number {
+  return Math.round(worldToScreen(col * CELL, 0, cam, vp).x) + 0.5;
+}
+
+export function crispRowY(row: number, cam: Camera, vp: Viewport): number {
+  // A row's screen TOP is world y = (row+1)*CELL, since +row points up.
+  return Math.round(worldToScreen(0, (row + 1) * CELL, cam, vp).y) + 0.5;
+}
 
 /**
  * Row and column rulers pinned to the top and left edges.
@@ -129,13 +153,12 @@ function drawPlacements(ctx: CanvasRenderingContext2D, state: RenderState): void
     if (drawChrome) {
       ctx.strokeStyle = theme.cellStroke;
       ctx.lineWidth = 1;
+      const topY = crispRowY(p.row, cam, vp);
+      const botY = crispRowY(p.row - 1, cam, vp);
       for (let i = 0; i < span; i++) {
-        ctx.strokeRect(
-          Math.round(r.x + i * size) + 0.5,
-          Math.round(r.y) + 0.5,
-          Math.round(size) - 1,
-          Math.round(size) - 1,
-        );
+        const leftX = crispColX(p.col + i, cam, vp);
+        const rightX = crispColX(p.col + i + 1, cam, vp);
+        ctx.strokeRect(leftX, topY, rightX - leftX, botY - topY);
       }
     }
 
@@ -218,10 +241,14 @@ function strokeDashedRect(
 function drawArmedPreview(
   ctx: CanvasRenderingContext2D,
   symbol: StitchSymbol,
+  col: number,
+  row: number,
   r: { x: number; y: number },
   size: number,
   span: number,
   sprites: SpriteCache,
+  cam: Camera,
+  vp: Viewport,
 ): void {
   const width = size * span;
   const drawChrome = size >= 3;
@@ -247,13 +274,12 @@ function drawArmedPreview(
   if (drawChrome) {
     ctx.strokeStyle = theme.cellStroke;
     ctx.lineWidth = 1;
+    const topY = crispRowY(row, cam, vp);
+    const botY = crispRowY(row - 1, cam, vp);
     for (let i = 0; i < span; i++) {
-      ctx.strokeRect(
-        Math.round(r.x + i * size) + 0.5,
-        Math.round(r.y) + 0.5,
-        Math.round(size) - 1,
-        Math.round(size) - 1,
-      );
+      const leftX = crispColX(col + i, cam, vp);
+      const rightX = crispColX(col + i + 1, cam, vp);
+      ctx.strokeRect(leftX, topY, rightX - leftX, botY - topY);
     }
   }
 
@@ -294,7 +320,7 @@ function drawHover(ctx: CanvasRenderingContext2D, state: RenderState): void {
   if (symbol) {
     // Preview the armed symbol's full footprint, so it's obvious before
     // clicking that a 3/3 cable is about to consume six cells.
-    drawArmedPreview(ctx, symbol, r, size, symbol.span, sprites);
+    drawArmedPreview(ctx, symbol, hover.col, hover.row, r, size, symbol.span, sprites, cam, vp);
     return;
   }
 
