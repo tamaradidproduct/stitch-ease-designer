@@ -16,13 +16,15 @@ export function CanvasView() {
   const ref = useRef<HTMLCanvasElement | null>(null);
   const dirty = useRef(true);
   const cursor = useUiStore((s) =>
-    s.isPanning
-      ? "grabbing"
-      : s.spaceHeld
-        ? "grab"
-        : s.tool === "eraser"
-          ? "cell"
-          : "crosshair",
+    s.picker
+      ? "default"
+      : s.isPanning
+        ? "grabbing"
+        : s.spaceHeld
+          ? "grab"
+          : s.tool === "eraser"
+            ? "cell"
+            : "crosshair",
   );
 
   usePanZoom(ref);
