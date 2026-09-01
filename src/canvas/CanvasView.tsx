@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react";
+import { usePaintTool } from "../input/usePaintTool";
 import { usePanZoom } from "../input/usePanZoom";
+import { useShortcuts } from "../input/useShortcuts";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
 import { render } from "./renderer";
@@ -14,10 +16,18 @@ export function CanvasView() {
   const ref = useRef<HTMLCanvasElement | null>(null);
   const dirty = useRef(true);
   const cursor = useUiStore((s) =>
-    s.isPanning ? "grabbing" : s.spaceHeld ? "grab" : "crosshair",
+    s.isPanning
+      ? "grabbing"
+      : s.spaceHeld
+        ? "grab"
+        : s.tool === "eraser"
+          ? "cell"
+          : "crosshair",
   );
 
   usePanZoom(ref);
+  usePaintTool(ref);
+  useShortcuts();
 
   useEffect(() => {
     const canvas = ref.current;
@@ -33,21 +43,33 @@ export function CanvasView() {
     // won't appear until something else happens to invalidate the canvas.
     const sprites = new SpriteCache(markDirty);
 
-    const resize = () => {
-      const rect = canvas.getBoundingClientRect();
+    /**
+     * Match the backing store to the element's CSS size. Idempotent, so it's
+     * safe to call every frame: setting canvas.width also clears the canvas,
+     * which is why it must not run unless something actually changed.
+     */
+    const syncSize = () => {
       const dpr = window.devicePixelRatio || 1;
-      const width = Math.max(1, Math.round(rect.width));
-      const height = Math.max(1, Math.round(rect.height));
+      const width = Math.max(1, Math.round(canvas.clientWidth));
+      const height = Math.max(1, Math.round(canvas.clientHeight));
+      const backingWidth = Math.round(width * dpr);
+      const backingHeight = Math.round(height * dpr);
 
-      canvas.width = Math.round(width * dpr);
-      canvas.height = Math.round(height * dpr);
+      if (canvas.width === backingWidth && canvas.height === backingHeight) return;
+
+      canvas.width = backingWidth;
+      canvas.height = backingHeight;
       useUiStore.getState().setViewport({ width, height });
       markDirty();
     };
 
-    const observer = new ResizeObserver(resize);
+    // ResizeObserver is the efficient path, but it can't be the only one: it
+    // doesn't fire in every embedding, and a canvas stuck at a stale size is
+    // invisible until you try to click something. The frame loop re-checks.
+    const observer = new ResizeObserver(syncSize);
     observer.observe(canvas);
-    resize();
+    window.addEventListener("resize", syncSize);
+    syncSize();
 
     // Plain (non-selector) subscribe so we can diff exactly the fields the
     // renderer reads; spaceHeld/isPanning changes (handled by the cursor
@@ -67,6 +89,7 @@ export function CanvasView() {
     let frame = 0;
     const loop = () => {
       frame = requestAnimationFrame(loop);
+      syncSize();
       if (!dirty.current) return;
       dirty.current = false;
 
@@ -95,7 +118,7 @@ export function CanvasView() {
     };
     const onDprChange = () => {
       media.removeEventListener("change", onDprChange);
-      resize();
+      syncSize();
       watchDpr();
     };
     watchDpr();
@@ -106,6 +129,7 @@ export function CanvasView() {
       unsubscribeUi();
       unsubscribeDoc();
       sprites.clear();
+      window.removeEventListener("resize", syncSize);
       media.removeEventListener("change", onDprChange);
     };
   }, []);

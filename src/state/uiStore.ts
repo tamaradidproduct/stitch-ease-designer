@@ -8,6 +8,14 @@ import {
   zoomAt,
 } from "../canvas/camera";
 
+export type Tool = "stitch" | "eraser";
+
+/** Where the picker is anchored: which cell it will fill, and where to draw it. */
+export type PickerTarget = { col: number; row: number; x: number; y: number };
+
+/** How many recently used symbols the picker keeps at the top. */
+const RECENT_LIMIT = 12;
+
 type UiState = {
   camera: Camera;
   viewport: Viewport;
@@ -15,10 +23,21 @@ type UiState = {
   /** True while space is held, which arms drag-to-pan. */
   spaceHeld: boolean;
   isPanning: boolean;
-  /** Symbol the next click will place, or null for the eraser. */
-  armedSymbolId: string | null;
 
+  tool: Tool;
+  /**
+   * Symbol the next click places. Null means the next click opens the picker
+   * instead, which is the state the canvas starts in.
+   */
+  armedSymbolId: string | null;
+  recentSymbolIds: string[];
+  picker: PickerTarget | null;
+
+  setTool: (tool: Tool) => void;
   setArmedSymbolId: (id: string | null) => void;
+  chooseSymbol: (id: string) => void;
+  openPicker: (target: PickerTarget) => void;
+  closePicker: () => void;
 
   setViewport: (vp: Viewport) => void;
   setHover: (cell: Cell | null) => void;
@@ -38,9 +57,28 @@ export const useUiStore = create<UiState>((set, get) => ({
   hover: null,
   spaceHeld: false,
   isPanning: false,
-  armedSymbolId: "knit",
 
-  setArmedSymbolId: (armedSymbolId) => set({ armedSymbolId }),
+  tool: "stitch",
+  armedSymbolId: null,
+  recentSymbolIds: [],
+  picker: null,
+
+  setTool: (tool) => set({ tool, picker: null }),
+  setArmedSymbolId: (armedSymbolId) => set({ armedSymbolId, tool: "stitch" }),
+
+  /** Arm a symbol and remember it, most recent first. */
+  chooseSymbol: (id) => {
+    const recent = [id, ...get().recentSymbolIds.filter((r) => r !== id)];
+    set({
+      armedSymbolId: id,
+      tool: "stitch",
+      recentSymbolIds: recent.slice(0, RECENT_LIMIT),
+      picker: null,
+    });
+  },
+
+  openPicker: (picker) => set({ picker }),
+  closePicker: () => set({ picker: null }),
 
   setViewport: (viewport) => set({ viewport }),
 
@@ -57,16 +95,18 @@ export const useUiStore = create<UiState>((set, get) => ({
 
   setPanning: (isPanning) => set({ isPanning }),
 
+  // Any camera move detaches the picker from the cell it was anchored to, so
+  // it closes rather than floating over an unrelated part of the grid.
   panByScreen: (dx, dy) => {
     if (dx === 0 && dy === 0) return;
-    set({ camera: panByScreen(get().camera, dx, dy) });
+    set({ camera: panByScreen(get().camera, dx, dy), picker: null });
   },
 
   zoomAt: (factor, sx, sy) => {
     const { camera, viewport } = get();
     const next = zoomAt(camera, factor, sx, sy, viewport);
-    if (next !== camera) set({ camera: next });
+    if (next !== camera) set({ camera: next, picker: null });
   },
 
-  resetView: () => set({ camera: defaultCamera() }),
+  resetView: () => set({ camera: defaultCamera(), picker: null }),
 }));

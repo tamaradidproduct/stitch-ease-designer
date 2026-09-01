@@ -149,15 +149,16 @@ function drawPlacements(ctx: CanvasRenderingContext2D, state: RenderState): void
 }
 
 function drawHover(ctx: CanvasRenderingContext2D, state: RenderState): void {
-  const { camera: cam, viewport: vp, hover, armedSymbolId } = state;
+  const { camera: cam, viewport: vp, hover, armedSymbolId, sprites } = state;
   if (!hover) return;
   // Below this the outline is bigger than the cell and just looks like noise.
   if (cellPx(cam) < 4) return;
 
   const size = cellPx(cam);
+  const symbol = armedSymbolId ? getSymbol(armedSymbolId) : undefined;
   // Preview the armed symbol's full footprint, so it's obvious before clicking
   // that a 3/3 cable is about to consume six cells.
-  const span = armedSymbolId ? (getSymbol(armedSymbolId)?.span ?? 1) : 1;
+  const span = symbol?.span ?? 1;
   const r = cellToScreenRect(hover.col, hover.row, cam, vp);
   const width = size * span;
 
@@ -166,6 +167,18 @@ function drawHover(ctx: CanvasRenderingContext2D, state: RenderState): void {
   ctx.strokeStyle = theme.hoverStroke;
   ctx.lineWidth = 1.5;
   ctx.strokeRect(r.x + 0.5, r.y + 0.5, width - 1, size - 1);
+
+  // Show what will actually land there, not just its footprint — the glyph
+  // itself, faded so it still reads as a preview rather than a placed stitch.
+  if (symbol && (symbol.glyph.includes("<path") || symbol.glyph.includes("<rect"))) {
+    const sprite = sprites.get(symbol, size, theme.hoverStroke);
+    if (sprite) {
+      ctx.save();
+      ctx.globalAlpha = 0.55;
+      ctx.drawImage(sprite, r.x, r.y, width, size);
+      ctx.restore();
+    }
+  }
 }
 
 /**
