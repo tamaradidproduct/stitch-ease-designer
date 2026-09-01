@@ -13,6 +13,12 @@ export type StitchSymbol = {
   /** Node it came from, so a symbol can be traced back to the library. */
   figmaNodeId: string;
   /**
+   * False for a symbol that is pure cell chrome (knit, empty) with nothing
+   * left to paint once the background/border rects are stripped — the
+   * bordered cell itself is the whole symbol.
+   */
+  hasGlyph: boolean;
+  /**
    * Per-cell background overrides, one entry per span. Null means "use the
    * theme's ordinary cell colour". Present only where the library gives a cell
    * a meaningful tint — "no stitch" is distinguished from knit by its grey

@@ -312,6 +312,20 @@ def to_rgba(fill: str | None, opacity: str | None) -> str | None:
     return f"rgba({r}, {g}, {b}, {a:g})"
 
 
+def _iter_painted(parent: ET.Element):
+    """Descendants of `parent`, not descending into GEOMETRY_SUBTREES.
+
+    Mirrors strip_cell_chrome's traversal: a rect inside a clipPath/mask/defs
+    defines geometry, not paint, so its 'fill' isn't a real cell background
+    (Figma's clipPath rects are commonly fill="currentColor").
+    """
+    for child in parent:
+        if child.tag in GEOMETRY_SUBTREES:
+            continue
+        yield child
+        yield from _iter_painted(child)
+
+
 def cell_fills(root: ET.Element, span: int) -> list[str | None]:
     """
     The background colour of each cell, read before the chrome is stripped.
@@ -321,7 +335,7 @@ def cell_fills(root: ET.Element, span: int) -> list[str | None]:
     indistinguishable on the canvas.
     """
     fills: list[str | None] = [None] * span
-    for el in root.iter():
+    for el in _iter_painted(root):
         if not is_cell_chrome(el):
             continue
         fill = el.get("fill")
@@ -527,6 +541,10 @@ def main() -> None:
         s["span"] = span
         s["glyph"] = glyph
         s["cellFills"] = fills
+        # knit/empty are pure cell chrome with nothing left to paint once
+        # stripped; recorded explicitly so callers don't have to re-derive it
+        # by sniffing the glyph markup themselves.
+        s["hasGlyph"] = "<path" in glyph or "<rect" in glyph
         (ASSET_DIR / f"{s['slug']}.svg").write_text(glyph + "\n")
         print(f"  [{i}/{len(found)}] {s['slug']} ({span} cell{'s' if span != 1 else ''})",
               file=sys.stderr)
@@ -567,6 +585,7 @@ def main() -> None:
             f'    category: {json.dumps(s["category"])},',
             f'    span: {s["span"]},',
             f'    figmaNodeId: {json.dumps(s["id"])},',
+            f'    hasGlyph: {json.dumps(s["hasGlyph"])},',
         ]
         if any(s["cellFills"]):
             lines.append(f'    cellFills: {json.dumps(s["cellFills"])},')

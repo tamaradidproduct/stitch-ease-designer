@@ -57,7 +57,7 @@ export const useDocStore = create<DocState>((set, get) => {
     beginStroke: () => set({ stroke: [] }),
 
     endStroke: () => {
-      const { stroke, index, undoStack } = get();
+      const { stroke, undoStack } = get();
       if (!stroke) return;
       if (stroke.length === 0) {
         set({ stroke: null });
@@ -66,7 +66,6 @@ export const useDocStore = create<DocState>((set, get) => {
       // The stroke is already applied; bank a single inverse for all of it.
       const merged = mergeChanges(stroke);
       const inverse: Change = { added: merged.removed, removed: merged.added };
-      void index;
       set({ stroke: null, undoStack: [...undoStack, inverse], redoStack: [] });
     },
 
