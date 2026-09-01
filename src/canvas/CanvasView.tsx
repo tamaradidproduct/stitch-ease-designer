@@ -1,7 +1,9 @@
 import { useEffect, useRef } from "react";
 import { usePanZoom } from "../input/usePanZoom";
+import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
 import { render } from "./renderer";
+import { SpriteCache } from "./spriteCache";
 
 /**
  * React host for the canvas: owns sizing, devicePixelRatio, and the animation
@@ -27,6 +29,10 @@ export function CanvasView() {
       dirty.current = true;
     };
 
+    // A glyph finishing rasterisation has to trigger another frame, or it
+    // won't appear until something else happens to invalidate the canvas.
+    const sprites = new SpriteCache(markDirty);
+
     const resize = () => {
       const rect = canvas.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
@@ -43,7 +49,8 @@ export function CanvasView() {
     observer.observe(canvas);
     resize();
 
-    const unsubscribe = useUiStore.subscribe(markDirty);
+    const unsubscribeUi = useUiStore.subscribe(markDirty);
+    const unsubscribeDoc = useDocStore.subscribe(markDirty);
 
     let frame = 0;
     const loop = () => {
@@ -51,13 +58,14 @@ export function CanvasView() {
       if (!dirty.current) return;
       dirty.current = false;
 
-      const { camera, viewport, hover } = useUiStore.getState();
+      const { camera, viewport, hover, armedSymbolId } = useUiStore.getState();
+      const { index } = useDocStore.getState();
       const dpr = window.devicePixelRatio || 1;
 
       ctx.save();
       // Work in CSS pixels; the DPR scale is applied once, here.
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      render(ctx, { camera, viewport, hover });
+      render(ctx, { camera, viewport, hover, index, sprites, armedSymbolId });
       ctx.restore();
     };
     frame = requestAnimationFrame(loop);
@@ -69,7 +77,9 @@ export function CanvasView() {
     return () => {
       cancelAnimationFrame(frame);
       observer.disconnect();
-      unsubscribe();
+      unsubscribeUi();
+      unsubscribeDoc();
+      sprites.clear();
       media.removeEventListener("change", resize);
     };
   }, []);

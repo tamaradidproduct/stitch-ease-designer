@@ -15,6 +15,10 @@ type UiState = {
   /** True while space is held, which arms drag-to-pan. */
   spaceHeld: boolean;
   isPanning: boolean;
+  /** Symbol the next click will place, or null for the eraser. */
+  armedSymbolId: string | null;
+
+  setArmedSymbolId: (id: string | null) => void;
 
   setViewport: (vp: Viewport) => void;
   setHover: (cell: Cell | null) => void;
@@ -34,6 +38,9 @@ export const useUiStore = create<UiState>((set, get) => ({
   hover: null,
   spaceHeld: false,
   isPanning: false,
+  armedSymbolId: "knit",
+
+  setArmedSymbolId: (armedSymbolId) => set({ armedSymbolId }),
 
   setViewport: (viewport) => set({ viewport }),
 
