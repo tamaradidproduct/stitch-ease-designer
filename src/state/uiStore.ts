@@ -57,7 +57,10 @@ export const useUiStore = create<UiState>((set, get) => ({
 
   setPanning: (isPanning) => set({ isPanning }),
 
-  panByScreen: (dx, dy) => set({ camera: panByScreen(get().camera, dx, dy) }),
+  panByScreen: (dx, dy) => {
+    if (dx === 0 && dy === 0) return;
+    set({ camera: panByScreen(get().camera, dx, dy) });
+  },
 
   zoomAt: (factor, sx, sy) => {
     const { camera, viewport } = get();
