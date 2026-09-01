@@ -12,6 +12,13 @@ export type StitchSymbol = {
   span: number;
   /** Node it came from, so a symbol can be traced back to the library. */
   figmaNodeId: string;
+  /**
+   * Per-cell background overrides, one entry per span. Null means "use the
+   * theme's ordinary cell colour". Present only where the library gives a cell
+   * a meaningful tint — "no stitch" is distinguished from knit by its grey
+   * alone, so that colour is data, not decoration.
+   */
+  cellFills?: (string | null)[];
   /** Inline SVG, recolourable via currentColor, with no cell chrome. */
   glyph: string;
 };

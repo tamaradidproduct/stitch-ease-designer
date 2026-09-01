@@ -73,7 +73,9 @@ CATEGORY = {
     },
 }
 
-# Human labels for the picker. Anything absent falls back to a tidied slug.
+# Abbreviations the Figma description can't capture with the right casing.
+# Anything not listed here takes its label from the component's description,
+# which is where the prose ones live ("knit through back loop").
 LABELS = {
     "knit": "Knit",
     "purl": "Purl",
@@ -81,7 +83,7 @@ LABELS = {
     "k2tog": "K2tog",
     "k2tog_alt": "K2tog (alt)",
     "skpo": "SKPO / SSK",
-    "ssk_alt": "SSK (alt)",
+    "ssk_alt": "SSK / SKPO (alt)",
     "repeated": "Repeat",
     "ghost_purl": "Ghost purl",
     "empty": "No stitch",
@@ -94,17 +96,15 @@ LABELS = {
     "m1rp": "M1Rp",
     "central_double_decrease": "Central double decrease",
     "ssp": "SSP",
-    "marker": "Marker",
     "brk": "Brioche knit",
     "brp": "Brioche purl",
     "sk2po": "SK2PO",
-    "ktbl": "KTBL",
-    "ptbl": "PTBL",
-    "tk2tog": "TK2TOG",
-    "tssk": "TSSK",
-    "p3tog": "P3tog",
-    "p3": "K3/P3 (WS)",
     "pull_up_stitch": "Pull up stitch",
+}
+
+# Symbols in the library that aren't placeable stitches.
+EXCLUDE = {
+    "marker": "a 3px gutter line between columns, not a cell-aligned stitch",
 }
 
 
@@ -120,28 +120,33 @@ def die(msg: str, detail: list[str] | None = None) -> "NoReturn":  # type: ignor
 
 
 def load_token() -> str:
-    token = os.environ.get("FIGMA_TOKEN")
-    if token:
-        return token.strip()
-
     env = ROOT / ".env"
+    hint = [
+        "Set one for this shell:  export FIGMA_TOKEN=...",
+        f"or put FIGMA_TOKEN=... in {env}",
+        "(.env is gitignored; never commit or paste a token)",
+    ]
+
+    token = (os.environ.get("FIGMA_TOKEN") or "").strip()
+    if token:
+        return token
+
     if env.exists():
         for raw in env.read_text().splitlines():
             line = raw.strip()
             if not line or line.startswith("#") or "=" not in line:
                 continue
             key, _, value = line.partition("=")
-            if key.strip() == "FIGMA_TOKEN":
-                return value.strip().strip('"').strip("'")
+            if key.strip() != "FIGMA_TOKEN":
+                continue
+            value = value.strip().strip('"').strip("'")
+            # An empty value is its own failure: sending it to Figma just
+            # returns a 403 that looks like a bad token rather than a missing one.
+            if not value:
+                die(f"{env} has FIGMA_TOKEN set to an empty value", hint)
+            return value
 
-    die(
-        "no Figma token found",
-        [
-            "Set one for this shell:  export FIGMA_TOKEN=...",
-            f"or create {env} containing:  FIGMA_TOKEN=...",
-            "(.env is gitignored; never commit or paste a token)",
-        ],
-    )
+    die("no Figma token found", hint)
 
 
 def figma_get(path: str, token: str) -> dict:
@@ -190,20 +195,51 @@ def parse_name(name: str) -> tuple[str, dict[str, str]]:
     return kind, props
 
 
+def cable_parts(kind: str, props: dict[str, str]) -> tuple[str, str, str, bool, bool]:
+    """('2_1 Purl cable', {...}) -> ('2', '1', 'left', purl=True, hr=False)"""
+    m = re.match(r"\s*(\d+)_(\d+)\b", kind)
+    if not m:
+        raise ValueError(f"cable name has no leading 'a_b' counts: {kind!r}")
+    orientation = props.get("orientation")
+    if orientation not in ("left", "right"):
+        raise ValueError(f"cable is missing Orientation=Left|Right (got {props!r})")
+    return m.group(1), m.group(2), orientation, "purl" in kind.lower(), props.get("hr") == "true"
+
+
 def make_slug(kind: str, props: dict[str, str], bucket: str) -> str:
-    base = snake(kind)
+    """
+    Identity comes from the component NAME, which is structured and unique
+    across the library. Descriptions are prose ('knit through back loop') and
+    sometimes shared between two components, so they can't be identifiers.
+
+    Cable slugs are assembled to match the convention already used in the
+    library's own descriptions: 2_1_right_purl_cable_hr.
+    """
+    if bucket != "cable":
+        return snake(kind)
+
+    a, b, orientation, purl, hr = cable_parts(kind, props)
+    parts = [f"{a}_{b}", orientation]
+    if purl:
+        parts.append("purl")
+    parts.append("cable")
+    if hr:
+        parts.append("hr")
+    return "_".join(parts)
+
+
+def make_label(slug: str, kind: str, props: dict[str, str], bucket: str, description: str) -> str:
     if bucket == "cable":
-        # Some are named '1_1 Purl' rather than '1_1 Purl cable'; normalise so
-        # every cable slug reads the same way.
-        if not base.endswith("cable"):
-            base = f"{base}_cable"
-        orientation = props.get("orientation")
-        if orientation not in ("left", "right"):
-            raise ValueError(f"cable is missing Orientation (got {props!r})")
-        base = f"{base}_{orientation}"
-        if props.get("hr") == "true":
-            base = f"{base}_hr"
-    return base
+        a, b, orientation, purl, hr = cable_parts(kind, props)
+        return f"{a}/{b} {'purl ' if purl else ''}cable, {orientation}{' (HR)' if hr else ''}"
+    if slug in LABELS:
+        return LABELS[slug]
+    # Descriptions carry the readable meaning, and a couple list two names on
+    # separate lines ('ssk\nskpo').
+    if description:
+        text = " / ".join(part.strip() for part in description.splitlines() if part.strip())
+        return text[:1].upper() + text[1:]
+    return kind.strip()
 
 
 def categorise(slug: str, bucket: str) -> str:
@@ -233,8 +269,74 @@ def is_cell_chrome(el: ET.Element) -> bool:
 
 COLOUR_ATTRS = ("fill", "stroke")
 
+# Rects inside these define geometry (a clip region, a mask) rather than paint.
+# Stripping one leaves an empty clipPath, which clips away everything that
+# references it - that silently blanks every cable.
+GEOMETRY_SUBTREES = {
+    f"{{{SVG_NS}}}defs",
+    f"{{{SVG_NS}}}clipPath",
+    f"{{{SVG_NS}}}mask",
+    f"{{{SVG_NS}}}pattern",
+}
 
-def clean_svg(svg_text: str, slug: str) -> tuple[str, int]:
+
+def strip_cell_chrome(parent: ET.Element) -> int:
+    removed = 0
+    for child in list(parent):
+        if child.tag in GEOMETRY_SUBTREES:
+            continue
+        if is_cell_chrome(child):
+            parent.remove(child)
+            removed += 1
+        else:
+            removed += strip_cell_chrome(child)
+    return removed
+
+
+def to_rgba(fill: str | None, opacity: str | None) -> str | None:
+    """'#191B1F' + '0.1' -> 'rgba(25, 27, 31, 0.1)'."""
+    if not fill or fill == "none" or fill.startswith("url("):
+        return None
+    if not fill.startswith("#"):
+        return fill
+    h = fill.lstrip("#")
+    if len(h) == 3:
+        h = "".join(c * 2 for c in h)
+    if len(h) != 6:
+        return None
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    try:
+        a = float(opacity) if opacity is not None else 1.0
+    except ValueError:
+        a = 1.0
+    return f"rgba({r}, {g}, {b}, {a:g})"
+
+
+def cell_fills(root: ET.Element, span: int) -> list[str | None]:
+    """
+    The background colour of each cell, read before the chrome is stripped.
+
+    The fill is not decoration: 'empty' (no stitch) is distinguished from
+    'knit' purely by a grey tint, so discarding it would make the two
+    indistinguishable on the canvas.
+    """
+    fills: list[str | None] = [None] * span
+    for el in root.iter():
+        if not is_cell_chrome(el):
+            continue
+        fill = el.get("fill")
+        if not fill or fill == "none":
+            continue  # the border rect carries stroke only
+        try:
+            index = int(round(float(el.get("x", "0")) / CELL))
+        except ValueError:
+            continue
+        if 0 <= index < span and fills[index] is None:
+            fills[index] = to_rgba(fill, el.get("fill-opacity"))
+    return fills
+
+
+def clean_svg(svg_text: str, slug: str) -> tuple[str, int, list[str | None]]:
     try:
         root = ET.fromstring(svg_text)
     except ET.ParseError as e:
@@ -256,11 +358,10 @@ def clean_svg(svg_text: str, slug: str) -> tuple[str, int]:
         )
     span = int(round(width / CELL))
 
-    # Drop cell chrome anywhere in the tree, and recolour what's left.
-    for parent in root.iter():
-        for child in list(parent):
-            if is_cell_chrome(child):
-                parent.remove(child)
+    # Read the cell backgrounds before discarding them, then drop the chrome
+    # anywhere in the painted tree and recolour what's left.
+    fills = cell_fills(root, span)
+    strip_cell_chrome(root)
 
     for el in root.iter():
         for attr in COLOUR_ATTRS:
@@ -274,7 +375,7 @@ def clean_svg(svg_text: str, slug: str) -> tuple[str, int]:
 
     body = ET.tostring(root, encoding="unicode")
     body = body.replace(f' xmlns:ns0="{SVG_NS}"', "").replace("ns0:", "")
-    return body, span
+    return body, span, fills
 
 
 # --------------------------------------------------------------------------
@@ -304,6 +405,8 @@ def main() -> None:
     nodes = doc.get("nodes") or {}
     found: list[dict] = []
     problems: list[str] = []
+    skipped: list[str] = []
+    divergent: list[str] = []
     seen: dict[str, str] = {}
 
     for frame_id, bucket in FRAMES.items():
@@ -320,19 +423,18 @@ def main() -> None:
                 continue
             name = child.get("name", "")
             node_id = child["id"]
-
-            # An explicit description wins, so a symbol can be renamed in Figma
-            # without breaking documents that already reference its slug.
             description = (descriptions.get(node_id) or "").strip()
+
             try:
-                if description:
-                    slug = snake(description)
-                    kind, props = description, {}
-                else:
-                    kind, props = parse_name(name)
-                    slug = make_slug(kind, props, bucket)
+                kind, props = parse_name(name)
+                slug = make_slug(kind, props, bucket)
+                label = make_label(slug, kind, props, bucket, description)
             except ValueError as e:
                 problems.append(f"{node_id} {name!r}: {e}")
+                continue
+
+            if slug in EXCLUDE:
+                skipped.append(f"{slug}: {EXCLUDE[slug]}")
                 continue
 
             box = child.get("absoluteBoundingBox") or {}
@@ -348,12 +450,18 @@ def main() -> None:
                 continue
             seen[slug] = name
 
+            # Where a description also reads like a slug, it should agree with
+            # the name. A mismatch is legitimate (k2tog alt is *described* as
+            # k2tog) but worth surfacing so drift doesn't go unnoticed.
+            if re.fullmatch(r"[a-z0-9_]+", description) and description != slug:
+                divergent.append(f"{slug:<26} description says {description!r}")
+
             found.append(
                 {
                     "id": node_id,
                     "slug": slug,
                     "name": name,
-                    "label": LABELS.get(slug) or kind.strip(),
+                    "label": label,
                     "category": categorise(slug, bucket),
                     "reportedWidth": width,
                 }
@@ -370,10 +478,19 @@ def main() -> None:
     found.sort(key=lambda s: (s["category"], s["slug"]))
     print(f"found {len(found)} symbols", file=sys.stderr)
 
+    for line in skipped:
+        print(f"  skipped {line}", file=sys.stderr)
+    if divergent:
+        print("  name/description differ (not an error):", file=sys.stderr)
+        for line in divergent:
+            print(f"    {line}", file=sys.stderr)
+
     if args.dry_run:
         for s in found:
             cells = s["reportedWidth"] / CELL
-            print(f"  {s['slug']:<34} {s['category']:<9} ~{cells:g} cells  ({s['name']})")
+            print(
+                f"  {s['slug']:<26} {s['category']:<9} {cells:>4g} cells  {s['label']}"
+            )
         return
 
     # Export SVGs.
@@ -399,7 +516,7 @@ def main() -> None:
     for i, s in enumerate(found, 1):
         with urllib.request.urlopen(urls[s["id"]], timeout=60) as resp:
             raw = resp.read().decode("utf-8")
-        glyph, span = clean_svg(raw, s["slug"])
+        glyph, span, fills = clean_svg(raw, s["slug"])
 
         expected = int(round(s["reportedWidth"] / CELL))
         if span != expected:
@@ -409,9 +526,30 @@ def main() -> None:
 
         s["span"] = span
         s["glyph"] = glyph
+        s["cellFills"] = fills
         (ASSET_DIR / f"{s['slug']}.svg").write_text(glyph + "\n")
         print(f"  [{i}/{len(found)}] {s['slug']} ({span} cell{'s' if span != 1 else ''})",
               file=sys.stderr)
+
+    # The library's most common cell background is the ordinary one; the app
+    # theme owns that. Anything else is carrying meaning - the grey on 'empty'
+    # is what distinguishes no-stitch from knit - so it is kept explicitly.
+    counts: dict[str, int] = {}
+    for s in found:
+        for fill in s["cellFills"]:
+            if fill:
+                counts[fill] = counts.get(fill, 0) + 1
+    neutral = max(counts, key=lambda k: counts[k]) if counts else None
+    print(f"neutral cell fill: {neutral}", file=sys.stderr)
+
+    for s in found:
+        s["cellFills"] = [None if f == neutral else f for f in s["cellFills"]]
+
+    tinted = [s["slug"] for s in found if any(s["cellFills"])]
+    print(
+        f"symbols with a meaningful cell tint: {', '.join(tinted) or 'none'}",
+        file=sys.stderr,
+    )
 
     lines = [
         "// GENERATED BY scripts/sync-symbols.py - DO NOT EDIT BY HAND.",
@@ -429,6 +567,10 @@ def main() -> None:
             f'    category: {json.dumps(s["category"])},',
             f'    span: {s["span"]},',
             f'    figmaNodeId: {json.dumps(s["id"])},',
+        ]
+        if any(s["cellFills"]):
+            lines.append(f'    cellFills: {json.dumps(s["cellFills"])},')
+        lines += [
             f'    glyph: {json.dumps(s["glyph"])},',
             "  },",
         ]

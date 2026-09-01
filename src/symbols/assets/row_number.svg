@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+<mask id="path-1-inside-1_1_92" fill="currentColor">
+<path d="M0 0H24V24H0V0Z" />
+</mask>
+<path d="M0 0V0.5H24V0V-0.5H0V0ZM24 24V23.5H0V24V24.5H24V24Z" fill="currentColor" mask="url(#path-1-inside-1_1_92)" />
+<text fill="currentColor" style="white-space: pre" xml:space="preserve" font-family="Inter" font-size="12" letter-spacing="0em"><tspan x="9.16406" y="16.3636">1</tspan></text>
+</svg>

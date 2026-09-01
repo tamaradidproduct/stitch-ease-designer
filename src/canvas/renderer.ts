@@ -1,3 +1,5 @@
+import type { DocIndex } from "../model/docIndex";
+import { getSymbol } from "../symbols/registry";
 import {
   CELL,
   type Camera,
@@ -8,12 +10,17 @@ import {
   visibleCellBounds,
 } from "./camera";
 import { drawGrid, gridSteps } from "./grid";
+import type { SpriteCache } from "./spriteCache";
 import { RULER, theme } from "./theme";
 
 export type RenderState = {
   camera: Camera;
   viewport: Viewport;
   hover: Cell | null;
+  index: DocIndex;
+  sprites: SpriteCache;
+  /** Symbol armed in the toolbar, previewed under the cursor. */
+  armedSymbolId: string | null;
 };
 
 const ceilTo = (n: number, step: number) => Math.ceil(n / step) * step;
@@ -89,18 +96,79 @@ function drawRulers(ctx: CanvasRenderingContext2D, state: RenderState): void {
   ctx.stroke();
 }
 
+/**
+ * Stitches. Each covered cell gets its own chrome — that's how a knitting
+ * chart reads, with a cable's crossing drawn across several bordered cells —
+ * and the glyph is then blitted across the whole span.
+ */
+function drawPlacements(ctx: CanvasRenderingContext2D, state: RenderState): void {
+  const { camera: cam, viewport: vp, index, sprites } = state;
+  const size = cellPx(cam);
+  const bounds = visibleCellBounds(cam, vp, 1);
+  const drawChrome = size >= 3;
+
+  for (const p of index.query(bounds)) {
+    const symbol = getSymbol(p.symbolId);
+    const span = symbol?.span ?? 1;
+    const r = cellToScreenRect(p.col, p.row, cam, vp);
+    const width = size * span;
+
+    ctx.fillStyle = theme.cellFill;
+    ctx.fillRect(r.x, r.y, width, size);
+
+    // Overpaint only the cells the library tints. "No stitch" is grey and
+    // otherwise indistinguishable from knit, so this is meaning, not styling.
+    const fills = symbol?.cellFills;
+    if (fills) {
+      for (let i = 0; i < span; i++) {
+        const fill = fills[i];
+        if (!fill) continue;
+        ctx.fillStyle = fill;
+        ctx.fillRect(r.x + i * size, r.y, size, size);
+      }
+    }
+
+    if (drawChrome) {
+      ctx.strokeStyle = theme.cellStroke;
+      ctx.lineWidth = 1;
+      for (let i = 0; i < span; i++) {
+        ctx.strokeRect(
+          Math.round(r.x + i * size) + 0.5,
+          Math.round(r.y) + 0.5,
+          Math.round(size) - 1,
+          Math.round(size) - 1,
+        );
+      }
+    }
+
+    if (!symbol) continue;
+    // knit and empty are pure cell chrome in the library, so they have no
+    // glyph to draw — the bordered cell above is the whole symbol.
+    if (!symbol.glyph.includes("<path") && !symbol.glyph.includes("<rect")) continue;
+
+    const sprite = sprites.get(symbol, size, theme.symbol);
+    if (sprite) ctx.drawImage(sprite, r.x, r.y, width, size);
+  }
+}
+
 function drawHover(ctx: CanvasRenderingContext2D, state: RenderState): void {
-  const { camera: cam, viewport: vp, hover } = state;
+  const { camera: cam, viewport: vp, hover, armedSymbolId } = state;
   if (!hover) return;
   // Below this the outline is bigger than the cell and just looks like noise.
   if (cellPx(cam) < 4) return;
 
+  const size = cellPx(cam);
+  // Preview the armed symbol's full footprint, so it's obvious before clicking
+  // that a 3/3 cable is about to consume six cells.
+  const span = armedSymbolId ? (getSymbol(armedSymbolId)?.span ?? 1) : 1;
   const r = cellToScreenRect(hover.col, hover.row, cam, vp);
+  const width = size * span;
+
   ctx.fillStyle = theme.hoverFill;
-  ctx.fillRect(r.x, r.y, r.size, r.size);
+  ctx.fillRect(r.x, r.y, width, size);
   ctx.strokeStyle = theme.hoverStroke;
   ctx.lineWidth = 1.5;
-  ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.size - 1, r.size - 1);
+  ctx.strokeRect(r.x + 0.5, r.y + 0.5, width - 1, size - 1);
 }
 
 /**
@@ -114,6 +182,7 @@ export function render(ctx: CanvasRenderingContext2D, state: RenderState): void 
   ctx.fillRect(0, 0, vp.width, vp.height);
 
   drawGrid(ctx, state.camera, vp, theme);
+  drawPlacements(ctx, state);
   drawHover(ctx, state);
   drawRulers(ctx, state);
 }
