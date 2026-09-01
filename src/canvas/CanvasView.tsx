@@ -43,7 +43,18 @@ export function CanvasView() {
     observer.observe(canvas);
     resize();
 
-    const unsubscribe = useUiStore.subscribe(markDirty);
+    // Plain (non-selector) subscribe so we can diff exactly the fields the
+    // renderer reads; spaceHeld/isPanning changes (handled by the cursor
+    // selector above) shouldn't force an extra repaint.
+    const unsubscribe = useUiStore.subscribe((state, prev) => {
+      if (
+        state.camera !== prev.camera ||
+        state.viewport !== prev.viewport ||
+        state.hover !== prev.hover
+      ) {
+        markDirty();
+      }
+    });
 
     let frame = 0;
     const loop = () => {
@@ -62,15 +73,29 @@ export function CanvasView() {
     };
     frame = requestAnimationFrame(loop);
 
-    // devicePixelRatio changes when the window moves between displays.
-    const media = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
-    media.addEventListener("change", resize);
+    // devicePixelRatio changes when the window moves between displays. A
+    // MediaQueryList only fires once its match state flips relative to the
+    // DPR it was created with, so a single query can't track a window that
+    // hops across three or more displays (e.g. 1x -> 2x fires, but 2x -> 3x
+    // wouldn't flip the original 1x-based query) — recreate it on every fire
+    // so it's always watching the current DPR.
+    let media: MediaQueryList;
+    const watchDpr = () => {
+      media = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+      media.addEventListener("change", onDprChange);
+    };
+    const onDprChange = () => {
+      media.removeEventListener("change", onDprChange);
+      resize();
+      watchDpr();
+    };
+    watchDpr();
 
     return () => {
       cancelAnimationFrame(frame);
       observer.disconnect();
       unsubscribe();
-      media.removeEventListener("change", resize);
+      media.removeEventListener("change", onDprChange);
     };
   }, []);
 

@@ -6,6 +6,7 @@ import {
   visibleCellBounds,
   worldToScreen,
 } from "./camera";
+import { ceilTo } from "./math";
 
 /**
  * Grid level-of-detail.
@@ -31,8 +32,20 @@ export function gridSteps(cam: Camera): GridSteps {
   return { minor, major };
 }
 
-/** Smallest multiple of `step` that is >= n. */
-const ceilTo = (n: number, step: number) => Math.ceil(n / step) * step;
+/**
+ * Step between ruler labels: the smallest rung of the same major ladder that
+ * both keeps labels no closer than `minSpacingPx` apart and never falls
+ * below the grid's own major line step (labels shouldn't be denser than the
+ * lines they annotate).
+ */
+export function labelStep(cam: Camera, minSpacingPx = 48): number {
+  const { major } = gridSteps(cam);
+  const px = cellPx(cam);
+  return (
+    MAJOR_LADDER.find((s) => s >= major && s * px >= minSpacingPx) ??
+    MAJOR_LADDER[MAJOR_LADDER.length - 1]!
+  );
+}
 
 /** Crisp 1px lines: land on a half-pixel so the stroke doesn't straddle two. */
 const crisp = (v: number) => Math.round(v) + 0.5;
@@ -74,8 +87,9 @@ export function drawGrid(
   // The origin axes, so "home" is always findable on an unbounded canvas.
   ctx.strokeStyle = theme.axis;
   ctx.beginPath();
-  const ox = crisp(worldToScreen(0, 0, cam, vp).x);
-  const oy = crisp(worldToScreen(0, 0, cam, vp).y);
+  const origin = worldToScreen(0, 0, cam, vp);
+  const ox = crisp(origin.x);
+  const oy = crisp(origin.y);
   ctx.moveTo(ox, 0);
   ctx.lineTo(ox, vp.height);
   ctx.moveTo(0, oy);

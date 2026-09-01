@@ -7,7 +7,8 @@ import {
   cellToScreenRect,
   visibleCellBounds,
 } from "./camera";
-import { drawGrid, gridSteps } from "./grid";
+import { drawGrid, labelStep } from "./grid";
+import { ceilTo } from "./math";
 import { RULER, theme } from "./theme";
 
 export type RenderState = {
@@ -15,8 +16,6 @@ export type RenderState = {
   viewport: Viewport;
   hover: Cell | null;
 };
-
-const ceilTo = (n: number, step: number) => Math.ceil(n / step) * step;
 
 /**
  * Row and column rulers pinned to the top and left edges.
@@ -28,8 +27,6 @@ const ceilTo = (n: number, step: number) => Math.ceil(n / step) * step;
 function drawRulers(ctx: CanvasRenderingContext2D, state: RenderState): void {
   const { camera: cam, viewport: vp, hover } = state;
   const b = visibleCellBounds(cam, vp, 0);
-  const { major } = gridSteps(cam);
-  const px = cellPx(cam);
 
   ctx.fillStyle = theme.rulerBackground;
   ctx.fillRect(0, 0, vp.width, RULER);
@@ -60,9 +57,9 @@ function drawRulers(ctx: CanvasRenderingContext2D, state: RenderState): void {
 
   // Labelling every major cell gets dense when cells are tiny; step up until
   // the labels have room to breathe.
-  const labelStep = Math.max(major, ceilTo(48 / Math.max(px, 0.0001), major) || major);
+  const step = labelStep(cam);
 
-  for (let col = ceilTo(b.minCol, labelStep); col <= b.maxCol; col += labelStep) {
+  for (let col = ceilTo(b.minCol, step); col <= b.maxCol; col += step) {
     const r = cellToScreenRect(col, 0, cam, vp);
     const x = r.x + r.size / 2;
     if (x < RULER) continue;
@@ -70,7 +67,7 @@ function drawRulers(ctx: CanvasRenderingContext2D, state: RenderState): void {
     ctx.fillText(String(col), x, RULER / 2);
   }
 
-  for (let row = ceilTo(b.minRow, labelStep); row <= b.maxRow; row += labelStep) {
+  for (let row = ceilTo(b.minRow, step); row <= b.maxRow; row += step) {
     const r = cellToScreenRect(0, row, cam, vp);
     const y = r.y + r.size / 2;
     if (y < RULER) continue;
