@@ -1,5 +1,6 @@
 import type { DocIndex } from "../model/docIndex";
 import { getSymbol } from "../symbols/registry";
+import type { StitchSymbol } from "../symbols/types";
 import {
   CELL,
   type Camera,
@@ -161,12 +162,7 @@ function drawAddState(
 ): void {
   const { x, y, size } = r;
 
-  ctx.save();
-  ctx.setLineDash([Math.max(3, size * 0.14), Math.max(2.5, size * 0.1)]);
-  ctx.strokeStyle = theme.hoverStroke;
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(x + 1, y + 1, size - 2, size - 2);
-  ctx.restore();
+  strokeDashedRect(ctx, x + 1, y + 1, size - 2, size - 2, size);
 
   // Too small a cell makes a corner badge an illegible smudge; the dashed
   // border alone still reads fine at that zoom.
@@ -193,6 +189,98 @@ function drawAddState(
   ctx.stroke();
 }
 
+/** The dashed outline shared by every "not committed yet" preview state. */
+function strokeDashedRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  unit: number,
+): void {
+  ctx.save();
+  ctx.setLineDash([Math.max(3, unit * 0.14), Math.max(2.5, unit * 0.1)]);
+  ctx.strokeStyle = theme.hoverStroke;
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(x, y, w, h);
+  ctx.restore();
+}
+
+/**
+ * The armed-stitch preview: a translucent rendition of the REAL stitch — its
+ * actual cell chrome, tint, and glyph colour, at reduced opacity — rather
+ * than a plain highlight box with a blue-tinted icon. What's about to land
+ * should read as itself, just not real yet, so every colour here is exactly
+ * what drawPlacements uses for a placed stitch. The dashed outline is what
+ * still marks it as a preview: it's the same "not committed" language as the
+ * add-state border, on top of the same look a placed stitch has underneath.
+ */
+function drawArmedPreview(
+  ctx: CanvasRenderingContext2D,
+  symbol: StitchSymbol,
+  r: { x: number; y: number },
+  size: number,
+  span: number,
+  sprites: SpriteCache,
+): void {
+  const width = size * span;
+  const drawChrome = size >= 3;
+
+  ctx.save();
+  ctx.globalAlpha = 0.62;
+
+  for (let i = 0; i < span; i++) {
+    ctx.fillStyle = theme.cellFill;
+    ctx.fillRect(r.x + i * size, r.y, size, size);
+  }
+
+  const fills = symbol.cellFills;
+  if (fills) {
+    for (let i = 0; i < span; i++) {
+      const fill = fills[i];
+      if (!fill) continue;
+      ctx.fillStyle = fill;
+      ctx.fillRect(r.x + i * size, r.y, size, size);
+    }
+  }
+
+  if (drawChrome) {
+    ctx.strokeStyle = theme.cellStroke;
+    ctx.lineWidth = 1;
+    for (let i = 0; i < span; i++) {
+      ctx.strokeRect(
+        Math.round(r.x + i * size) + 0.5,
+        Math.round(r.y) + 0.5,
+        Math.round(size) - 1,
+        Math.round(size) - 1,
+      );
+    }
+  }
+
+  if (symbol.glyph.includes("<path") || symbol.glyph.includes("<rect")) {
+    const sprite = sprites.get(symbol, size, theme.symbol);
+    if (sprite) ctx.drawImage(sprite, r.x, r.y, width, size);
+  }
+
+  ctx.restore();
+
+  strokeDashedRect(ctx, r.x + 1, r.y + 1, width - 2, size - 2, size);
+}
+
+/** The plain highlight for hovering a cell that already has a stitch, with
+ * nothing armed — clicking here opens the picker to edit it, not paint. */
+function drawEditHighlight(
+  ctx: CanvasRenderingContext2D,
+  r: { x: number; y: number },
+  size: number,
+): void {
+  ctx.fillStyle = theme.hoverFill;
+  ctx.fillRect(r.x, r.y, size, size);
+  ctx.strokeStyle = theme.hoverStroke;
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(r.x + 0.5, r.y + 0.5, size - 1, size - 1);
+}
+
 function drawHover(ctx: CanvasRenderingContext2D, state: RenderState): void {
   const { camera: cam, viewport: vp, hover, armedSymbolId, sprites, index } = state;
   if (!hover) return;
@@ -201,33 +289,19 @@ function drawHover(ctx: CanvasRenderingContext2D, state: RenderState): void {
 
   const size = cellPx(cam);
   const symbol = armedSymbolId ? getSymbol(armedSymbolId) : undefined;
-  // Preview the armed symbol's full footprint, so it's obvious before clicking
-  // that a 3/3 cable is about to consume six cells.
-  const span = symbol?.span ?? 1;
   const r = cellToScreenRect(hover.col, hover.row, cam, vp);
-  const width = size * span;
 
-  if (!symbol && !index.placementAt(hover.col, hover.row)) {
-    drawAddState(ctx, { x: r.x, y: r.y, size });
+  if (symbol) {
+    // Preview the armed symbol's full footprint, so it's obvious before
+    // clicking that a 3/3 cable is about to consume six cells.
+    drawArmedPreview(ctx, symbol, r, size, symbol.span, sprites);
     return;
   }
 
-  ctx.fillStyle = theme.hoverFill;
-  ctx.fillRect(r.x, r.y, width, size);
-  ctx.strokeStyle = theme.hoverStroke;
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(r.x + 0.5, r.y + 0.5, width - 1, size - 1);
-
-  // Show what will actually land there, not just its footprint — the glyph
-  // itself, faded so it still reads as a preview rather than a placed stitch.
-  if (symbol && (symbol.glyph.includes("<path") || symbol.glyph.includes("<rect"))) {
-    const sprite = sprites.get(symbol, size, theme.hoverStroke);
-    if (sprite) {
-      ctx.save();
-      ctx.globalAlpha = 0.55;
-      ctx.drawImage(sprite, r.x, r.y, width, size);
-      ctx.restore();
-    }
+  if (index.placementAt(hover.col, hover.row)) {
+    drawEditHighlight(ctx, r, size);
+  } else {
+    drawAddState(ctx, { x: r.x, y: r.y, size });
   }
 }
 
