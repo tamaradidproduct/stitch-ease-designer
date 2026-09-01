@@ -19,6 +19,45 @@ const CATEGORY_LABEL: Record<string, string> = {
   special: "Special",
 };
 
+const CATEGORY_ORDER = ["basic", "decrease", "increase", "cable", "brioche", "special"];
+
+type Section = { key: string; title: string | null; symbols: StitchSymbol[] };
+
+/**
+ * Grouped sections for a query: recents lead when there's no query at all,
+ * searching drops them so the ranking isn't fighting a pinned section.
+ * Pulled out of the component so the reset-on-reopen effect can compute the
+ * same "no query" ordering the picker will render into, without waiting for
+ * the query state reset to actually take effect first.
+ */
+function buildSections(query: string, recentIds: string[]): Section[] {
+  const results = searchSymbols(allSymbols(), query);
+  if (query.trim()) return [{ key: "results", title: null, symbols: results }];
+
+  const recent = recentIds
+    .map((id) => getSymbol(id))
+    .filter((s): s is StitchSymbol => !!s);
+
+  const byCategory = new Map<string, StitchSymbol[]>();
+  for (const s of results) {
+    let group = byCategory.get(s.category);
+    if (!group) byCategory.set(s.category, (group = []));
+    group.push(s);
+  }
+  const groups = [...byCategory.entries()].sort(
+    ([a], [b]) => CATEGORY_ORDER.indexOf(a) - CATEGORY_ORDER.indexOf(b),
+  );
+
+  return [
+    ...(recent.length ? [{ key: "recent", title: "Recent", symbols: recent }] : []),
+    ...groups.map(([category, symbols]) => ({
+      key: category,
+      title: CATEGORY_LABEL[category] ?? category,
+      symbols,
+    })),
+  ];
+}
+
 /** Cables are up to 12 cells wide; shrink the cell so the whole span fits. */
 const cellSizeFor = (symbol: StitchSymbol) =>
   Math.max(9, Math.min(22, Math.floor(GLYPH_BUDGET / symbol.span)));
@@ -37,45 +76,33 @@ export function StitchPicker() {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [pos, setPos] = useState({ left: 0, top: 0 });
 
-  // Recents lead when there's no query; searching drops them so the ranking
-  // isn't fighting a pinned section.
-  const sections = useMemo(() => {
-    const results = searchSymbols(allSymbols(), query);
-    if (query.trim()) return [{ key: "results", title: null, symbols: results }];
-
-    const recent = recentIds
-      .map((id) => getSymbol(id))
-      .filter((s): s is StitchSymbol => !!s);
-
-    const byCategory = new Map<string, StitchSymbol[]>();
-    for (const s of results) {
-      let group = byCategory.get(s.category);
-      if (!group) byCategory.set(s.category, (group = []));
-      group.push(s);
-    }
-    const order = ["basic", "decrease", "increase", "cable", "brioche", "special"];
-    const groups = [...byCategory.entries()].sort(
-      ([a], [b]) => order.indexOf(a) - order.indexOf(b),
-    );
-
-    return [
-      ...(recent.length ? [{ key: "recent", title: "Recent", symbols: recent }] : []),
-      ...groups.map(([category, symbols]) => ({
-        key: category,
-        title: CATEGORY_LABEL[category] ?? category,
-        symbols,
-      })),
-    ];
-  }, [query, recentIds]);
+  const sections = useMemo(() => buildSections(query, recentIds), [query, recentIds]);
 
   // Flat order is what the arrow keys walk, so it must match render order.
   const flat = useMemo(() => sections.flatMap((s) => s.symbols), [sections]);
 
-  useEffect(() => setActive(0), [query]);
-
+  // The picker never unmounts — it just renders null while closed — so a
+  // mount-only effect would focus and reset state exactly once, the first
+  // time it ever opens, and never again. Keying on `target` instead makes
+  // every open behave like a fresh one: a stale search from the last cell
+  // doesn't carry over, and if this cell already has a stitch, the list
+  // starts on it rather than always at the top.
   useEffect(() => {
+    if (!target) return;
+    setQuery("");
     inputRef.current?.focus();
-  }, []);
+
+    if (target.currentSymbolId) {
+      const initial = buildSections("", recentIds).flatMap((s) => s.symbols);
+      const at = initial.findIndex((s) => s.id === target.currentSymbolId);
+      setActive(at >= 0 ? at : 0);
+    } else {
+      setActive(0);
+    }
+    // Only the identity of `target` should retrigger this — recentIds and
+    // query are read fresh inside, not watched.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target]);
 
   // Keep the popover on screen when the clicked cell is near an edge.
   useLayoutEffect(() => {
@@ -106,6 +133,11 @@ export function StitchPicker() {
   }, [closePicker]);
 
   if (!target) return null;
+
+  const currentSymbol = target.currentSymbolId ? getSymbol(target.currentSymbolId) : undefined;
+  const placeholder = currentSymbol
+    ? `Replace ${currentSymbol.label} at col ${target.col}, row ${target.row}`
+    : `Add a stitch at col ${target.col}, row ${target.row}`;
 
   const choose = (symbol: StitchSymbol) => {
     place(symbol.id, target.col, target.row);
@@ -144,9 +176,12 @@ export function StitchPicker() {
         <input
           ref={inputRef}
           className="picker__search"
-          placeholder={`Add a stitch at col ${target.col}, row ${target.row}`}
+          placeholder={placeholder}
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setActive(0);
+          }}
           spellCheck={false}
         />
         <button
@@ -191,6 +226,9 @@ export function StitchPicker() {
                     <SymbolGlyph symbol={symbol} cell={cellSizeFor(symbol)} />
                   </span>
                   <span className="picker__label">{symbol.label}</span>
+                  {symbol.id === target.currentSymbolId && (
+                    <span className="picker__current">current</span>
+                  )}
                   {symbol.span > 1 && (
                     <span className="picker__span">{symbol.span} sts</span>
                   )}

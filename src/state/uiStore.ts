@@ -11,7 +11,14 @@ import {
 export type Tool = "stitch" | "eraser";
 
 /** Where the picker is anchored: which cell it will fill, and where to draw it. */
-export type PickerTarget = { col: number; row: number; x: number; y: number };
+export type PickerTarget = {
+  col: number;
+  row: number;
+  x: number;
+  y: number;
+  /** The stitch already occupying this cell, if any — the picker is editing it. */
+  currentSymbolId?: string;
+};
 
 /** How many recently used symbols the picker keeps at the top. */
 const RECENT_LIMIT = 12;

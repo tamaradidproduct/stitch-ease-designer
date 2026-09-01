@@ -42,7 +42,14 @@ export function useShortcuts(): void {
       if (e.key === "/" && ui.hover) {
         e.preventDefault();
         const r = cellToScreenRect(ui.hover.col, ui.hover.row, ui.camera, ui.viewport);
-        ui.openPicker({ col: ui.hover.col, row: ui.hover.row, x: r.x + 8, y: r.y + 8 });
+        const existing = doc.index.placementAt(ui.hover.col, ui.hover.row);
+        ui.openPicker({
+          col: ui.hover.col,
+          row: ui.hover.row,
+          x: r.x + 8,
+          y: r.y + 8,
+          ...(existing ? { currentSymbolId: existing.symbolId } : null),
+        });
         return;
       }
 

@@ -7,10 +7,16 @@ import { useUiStore } from "../state/uiStore";
 /**
  * Placing and erasing stitches.
  *
- *   click            place the armed stitch, or open the picker if none is armed
- *   drag             paint the armed stitch across cells
- *   right / alt      erase
- *   double click     reopen the picker at that cell
+ *   click empty cell      place the armed stitch, or open the picker if none is armed
+ *   click filled cell     open the picker to edit it, rather than painting over it
+ *   drag                  paint the armed stitch across cells, filled or not
+ *   right / alt           erase
+ *   double click          reopen the picker at that cell
+ *
+ * A click and a drag start the same way, so the filled-cell check only applies
+ * to the initial pointerdown — once a stroke is underway, dragging across
+ * already-filled cells keeps painting through them as normal. Erasing is
+ * unaffected either way: erase is already the "edit this cell" action.
  *
  * Pan gestures win: space-drag and middle-drag are handled by usePanZoom, and
  * this hook stays out of the way when either is in play.
@@ -61,15 +67,22 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       if (!cell) return;
 
       const wantsErase = e.button === 2 || e.altKey || ui().tool === "eraser";
-      if (!wantsErase && !ui().armedSymbolId) {
-        const rect = canvas.getBoundingClientRect();
-        ui().openPicker({
-          col: cell.col,
-          row: cell.row,
-          x: e.clientX - rect.left + 8,
-          y: e.clientY - rect.top + 8,
-        });
-        return;
+      if (!wantsErase) {
+        const existing = doc().index.placementAt(cell.col, cell.row);
+        // A click on a stitch that's already there opens the picker to swap
+        // it, the same as clicking empty space with nothing armed — clicking
+        // never silently overwrites a placed stitch.
+        if (existing || !ui().armedSymbolId) {
+          const rect = canvas.getBoundingClientRect();
+          ui().openPicker({
+            col: cell.col,
+            row: cell.row,
+            x: e.clientX - rect.left + 8,
+            y: e.clientY - rect.top + 8,
+            ...(existing ? { currentSymbolId: existing.symbolId } : null),
+          });
+          return;
+        }
       }
 
       if (e.button !== 0 && e.button !== 2) return;
@@ -106,11 +119,13 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       const cell = cellAt(e);
       if (!cell) return;
       const rect = canvas.getBoundingClientRect();
+      const existing = doc().index.placementAt(cell.col, cell.row);
       ui().openPicker({
         col: cell.col,
         row: cell.row,
         x: e.clientX - rect.left + 8,
         y: e.clientY - rect.top + 8,
+        ...(existing ? { currentSymbolId: existing.symbolId } : null),
       });
     };
 
