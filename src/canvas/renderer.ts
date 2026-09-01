@@ -148,8 +148,53 @@ function drawPlacements(ctx: CanvasRenderingContext2D, state: RenderState): void
   }
 }
 
+/**
+ * The "nothing here yet, click to add" affordance for an empty cell with
+ * nothing armed. Deliberately NOT a plus centered in the cell — that's
+ * exactly the size and position a stitch glyph occupies, so it would read as
+ * one at a glance. A dashed border (stitches are always solid-stroked) and a
+ * small badge tucked in the corner instead of the centre keep it unambiguous.
+ */
+function drawAddState(
+  ctx: CanvasRenderingContext2D,
+  r: { x: number; y: number; size: number },
+): void {
+  const { x, y, size } = r;
+
+  ctx.save();
+  ctx.setLineDash([Math.max(3, size * 0.14), Math.max(2.5, size * 0.1)]);
+  ctx.strokeStyle = theme.hoverStroke;
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(x + 1, y + 1, size - 2, size - 2);
+  ctx.restore();
+
+  // Too small a cell makes a corner badge an illegible smudge; the dashed
+  // border alone still reads fine at that zoom.
+  if (size < 13) return;
+
+  const radius = Math.min(size * 0.2, 8);
+  const cx = x + size - radius - 3;
+  const cy = y + size - radius - 3;
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.fillStyle = theme.hoverStroke;
+  ctx.fill();
+
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = Math.max(1.2, radius * 0.28);
+  ctx.lineCap = "round";
+  const arm = radius * 0.45;
+  ctx.beginPath();
+  ctx.moveTo(cx - arm, cy);
+  ctx.lineTo(cx + arm, cy);
+  ctx.moveTo(cx, cy - arm);
+  ctx.lineTo(cx, cy + arm);
+  ctx.stroke();
+}
+
 function drawHover(ctx: CanvasRenderingContext2D, state: RenderState): void {
-  const { camera: cam, viewport: vp, hover, armedSymbolId, sprites } = state;
+  const { camera: cam, viewport: vp, hover, armedSymbolId, sprites, index } = state;
   if (!hover) return;
   // Below this the outline is bigger than the cell and just looks like noise.
   if (cellPx(cam) < 4) return;
@@ -161,6 +206,11 @@ function drawHover(ctx: CanvasRenderingContext2D, state: RenderState): void {
   const span = symbol?.span ?? 1;
   const r = cellToScreenRect(hover.col, hover.row, cam, vp);
   const width = size * span;
+
+  if (!symbol && !index.placementAt(hover.col, hover.row)) {
+    drawAddState(ctx, { x: r.x, y: r.y, size });
+    return;
+  }
 
   ctx.fillStyle = theme.hoverFill;
   ctx.fillRect(r.x, r.y, width, size);
