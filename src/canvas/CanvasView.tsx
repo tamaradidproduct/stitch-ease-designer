@@ -93,14 +93,24 @@ export function CanvasView() {
       if (!dirty.current) return;
       dirty.current = false;
 
-      const { camera, viewport, hover, armedSymbolId } = useUiStore.getState();
+      const { camera, viewport, hover, armedSymbolId, picker } = useUiStore.getState();
       const { index } = useDocStore.getState();
       const dpr = window.devicePixelRatio || 1;
 
       ctx.save();
       // Work in CSS pixels; the DPR scale is applied once, here.
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      render(ctx, { camera, viewport, hover, index, sprites, armedSymbolId });
+      // While the picker is open, the cursor isn't armed to place anything —
+      // showing the stitch preview underneath the popover would suggest a
+      // click still drops a stitch where it doesn't.
+      render(ctx, {
+        camera,
+        viewport,
+        hover,
+        index,
+        sprites,
+        armedSymbolId: picker ? null : armedSymbolId,
+      });
       ctx.restore();
     };
     frame = requestAnimationFrame(loop);

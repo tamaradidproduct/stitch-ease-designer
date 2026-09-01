@@ -247,11 +247,18 @@ body {
   overflow: hidden;
 }
 
-.picker__search {
+.picker__header {
+  display: flex;
+  align-items: stretch;
   flex: none;
+  border-bottom: 1px solid var(--border);
+}
+
+.picker__search {
+  flex: 1;
+  min-width: 0;
   padding: 9px 11px;
   border: none;
-  border-bottom: 1px solid var(--border);
   font: inherit;
   color: var(--text);
   outline: none;
@@ -259,6 +266,24 @@ body {
 
 .picker__search::placeholder {
   color: var(--text-muted);
+}
+
+.picker__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 34px;
+  border: none;
+  border-left: 1px solid var(--border);
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.picker__close:hover {
+  color: var(--text);
+  background: var(--chrome);
 }
 
 .picker__list {

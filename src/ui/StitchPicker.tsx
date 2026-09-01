@@ -140,14 +140,33 @@ export function StitchPicker() {
       style={{ left: pos.left, top: pos.top, width: WIDTH, maxHeight: MAX_HEIGHT }}
       onKeyDown={onKeyDown}
     >
-      <input
-        ref={inputRef}
-        className="picker__search"
-        placeholder={`Add a stitch at col ${target.col}, row ${target.row}`}
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        spellCheck={false}
-      />
+      <div className="picker__header">
+        <input
+          ref={inputRef}
+          className="picker__search"
+          placeholder={`Add a stitch at col ${target.col}, row ${target.row}`}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          spellCheck={false}
+        />
+        <button
+          type="button"
+          className="picker__close"
+          onClick={closePicker}
+          aria-label="Close"
+          title="Close (Esc)"
+        >
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+            <path
+              d="M3.5 3.5l9 9m0-9l-9 9"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              fill="none"
+            />
+          </svg>
+        </button>
+      </div>
 
       <div className="picker__list" ref={listRef}>
         {flat.length === 0 && <div className="picker__empty">No stitch matches that.</div>}
