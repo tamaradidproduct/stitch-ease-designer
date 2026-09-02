@@ -1,7 +1,19 @@
 import { create } from "zustand";
 import { DocIndex } from "../model/docIndex";
 import { apply, eraseChange, mergeChanges, placeChange } from "../model/ops";
-import { isEmptyChange, type Change, type Placement } from "../model/types";
+import { isEmptyChange, type Change, type DocMeta, type Placement } from "../model/types";
+import type { LoadedChart } from "../storage/DocStore";
+
+/**
+ * Where the open chart stands with storage.
+ *
+ * Note there's no "dirty" here: unsaved work is `revision !== savedRevision`,
+ * derived rather than tracked, so the two can't disagree.
+ *
+ * `conflict` is sticky until the user resolves it. Autosave stops while it
+ * holds, so a chart changed in another tab can't be quietly overwritten.
+ */
+export type SaveStatus = "idle" | "saving" | "conflict" | "error";
 
 type DocState = {
   index: DocIndex;
@@ -10,6 +22,16 @@ type DocState = {
    * subscribers watch instead of identity.
    */
   revision: number;
+
+  /** The open chart's metadata, or null when none is open. */
+  meta: DocMeta | null;
+  /** The `revision` last written to storage. */
+  savedRevision: number;
+  status: SaveStatus;
+  /** Accompanies `conflict`/`error`, for the UI to show. */
+  statusDetail: string | null;
+  /** Symbols the stored chart referenced that this build's library lacks. */
+  unknownSymbolIds: string[];
 
   undoStack: Change[];
   redoStack: Change[];
@@ -24,7 +46,18 @@ type DocState = {
   redo: () => void;
   load: (placements: Placement[]) => void;
   clear: () => void;
+
+  /** Replace everything with a chart from storage. */
+  openChart: (loaded: LoadedChart) => void;
+  closeChart: () => void;
+  /** Storage accepted a write made at `revision`. */
+  markSaved: (meta: DocMeta, revision: number) => void;
+  setStatus: (status: SaveStatus, detail?: string | null) => void;
+  /** After a rename, which changes the rev without touching the stitches. */
+  setMeta: (meta: DocMeta) => void;
 };
+
+export const selectIsDirty = (s: DocState): boolean => s.revision !== s.savedRevision;
 
 export const useDocStore = create<DocState>((set, get) => {
   /** Run a change, then either bank it as history or fold it into the stroke. */
@@ -44,12 +77,28 @@ export const useDocStore = create<DocState>((set, get) => {
     }
   };
 
-  return {
+  /**
+   * Everything that has to be dropped when a different chart is opened.
+   *
+   * Undo above all: left in place, an undo after switching charts would apply
+   * the previous chart's inverse changes to this one and resurrect stitches
+   * that were never here.
+   */
+  const blank = () => ({
     index: DocIndex.from([]),
-    revision: 0,
-    undoStack: [],
-    redoStack: [],
+    undoStack: [] as Change[],
+    redoStack: [] as Change[],
     stroke: null,
+  });
+
+  return {
+    ...blank(),
+    revision: 0,
+    meta: null,
+    savedRevision: 0,
+    status: "idle" as SaveStatus,
+    statusDetail: null,
+    unknownSymbolIds: [],
 
     place: (symbolId, col, row) => commit(placeChange(get().index, symbolId, col, row)),
     erase: (col, row) => commit(eraseChange(get().index, col, row)),
@@ -94,21 +143,42 @@ export const useDocStore = create<DocState>((set, get) => {
     },
 
     load: (placements) =>
+      set({ ...blank(), index: DocIndex.from(placements), revision: get().revision + 1 }),
+
+    clear: () => set({ ...blank(), revision: get().revision + 1 }),
+
+    openChart: ({ meta, placements, unknownSymbolIds }) => {
+      const revision = get().revision + 1;
       set({
+        ...blank(),
         index: DocIndex.from(placements),
+        revision,
+        // Freshly loaded is by definition saved, so autosave doesn't
+        // immediately rewrite what it just read.
+        savedRevision: revision,
+        meta,
+        status: "idle",
+        statusDetail: null,
+        unknownSymbolIds,
+      });
+    },
+
+    closeChart: () =>
+      set({
+        ...blank(),
         revision: get().revision + 1,
-        undoStack: [],
-        redoStack: [],
-        stroke: null,
+        savedRevision: get().revision + 1,
+        meta: null,
+        status: "idle",
+        statusDetail: null,
+        unknownSymbolIds: [],
       }),
 
-    clear: () =>
-      set({
-        index: DocIndex.from([]),
-        revision: get().revision + 1,
-        undoStack: [],
-        redoStack: [],
-        stroke: null,
-      }),
+    markSaved: (meta, revision) =>
+      set({ meta, savedRevision: revision, status: "idle", statusDetail: null }),
+
+    setStatus: (status, detail = null) => set({ status, statusDetail: detail }),
+
+    setMeta: (meta) => set({ meta }),
   };
 });

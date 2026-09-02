@@ -1,20 +1,20 @@
-import { CanvasView } from "./canvas/CanvasView";
-import { StatusBar } from "./ui/StatusBar";
-import { StitchPicker } from "./ui/StitchPicker";
-import { Toolbar } from "./ui/Toolbar";
+import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
+import { ChartEditor } from "./ui/ChartEditor";
+import { ChartList } from "./ui/ChartList";
 
+/**
+ * Hash routing, not browser history: GitHub Pages serves static files with no
+ * server-side rewrites, so a deep link like /c/abc would 404 on refresh.
+ * `#/c/abc` is always served by index.html.
+ */
 export default function App() {
   return (
-    <div className="app">
-      <header className="topbar">
-        <span className="topbar__title">Stitch Ease Designer</span>
-      </header>
-      <Toolbar />
-      <main className="stage">
-        <CanvasView />
-        <StitchPicker />
-      </main>
-      <StatusBar />
-    </div>
+    <HashRouter>
+      <Routes>
+        <Route path="/" element={<ChartList />} />
+        <Route path="/c/:id" element={<ChartEditor />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </HashRouter>
   );
 }
