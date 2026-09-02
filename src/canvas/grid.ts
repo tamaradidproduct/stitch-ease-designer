@@ -58,8 +58,17 @@ const crisp = (v: number) => Math.round(v) + 0.5;
  * range in cellPx (screen px per cell) is generous on purpose: most working
  * zoom levels sit inside it, so the size change reads as a smooth response to
  * zoom rather than snapping to the clamped ends during normal use.
+ *
+ * The floor matters more than it looks: a placed stitch's own cell border is
+ * a constant 1px hairline at every zoom (see drawPlacements in renderer.ts),
+ * so a chart's contrast against the background is set by that fixed line
+ * against whatever the dots are doing. A dot floor at 1.1px radius (~2.2px of
+ * filled "ink") is visually heavier than that 1px stroke — the background
+ * was out-weighing the chart's own borders once zoomed out, which is exactly
+ * what made a chart read as lost in the dots rather than sitting on top of
+ * them. 0.4px keeps the dot clearly subordinate to a hairline at every zoom.
  */
-const DOT_RADIUS_MIN = 1.1;
+const DOT_RADIUS_MIN = 0.4;
 const DOT_RADIUS_MAX = 2.1;
 const DOT_SCALE_MIN_PX = 20; // cellPx at which dots hit DOT_RADIUS_MIN
 const DOT_SCALE_MAX_PX = 220; // cellPx at which dots hit DOT_RADIUS_MAX
