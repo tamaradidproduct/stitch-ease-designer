@@ -33,18 +33,16 @@ export function gridSteps(cam: Camera): GridSteps {
 }
 
 /**
- * Step between ruler labels: the smallest rung of the same major ladder that
- * both keeps labels no closer than `minSpacingPx` apart and never falls
- * below the grid's own major line step (labels shouldn't be denser than the
- * lines they annotate).
+ * Step between ruler labels: the smallest multiple of the grid's own major
+ * line step that keeps labels no closer than `minSpacingPx` apart (labels
+ * shouldn't be denser than the lines they annotate, but snapping to
+ * MAJOR_LADDER rungs directly can overshoot — e.g. jumping from 1000 to 5000
+ * when 2000 would already satisfy the spacing).
  */
 export function labelStep(cam: Camera, minSpacingPx = 48): number {
   const { major } = gridSteps(cam);
   const px = cellPx(cam);
-  return (
-    MAJOR_LADDER.find((s) => s >= major && s * px >= minSpacingPx) ??
-    MAJOR_LADDER[MAJOR_LADDER.length - 1]!
-  );
+  return Math.max(major, ceilTo(minSpacingPx / Math.max(px, 0.0001), major));
 }
 
 /** Crisp 1px lines: land on a half-pixel so the stroke doesn't straddle two. */

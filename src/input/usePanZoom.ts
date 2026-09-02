@@ -22,13 +22,19 @@ export function usePanZoom(ref: RefObject<HTMLCanvasElement | null>): void {
     const ui = useUiStore.getState;
 
     // Cached instead of read on every wheel/pointermove, since
-    // getBoundingClientRect forces a layout read.
+    // getBoundingClientRect forces a layout read. Refreshed whenever the
+    // canvas is resized (CanvasView already runs a ResizeObserver on it and
+    // publishes the result as `viewport`, so we piggyback on that instead of
+    // running a second observer on the same element) or the page scrolls or
+    // the window itself resizes, which can reposition the canvas without
+    // changing its own box size.
     let rect = canvas.getBoundingClientRect();
     const updateRect = () => {
       rect = canvas.getBoundingClientRect();
     };
-    const rectObserver = new ResizeObserver(updateRect);
-    rectObserver.observe(canvas);
+    const unsubscribeViewport = useUiStore.subscribe((state, prev) => {
+      if (state.viewport !== prev.viewport) updateRect();
+    });
     window.addEventListener("scroll", updateRect, true);
     window.addEventListener("resize", updateRect);
 
@@ -76,9 +82,10 @@ export function usePanZoom(ref: RefObject<HTMLCanvasElement | null>): void {
 
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
-      // The rulers float above the canvas, including their border stroke at
-      // RULER..RULER+1; cells beneath them aren't hoverable.
-      if (sx <= RULER || sy <= RULER) {
+      // The rulers float above the canvas, including their border stroke,
+      // which covers the continuous pixel range [RULER, RULER+1); cells
+      // beneath them aren't hoverable.
+      if (sx < RULER + 1 || sy < RULER + 1) {
         ui().setHover(null);
         return;
       }
@@ -135,7 +142,7 @@ export function usePanZoom(ref: RefObject<HTMLCanvasElement | null>): void {
     window.addEventListener("blur", onBlur);
 
     return () => {
-      rectObserver.disconnect();
+      unsubscribeViewport();
       window.removeEventListener("scroll", updateRect, true);
       window.removeEventListener("resize", updateRect);
       canvas.removeEventListener("wheel", onWheel);

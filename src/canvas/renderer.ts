@@ -138,10 +138,9 @@ function drawPlacements(ctx: CanvasRenderingContext2D, state: RenderState): void
       }
     }
 
-    if (!symbol) continue;
     // knit and empty are pure cell chrome in the library, so they have no
     // glyph to draw — the bordered cell above is the whole symbol.
-    if (!symbol.glyph.includes("<path") && !symbol.glyph.includes("<rect")) continue;
+    if (!symbol?.hasGlyph) continue;
 
     const sprite = sprites.get(symbol, size, theme.symbol);
     if (sprite) ctx.drawImage(sprite, r.x, r.y, width, size);

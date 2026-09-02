@@ -1,3 +1,4 @@
+import { CELL, MAX_ZOOM } from "./camera";
 import type { StitchSymbol } from "../symbols/types";
 
 /**
@@ -7,9 +8,11 @@ import type { StitchSymbol } from "../symbols/types";
  * unusable, so each glyph is rendered once into an offscreen canvas at a
  * handful of fixed sizes and blitted from there. Zoom snaps to the nearest
  * bucket at or above the current cell size, so a sprite is only ever scaled
- * down — scaling up would show the raster.
+ * down — scaling up would show the raster. The top bucket must cover the
+ * largest cell size the camera can reach (CELL * MAX_ZOOM), or the ladder
+ * runs out and the last bucket gets scaled up after all.
  */
-const BUCKETS = [12, 24, 48, 96, 192] as const;
+const BUCKETS = [12, 24, 48, 96, 192, CELL * MAX_ZOOM] as const;
 
 export function bucketFor(cellSizePx: number): number {
   for (const b of BUCKETS) if (cellSizePx <= b) return b;
@@ -74,13 +77,12 @@ export class SpriteCache {
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
       this.cache.set(key, canvas);
+      this.pending.delete(key);
       this.onReady();
     } catch {
       // A glyph that won't rasterise shouldn't take the canvas down with it;
-      // the cell just renders empty. Leaving the key out of `cache` but in
-      // `pending` also stops it retrying every single frame.
-    } finally {
-      this.pending.delete(key);
+      // the cell just renders empty. The key stays in `pending` (never
+      // deleted here) so it isn't retried every single frame.
     }
   }
 
