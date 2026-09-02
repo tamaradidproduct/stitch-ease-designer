@@ -46,8 +46,8 @@ export function useShortcuts(): void {
         ui.openPicker({
           col: ui.hover.col,
           row: ui.hover.row,
-          x: r.x + 8,
-          y: r.y + 8,
+          x: r.x + r.size / 2,
+          y: r.y + r.size / 2,
           ...(existing ? { currentSymbolId: existing.symbolId } : null),
         });
         return;

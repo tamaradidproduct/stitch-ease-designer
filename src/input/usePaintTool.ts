@@ -1,5 +1,5 @@
 import { type RefObject, useEffect } from "react";
-import { type Cell, screenToCell } from "../canvas/camera";
+import { type Cell, cellToScreenRect, screenToCell } from "../canvas/camera";
 import { RULER } from "../canvas/theme";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
@@ -73,12 +73,21 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         // it, the same as clicking empty space with nothing armed — clicking
         // never silently overwrites a placed stitch.
         if (existing || !ui().armedSymbolId) {
-          const rect = canvas.getBoundingClientRect();
+          // The canvas isn't focusable, so the browser's default mousedown
+          // handling would otherwise blur whatever the picker focuses right
+          // back to <body> a moment later. Preventing default here suppresses
+          // that (and the compatibility mousedown it would otherwise
+          // synthesize from this pointerdown).
+          e.preventDefault();
+          // Anchored on the cell's own centre, not the click point, so the
+          // radial menu fans out evenly around the stitch it's editing.
+          const { camera, viewport } = ui();
+          const r = cellToScreenRect(cell.col, cell.row, camera, viewport);
           ui().openPicker({
             col: cell.col,
             row: cell.row,
-            x: e.clientX - rect.left + 8,
-            y: e.clientY - rect.top + 8,
+            x: r.x + r.size / 2,
+            y: r.y + r.size / 2,
             ...(existing ? { currentSymbolId: existing.symbolId } : null),
           });
           return;
@@ -118,13 +127,14 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
     const onDoubleClick = (e: MouseEvent) => {
       const cell = cellAt(e);
       if (!cell) return;
-      const rect = canvas.getBoundingClientRect();
+      const { camera, viewport } = ui();
+      const r = cellToScreenRect(cell.col, cell.row, camera, viewport);
       const existing = doc().index.placementAt(cell.col, cell.row);
       ui().openPicker({
         col: cell.col,
         row: cell.row,
-        x: e.clientX - rect.left + 8,
-        y: e.clientY - rect.top + 8,
+        x: r.x + r.size / 2,
+        y: r.y + r.size / 2,
         ...(existing ? { currentSymbolId: existing.symbolId } : null),
       });
     };
