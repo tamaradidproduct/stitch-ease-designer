@@ -1,4 +1,5 @@
 import { spanOf } from "../symbols/registry";
+import { newUuid } from "../uuid";
 import type { DocIndex } from "./docIndex";
 import { EMPTY_CHANGE, type Change, type Placement } from "./types";
 
@@ -12,9 +13,7 @@ import { EMPTY_CHANGE, type Change, type Placement } from "./types";
  * stack, and nothing persisted depends on them, so loading a stored chart
  * mints fresh ones rather than round-tripping the originals.
  */
-export const newPlacementId = (): string =>
-  globalThis.crypto?.randomUUID?.() ??
-  `p_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+export const newPlacementId = (): string => newUuid("p_");
 
 const newId = newPlacementId;
 

@@ -1,6 +1,6 @@
-import { newPlacementId } from "../model/ops";
 import type { DocMeta, Placement } from "../model/types";
 import { getSymbol } from "../symbols/registry";
+import { newUuid } from "../uuid";
 import {
   ChartConflictError,
   ChartNotFoundError,
@@ -49,12 +49,31 @@ export function createKeyValueDocStore(
   const knownSymbol = options.knownSymbol ?? ((id: string) => !!getSymbol(id));
   const stamp = () => clock().toISOString();
 
+  const isDocMeta = (v: unknown): v is DocMeta => {
+    if (typeof v !== "object" || v === null) return false;
+    const m = v as Record<string, unknown>;
+    return (
+      typeof m.id === "string" &&
+      typeof m.name === "string" &&
+      typeof m.createdAt === "string" &&
+      typeof m.updatedAt === "string" &&
+      typeof m.rev === "string"
+    );
+  };
+
   const readIndex = (): Index => {
     const raw = backend.read(INDEX_KEY);
     if (!raw) return {};
     try {
       const parsed: unknown = JSON.parse(raw);
-      return typeof parsed === "object" && parsed !== null ? (parsed as Index) : {};
+      if (typeof parsed !== "object" || parsed === null) return {};
+      const index: Index = {};
+      for (const [id, meta] of Object.entries(parsed as Record<string, unknown>)) {
+        // A single malformed entry (valid JSON, wrong shape) shouldn't brick
+        // list()'s sort or crash the whole chart list - drop just that one.
+        if (isDocMeta(meta)) index[id] = meta;
+      }
+      return index;
     } catch {
       // A corrupt index would otherwise brick the chart list on every load.
       // The chart bodies are still under their own keys, so this is
@@ -82,11 +101,11 @@ export function createKeyValueDocStore(
     async create(name = DEFAULT_CHART_NAME): Promise<DocMeta> {
       const at = stamp();
       const meta: DocMeta = {
-        id: newPlacementId(),
+        id: newUuid("c_"),
         name,
         createdAt: at,
         updatedAt: at,
-        rev: newPlacementId(),
+        rev: newUuid("rev_"),
       };
       const index = readIndex();
       index[meta.id] = meta;
@@ -112,18 +131,37 @@ export function createKeyValueDocStore(
 
       // Chart body first: if the index said "saved" but the body write failed,
       // the next load would hand back stale stitches under a fresh rev.
+      const previousBody = backend.read(chartKey(id));
       backend.write(chartKey(id), JSON.stringify(encode(placements)));
 
-      const meta: DocMeta = { ...current, updatedAt: stamp(), rev: newPlacementId() };
-      index[id] = meta;
-      writeIndex(index);
+      const meta: DocMeta = { ...current, updatedAt: stamp(), rev: newUuid("rev_") };
+      try {
+        index[id] = meta;
+        writeIndex(index);
+      } catch (error) {
+        // The body already changed but the index (and so `current.rev`)
+        // didn't; left alone, a later save still holding the old rev would
+        // pass the conflict check above and silently overwrite this one -
+        // exactly what `expectedRev` exists to prevent. Best-effort restore
+        // the previous body so a failed save leaves nothing changed, rather
+        // than leaving the rev the only thing that failed to update.
+        if (previousBody !== null) {
+          try {
+            backend.write(chartKey(id), previousBody);
+          } catch {
+            // Storage is evidently still full; the original error below is
+            // what the caller needs to see regardless.
+          }
+        }
+        throw error;
+      }
       return meta;
     },
 
     async rename(id: string, name: string): Promise<DocMeta> {
       const index = readIndex();
       const current = requireMeta(index, id);
-      const meta: DocMeta = { ...current, name, updatedAt: stamp(), rev: newPlacementId() };
+      const meta: DocMeta = { ...current, name, updatedAt: stamp(), rev: newUuid("rev_") };
       index[id] = meta;
       writeIndex(index);
       return meta;
