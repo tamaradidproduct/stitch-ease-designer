@@ -9,6 +9,17 @@ v1 is the working drawing interface only — no chart frames, RS/WS handling,
 repeat boxes, stitch counts, or project management yet. See
 `.claude/plans/` for the original design plan.
 
+**Live at <https://tamaradidproduct.github.io/stitch-ease-designer/>**
+
+### Where your charts live
+
+Charts are saved **in your browser only** — there are no accounts yet, so
+nothing syncs between machines and clearing site data deletes them. Use
+**Export** on anything you want to keep; **Import** reads those files back.
+
+Accounts and cloud storage are the next milestone; local charts get an upload
+path when that lands.
+
 ## Running it
 
 ```bash
@@ -17,6 +28,19 @@ npm run dev        # http://localhost:5173
 npm test            # vitest
 npm run typecheck
 ```
+
+To check what actually deploys, build and preview it at the real base path:
+
+```bash
+npm run build
+npm run preview    # http://localhost:4173/stitch-ease-designer/
+```
+
+Preview deliberately serves from `/stitch-ease-designer/`, the same prefix
+GitHub Pages uses. Serving the build at the root instead makes every asset
+miss and fall through to `index.html`, which the browser then refuses to
+execute as a module — a failure that looks like a blank page with 200s in the
+network tab, so it's worth catching here rather than after a deploy.
 
 Refreshing the stitch symbol library from Figma needs a personal access
 token:
@@ -29,6 +53,20 @@ python3 scripts/sync-symbols.py
 The generated output (`src/symbols/symbols.generated.ts` and
 `src/symbols/assets/*.svg`) is committed, so the app builds and runs without
 a token — the script is only for pulling in library changes.
+
+`FIGMA_TOKEN` is a local dev tool only. It must never gain a `VITE_` prefix
+or reach the deploy workflow: this repo is public and the build output ships
+to anyone who opens the site.
+
+## Deploying
+
+Every push to `main` builds and publishes to GitHub Pages via
+`.github/workflows/deploy.yml`. The deploy is gated on typecheck and the test
+suite — this is what the group uses, and a broken build reaching them is worse
+than a late one.
+
+Pages is configured with **Build type: GitHub Actions** (not the legacy
+branch mode, which would publish the raw repository instead of `dist/`).
 
 ## Terminology
 
