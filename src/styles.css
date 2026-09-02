@@ -335,18 +335,23 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 0;
   transform: translate(-50%, -50%);
   border-radius: 999px;
   background: var(--bg);
   border: 1px solid var(--border);
   color: var(--text-muted);
+  cursor: pointer;
+  font: inherit;
   box-shadow:
     0 6px 16px rgb(15 23 42 / 16%),
     0 1px 3px rgb(15 23 42 / 10%);
 }
 
-.radial-picker__hub-glyph {
-  display: flex;
+.radial-picker__hub:hover {
+  color: #dc2626;
+  border-color: #fecaca;
+  background: #fef2f2;
 }
 
 .radial-picker__toolbar {
@@ -438,6 +443,18 @@ body {
 
 .radial-picker__item--empty[data-active="true"] {
   color: var(--accent);
+}
+
+/* Always present, regardless of how full the ring is — a permanent action,
+   not a placeholder, so it reads as solid rather than dashed. */
+.radial-picker__item--search {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.radial-picker__item--search[data-active="true"] {
+  background: var(--accent);
+  color: #fff;
 }
 
 .radial-picker__results {

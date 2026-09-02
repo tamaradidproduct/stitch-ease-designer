@@ -7,13 +7,22 @@ import { SymbolGlyph } from "./SymbolGlyph";
 import { searchSymbols } from "./symbolSearch";
 
 // Most patterns lean on a handful of stitches, so the ring is a fixed set of
-// recently-used slots rather than the whole library — browsing everything
-// still works, just through search rather than the ring itself.
+// recently-used slots rather than the whole library — one slot is always a
+// search entry point (not just the empty ones), so browsing the full
+// library is never more than one click away even with a full ring.
 const RING_SIZE = 8;
+const SEARCH_SLOT = 4; // bottom of the ring — opposite the first recent slot
+const RECENT_SLOTS = [0, 1, 2, 3, 5, 6, 7]; // ring positions for recents, in recency order
+const RECENT_CAPACITY = RECENT_SLOTS.length;
 const ITEM_RADIUS = 92;
 const HUB_R = 26;
 const RESULTS_WIDTH = 260;
 const RESULTS_MAX_HEIGHT = 320;
+
+type RingSlot =
+  | { type: "symbol"; symbol: StitchSymbol }
+  | { type: "empty" }
+  | { type: "search" };
 
 /** Cables are up to 12 cells wide; shrink the cell so the whole span fits. */
 const cellSizeFor = (symbol: StitchSymbol, budget: number) =>
@@ -34,9 +43,9 @@ export function StitchPicker() {
   const erase = useDocStore((s) => s.erase);
 
   const [query, setQuery] = useState("");
-  // Set when an empty ring slot (or the search field) is used to browse the
-  // full library rather than pick from recents — distinct from `query` so an
-  // empty-slot click can show every stitch without faking a typed search.
+  // Set when the search slot (or an empty one) is used to browse the full
+  // library rather than pick from recents — distinct from `query` so that
+  // click can show every stitch without faking a typed search.
   const [browsing, setBrowsing] = useState(false);
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -44,14 +53,20 @@ export function StitchPicker() {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [hub, setHub] = useState({ left: 0, top: 0 });
 
-  // Ring slots: the most recent stitches, padded with empty "add" slots up
-  // to a fixed size — never more, never a shifting radius.
-  const ringSlots = useMemo<(StitchSymbol | null)[]>(() => {
+  // Ring slots: one fixed search slot, the rest the most recent stitches
+  // padded with empty "add" slots — never more, never a shifting radius.
+  const ringSlots = useMemo<RingSlot[]>(() => {
     const recent = recentIds
-      .slice(0, RING_SIZE)
+      .slice(0, RECENT_CAPACITY)
       .map((id) => getSymbol(id))
       .filter((s): s is StitchSymbol => !!s);
-    return [...recent, ...Array(RING_SIZE - recent.length).fill(null)];
+    const slots: RingSlot[] = Array.from({ length: RING_SIZE }, () => ({ type: "empty" }));
+    slots[SEARCH_SLOT] = { type: "search" };
+    RECENT_SLOTS.forEach((slotIndex, i) => {
+      const symbol = recent[i];
+      if (symbol) slots[slotIndex] = { type: "symbol", symbol };
+    });
+    return slots;
   }, [recentIds]);
 
   const showResults = query.trim().length > 0 || browsing;
@@ -69,9 +84,10 @@ export function StitchPicker() {
     setBrowsing(false);
     inputRef.current?.focus();
 
-    const at = target.currentSymbolId
-      ? recentIds.slice(0, RING_SIZE).indexOf(target.currentSymbolId)
+    const recentIndex = target.currentSymbolId
+      ? recentIds.slice(0, RECENT_CAPACITY).indexOf(target.currentSymbolId)
       : -1;
+    const at = recentIndex >= 0 ? (RECENT_SLOTS[recentIndex] ?? -1) : -1;
     setActive(at >= 0 ? at : 0);
     // Only the identity of `target` should retrigger this — recentIds is
     // read fresh inside, not watched.
@@ -82,7 +98,7 @@ export function StitchPicker() {
   // screen: clamp the hub so nothing runs off a viewport edge.
   useLayoutEffect(() => {
     if (!target) return;
-    const topMargin = HUB_R + 26 + 8; // hub-actions row sits above the hub
+    const topMargin = HUB_R + 26 + 8; // search toolbar sits above the hub
     if (showResults) {
       setHub({
         left: Math.max(8, Math.min(target.x, window.innerWidth - HUB_R - 12 - RESULTS_WIDTH - 8)),
@@ -157,7 +173,7 @@ export function StitchPicker() {
         return;
       }
       const slot = ringSlots[active];
-      if (slot) choose(slot);
+      if (slot?.type === "symbol") choose(slot.symbol);
       else browseAll();
       return;
     }
@@ -182,18 +198,26 @@ export function StitchPicker() {
       style={{ left: hub.left, top: hub.top }}
       onKeyDown={onKeyDown}
     >
-      <div className="radial-picker__hub" style={{ width: HUB_R * 2, height: HUB_R * 2 }}>
-        {currentSymbol && !showResults ? (
-          <span className="radial-picker__hub-glyph">
-            <SymbolGlyph symbol={currentSymbol} cell={Math.min(16, HUB_R)} />
-          </span>
-        ) : (
-          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-            <circle cx="6.5" cy="6.5" r="4.5" fill="none" stroke="currentColor" strokeWidth="1.4" />
-            <path d="M10 10l4 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-          </svg>
-        )}
-      </div>
+      {/* The hub itself is the close button — a dedicated ring slot handles
+          search instead, so the hub has one job. */}
+      <button
+        type="button"
+        className="radial-picker__hub"
+        style={{ width: HUB_R * 2, height: HUB_R * 2 }}
+        onClick={closePicker}
+        aria-label="Close"
+        title="Close (Esc)"
+      >
+        <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+          <path
+            d="M3.5 3.5l9 9m0-9l-9 9"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            fill="none"
+          />
+        </svg>
+      </button>
 
       {/* One toolbar above everything else, pushed clear of the ring's top
           edge so it never overlaps the items fanned out below it. */}
@@ -232,23 +256,6 @@ export function StitchPicker() {
             </svg>
           </button>
         )}
-        <button
-          type="button"
-          className="radial-picker__action"
-          onClick={closePicker}
-          aria-label="Close"
-          title="Close (Esc)"
-        >
-          <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
-            <path
-              d="M3.5 3.5l9 9m0-9l-9 9"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              fill="none"
-            />
-          </svg>
-        </button>
       </div>
 
       {/* Individual floating buttons with gaps between them, rather than one
@@ -256,12 +263,39 @@ export function StitchPicker() {
           stitches — stays visible through and around the ring. */}
       {!showResults && (
         <div className="radial-picker__ring">
-          {ringSlots.map((symbol, i) => {
+          {ringSlots.map((slot, i) => {
             const { dx, dy } = spokePoint(i, ringSlots.length, ITEM_RADIUS);
             const isActive = i === active;
             const transform = `translate(${dx}px, ${dy}px) translate(-50%, -50%)`;
 
-            if (!symbol) {
+            if (slot.type === "search") {
+              return (
+                <button
+                  key="search"
+                  type="button"
+                  className="radial-picker__item radial-picker__item--search"
+                  data-active={isActive}
+                  style={{ transform }}
+                  onPointerEnter={() => setActive(i)}
+                  onClick={browseAll}
+                  title="Search all stitches"
+                >
+                  <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+                    <circle
+                      cx="6.5"
+                      cy="6.5"
+                      r="4.5"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.4"
+                    />
+                    <path d="M10 10l4 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                  </svg>
+                </button>
+              );
+            }
+
+            if (slot.type === "empty") {
               return (
                 <button
                   key={`empty-${i}`}
@@ -285,6 +319,7 @@ export function StitchPicker() {
               );
             }
 
+            const { symbol } = slot;
             return (
               <button
                 key={symbol.id}
