@@ -34,7 +34,13 @@ jobs:
       - run: npm run typecheck
       - run: npm test
 
+      # These are meant to be public - they ship in the built bundle regardless,
+      # and row-level security is the real protection, not secrecy of this key -
+      # so repo variables rather than secrets.
       - run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

@@ -11,23 +11,40 @@ repeat boxes, stitch counts, or project management yet. See
 
 **Live at <https://tamaradidproduct.github.io/stitch-ease-designer/>**
 
-### Where your charts live
+### Signing in
 
-Charts are saved **in your browser only** — there are no accounts yet, so
-nothing syncs between machines and clearing site data deletes them. Use
-**Export** on anything you want to keep; **Import** reads those files back.
+Invite-only while this is in testing — public signup is disabled at the
+Supabase project level. Ask for an invite (Authentication → Users → Invite in
+the Supabase dashboard) if you don't have one; requesting a sign-in link for
+an uninvited email is rejected with a clear message rather than a silent
+no-op.
 
-Accounts and cloud storage are the next milestone; local charts get an upload
-path when that lands.
+Charts saved in this browser from before accounts existed aren't lost: the
+first sign-in on a browser that has any offers to copy them into the account,
+one time, only removing each from browser storage once it's confirmed written
+to the account. Declining is safe — they just stay in browser storage, and
+you're asked again next sign-in rather than the app quietly assuming you meant
+to abandon them.
 
 ## Running it
 
+Needs a Supabase project to sign in against — either your own (see
+**Database**, further down) or the shared dev one; ask for its `.env` values
+if you don't have them.
+
 ```bash
 npm install
-npm run dev        # http://localhost:5173
-npm test            # vitest
+cp .env.example .env      # fill in VITE_SUPABASE_URL / VITE_SUPABASE_PUBLISHABLE_KEY
+npm run dev                # http://localhost:5173
+npm test                    # vitest
 npm run typecheck
 ```
+
+Both values are meant to be public — they ship in the built bundle
+regardless of where they come from, and row-level security is what actually
+protects the data, not secrecy of this key. The deploy workflow reads the
+same two names from repo variables (Settings → Secrets and variables →
+Actions → Variables), not repo secrets, for the same reason.
 
 To check what actually deploys, build and preview it at the real base path:
 
@@ -67,6 +84,32 @@ than a late one.
 
 Pages is configured with **Build type: GitHub Actions** (not the legacy
 branch mode, which would publish the raw repository instead of `dist/`).
+
+## Database
+
+Supabase project `stitch-ease-designer` (ref `pfoxdauroxzkwrcmgoym`), **not**
+the org's other Supabase project (`stitch-ease-app`, the unrelated live
+row-tracker app) — a separate project specifically so that turning off public
+signup here can't change sign-in behaviour there, since that setting is
+project-wide rather than per-app.
+
+One table, `public.charts` — id, owning `user_id` (defaults to `auth.uid()`,
+never client-supplied), `name`, `data` (the `StoredChart` JSON from
+`src/storage/serialize.ts`), `rev` (opaque token, regenerated server-side on
+every update, for optimistic-concurrency conflict detection — deliberately
+not `updated_at`, since two updates inside the same millisecond would compare
+equal as timestamps and let a stale write through), `created_at`,
+`updated_at`. Row-level security scopes every select/update/delete to
+`auth.uid() = user_id`; a `before update` trigger pins `rev`/`updated_at`/
+`user_id`/`created_at` against whatever a client update payload includes, so
+ownership can't be transferred and the conflict token can't be forged.
+
+**RLS is the only thing protecting one designer's charts from another's** —
+this is a public URL serving a public bundle. Verify with two real accounts
+after any policy change, not by reading the SQL.
+
+Inviting someone: Supabase dashboard → Authentication → Users → Invite user.
+Public signup is off, so this is the only way an account gets created.
 
 ## Terminology
 
@@ -130,10 +173,21 @@ is there (a placed stitch, or the edit highlight sitting on top of one).
 - **`src/model/`** — the sparse placement map plus two derived indexes
   (cell occupancy and viewport-culling chunks). All mutation goes through
   `ops.ts`, which returns an inverse for undo.
-- **`src/state/`** — Zustand stores: `docStore` (placements + history),
-  `uiStore` (camera, tool, picker).
+- **`src/state/`** — Zustand stores: `docStore` (placements + history + the
+  open chart's save status), `uiStore` (camera, tool, picker).
+- **`src/storage/`** — the `DocStore` interface and three implementations
+  behind it (in-memory for tests, browser storage, Supabase), all held to one
+  shared contract suite (`docStore.contract.ts`) so swapping the backend is a
+  mechanical change. `serialize.ts` owns the compact stored format; a
+  `Placement`'s id is never persisted, since it only keys the occupancy map
+  and undo stack at runtime and is minted fresh on load.
+- **`src/auth/`**, **`src/supabase/`** — the session hook and the one
+  Supabase client instance (PKCE flow — required because the implicit flow's
+  fragment-based redirect collides with `HashRouter`'s own use of the URL
+  fragment for routing).
 - **`src/symbols/`** — the generated symbol registry and lookup helpers.
-- **`src/ui/`** — React chrome: toolbar, picker, status bar.
+- **`src/ui/`** — React chrome: toolbar, picker, status bar, chart list,
+  sign-in, the local-to-account migration screen.
 - **`scripts/sync-symbols.py`** — pulls the symbol library from Figma.
 
 The one invariant worth knowing before touching `model/`: a stitch is

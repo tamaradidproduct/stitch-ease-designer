@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { signOut } from "../auth/useSession";
 import type { DocMeta } from "../model/types";
 import { chartStore } from "../storage/store";
 import { importChart } from "../storage/exportImport";
@@ -77,6 +78,9 @@ export function ChartList() {
           <button type="button" className="btn btn--primary" onClick={onNew}>
             New chart
           </button>
+          <button type="button" className="btn btn--quiet" onClick={() => void signOut()}>
+            Sign out
+          </button>
         </div>
       </header>
 
@@ -94,7 +98,8 @@ export function ChartList() {
       />
 
       <p className="charts__note">
-        Charts are saved in this browser only. Export anything you want to keep.
+        Saved to your account — signed-in on another device shows the same charts.
+        Export is still there if you want a local copy.
       </p>
 
       {error && <p className="charts__error">{error}</p>}
