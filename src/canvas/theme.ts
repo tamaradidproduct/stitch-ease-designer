@@ -3,10 +3,10 @@ export const theme = {
   // The empty canvas. Still a hair off pure white, not white itself — a
   // placed knit stitch renders as a plain white bordered cell with no glyph,
   // and on a white canvas that would be indistinguishable from an empty one
-  // — but now close enough to white that the dot/cross marks (below) carry
-  // the "this is a grid" cue rather than a visibly grey backdrop doing it.
+  // — but now close enough to white that the grid marks (below) carry the
+  // "this is a grid" cue rather than a visibly grey backdrop doing it.
   background: "#f6f6f7",
-  gridMinor: "#b0b0b8",
+  // One colour for the whole grid: dotted minor lines and major crosses.
   gridMajor: "#8f8f99",
 
   rulerBackground: "#f8fafc",

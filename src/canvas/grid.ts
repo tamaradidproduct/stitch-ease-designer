@@ -50,65 +50,48 @@ export function labelStep(cam: Camera, minSpacingPx = 48): number {
 /** Crisp 1px lines: land on a half-pixel so the stroke doesn't straddle two. */
 const crisp = (v: number) => Math.round(v) + 0.5;
 
-/**
- * Dots scale gently with zoom — thicker zoomed in, thinner zoomed out —
- * rather than a fixed screen size. Only the dot *spacing* is driven by LOD;
- * this is a second, independent scaling of the dot itself, clamped at both
- * ends so it never disappears zoomed out or balloons zoomed in. The clamp
- * range in cellPx (screen px per cell) is generous on purpose: most working
- * zoom levels sit inside it, so the size change reads as a smooth response to
- * zoom rather than snapping to the clamped ends during normal use.
- *
- * The floor matters more than it looks: a placed stitch's own cell border is
- * a constant 1px hairline at every zoom (see drawPlacements in renderer.ts),
- * so a chart's contrast against the background is set by that fixed line
- * against whatever the dots are doing. A dot floor at 1.1px radius (~2.2px of
- * filled "ink") is visually heavier than that 1px stroke — the background
- * was out-weighing the chart's own borders once zoomed out, which is exactly
- * what made a chart read as lost in the dots rather than sitting on top of
- * them. 0.4px keeps the dot clearly subordinate to a hairline at every zoom.
- */
-const DOT_RADIUS_MIN = 0.4;
-const DOT_RADIUS_MAX = 2.1;
-const DOT_SCALE_MIN_PX = 20; // cellPx at which dots hit DOT_RADIUS_MIN
-const DOT_SCALE_MAX_PX = 220; // cellPx at which dots hit DOT_RADIUS_MAX
-
-function dotRadiusFor(cam: Camera): number {
-  const t =
-    (cellPx(cam) - DOT_SCALE_MIN_PX) / (DOT_SCALE_MAX_PX - DOT_SCALE_MIN_PX);
-  const clamped = Math.min(1, Math.max(0, t));
-  return DOT_RADIUS_MIN + clamped * (DOT_RADIUS_MAX - DOT_RADIUS_MIN);
-}
-
-/** Crosses stay a fixed size — only the dots were asked to scale with zoom. */
+/** Fixed size regardless of zoom — only the LOD spacing between marks changes. */
 const CROSS_ARM = 3.5;
+/** Gap between dots along a minor grid line, in screen px. */
+const DOT_GAP = 4;
 
 export function drawGrid(
   ctx: CanvasRenderingContext2D,
   cam: Camera,
   vp: Viewport,
-  theme: { gridMinor: string; gridMajor: string },
+  theme: { gridMajor: string },
 ): void {
   const b = visibleCellBounds(cam, vp, 1);
   const { minor, major } = gridSteps(cam);
 
-  // Every major step is a whole multiple of the minor step (gridSteps'
-  // ladders guarantee it), so a plain modulo on the integer cell coordinates
-  // — before converting to screen space — is enough to tell whether a minor
-  // lattice point also falls on the major one and gets a cross instead of a
-  // dot there, rather than both drawn on top of each other.
-  ctx.fillStyle = theme.gridMinor;
-  const dotRadius = dotRadiusFor(cam);
+  // Minor grid: full lines at every minor step, dotted rather than solid, in
+  // the same colour as the major crosses — one colour for the whole grid,
+  // just two different marks (a faint dotted line vs. a small cross) for the
+  // two levels of emphasis.
+  //
+  // A dotted line, not a dashed one: `lineCap: "round"` turns a near-zero
+  // dash segment into a round dot rather than a short square tick, which is
+  // what actually reads as "dotted" instead of "dashed" at 1px.
+  ctx.save();
+  ctx.strokeStyle = theme.gridMajor;
+  ctx.lineWidth = 1;
+  ctx.lineCap = "round";
+  ctx.setLineDash([0.001, DOT_GAP]);
+  ctx.beginPath();
   for (let col = ceilTo(b.minCol, minor); col <= b.maxCol; col += minor) {
-    for (let row = ceilTo(b.minRow, minor); row <= b.maxRow; row += minor) {
-      if (col % major === 0 && row % major === 0) continue;
-      const { x, y } = worldToScreen(col * CELL, row * CELL, cam, vp);
-      ctx.beginPath();
-      ctx.arc(Math.round(x), Math.round(y), dotRadius, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    const x = crisp(worldToScreen(col * CELL, 0, cam, vp).x);
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, vp.height);
   }
+  for (let row = ceilTo(b.minRow, minor); row <= b.maxRow; row += minor) {
+    const y = crisp(worldToScreen(0, row * CELL, cam, vp).y);
+    ctx.moveTo(0, y);
+    ctx.lineTo(vp.width, y);
+  }
+  ctx.stroke();
+  ctx.restore(); // drop the dash pattern so it can't leak into the crosses below
 
+  // Major grid: unchanged, a small "+" at each major intersection.
   ctx.strokeStyle = theme.gridMajor;
   ctx.lineWidth = 1;
   ctx.beginPath();
