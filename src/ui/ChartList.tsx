@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { DocMeta } from "../model/types";
 import { chartStore } from "../storage/store";
-import { importChart } from "../storage/exportImport";
+import { importChartIntoStore } from "../storage/exportImport";
 
 const formatWhen = (iso: string) => {
   const date = new Date(iso);
@@ -58,9 +58,7 @@ export function ChartList() {
   const onImport = (file: File) =>
     run(
       async () => {
-        const { name, placements } = await importChart(file);
-        const meta = await chartStore.create(name);
-        await chartStore.save(meta.id, placements, meta.rev);
+        const meta = await importChartIntoStore(chartStore, file);
         navigate(`/c/${meta.id}`);
       },
       { refreshAfter: false },

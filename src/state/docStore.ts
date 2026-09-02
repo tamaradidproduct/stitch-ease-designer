@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { DocIndex } from "../model/docIndex";
 import { apply, eraseChange, mergeChanges, placeChange } from "../model/ops";
-import { isEmptyChange, type Change, type DocMeta, type Placement } from "../model/types";
+import { isEmptyChange, type Change, type DocMeta } from "../model/types";
 import type { LoadedChart } from "../storage/DocStore";
 
 /**
@@ -44,8 +44,6 @@ type DocState = {
   endStroke: () => void;
   undo: () => void;
   redo: () => void;
-  load: (placements: Placement[]) => void;
-  clear: () => void;
 
   /** Replace everything with a chart from storage. */
   openChart: (loaded: LoadedChart) => void;
@@ -57,6 +55,18 @@ type DocState = {
 };
 
 export const selectIsDirty = (s: DocState): boolean => s.revision !== s.savedRevision;
+
+/**
+ * Whether `id` is still the open chart.
+ *
+ * For guarding the result of an async write (a rename, a save) against a
+ * chart switch that happened while it was in flight: `index`/`revision` are
+ * already the newly opened chart's by the time the write settles, so
+ * applying the write's result unconditionally would attach the wrong
+ * chart's stitches to `meta` (or vice versa) - `openChart` replaces `meta`
+ * wholesale on every switch, so comparing ids here is enough to catch it.
+ */
+export const isChartOpen = (id: string): boolean => useDocStore.getState().meta?.id === id;
 
 export const useDocStore = create<DocState>((set, get) => {
   /** Run a change, then either bank it as history or fold it into the stroke. */
@@ -140,11 +150,6 @@ export const useDocStore = create<DocState>((set, get) => {
         revision: revision + 1,
       });
     },
-
-    load: (placements) =>
-      set({ ...blank(), index: DocIndex.from(placements), revision: get().revision + 1 }),
-
-    clear: () => set({ ...blank(), revision: get().revision + 1 }),
 
     openChart: ({ meta, placements, unknownSymbolIds }) => {
       const revision = get().revision + 1;

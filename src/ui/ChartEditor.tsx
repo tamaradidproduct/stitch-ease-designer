@@ -5,7 +5,7 @@ import { ChartNotFoundError } from "../storage/DocStore";
 import { exportChart } from "../storage/exportImport";
 import { chartStore } from "../storage/store";
 import { useAutosave } from "../storage/useAutosave";
-import { selectIsDirty, useDocStore } from "../state/docStore";
+import { isChartOpen, selectIsDirty, useDocStore } from "../state/docStore";
 import { StatusBar } from "./StatusBar";
 import { StitchPicker } from "./StitchPicker";
 import { Toolbar } from "./Toolbar";
@@ -100,10 +100,18 @@ export function ChartEditor() {
                 return;
               }
               const input = e.target;
+              const renamingId = openMeta.id;
               void chartStore
-                .rename(openMeta.id, name)
-                .then((next) => useDocStore.getState().setMeta(next))
+                .rename(renamingId, name)
+                .then((next) => {
+                  // The user may have switched to a different chart while
+                  // this was in flight: index/revision are already the new
+                  // chart's, so applying this rename's meta now would attach
+                  // it to the wrong chart's stitches.
+                  if (isChartOpen(renamingId)) useDocStore.getState().setMeta(next);
+                })
                 .catch((error: unknown) => {
+                  if (!isChartOpen(renamingId)) return;
                   // The rename didn't take; don't leave the input showing a
                   // name the store never actually adopted.
                   input.value = openMeta.name;

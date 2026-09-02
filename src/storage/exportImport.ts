@@ -1,6 +1,6 @@
-import type { Placement } from "../model/types";
+import type { DocMeta, Placement } from "../model/types";
 import { getSymbol } from "../symbols/registry";
-import { DEFAULT_CHART_NAME } from "./DocStore";
+import { DEFAULT_CHART_NAME, type DocStore } from "./DocStore";
 import { decode, encode, type StoredChart } from "./serialize";
 
 /**
@@ -64,4 +64,24 @@ export async function importChart(file: File): Promise<ImportedChart> {
     DEFAULT_CHART_NAME;
 
   return { name, placements, unknownSymbolIds };
+}
+
+/**
+ * Parse a file and land it in `store` as a new chart.
+ *
+ * Creating the document and writing its content are two separate storage
+ * writes; if the second one fails (e.g. the import is big enough to hit
+ * `StorageFullError`), the just-created empty chart is removed rather than
+ * left behind as an orphan the user never asked for and can't see yet.
+ */
+export async function importChartIntoStore(store: DocStore, file: File): Promise<DocMeta> {
+  const { name, placements } = await importChart(file);
+  const meta = await store.create(name);
+  try {
+    await store.save(meta.id, placements, meta.rev);
+  } catch (error) {
+    await store.remove(meta.id).catch(() => {});
+    throw error;
+  }
+  return meta;
 }
