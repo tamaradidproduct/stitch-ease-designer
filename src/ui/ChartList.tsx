@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { signOut } from "../auth/useSession";
+import { DEV_SKIP_AUTH, signOut } from "../auth/useSession";
 import type { DocMeta } from "../model/types";
 import { chartStore } from "../storage/store";
 import { importChartIntoStore } from "../storage/exportImport";
@@ -76,9 +76,14 @@ export function ChartList() {
           <button type="button" className="btn btn--primary" onClick={onNew}>
             New chart
           </button>
-          <button type="button" className="btn btn--quiet" onClick={() => void signOut()}>
-            Sign out
-          </button>
+          {/* No real session to sign out of in dev-bypass mode - the button
+              would be a visible no-op, so it's not shown at all rather than
+              shown disabled or explained. */}
+          {!DEV_SKIP_AUTH && (
+            <button type="button" className="btn btn--quiet" onClick={() => void signOut()}>
+              Sign out
+            </button>
+          )}
         </div>
       </header>
 
@@ -96,8 +101,10 @@ export function ChartList() {
       />
 
       <p className="charts__note">
-        Saved to your account — signed-in on another device shows the same charts.
-        Export is still there if you want a local copy.
+        {DEV_SKIP_AUTH
+          ? "Dev mode — sign-in bypassed, charts saved in this browser only."
+          : "Saved to your account — signed-in on another device shows the same charts. " +
+            "Export is still there if you want a local copy."}
       </p>
 
       {error && <p className="charts__error">{error}</p>}

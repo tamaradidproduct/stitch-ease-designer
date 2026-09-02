@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import { useSession } from "./auth/useSession";
-import { supabase } from "./supabase/client";
+import { getSupabase } from "./supabase/client";
 import { createSupabaseDocStore } from "./storage/supabaseDocStore";
 import { setActiveChartStore } from "./storage/store";
 import { ChartEditor } from "./ui/ChartEditor";
@@ -29,7 +29,23 @@ export default function App() {
     return <SignIn />;
   }
 
+  if (session.backend === "devLocal") {
+    return <DevLocal />;
+  }
+
   return <SignedIn userId={session.session.user.id} />;
+}
+
+function ChartRoutes() {
+  return (
+    <HashRouter>
+      <Routes>
+        <Route path="/" element={<ChartList />} />
+        <Route path="/c/:id" element={<ChartEditor />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </HashRouter>
+  );
 }
 
 /**
@@ -41,7 +57,7 @@ export default function App() {
  */
 function SignedIn({ userId }: { userId: string }) {
   const [migrationDone, setMigrationDone] = useState(false);
-  const supabaseStore = useState(() => createSupabaseDocStore(supabase))[0];
+  const supabaseStore = useState(() => createSupabaseDocStore(getSupabase()))[0];
 
   useEffect(() => {
     setActiveChartStore(supabaseStore);
@@ -54,13 +70,28 @@ function SignedIn({ userId }: { userId: string }) {
     );
   }
 
-  return (
-    <HashRouter>
-      <Routes>
-        <Route path="/" element={<ChartList />} />
-        <Route path="/c/:id" element={<ChartEditor />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </HashRouter>
-  );
+  return <ChartRoutes />;
+}
+
+/**
+ * DEV_SKIP_AUTH's signed-in state: chartStore stays on browser storage, never
+ * Supabase (there's no real account to save to), and there's no migration
+ * offer — nothing to migrate *into*. `chartStore` (src/storage/store.ts)
+ * already defaults to browser storage, and DEV_SKIP_AUTH is a fixed
+ * module-level constant, so `useSession()` can never have been in the
+ * `supabase` backend before landing here — there's no prior
+ * `setActiveChartStore` call to undo.
+ *
+ * This component's code does still ship in a production bundle — confirmed
+ * by grepping dist/: unreachability here crosses a module boundary
+ * (`session.backend` is a runtime value from a hook one file away), which is
+ * further than Terser's dead-code elimination traces. What's actually
+ * verified absent from the bundle, by the same grep, is the DEV_SKIP_AUTH
+ * flag and its UI string in src/auth/useSession.ts — which is what matters:
+ * `useSession()` can never produce the `backend: "devLocal"` state that
+ * would render this component, so it's unreachable dead code there, just not
+ * physically stripped.
+ */
+function DevLocal() {
+  return <ChartRoutes />;
 }

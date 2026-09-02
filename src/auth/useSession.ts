@@ -1,11 +1,32 @@
 import type { Session } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
-import { supabase } from "../supabase/client";
+import { getSupabase } from "../supabase/client";
 
 export type SessionState =
   | { status: "loading" }
   | { status: "signedOut" }
-  | { status: "signedIn"; session: Session };
+  | { status: "signedIn"; backend: "supabase"; session: Session }
+  | { status: "signedIn"; backend: "devLocal" };
+
+/**
+ * Dev-only bypass of real sign-in, so the app is usable without a magic-link
+ * round trip every time local storage or the session is cleared.
+ *
+ * Two gates, not one: `import.meta.env.DEV` is statically replaced with
+ * `false` by Vite for `vite build`, so in a production bundle this constant
+ * is hardcoded `false` and the branch below that reads it is dead-code-
+ * eliminated — confirmed by grepping dist/: neither the `DEV_SKIP_AUTH`
+ * identifier nor its UI string survive. `useSession()` can therefore never
+ * produce a `backend: "devLocal"` state in production, which is what
+ * actually matters; the `DevLocal` component in App.tsx that switches on
+ * that tag is unreachable dead code there, not physically stripped (a
+ * minifier can't prove that across the module boundary the way it can
+ * within this file), but it can never execute. The explicit opt-in on top of
+ * `DEV` means it's still off by default for anyone running `vite dev` who
+ * wants to exercise the real sign-in flow locally.
+ */
+export const DEV_SKIP_AUTH =
+  import.meta.env.DEV && import.meta.env.VITE_DEV_SKIP_AUTH === "true";
 
 /**
  * The current auth session, kept in sync with Supabase's own state.
@@ -14,21 +35,33 @@ export type SessionState =
  * storage (a returning visitor); `onAuthStateChange` handles everything after
  * — sign-in, sign-out, token refresh, and the redirect back from a magic-link
  * email completing the PKCE exchange.
+ *
+ * Under `DEV_SKIP_AUTH`, none of that runs — no `getSession`, no
+ * subscription, no request to Supabase at all. The state is a constant.
  */
 export function useSession(): SessionState {
-  const [state, setState] = useState<SessionState>({ status: "loading" });
+  const [state, setState] = useState<SessionState>(
+    DEV_SKIP_AUTH ? { status: "signedIn", backend: "devLocal" } : { status: "loading" },
+  );
 
   useEffect(() => {
+    if (DEV_SKIP_AUTH) return;
+
     let cancelled = false;
+    const supabase = getSupabase();
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (cancelled) return;
-      setState(session ? { status: "signedIn", session } : { status: "signedOut" });
+      setState(
+        session ? { status: "signedIn", backend: "supabase", session } : { status: "signedOut" },
+      );
     });
 
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
       if (cancelled) return;
-      setState(session ? { status: "signedIn", session } : { status: "signedOut" });
+      setState(
+        session ? { status: "signedIn", backend: "supabase", session } : { status: "signedOut" },
+      );
     });
 
     return () => {
@@ -55,7 +88,7 @@ export type SendMagicLinkResult =
  * Supabase returns an error we can catch and label accurately.
  */
 export async function sendMagicLink(email: string): Promise<SendMagicLinkResult> {
-  const { error } = await supabase.auth.signInWithOtp({
+  const { error } = await getSupabase().auth.signInWithOtp({
     email,
     options: {
       shouldCreateUser: false,
@@ -80,5 +113,5 @@ export async function sendMagicLink(email: string): Promise<SendMagicLinkResult>
 }
 
 export async function signOut(): Promise<void> {
-  await supabase.auth.signOut();
+  await getSupabase().auth.signOut();
 }
