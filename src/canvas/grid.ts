@@ -51,13 +51,27 @@ export function labelStep(cam: Camera, minSpacingPx = 48): number {
 const crisp = (v: number) => Math.round(v) + 0.5;
 
 /**
- * Dot and cross marks are a fixed screen size regardless of zoom — only the
- * *spacing* between them changes with LOD, the same way a physical dot-grid
- * notebook's dots don't grow as you zoom a photo of the page. A mark that
- * scaled with cell size would either vanish at low zoom or swamp the stitches
- * at high zoom.
+ * Dots scale gently with zoom — thicker zoomed in, thinner zoomed out —
+ * rather than a fixed screen size. Only the dot *spacing* is driven by LOD;
+ * this is a second, independent scaling of the dot itself, clamped at both
+ * ends so it never disappears zoomed out or balloons zoomed in. The clamp
+ * range in cellPx (screen px per cell) is generous on purpose: most working
+ * zoom levels sit inside it, so the size change reads as a smooth response to
+ * zoom rather than snapping to the clamped ends during normal use.
  */
-const DOT_RADIUS = 1.5;
+const DOT_RADIUS_MIN = 1.1;
+const DOT_RADIUS_MAX = 2.1;
+const DOT_SCALE_MIN_PX = 20; // cellPx at which dots hit DOT_RADIUS_MIN
+const DOT_SCALE_MAX_PX = 220; // cellPx at which dots hit DOT_RADIUS_MAX
+
+function dotRadiusFor(cam: Camera): number {
+  const t =
+    (cellPx(cam) - DOT_SCALE_MIN_PX) / (DOT_SCALE_MAX_PX - DOT_SCALE_MIN_PX);
+  const clamped = Math.min(1, Math.max(0, t));
+  return DOT_RADIUS_MIN + clamped * (DOT_RADIUS_MAX - DOT_RADIUS_MIN);
+}
+
+/** Crosses stay a fixed size — only the dots were asked to scale with zoom. */
 const CROSS_ARM = 3.5;
 
 export function drawGrid(
@@ -75,12 +89,13 @@ export function drawGrid(
   // lattice point also falls on the major one and gets a cross instead of a
   // dot there, rather than both drawn on top of each other.
   ctx.fillStyle = theme.gridMinor;
+  const dotRadius = dotRadiusFor(cam);
   for (let col = ceilTo(b.minCol, minor); col <= b.maxCol; col += minor) {
     for (let row = ceilTo(b.minRow, minor); row <= b.maxRow; row += minor) {
       if (col % major === 0 && row % major === 0) continue;
       const { x, y } = worldToScreen(col * CELL, row * CELL, cam, vp);
       ctx.beginPath();
-      ctx.arc(Math.round(x), Math.round(y), DOT_RADIUS, 0, Math.PI * 2);
+      ctx.arc(Math.round(x), Math.round(y), dotRadius, 0, Math.PI * 2);
       ctx.fill();
     }
   }
