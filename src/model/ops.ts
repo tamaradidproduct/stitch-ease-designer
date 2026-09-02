@@ -7,9 +7,16 @@ import { EMPTY_CHANGE, type Change, type Placement } from "./types";
  * bespoke inverse per operation.
  */
 
-const newId = (): string =>
+/**
+ * Placement ids are runtime-only: they key the occupancy map and the undo
+ * stack, and nothing persisted depends on them, so loading a stored chart
+ * mints fresh ones rather than round-tripping the originals.
+ */
+export const newPlacementId = (): string =>
   globalThis.crypto?.randomUUID?.() ??
   `p_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+
+const newId = newPlacementId;
 
 /**
  * Apply a change and return its inverse.

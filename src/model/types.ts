@@ -24,17 +24,28 @@ export const EMPTY_CHANGE: Change = { added: [], removed: [] };
 export const isEmptyChange = (c: Change): boolean =>
   c.added.length === 0 && c.removed.length === 0;
 
-/** Serialised form. Shaped for a Supabase row so the later move is a no-op. */
-export type DocSnapshot = {
-  version: number;
+/**
+ * A chart's identity and bookkeeping — everything except the stitches.
+ *
+ * No `userId`: the Supabase column defaults to `auth.uid()` and the row-level
+ * security policy enforces it, so the client never sends an owner and can't
+ * claim to be someone else. Ownership is the database's business.
+ */
+export type DocMeta = {
   id: string;
   name: string;
-  /** Null until accounts exist; the column is here from the start. */
-  userId: string | null;
+  createdAt: string;
   updatedAt: string;
-  placements: Placement[];
+  /**
+   * Opaque token for the exact stored revision, changed on every write.
+   *
+   * Saves pass back the rev they loaded so a stale write can be rejected
+   * instead of clobbering someone — realistically the same designer with two
+   * tabs open. A timestamp can't do this job: two saves inside the same
+   * millisecond would compare equal and the stale one would be let through.
+   */
+  rev: string;
 };
 
-export type DocMeta = Pick<DocSnapshot, "id" | "name" | "updatedAt">;
-
-export const SNAPSHOT_VERSION = 1;
+/** A chart as the app holds it: metadata plus live placements. */
+export type DocSnapshot = DocMeta & { placements: Placement[] };
