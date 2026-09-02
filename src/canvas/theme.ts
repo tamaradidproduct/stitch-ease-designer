@@ -1,14 +1,13 @@
 /** Canvas paint colours. Kept in one place so the renderer has no literals. */
 export const theme = {
-  // The empty canvas. Still light grey, not white — on a plain white canvas
-  // an unplaced cell and a placed knit stitch (also white) were
-  // indistinguishable — but a touch lighter than the flat Figma-matched fill
-  // this replaced, since the grid is now a sparse dot/cross texture rather
-  // than a dense field of ruled lines and reads better a shade brighter.
-  background: "#dedfe1",
-  gridMinor: "#c5c5c9",
-  gridMajor: "#a5a5ad",
-  axis: "#81818b",
+  // The empty canvas. Still a hair off pure white, not white itself — a
+  // placed knit stitch renders as a plain white bordered cell with no glyph,
+  // and on a white canvas that would be indistinguishable from an empty one
+  // — but now close enough to white that the dot/cross marks (below) carry
+  // the "this is a grid" cue rather than a visibly grey backdrop doing it.
+  background: "#f6f6f7",
+  gridMinor: "#b0b0b8",
+  gridMajor: "#8f8f99",
 
   rulerBackground: "#f8fafc",
   rulerBorder: "#e2e8f0",

@@ -57,14 +57,14 @@ const crisp = (v: number) => Math.round(v) + 0.5;
  * scaled with cell size would either vanish at low zoom or swamp the stitches
  * at high zoom.
  */
-const DOT_RADIUS = 0.9;
+const DOT_RADIUS = 1.5;
 const CROSS_ARM = 3.5;
 
 export function drawGrid(
   ctx: CanvasRenderingContext2D,
   cam: Camera,
   vp: Viewport,
-  theme: { gridMinor: string; gridMajor: string; axis: string },
+  theme: { gridMinor: string; gridMajor: string },
 ): void {
   const b = visibleCellBounds(cam, vp, 1);
   const { minor, major } = gridSteps(cam);
@@ -99,19 +99,5 @@ export function drawGrid(
       ctx.lineTo(cx, cy + CROSS_ARM);
     }
   }
-  ctx.stroke();
-
-  // The origin axes, so "home" is still findable on an unbounded canvas —
-  // the one place a full line remains, since a dot grid alone has no way to
-  // call out one specific point as special.
-  ctx.strokeStyle = theme.axis;
-  ctx.beginPath();
-  const origin = worldToScreen(0, 0, cam, vp);
-  const ox = crisp(origin.x);
-  const oy = crisp(origin.y);
-  ctx.moveTo(ox, 0);
-  ctx.lineTo(ox, vp.height);
-  ctx.moveTo(0, oy);
-  ctx.lineTo(vp.width, oy);
   ctx.stroke();
 }
