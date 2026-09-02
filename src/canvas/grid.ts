@@ -11,9 +11,9 @@ import { ceilTo } from "./math";
 /**
  * Grid level-of-detail.
  *
- * Below roughly 7px per line the grid stops reading as a grid and starts
+ * Below roughly 7px per mark the grid stops reading as a grid and starts
  * reading as grey mush, so we step up to every 2nd, 5th, 10th cell and so on.
- * Emphasis lines stay on multiples of 10, which is the convention knitters
+ * Emphasis marks stay on multiples of 10, which is the convention knitters
  * expect when counting stitches and rows.
  */
 const MIN_LINE_SPACING_PX = 7;
@@ -50,6 +50,16 @@ export function labelStep(cam: Camera, minSpacingPx = 48): number {
 /** Crisp 1px lines: land on a half-pixel so the stroke doesn't straddle two. */
 const crisp = (v: number) => Math.round(v) + 0.5;
 
+/**
+ * Dot and cross marks are a fixed screen size regardless of zoom — only the
+ * *spacing* between them changes with LOD, the same way a physical dot-grid
+ * notebook's dots don't grow as you zoom a photo of the page. A mark that
+ * scaled with cell size would either vanish at low zoom or swamp the stitches
+ * at high zoom.
+ */
+const DOT_RADIUS = 0.9;
+const CROSS_ARM = 3.5;
+
 export function drawGrid(
   ctx: CanvasRenderingContext2D,
   cam: Camera,
@@ -59,32 +69,41 @@ export function drawGrid(
   const b = visibleCellBounds(cam, vp, 1);
   const { minor, major } = gridSteps(cam);
 
+  // Every major step is a whole multiple of the minor step (gridSteps'
+  // ladders guarantee it), so a plain modulo on the integer cell coordinates
+  // — before converting to screen space — is enough to tell whether a minor
+  // lattice point also falls on the major one and gets a cross instead of a
+  // dot there, rather than both drawn on top of each other.
+  ctx.fillStyle = theme.gridMinor;
+  for (let col = ceilTo(b.minCol, minor); col <= b.maxCol; col += minor) {
+    for (let row = ceilTo(b.minRow, minor); row <= b.maxRow; row += minor) {
+      if (col % major === 0 && row % major === 0) continue;
+      const { x, y } = worldToScreen(col * CELL, row * CELL, cam, vp);
+      ctx.beginPath();
+      ctx.arc(Math.round(x), Math.round(y), DOT_RADIUS, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  ctx.strokeStyle = theme.gridMajor;
   ctx.lineWidth = 1;
-
-  // Three passes so we don't restroke a line in a heavier colour: minor lines
-  // skip anything that a major line will cover, and both skip the axes.
-  const drawPass = (step: number, colour: string, skip: (n: number) => boolean) => {
-    ctx.strokeStyle = colour;
-    ctx.beginPath();
-    for (let col = ceilTo(b.minCol, step); col <= b.maxCol; col += step) {
-      if (skip(col)) continue;
-      const x = crisp(worldToScreen(col * CELL, 0, cam, vp).x);
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, vp.height);
+  ctx.beginPath();
+  for (let col = ceilTo(b.minCol, major); col <= b.maxCol; col += major) {
+    for (let row = ceilTo(b.minRow, major); row <= b.maxRow; row += major) {
+      const { x, y } = worldToScreen(col * CELL, row * CELL, cam, vp);
+      const cx = crisp(x);
+      const cy = crisp(y);
+      ctx.moveTo(cx - CROSS_ARM, cy);
+      ctx.lineTo(cx + CROSS_ARM, cy);
+      ctx.moveTo(cx, cy - CROSS_ARM);
+      ctx.lineTo(cx, cy + CROSS_ARM);
     }
-    for (let row = ceilTo(b.minRow, step); row <= b.maxRow; row += step) {
-      if (skip(row)) continue;
-      const y = crisp(worldToScreen(0, row * CELL, cam, vp).y);
-      ctx.moveTo(0, y);
-      ctx.lineTo(vp.width, y);
-    }
-    ctx.stroke();
-  };
+  }
+  ctx.stroke();
 
-  drawPass(minor, theme.gridMinor, (n) => n === 0 || n % major === 0);
-  drawPass(major, theme.gridMajor, (n) => n === 0);
-
-  // The origin axes, so "home" is always findable on an unbounded canvas.
+  // The origin axes, so "home" is still findable on an unbounded canvas —
+  // the one place a full line remains, since a dot grid alone has no way to
+  // call out one specific point as special.
   ctx.strokeStyle = theme.axis;
   ctx.beginPath();
   const origin = worldToScreen(0, 0, cam, vp);
