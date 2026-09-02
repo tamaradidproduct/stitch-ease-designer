@@ -1,5 +1,6 @@
 import type { DocIndex } from "../model/docIndex";
 import { getSymbol } from "../symbols/registry";
+import type { StitchSymbol } from "../symbols/types";
 import {
   CELL,
   type Camera,
@@ -8,6 +9,7 @@ import {
   cellPx,
   cellToScreenRect,
   visibleCellBounds,
+  worldToScreen,
 } from "./camera";
 import { drawGrid, labelStep } from "./grid";
 import { ceilTo } from "./math";
@@ -23,6 +25,29 @@ export type RenderState = {
   /** Symbol armed in the toolbar, previewed under the cursor. */
   armedSymbolId: string | null;
 };
+
+/**
+ * Crisp screen-space column/row boundaries, computed from the absolute
+ * col/row rather than by offsetting a neighbouring cell's own rounded rect.
+ *
+ * Two adjacent stitches each draw their own border independently. Deriving
+ * cell N+1's left edge as "cell N's rounded position, plus the cell size"
+ * doesn't generally equal independently rounding cell N+1's own position —
+ * Math.round(a) + Math.round(b) isn't Math.round(a + b) — whenever cellPx(cam)
+ * isn't a whole number, which is most zoom levels. That drift crosses a
+ * rounding boundary periodically as it accumulates across columns, which is
+ * why the gap showed up every few cells rather than everywhere or nowhere.
+ * Computing each boundary from the same absolute col/row input every time
+ * guarantees two neighbours agree on their shared edge exactly.
+ */
+export function crispColX(col: number, cam: Camera, vp: Viewport): number {
+  return Math.round(worldToScreen(col * CELL, 0, cam, vp).x) + 0.5;
+}
+
+export function crispRowY(row: number, cam: Camera, vp: Viewport): number {
+  // A row's screen TOP is world y = (row+1)*CELL, since +row points up.
+  return Math.round(worldToScreen(0, (row + 1) * CELL, cam, vp).y) + 0.5;
+}
 
 /**
  * Row and column rulers pinned to the top and left edges.
@@ -128,13 +153,12 @@ function drawPlacements(ctx: CanvasRenderingContext2D, state: RenderState): void
     if (drawChrome) {
       ctx.strokeStyle = theme.cellStroke;
       ctx.lineWidth = 1;
+      const topY = crispRowY(p.row, cam, vp);
+      const botY = crispRowY(p.row - 1, cam, vp);
       for (let i = 0; i < span; i++) {
-        ctx.strokeRect(
-          Math.round(r.x + i * size) + 0.5,
-          Math.round(r.y) + 0.5,
-          Math.round(size) - 1,
-          Math.round(size) - 1,
-        );
+        const leftX = crispColX(p.col + i, cam, vp);
+        const rightX = crispColX(p.col + i + 1, cam, vp);
+        ctx.strokeRect(leftX, topY, rightX - leftX, botY - topY);
       }
     }
 
@@ -147,24 +171,163 @@ function drawPlacements(ctx: CanvasRenderingContext2D, state: RenderState): void
   }
 }
 
+/**
+ * The "nothing here yet, click to add" affordance for an empty cell with
+ * nothing armed. Deliberately NOT a plus centered in the cell — that's
+ * exactly the size and position a stitch glyph occupies, so it would read as
+ * one at a glance. A dashed border (stitches are always solid-stroked) and a
+ * small badge tucked in the corner instead of the centre keep it unambiguous.
+ */
+function drawAddState(
+  ctx: CanvasRenderingContext2D,
+  r: { x: number; y: number; size: number },
+): void {
+  const { x, y, size } = r;
+
+  strokeDashedRect(ctx, x + 1, y + 1, size - 2, size - 2, size);
+
+  // Too small a cell makes a corner badge an illegible smudge; the dashed
+  // border alone still reads fine at that zoom.
+  if (size < 13) return;
+
+  const radius = Math.min(size * 0.2, 8);
+  const cx = x + size - radius - 3;
+  const cy = y + size - radius - 3;
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.fillStyle = theme.hoverStroke;
+  ctx.fill();
+
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = Math.max(1.2, radius * 0.28);
+  ctx.lineCap = "round";
+  const arm = radius * 0.45;
+  ctx.beginPath();
+  ctx.moveTo(cx - arm, cy);
+  ctx.lineTo(cx + arm, cy);
+  ctx.moveTo(cx, cy - arm);
+  ctx.lineTo(cx, cy + arm);
+  ctx.stroke();
+}
+
+/** The dashed outline shared by every "not committed yet" preview state. */
+function strokeDashedRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  unit: number,
+): void {
+  ctx.save();
+  ctx.setLineDash([Math.max(3, unit * 0.14), Math.max(2.5, unit * 0.1)]);
+  ctx.strokeStyle = theme.hoverStroke;
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(x, y, w, h);
+  ctx.restore();
+}
+
+/**
+ * The armed-stitch preview: a translucent rendition of the REAL stitch — its
+ * actual cell chrome, tint, and glyph colour, at reduced opacity — rather
+ * than a plain highlight box with a blue-tinted icon. What's about to land
+ * should read as itself, just not real yet, so every colour here is exactly
+ * what drawPlacements uses for a placed stitch. The dashed outline is what
+ * still marks it as a preview: it's the same "not committed" language as the
+ * add-state border, on top of the same look a placed stitch has underneath.
+ */
+function drawArmedPreview(
+  ctx: CanvasRenderingContext2D,
+  symbol: StitchSymbol,
+  col: number,
+  row: number,
+  r: { x: number; y: number },
+  size: number,
+  span: number,
+  sprites: SpriteCache,
+  cam: Camera,
+  vp: Viewport,
+): void {
+  const width = size * span;
+  const drawChrome = size >= 3;
+
+  ctx.save();
+  ctx.globalAlpha = 0.62;
+
+  for (let i = 0; i < span; i++) {
+    ctx.fillStyle = theme.cellFill;
+    ctx.fillRect(r.x + i * size, r.y, size, size);
+  }
+
+  const fills = symbol.cellFills;
+  if (fills) {
+    for (let i = 0; i < span; i++) {
+      const fill = fills[i];
+      if (!fill) continue;
+      ctx.fillStyle = fill;
+      ctx.fillRect(r.x + i * size, r.y, size, size);
+    }
+  }
+
+  if (drawChrome) {
+    ctx.strokeStyle = theme.cellStroke;
+    ctx.lineWidth = 1;
+    const topY = crispRowY(row, cam, vp);
+    const botY = crispRowY(row - 1, cam, vp);
+    for (let i = 0; i < span; i++) {
+      const leftX = crispColX(col + i, cam, vp);
+      const rightX = crispColX(col + i + 1, cam, vp);
+      ctx.strokeRect(leftX, topY, rightX - leftX, botY - topY);
+    }
+  }
+
+  if (symbol.glyph.includes("<path") || symbol.glyph.includes("<rect")) {
+    const sprite = sprites.get(symbol, size, theme.symbol);
+    if (sprite) ctx.drawImage(sprite, r.x, r.y, width, size);
+  }
+
+  ctx.restore();
+
+  strokeDashedRect(ctx, r.x + 1, r.y + 1, width - 2, size - 2, size);
+}
+
+/** The plain highlight for hovering a cell that already has a stitch, with
+ * nothing armed — clicking here opens the picker to edit it, not paint. */
+function drawEditHighlight(
+  ctx: CanvasRenderingContext2D,
+  r: { x: number; y: number },
+  size: number,
+): void {
+  ctx.fillStyle = theme.hoverFill;
+  ctx.fillRect(r.x, r.y, size, size);
+  ctx.strokeStyle = theme.hoverStroke;
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(r.x + 0.5, r.y + 0.5, size - 1, size - 1);
+}
+
 function drawHover(ctx: CanvasRenderingContext2D, state: RenderState): void {
-  const { camera: cam, viewport: vp, hover, armedSymbolId } = state;
+  const { camera: cam, viewport: vp, hover, armedSymbolId, sprites, index } = state;
   if (!hover) return;
   // Below this the outline is bigger than the cell and just looks like noise.
   if (cellPx(cam) < 4) return;
 
   const size = cellPx(cam);
-  // Preview the armed symbol's full footprint, so it's obvious before clicking
-  // that a 3/3 cable is about to consume six cells.
-  const span = armedSymbolId ? (getSymbol(armedSymbolId)?.span ?? 1) : 1;
+  const symbol = armedSymbolId ? getSymbol(armedSymbolId) : undefined;
   const r = cellToScreenRect(hover.col, hover.row, cam, vp);
-  const width = size * span;
 
-  ctx.fillStyle = theme.hoverFill;
-  ctx.fillRect(r.x, r.y, width, size);
-  ctx.strokeStyle = theme.hoverStroke;
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(r.x + 0.5, r.y + 0.5, width - 1, size - 1);
+  if (symbol) {
+    // Preview the armed symbol's full footprint, so it's obvious before
+    // clicking that a 3/3 cable is about to consume six cells.
+    drawArmedPreview(ctx, symbol, hover.col, hover.row, r, size, symbol.span, sprites, cam, vp);
+    return;
+  }
+
+  if (index.placementAt(hover.col, hover.row)) {
+    drawEditHighlight(ctx, r, size);
+  } else {
+    drawAddState(ctx, { x: r.x, y: r.y, size });
+  }
 }
 
 /**

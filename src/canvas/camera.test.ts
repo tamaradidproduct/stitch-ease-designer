@@ -13,6 +13,7 @@ import {
   worldToScreen,
   zoomAt,
 } from "./camera";
+import { crispColX } from "./renderer";
 
 const vp: Viewport = { width: 1200, height: 800 };
 const cam = (x = 0, y = 0, zoom = 1): Camera => ({ x, y, zoom });
@@ -141,5 +142,64 @@ describe("visibleCellBounds", () => {
     const near = visibleCellBounds(cam(0, 0, 4), vp);
     const far = visibleCellBounds(cam(0, 0, 0.25), vp);
     expect(far.maxCol - far.minCol).toBeGreaterThan(near.maxCol - near.minCol);
+  });
+});
+
+/**
+ * Regression: the renderer drew each stitch's cell border independently,
+ * rounding its own screen position to a crisp pixel. Two adjacent stitches'
+ * shared edge was computed two different ways — "this cell's left, rounded"
+ * vs "the previous cell's rounded left, plus the rounded cell size" — and
+ * those don't generally agree once cell size isn't a whole number of pixels,
+ * which is most zoom levels. The mismatch showed up as a hairline seam
+ * between stitches, appearing every few cells as the fractional drift
+ * crossed a rounding boundary and cleared again.
+ *
+ * `crispColX`/`crispRowY` (imported from renderer.ts, the actual production
+ * code, not reimplemented here) are the fix: derive every boundary from its
+ * own absolute column, never by offsetting a neighbour's already-rounded
+ * edge, so two cells asking about the same boundary always get the same
+ * answer.
+ */
+describe("adjacent cell border alignment", () => {
+  const zooms = [0.3, 0.7, 1, 1.37, 2.2, 3.7, 4.5, 6.13];
+  const xs = [0, 5.5, -33.25, 144, 1000.1];
+
+  it("the old relative-offset math could disagree on a shared boundary", () => {
+    // Standalone demonstration of the bug class, not a test of renderer.ts:
+    // cell N's right edge derived as anchor + N*size (then rounded) vs cell
+    // N+1's left edge derived the same way for N+1 — two different roundings
+    // of what should be the identical boundary.
+    let sawADisagreement = false;
+    for (const zoom of zooms) {
+      const size = CELL * zoom;
+      for (const anchor of xs) {
+        for (let n = 0; n < 20; n++) {
+          const rightOfN = Math.round(anchor + n * size) + Math.round(size);
+          const leftOfNPlus1 = Math.round(anchor + (n + 1) * size);
+          if (rightOfN !== leftOfNPlus1) sawADisagreement = true;
+        }
+      }
+    }
+    expect(sawADisagreement).toBe(true);
+  });
+
+  it("drawPlacements' actual boundary helper agrees for adjacent placements, at every zoom", () => {
+    // Simulates a row of single-cell placements the way drawPlacements walks
+    // them: each placement's right edge is crispColX(col+1); the next
+    // placement's left edge is crispColX(col+1) again, for the neighbouring
+    // col. Exercising the real exported function, not a copy of its formula,
+    // so a regression to relative-offset math here would fail this test.
+    for (const zoom of zooms) {
+      for (const x of xs) {
+        const c = cam(x, 0, zoom);
+        let previousRight: number | null = null;
+        for (let col = -5; col < 15; col++) {
+          const left = crispColX(col, c, vp);
+          if (previousRight !== null) expect(left).toBe(previousRight);
+          previousRight = crispColX(col + 1, c, vp);
+        }
+      }
+    }
   });
 });

@@ -1,9 +1,13 @@
 /** Canvas paint colours. Kept in one place so the renderer has no literals. */
 export const theme = {
-  background: "#ffffff",
-  gridMinor: "#dde3ea",
-  gridMajor: "#b6c2d1",
-  axis: "#7c8ca0",
+  // The empty canvas, matching the Figma library's own page background
+  // (rgb 0.830, 0.830, 0.830). Distinct from white stitch cells on purpose —
+  // on a plain white canvas, an unplaced cell and a placed knit (also white)
+  // were indistinguishable.
+  background: "#d4d4d4",
+  gridMinor: "#c5c5c9",
+  gridMajor: "#a5a5ad",
+  axis: "#81818b",
 
   rulerBackground: "#f8fafc",
   rulerBorder: "#e2e8f0",
