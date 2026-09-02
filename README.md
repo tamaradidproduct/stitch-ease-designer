@@ -46,6 +46,14 @@ protects the data, not secrecy of this key. The deploy workflow reads the
 same two names from repo variables (Settings → Secrets and variables →
 Actions → Variables), not repo secrets, for the same reason.
 
+Set `VITE_DEV_SKIP_AUTH=true` in `.env` to skip the magic-link round trip
+entirely while developing — charts save to browser storage instead of an
+account, and there's no sign-out button since there's no session to end. Only
+takes effect for `vite dev`; `vite build` hardcodes the flag to `false`, so
+this state can never be produced in a deployed build regardless of what's in
+`.env` (verified by grepping the built output for the flag and its UI string
+— both are absent).
+
 To check what actually deploys, build and preview it at the real base path:
 
 ```bash
