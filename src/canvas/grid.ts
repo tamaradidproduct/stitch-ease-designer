@@ -41,8 +41,10 @@ export function gridSteps(cam: Camera): GridSteps {
  */
 export function labelStep(cam: Camera, minSpacingPx = 48): number {
   const { major } = gridSteps(cam);
+  // cellPx is CELL * cam.zoom, and zoom is always clamped to >= MIN_ZOOM, so
+  // this is bounded well above zero — no need to guard the division below.
   const px = cellPx(cam);
-  return Math.max(major, ceilTo(minSpacingPx / Math.max(px, 0.0001), major));
+  return Math.max(major, ceilTo(minSpacingPx / px, major));
 }
 
 /** Crisp 1px lines: land on a half-pixel so the stroke doesn't straddle two. */

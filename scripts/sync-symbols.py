@@ -280,16 +280,37 @@ GEOMETRY_SUBTREES = {
 }
 
 
-def strip_cell_chrome(parent: ET.Element) -> int:
-    removed = 0
+def _walk_painted(parent: ET.Element, visit) -> None:
+    """Depth-first over `parent`'s descendants, not descending into
+    GEOMETRY_SUBTREES.
+
+    `visit(parent, child)` is called for each non-geometry child; return True
+    to stop recursing into that child (e.g. because it was just removed).
+    Shared by strip_cell_chrome (mutates) and cell_fills (reads), so a future
+    change to what counts as geometry only has to be made here once - the bug
+    this fixed was exactly that: cell_fills had its own, subtly different
+    copy of this skip logic that had fallen out of sync.
+    """
     for child in list(parent):
         if child.tag in GEOMETRY_SUBTREES:
             continue
-        if is_cell_chrome(child):
-            parent.remove(child)
-            removed += 1
-        else:
-            removed += strip_cell_chrome(child)
+        if visit(parent, child):
+            continue
+        _walk_painted(child, visit)
+
+
+def strip_cell_chrome(root: ET.Element) -> int:
+    removed = 0
+
+    def visit(parent: ET.Element, child: ET.Element) -> bool:
+        nonlocal removed
+        if not is_cell_chrome(child):
+            return False
+        parent.remove(child)
+        removed += 1
+        return True
+
+    _walk_painted(root, visit)
     return removed
 
 
@@ -312,41 +333,34 @@ def to_rgba(fill: str | None, opacity: str | None) -> str | None:
     return f"rgba({r}, {g}, {b}, {a:g})"
 
 
-def _iter_painted(parent: ET.Element):
-    """Descendants of `parent`, not descending into GEOMETRY_SUBTREES.
-
-    Mirrors strip_cell_chrome's traversal: a rect inside a clipPath/mask/defs
-    defines geometry, not paint, so its 'fill' isn't a real cell background
-    (Figma's clipPath rects are commonly fill="currentColor").
-    """
-    for child in parent:
-        if child.tag in GEOMETRY_SUBTREES:
-            continue
-        yield child
-        yield from _iter_painted(child)
-
-
 def cell_fills(root: ET.Element, span: int) -> list[str | None]:
     """
     The background colour of each cell, read before the chrome is stripped.
 
     The fill is not decoration: 'empty' (no stitch) is distinguished from
     'knit' purely by a grey tint, so discarding it would make the two
-    indistinguishable on the canvas.
+    indistinguishable on the canvas. A rect inside a clipPath/mask/defs
+    defines geometry, not paint, so its 'fill' isn't a real cell background
+    (Figma's clipPath rects are commonly fill="currentColor") - that's what
+    _walk_painted's GEOMETRY_SUBTREES skip is for.
     """
     fills: list[str | None] = [None] * span
-    for el in _iter_painted(root):
-        if not is_cell_chrome(el):
-            continue
-        fill = el.get("fill")
+
+    def visit(_parent: ET.Element, child: ET.Element) -> bool:
+        if not is_cell_chrome(child):
+            return False
+        fill = child.get("fill")
         if not fill or fill == "none":
-            continue  # the border rect carries stroke only
+            return False  # the border rect carries stroke only
         try:
-            index = int(round(float(el.get("x", "0")) / CELL))
+            index = int(round(float(child.get("x", "0")) / CELL))
         except ValueError:
-            continue
+            return False
         if 0 <= index < span and fills[index] is None:
-            fills[index] = to_rgba(fill, el.get("fill-opacity"))
+            fills[index] = to_rgba(fill, child.get("fill-opacity"))
+        return False
+
+    _walk_painted(root, visit)
     return fills
 
 
