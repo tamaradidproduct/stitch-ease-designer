@@ -49,7 +49,6 @@ type DocState = {
 
   /** Replace everything with a chart from storage. */
   openChart: (loaded: LoadedChart) => void;
-  closeChart: () => void;
   /** Storage accepted a write made at `revision`. */
   markSaved: (meta: DocMeta, revision: number) => void;
   setStatus: (status: SaveStatus, detail?: string | null) => void;
@@ -162,17 +161,6 @@ export const useDocStore = create<DocState>((set, get) => {
         unknownSymbolIds,
       });
     },
-
-    closeChart: () =>
-      set({
-        ...blank(),
-        revision: get().revision + 1,
-        savedRevision: get().revision + 1,
-        meta: null,
-        status: "idle",
-        statusDetail: null,
-        unknownSymbolIds: [],
-      }),
 
     markSaved: (meta, revision) =>
       set({ meta, savedRevision: revision, status: "idle", statusDetail: null }),

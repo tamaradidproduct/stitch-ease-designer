@@ -13,11 +13,16 @@ const DEBOUNCE_MS = 800;
  *
  * The revision being saved is captured before the write starts, so edits made
  * while it's in flight aren't wrongly marked saved; they just leave the chart
- * dirty again and trigger another pass.
+ * dirty again. An edit that lands *during* the write doesn't get its own
+ * debounce timer re-armed by anything (the revision subscription already
+ * fired for it once), so the in-flight save retries immediately on settling
+ * if one landed - otherwise that edit would only get saved by coincidence,
+ * whenever some later edit happens to schedule another pass.
  */
 export function useAutosave(store: DocStore): void {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inFlight = useRef(false);
+  const missedWhileInFlight = useRef(false);
 
   useEffect(() => {
     const save = async () => {
@@ -26,7 +31,11 @@ export function useAutosave(store: DocStore): void {
       if (!meta || revision === savedRevision) return;
       // A conflict is unresolved until the user says otherwise; writing anyway
       // is exactly the clobber the rev check exists to prevent.
-      if (status === "conflict" || inFlight.current) return;
+      if (status === "conflict") return;
+      if (inFlight.current) {
+        missedWhileInFlight.current = true;
+        return;
+      }
 
       inFlight.current = true;
       const saving = revision;
@@ -57,6 +66,10 @@ export function useAutosave(store: DocStore): void {
         }
       } finally {
         inFlight.current = false;
+        if (missedWhileInFlight.current) {
+          missedWhileInFlight.current = false;
+          void save();
+        }
       }
     };
 

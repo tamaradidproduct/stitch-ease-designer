@@ -99,9 +99,21 @@ export function ChartEditor() {
                 e.target.value = openMeta.name;
                 return;
               }
+              const input = e.target;
               void chartStore
                 .rename(openMeta.id, name)
-                .then((next) => useDocStore.getState().setMeta(next));
+                .then((next) => useDocStore.getState().setMeta(next))
+                .catch((error: unknown) => {
+                  // The rename didn't take; don't leave the input showing a
+                  // name the store never actually adopted.
+                  input.value = openMeta.name;
+                  useDocStore
+                    .getState()
+                    .setStatus(
+                      "error",
+                      error instanceof Error ? error.message : "Could not rename this chart",
+                    );
+                });
             }}
             onKeyDown={(e) => {
               if (e.key === "Enter") e.currentTarget.blur();

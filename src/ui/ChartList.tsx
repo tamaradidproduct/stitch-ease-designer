@@ -33,29 +33,38 @@ export function ChartList() {
     void refresh();
   }, [refresh]);
 
-  const run = async (action: () => Promise<void>) => {
+  // `refreshAfter: false` for actions that navigate away from this list -
+  // it's about to unmount, so re-fetching and setting state on the way out
+  // is wasted work.
+  const run = async (action: () => Promise<void>, { refreshAfter = true } = {}) => {
     try {
       setError(null);
       await action();
-      await refresh();
+      if (refreshAfter) await refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
     }
   };
 
   const onNew = () =>
-    run(async () => {
-      const meta = await chartStore.create();
-      navigate(`/c/${meta.id}`);
-    });
+    run(
+      async () => {
+        const meta = await chartStore.create();
+        navigate(`/c/${meta.id}`);
+      },
+      { refreshAfter: false },
+    );
 
   const onImport = (file: File) =>
-    run(async () => {
-      const { name, placements } = await importChart(file);
-      const meta = await chartStore.create(name);
-      await chartStore.save(meta.id, placements, meta.rev);
-      navigate(`/c/${meta.id}`);
-    });
+    run(
+      async () => {
+        const { name, placements } = await importChart(file);
+        const meta = await chartStore.create(name);
+        await chartStore.save(meta.id, placements, meta.rev);
+        navigate(`/c/${meta.id}`);
+      },
+      { refreshAfter: false },
+    );
 
   return (
     <div className="charts">

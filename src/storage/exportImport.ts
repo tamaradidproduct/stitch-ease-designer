@@ -1,5 +1,6 @@
 import type { Placement } from "../model/types";
 import { getSymbol } from "../symbols/registry";
+import { DEFAULT_CHART_NAME } from "./DocStore";
 import { decode, encode, type StoredChart } from "./serialize";
 
 /**
@@ -30,7 +31,11 @@ export function exportChart(name: string, placements: Iterable<Placement>): void
   const link = document.createElement("a");
   link.href = url;
   link.download = safeFilename(name);
+  // Some browsers only honour a click on an anchor that's actually in the
+  // document.
+  document.body.appendChild(link);
   link.click();
+  link.remove();
   // Revoking immediately can cancel the download in some browsers; a tick is
   // enough for the click to have been handled.
   setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -52,10 +57,11 @@ export async function importChart(file: File): Promise<ImportedChart> {
   const parsed: unknown = JSON.parse(text);
   const { placements, unknownSymbolIds } = decode(parsed, (id) => !!getSymbol(id));
 
+  const fromFile = file.name.replace(/\.stitchchart\.json$|\.json$/i, "").trim();
   const name =
-    typeof (parsed as ChartFile)?.name === "string" && (parsed as ChartFile).name.trim()
-      ? (parsed as ChartFile).name.trim()
-      : file.name.replace(/\.stitchchart\.json$|\.json$/i, "");
+    (typeof (parsed as ChartFile)?.name === "string" && (parsed as ChartFile).name.trim()) ||
+    fromFile ||
+    DEFAULT_CHART_NAME;
 
   return { name, placements, unknownSymbolIds };
 }
