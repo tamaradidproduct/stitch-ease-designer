@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import { useSession } from "./auth/useSession";
-import { supabase } from "./supabase/client";
+import { getSupabase } from "./supabase/client";
 import { createSupabaseDocStore } from "./storage/supabaseDocStore";
-import { localChartStore, setActiveChartStore } from "./storage/store";
+import { setActiveChartStore } from "./storage/store";
 import { ChartEditor } from "./ui/ChartEditor";
 import { ChartList } from "./ui/ChartList";
 import { MigrateLocalCharts } from "./ui/MigrateLocalCharts";
@@ -57,7 +57,7 @@ function ChartRoutes() {
  */
 function SignedIn({ userId }: { userId: string }) {
   const [migrationDone, setMigrationDone] = useState(false);
-  const supabaseStore = useState(() => createSupabaseDocStore(supabase))[0];
+  const supabaseStore = useState(() => createSupabaseDocStore(getSupabase()))[0];
 
   useEffect(() => {
     setActiveChartStore(supabaseStore);
@@ -76,7 +76,11 @@ function SignedIn({ userId }: { userId: string }) {
 /**
  * DEV_SKIP_AUTH's signed-in state: chartStore stays on browser storage, never
  * Supabase (there's no real account to save to), and there's no migration
- * offer — nothing to migrate *into*.
+ * offer — nothing to migrate *into*. `chartStore` (src/storage/store.ts)
+ * already defaults to browser storage, and DEV_SKIP_AUTH is a fixed
+ * module-level constant, so `useSession()` can never have been in the
+ * `supabase` backend before landing here — there's no prior
+ * `setActiveChartStore` call to undo.
  *
  * This component's code does still ship in a production bundle — confirmed
  * by grepping dist/: unreachability here crosses a module boundary
@@ -89,9 +93,5 @@ function SignedIn({ userId }: { userId: string }) {
  * physically stripped.
  */
 function DevLocal() {
-  useEffect(() => {
-    setActiveChartStore(localChartStore);
-  }, []);
-
   return <ChartRoutes />;
 }

@@ -1,6 +1,6 @@
 import type { Session } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
-import { supabase } from "../supabase/client";
+import { getSupabase } from "../supabase/client";
 
 export type SessionState =
   | { status: "loading" }
@@ -48,6 +48,7 @@ export function useSession(): SessionState {
     if (DEV_SKIP_AUTH) return;
 
     let cancelled = false;
+    const supabase = getSupabase();
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (cancelled) return;
@@ -87,7 +88,7 @@ export type SendMagicLinkResult =
  * Supabase returns an error we can catch and label accurately.
  */
 export async function sendMagicLink(email: string): Promise<SendMagicLinkResult> {
-  const { error } = await supabase.auth.signInWithOtp({
+  const { error } = await getSupabase().auth.signInWithOtp({
     email,
     options: {
       shouldCreateUser: false,
@@ -112,5 +113,5 @@ export async function sendMagicLink(email: string): Promise<SendMagicLinkResult>
 }
 
 export async function signOut(): Promise<void> {
-  await supabase.auth.signOut();
+  await getSupabase().auth.signOut();
 }
