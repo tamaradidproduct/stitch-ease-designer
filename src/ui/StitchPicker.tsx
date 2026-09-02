@@ -81,25 +81,39 @@ export function StitchPicker() {
   useEffect(() => {
     if (!target) return;
     setQuery("");
-    setBrowsing(false);
-    inputRef.current?.focus();
 
-    const recentIndex = target.currentSymbolId
-      ? recentIds.slice(0, RECENT_CAPACITY).indexOf(target.currentSymbolId)
-      : -1;
-    const at = recentIndex >= 0 ? (RECENT_SLOTS[recentIndex] ?? -1) : -1;
-    setActive(at >= 0 ? at : 0);
+    // With no recents yet, an empty ring has nothing worth looking at — go
+    // straight to search instead of making the user find the search slot.
+    const firstEverOpen = recentIds.length === 0;
+    setBrowsing(firstEverOpen);
+
+    if (firstEverOpen) {
+      setActive(0);
+    } else {
+      const recentIndex = target.currentSymbolId
+        ? recentIds.slice(0, RECENT_CAPACITY).indexOf(target.currentSymbolId)
+        : -1;
+      const at = recentIndex >= 0 ? (RECENT_SLOTS[recentIndex] ?? -1) : -1;
+      setActive(at >= 0 ? at : 0);
+    }
     // Only the identity of `target` should retrigger this — recentIds is
     // read fresh inside, not watched.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target]);
 
+  // The search toolbar only exists in the DOM while showing results, so
+  // focus it once it mounts rather than in the reset effect above (which
+  // runs before that state change is reflected in a render).
+  useEffect(() => {
+    if (showResults) inputRef.current?.focus();
+  }, [showResults]);
+
   // Keep the whole radial fan (or, while showing results, the list panel) on
   // screen: clamp the hub so nothing runs off a viewport edge.
   useLayoutEffect(() => {
     if (!target) return;
-    const topMargin = HUB_R + 26 + 8; // search toolbar sits above the hub
     if (showResults) {
+      const topMargin = HUB_R + 26 + 8; // search toolbar sits above the hub
       setHub({
         left: Math.max(8, Math.min(target.x, window.innerWidth - HUB_R - 12 - RESULTS_WIDTH - 8)),
         top: Math.max(
@@ -109,15 +123,12 @@ export function StitchPicker() {
       });
       return;
     }
-    // Covers both the ring's outer edge and the search toolbar that floats
-    // above it (offset ITEM_RADIUS + 40, plus its own height).
-    const radialMargin = ITEM_RADIUS + 90;
+    // No toolbar floats above the ring in this mode, so the margin only
+    // needs to cover the ring's own outer edge, evenly in every direction.
+    const radialMargin = ITEM_RADIUS + 50;
     setHub({
       left: Math.max(radialMargin, Math.min(target.x, window.innerWidth - radialMargin)),
-      top: Math.max(
-        Math.max(radialMargin, topMargin),
-        Math.min(target.y, window.innerHeight - radialMargin),
-      ),
+      top: Math.max(radialMargin, Math.min(target.y, window.innerHeight - radialMargin)),
     });
   }, [target, showResults]);
 
@@ -156,7 +167,6 @@ export function StitchPicker() {
   const browseAll = () => {
     setBrowsing(true);
     setActive(0);
-    inputRef.current?.focus();
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -218,45 +228,6 @@ export function StitchPicker() {
           />
         </svg>
       </button>
-
-      {/* One toolbar above everything else, pushed clear of the ring's top
-          edge so it never overlaps the items fanned out below it. */}
-      <div
-        className="radial-picker__toolbar"
-        style={{ top: -(showResults ? HUB_R + 26 : ITEM_RADIUS + 40) }}
-      >
-        <input
-          ref={inputRef}
-          className="radial-picker__search"
-          placeholder={currentSymbol ? "Search or type to replace…" : "Search stitches…"}
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setActive(0);
-          }}
-          spellCheck={false}
-        />
-        {currentSymbol && (
-          <button
-            type="button"
-            className="radial-picker__action"
-            onClick={clear}
-            aria-label="Clear stitch"
-            title="Clear this stitch (Backspace)"
-          >
-            <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
-              <path
-                d="M3.5 5h9M6.5 5V3.5h3V5M4.5 5l.5 8h6l.5-8"
-                stroke="currentColor"
-                strokeWidth="1.3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                fill="none"
-              />
-            </svg>
-          </button>
-        )}
-      </div>
 
       {/* Individual floating buttons with gaps between them, rather than one
           solid panel, so the chart underneath — including neighbouring
@@ -336,6 +307,42 @@ export function StitchPicker() {
               </button>
             );
           })}
+        </div>
+      )}
+
+      {showResults && (
+        <div className="radial-picker__toolbar" style={{ top: -(HUB_R + 26) }}>
+          <input
+            ref={inputRef}
+            className="radial-picker__search"
+            placeholder={currentSymbol ? "Search or type to replace…" : "Search stitches…"}
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setActive(0);
+            }}
+            spellCheck={false}
+          />
+          {currentSymbol && (
+            <button
+              type="button"
+              className="radial-picker__action"
+              onClick={clear}
+              aria-label="Clear stitch"
+              title="Clear this stitch (Backspace)"
+            >
+              <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
+                <path
+                  d="M3.5 5h9M6.5 5V3.5h3V5M4.5 5l.5 8h6l.5-8"
+                  stroke="currentColor"
+                  strokeWidth="1.3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  fill="none"
+                />
+              </svg>
+            </button>
+          )}
         </div>
       )}
 
