@@ -21,9 +21,16 @@ export function bucketFor(cellSizePx: number): number {
 
 type Sprite = HTMLCanvasElement;
 
+/** Rasterisation attempts before a glyph is given up on and logged. */
+const MAX_ATTEMPTS = 3;
+
 export class SpriteCache {
   private readonly cache = new Map<string, Sprite>();
   private readonly pending = new Set<string>();
+  /** Failed attempts per key, so a transient decode error gets retried a few
+   *  times before giving up, instead of either retrying every frame forever
+   *  or silently blacklisting the glyph on the first failure. */
+  private readonly failures = new Map<string, number>();
 
   /** Called when a glyph finishes rasterising, so the caller can redraw. */
   constructor(private readonly onReady: () => void) {}
@@ -39,6 +46,8 @@ export class SpriteCache {
 
     const hit = this.cache.get(key);
     if (hit) return hit;
+
+    if ((this.failures.get(key) ?? 0) >= MAX_ATTEMPTS) return null;
 
     if (!this.pending.has(key)) {
       this.pending.add(key);
@@ -77,17 +86,30 @@ export class SpriteCache {
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
       this.cache.set(key, canvas);
-      this.pending.delete(key);
+      this.failures.delete(key);
       this.onReady();
-    } catch {
+    } catch (err) {
       // A glyph that won't rasterise shouldn't take the canvas down with it;
-      // the cell just renders empty. The key stays in `pending` (never
-      // deleted here) so it isn't retried every single frame.
+      // the cell just renders empty. Retried a bounded number of times (a
+      // decode failure can be transient), then logged and left alone so a
+      // real problem is visible instead of silently retrying forever or
+      // silently giving up.
+      const attempts = (this.failures.get(key) ?? 0) + 1;
+      this.failures.set(key, attempts);
+      if (attempts >= MAX_ATTEMPTS) {
+        console.error(
+          `SpriteCache: giving up on "${key}" after ${attempts} failed rasterise attempts`,
+          err,
+        );
+      }
+    } finally {
+      this.pending.delete(key);
     }
   }
 
   clear(): void {
     this.cache.clear();
     this.pending.clear();
+    this.failures.clear();
   }
 }
