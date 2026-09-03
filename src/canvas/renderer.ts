@@ -1,4 +1,5 @@
 import type { DocIndex } from "../model/docIndex";
+import { knittedRowNumbers, roundStitchNumbers, stitchGroups } from "../model/stitchNumbers";
 import { getSymbol } from "../symbols/registry";
 import type { StitchSymbol } from "../symbols/types";
 import {
@@ -12,7 +13,6 @@ import {
   worldToScreen,
 } from "./camera";
 import { drawGrid, labelStep } from "./grid";
-import { ceilTo } from "./math";
 import type { SpriteCache } from "./spriteCache";
 import { RULER, theme } from "./theme";
 
@@ -52,9 +52,10 @@ export function crispRowY(row: number, cam: Camera, vp: Viewport): number {
 /**
  * Row and column rulers pinned to the top and left edges.
  *
- * Labels are raw cell indices, with the origin at 0. Once chart frames land,
- * a frame will carry its own 1-based row numbering; until then absolute
- * coordinates are the only honest thing to show.
+ * Actual stitched rows are numbered bottom to top, independently of their
+ * canvas coordinates. The top ruler follows the hovered row because
+ * shaping means a canvas column can have a different stitch number on each
+ * row. For knitting in the round, stitch 1 is the rightmost actual stitch.
  */
 function drawRulers(ctx: CanvasRenderingContext2D, state: RenderState): void {
   const { camera: cam, viewport: vp, hover } = state;
@@ -91,20 +92,31 @@ function drawRulers(ctx: CanvasRenderingContext2D, state: RenderState): void {
   // the labels have room to breathe.
   const step = labelStep(cam);
 
-  for (let col = ceilTo(b.minCol, step); col <= b.maxCol; col += step) {
-    const r = cellToScreenRect(col, 0, cam, vp);
-    const x = r.x + r.size / 2;
-    if (x < RULER) continue;
-    ctx.fillStyle = hover?.col === col ? theme.rulerTextActive : theme.rulerText;
-    ctx.fillText(String(col), x, RULER / 2);
+  if (hover) {
+    const stitchNumbers = roundStitchNumbers(state.index, hover.col, hover.row);
+    for (const [col, stitchNumber] of stitchNumbers) {
+      if (col < b.minCol || col > b.maxCol) continue;
+      // Keep the ruler readable when zoomed out, while always retaining the
+      // row's first stitch and the currently hovered stitch.
+      if (stitchNumber !== 1 && stitchNumber % step !== 0 && col !== hover.col) continue;
+      const r = cellToScreenRect(col, hover.row, cam, vp);
+      const x = r.x + r.size / 2;
+      if (x < RULER) continue;
+      ctx.fillStyle = hover.col === col ? theme.rulerTextActive : theme.rulerText;
+      ctx.fillText(String(stitchNumber), x, RULER / 2);
+    }
   }
 
-  for (let row = ceilTo(b.minRow, step); row <= b.maxRow; row += step) {
-    const r = cellToScreenRect(0, row, cam, vp);
-    const y = r.y + r.size / 2;
-    if (y < RULER) continue;
-    ctx.fillStyle = hover?.row === row ? theme.rulerTextActive : theme.rulerText;
-    ctx.fillText(String(row), RULER / 2, y);
+  for (const group of stitchGroups(state.index)) {
+    for (const [row, rowNumber] of knittedRowNumbers(group)) {
+      if (row < b.minRow || row > b.maxRow) continue;
+      if (rowNumber !== 1 && rowNumber % step !== 0 && row !== hover?.row) continue;
+      const r = cellToScreenRect(0, row, cam, vp);
+      const y = r.y + r.size / 2;
+      if (y < RULER) continue;
+      ctx.fillStyle = hover?.row === row ? theme.rulerTextActive : theme.rulerText;
+      ctx.fillText(String(rowNumber), RULER / 2, y);
+    }
   }
 
   // Mask the corner where the two rulers meet.
