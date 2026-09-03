@@ -7,6 +7,7 @@ import { chartStore } from "../storage/store";
 import { useAutosave } from "../storage/useAutosave";
 import { isChartOpen, selectIsDirty, useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
+import { ReferenceImagePanel } from "./ReferenceImagePanel";
 import { StatusBar } from "./StatusBar";
 import { StitchPicker } from "./StitchPicker";
 import { Toolbar } from "./Toolbar";
@@ -37,6 +38,8 @@ export function ChartEditor() {
   const statusDetail = useDocStore((s) => s.statusDetail);
   const status = useDocStore((s) => s.status);
   const repeats = useDocStore((s) => s.repeats);
+  const referenceImagePanelOpen = useUiStore((s) => s.referenceImagePanelOpen);
+  const setReferenceImagePanelOpen = useUiStore((s) => s.setReferenceImagePanelOpen);
 
   useAutosave(chartStore);
 
@@ -147,6 +150,16 @@ export function ChartEditor() {
           type="button"
           className="btn btn--quiet"
           disabled={!openMeta}
+          data-on={referenceImagePanelOpen}
+          onClick={() => setReferenceImagePanelOpen(!referenceImagePanelOpen)}
+          title="Trace a pattern screenshot behind your chart"
+        >
+          Reference
+        </button>
+        <button
+          type="button"
+          className="btn btn--quiet"
+          disabled={!openMeta}
           onClick={() => {
             const { index, meta: current } = useDocStore.getState();
             if (current) exportChart(current.name, index.toArray(), repeats);
@@ -155,6 +168,7 @@ export function ChartEditor() {
           Export
         </button>
       </header>
+      <ReferenceImagePanel />
 
       {(status === "conflict" || status === "error") && statusDetail && (
         <div className="banner banner--bad">

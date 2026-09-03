@@ -2,12 +2,14 @@ import type { DocIndex } from "../model/docIndex";
 import { canInsertAt } from "../model/ops";
 import { rowDirectionAt } from "../model/rowDirection";
 import { knittedRowNumbers, roundStitchNumbers, stitchGroups } from "../model/stitchNumbers";
+import type { ReferenceImage } from "../model/types";
 import { getSymbol } from "../symbols/registry";
 import type { StitchSymbol } from "../symbols/types";
 import {
   CELL,
   type Camera,
   type Cell,
+  type Point,
   type Viewport,
   cellPx,
   cellToScreenRect,
@@ -15,6 +17,7 @@ import {
   worldToScreen,
 } from "./camera";
 import { drawGrid, labelStep } from "./grid";
+import type { ReferenceImageCache } from "./referenceImageCache";
 import type { SpriteCache } from "./spriteCache";
 import type { SelectionBox, SelectionMove, Tool } from "../state/uiStore";
 import { RULER, theme } from "./theme";
@@ -27,6 +30,18 @@ export type RenderState = {
   insertHover: Cell | null;
   index: DocIndex;
   sprites: SpriteCache;
+  referenceImage: ReferenceImage | null;
+  referenceImageCache: ReferenceImageCache;
+  /**
+   * While the reference-image panel is open, it owns the canvas: every
+   * normal hover preview (add/edit/insert) is suppressed so the two modes
+   * never visually compete, and its own move/resize/calibrate affordances
+   * take over instead.
+   */
+  referenceImagePanelOpen: boolean;
+  referenceImageCalibrating: boolean;
+  /** The calibration box's corners in world space, while one's being dragged out. */
+  referenceImageCalibrationBox: { start: Point; current: Point } | null;
   /** Symbol armed in the toolbar, previewed under the cursor. */
   armedSymbolId: string | null;
   selectedPlacementIds: string[];
@@ -470,9 +485,67 @@ function drawInsertLine(
   }
 }
 
+/**
+ * The reference-image panel's own on-canvas affordances, replacing every
+ * normal hover hint while it's open: an outline around the image with a
+ * resize handle at its corner (when it's draggable), and the calibration
+ * box while one's being dragged out.
+ */
+function drawReferenceImageOverlay(ctx: CanvasRenderingContext2D, state: RenderState): void {
+  const { referenceImagePanelOpen, referenceImage, referenceImageCalibrationBox, camera: cam, viewport: vp } =
+    state;
+  if (!referenceImagePanelOpen) return;
+
+  if (referenceImage?.visible) {
+    const topLeft = worldToScreen(referenceImage.x, referenceImage.y + referenceImage.height, cam, vp);
+    const bottomRight = worldToScreen(referenceImage.x + referenceImage.width, referenceImage.y, cam, vp);
+
+    ctx.save();
+    ctx.strokeStyle = theme.hoverStroke;
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(
+      topLeft.x + 0.5,
+      topLeft.y + 0.5,
+      bottomRight.x - topLeft.x - 1,
+      bottomRight.y - topLeft.y - 1,
+    );
+
+    if (!referenceImage.locked) {
+      const handle = 9;
+      ctx.fillStyle = theme.hoverStroke;
+      ctx.fillRect(bottomRight.x - handle / 2, bottomRight.y - handle / 2, handle, handle);
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(bottomRight.x - handle / 2, bottomRight.y - handle / 2, handle, handle);
+    }
+    ctx.restore();
+  }
+
+  if (referenceImageCalibrationBox) {
+    const { start, current } = referenceImageCalibrationBox;
+    const a = worldToScreen(start.x, start.y, cam, vp);
+    const b = worldToScreen(current.x, current.y, cam, vp);
+    const x = Math.min(a.x, b.x);
+    const y = Math.min(a.y, b.y);
+
+    ctx.save();
+    ctx.fillStyle = "rgba(22, 163, 74, 0.14)";
+    ctx.strokeStyle = "#16a34a";
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 3]);
+    ctx.fillRect(x, y, Math.abs(b.x - a.x), Math.abs(b.y - a.y));
+    ctx.strokeRect(x + 0.5, y + 0.5, Math.abs(b.x - a.x) - 1, Math.abs(b.y - a.y) - 1);
+    ctx.restore();
+  }
+}
+
 function drawHover(ctx: CanvasRenderingContext2D, state: RenderState): void {
   const { camera: cam, viewport: vp, hover, insertHover, armedSymbolId, sprites, index, tool, selectHeld } =
     state;
+  // The reference-image panel owns the canvas while it's open - every
+  // normal tool hint would otherwise show through underneath its own
+  // move/resize/calibrate affordances, competing for the same attention.
+  if (state.referenceImagePanelOpen) return;
   // Below this the outline is bigger than the cell and just looks like noise.
   if (cellPx(cam) < 4) return;
   const size = cellPx(cam);
@@ -514,17 +587,49 @@ function drawHover(ctx: CanvasRenderingContext2D, state: RenderState): void {
  * Draw one frame. `ctx` is expected to already be scaled by devicePixelRatio,
  * so everything here works in CSS pixels.
  */
+/**
+ * The pattern screenshot a designer is tracing against, drawn before the
+ * grid and stitches so it always reads as backdrop, never as content. `x`/
+ * `y` anchor its bottom-left corner (world space, +y up, matching how a
+ * chart itself grows upward); `width`/`height` are independent so the image
+ * can be stretched to match a source chart whose stitches aren't square.
+ */
+function drawReferenceImage(ctx: CanvasRenderingContext2D, state: RenderState): void {
+  const { referenceImage, referenceImageCache, camera: cam, viewport: vp } = state;
+  if (!referenceImage || !referenceImage.visible) return;
+
+  const img = referenceImageCache.get(referenceImage.ref);
+  if (!img) return;
+
+  const { x, y, width, height, opacity } = referenceImage;
+  const topLeft = worldToScreen(x, y + height, cam, vp);
+  const bottomRight = worldToScreen(x + width, y, cam, vp);
+
+  ctx.save();
+  ctx.globalAlpha = opacity;
+  ctx.drawImage(
+    img,
+    topLeft.x,
+    topLeft.y,
+    bottomRight.x - topLeft.x,
+    bottomRight.y - topLeft.y,
+  );
+  ctx.restore();
+}
+
 export function render(ctx: CanvasRenderingContext2D, state: RenderState): void {
   const { viewport: vp } = state;
 
   ctx.fillStyle = theme.background;
   ctx.fillRect(0, 0, vp.width, vp.height);
 
+  drawReferenceImage(ctx, state);
   drawGrid(ctx, state.camera, vp, theme);
   drawPlacements(ctx, state);
   drawSelection(ctx, state);
   drawSelectionBox(ctx, state);
   drawHover(ctx, state);
+  drawReferenceImageOverlay(ctx, state);
   drawRulers(ctx, state);
 }
 

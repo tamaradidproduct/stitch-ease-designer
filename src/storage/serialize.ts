@@ -1,5 +1,5 @@
 import { newPlacementId } from "../model/ops";
-import type { Placement, RepeatDefinition } from "../model/types";
+import type { Placement, ReferenceImage, RepeatDefinition } from "../model/types";
 import { getSymbol } from "../symbols/registry";
 
 /**
@@ -23,6 +23,7 @@ export type StoredChart = {
   stitches: ([number, number, number] | [number, number, number, number])[];
   groups?: string[];
   repeats?: RepeatDefinition[];
+  referenceImage?: ReferenceImage;
 };
 
 export const STORED_VERSION = 2;
@@ -58,6 +59,7 @@ export class ChartFormatError extends Error {
 export function encode(
   placements: Iterable<Placement>,
   repeats: RepeatDefinition[] = [],
+  referenceImage?: ReferenceImage,
 ): StoredChart {
   const sorted = [...placements].sort((a, b) => a.row - b.row || a.col - b.col);
 
@@ -87,7 +89,14 @@ export function encode(
     }
   }
 
-  return { v: STORED_VERSION, palette, stitches, groups, repeats };
+  return {
+    v: STORED_VERSION,
+    palette,
+    stitches,
+    groups,
+    repeats,
+    ...(referenceImage ? { referenceImage } : null),
+  };
 }
 
 const isInteger = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n);
@@ -184,12 +193,38 @@ function validate(stored: unknown): StoredChart {
       }
     }
   });
+
+  if (chart.referenceImage !== undefined) {
+    const img = chart.referenceImage as Partial<ReferenceImage> | null;
+    if (
+      typeof img !== "object" ||
+      img === null ||
+      typeof img.ref !== "string" ||
+      typeof img.x !== "number" ||
+      typeof img.y !== "number" ||
+      typeof img.width !== "number" ||
+      !(img.width > 0) ||
+      typeof img.height !== "number" ||
+      !(img.height > 0) ||
+      typeof img.naturalWidth !== "number" ||
+      !(img.naturalWidth > 0) ||
+      typeof img.naturalHeight !== "number" ||
+      !(img.naturalHeight > 0) ||
+      typeof img.opacity !== "number" ||
+      typeof img.visible !== "boolean" ||
+      typeof img.locked !== "boolean"
+    ) {
+      throw new ChartFormatError("referenceImage is invalid");
+    }
+  }
+
   return chart as StoredChart;
 }
 
 export type DecodedChart = {
   placements: Placement[];
   repeats: RepeatDefinition[];
+  referenceImage?: ReferenceImage;
   /**
    * Symbols the stored chart references that this build's library doesn't have
    * — a chart saved before a symbol was renamed or removed in Figma. They're
@@ -234,5 +269,10 @@ export function decode(stored: unknown, knownSymbol: (id: string) => boolean): D
     ...(groupIndex === undefined ? {} : { groupId: chart.groups![groupIndex] }),
   }));
 
-  return { placements, repeats: chart.repeats!, unknownSymbolIds: [...unknown] };
+  return {
+    placements,
+    repeats: chart.repeats!,
+    unknownSymbolIds: [...unknown],
+    ...(chart.referenceImage ? { referenceImage: chart.referenceImage } : null),
+  };
 }
