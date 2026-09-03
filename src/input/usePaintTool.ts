@@ -158,7 +158,6 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       }
       ui().setSelectedPlacementIds([...selected]);
     };
-
     const onPointerDown = (e: PointerEvent) => {
       if (ui().spaceHeld || e.button !== 0) return; // panning, or not a plain left click
 

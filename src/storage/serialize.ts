@@ -184,7 +184,6 @@ function validate(stored: unknown): StoredChart {
       }
     }
   });
-
   return chart as StoredChart;
 }
 

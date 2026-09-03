@@ -54,6 +54,21 @@ export function useShortcuts(): void {
         return;
       }
 
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "d") {
+        if (!ui.selectedPlacementIds.length) return;
+        e.preventDefault();
+        const ids = doc.duplicatePlacements(ui.selectedPlacementIds);
+        if (ids.length) ui.setSelectedPlacementIds(ids);
+        return;
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "g") {
+        if (!ui.selectedPlacementIds.length) return;
+        e.preventDefault();
+        doc.createRepeat(ui.selectedPlacementIds);
+        return;
+      }
+
       if (e.key === "Escape") {
         if (ui.picker) ui.closePicker();
         else if (ui.selectedPlacementIds.length) ui.clearSelectionWithUndo();
