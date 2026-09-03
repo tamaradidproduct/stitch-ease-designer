@@ -9,7 +9,8 @@ type Phase =
   | { step: "none" }
   | { step: "offer"; charts: DocMeta[] }
   | { step: "working" }
-  | { step: "done"; result: MigrationResult };
+  | { step: "done"; result: MigrationResult }
+  | { step: "error"; message: string };
 
 /**
  * Shown once per sign-in, before the chart list, if this browser has charts
@@ -32,10 +33,19 @@ export function MigrateLocalCharts({
 
   useEffect(() => {
     let cancelled = false;
-    void localChartStore.list().then((charts) => {
-      if (cancelled) return;
-      setPhase(charts.length > 0 ? { step: "offer", charts } : { step: "none" });
-    });
+    void localChartStore
+      .list()
+      .then((charts) => {
+        if (cancelled) return;
+        setPhase(charts.length > 0 ? { step: "offer", charts } : { step: "none" });
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setPhase({
+          step: "error",
+          message: error instanceof Error ? error.message : "Could not check browser storage",
+        });
+      });
     return () => {
       cancelled = true;
     };
@@ -69,9 +79,14 @@ export function MigrateLocalCharts({
               type="button"
               onClick={() => {
                 setPhase({ step: "working" });
-                void migrateLocalCharts(localChartStore, targetStore).then((result) =>
-                  setPhase({ step: "done", result }),
-                );
+                void migrateLocalCharts(localChartStore, targetStore)
+                  .then((result) => setPhase({ step: "done", result }))
+                  .catch((error: unknown) =>
+                    setPhase({
+                      step: "error",
+                      message: error instanceof Error ? error.message : "Could not copy charts",
+                    }),
+                  );
               }}
             >
               Add to my account
@@ -90,6 +105,23 @@ export function MigrateLocalCharts({
       <div className="signIn">
         <div className="signIn__card">
           <p className="signIn__sent">Copying your charts…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase.step === "error") {
+    return (
+      <div className="signIn">
+        <div className="signIn__card">
+          <h1 className="signIn__title">Couldn’t check your local charts</h1>
+          <p className="signIn__error">{phase.message}</p>
+          <p className="signIn__sent">Your browser charts have not been changed.</p>
+          <div className="signIn__form signIn__form--actions">
+            <button type="button" onClick={onDone}>
+              Continue
+            </button>
+          </div>
         </div>
       </div>
     );

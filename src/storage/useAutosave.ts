@@ -43,8 +43,18 @@ export function useAutosave(store: DocStore): void {
 
       try {
         const next = await store.save(meta.id, index.toArray(), meta.rev);
-        useDocStore.getState().markSaved(next, saving);
+        // The route can change while this request is in flight. Applying a
+        // result for chart A after chart B has loaded would attach A's fresh
+        // rev (and metadata) to B's placements, making B's next save fail or
+        // target the wrong document. The write itself is still valid; only
+        // this now-stale UI update must be ignored.
+        if (useDocStore.getState().meta?.id === meta.id) {
+          useDocStore.getState().markSaved(next, saving);
+        }
       } catch (error) {
+        // A stale request must not put a newly opened chart into an error or
+        // conflict state. `openChart` has already reset that chart to idle.
+        if (useDocStore.getState().meta?.id !== meta.id) return;
         if (error instanceof ChartConflictError) {
           useDocStore
             .getState()

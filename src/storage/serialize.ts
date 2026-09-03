@@ -1,5 +1,6 @@
 import { newPlacementId } from "../model/ops";
 import type { Placement } from "../model/types";
+import { getSymbol } from "../symbols/registry";
 
 /**
  * The stored form of a chart.
@@ -125,6 +126,24 @@ export function decode(stored: unknown, knownSymbol: (id: string) => boolean): D
   const unknown = new Set<string>();
   for (const id of chart.palette) {
     if (!knownSymbol(id)) unknown.add(id);
+  }
+
+  // Stored data can come from an edited localStorage entry or an imported
+  // file. Do not let either create a document whose placements disagree with
+  // its one-placement-per-cell occupancy index. Unknown symbols deliberately
+  // retain the renderer's one-cell fallback, because their original span is
+  // unavailable in this version of the library.
+  const occupied = new Set<string>();
+  for (const [col, row, paletteIndex] of chart.stitches) {
+    const symbolId = chart.palette[paletteIndex]!;
+    const span = knownSymbol(symbolId) ? (getSymbol(symbolId)?.span ?? 1) : 1;
+    for (let cell = col; cell < col + span; cell++) {
+      const key = `${cell},${row}`;
+      if (occupied.has(key)) {
+        throw new ChartFormatError(`overlapping stitches at col ${cell}, row ${row}`);
+      }
+      occupied.add(key);
+    }
   }
 
   const placements = chart.stitches.map(([col, row, paletteIndex]) => ({
