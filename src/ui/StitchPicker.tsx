@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { cellToScreenRect } from "../canvas/camera";
 import { allSymbols, getSymbol } from "../symbols/registry";
 import type { StitchSymbol } from "../symbols/types";
 import { useDocStore } from "../state/docStore";
@@ -6,56 +7,18 @@ import { useUiStore } from "../state/uiStore";
 import { SymbolGlyph } from "./SymbolGlyph";
 import { searchSymbols } from "./symbolSearch";
 
-const WIDTH = 288;
+const MENU_WIDTH = 284;
+const SEARCH_WIDTH = 320;
 const MAX_HEIGHT = 380;
 const GLYPH_BUDGET = 210;
 
-const CATEGORY_LABEL: Record<string, string> = {
-  basic: "Basic",
-  decrease: "Decreases",
-  increase: "Increases",
-  cable: "Cables",
-  brioche: "Brioche",
-  special: "Special",
-};
-
-const CATEGORY_ORDER = ["basic", "decrease", "increase", "cable", "brioche", "special"];
-
 type Section = { key: string; title: string | null; symbols: StitchSymbol[] };
 
-/**
- * Grouped sections for a query: recents lead when there's no query at all,
- * searching drops them so the ranking isn't fighting a pinned section.
- * Pulled out of the component so the reset-on-reopen effect can compute the
- * same "no query" ordering the picker will render into, without waiting for
- * the query state reset to actually take effect first.
- */
-function buildSections(query: string, recentIds: string[]): Section[] {
-  const results = searchSymbols(allSymbols(), query);
-  if (query.trim()) return [{ key: "results", title: null, symbols: results }];
-
-  const recent = recentIds
-    .map((id) => getSymbol(id))
-    .filter((s): s is StitchSymbol => !!s);
-
-  const byCategory = new Map<string, StitchSymbol[]>();
-  for (const s of results) {
-    let group = byCategory.get(s.category);
-    if (!group) byCategory.set(s.category, (group = []));
-    group.push(s);
-  }
-  const groups = [...byCategory.entries()].sort(
-    ([a], [b]) => CATEGORY_ORDER.indexOf(a) - CATEGORY_ORDER.indexOf(b),
-  );
-
-  return [
-    ...(recent.length ? [{ key: "recent", title: "Recent", symbols: recent }] : []),
-    ...groups.map(([category, symbols]) => ({
-      key: category,
-      title: CATEGORY_LABEL[category] ?? category,
-      symbols,
-    })),
-  ];
+/** Searching is deliberately empty until the designer types a query. */
+function buildSections(query: string): Section[] {
+  return query.trim()
+    ? [{ key: "results", title: null, symbols: searchSymbols(allSymbols(), query) }]
+    : [];
 }
 
 /** Cables are up to 12 cells wide; shrink the cell so the whole span fits. */
@@ -68,24 +31,31 @@ export function StitchPicker() {
   const chooseSymbol = useUiStore((s) => s.chooseSymbol);
   const clearSelection = useUiStore((s) => s.clearSelection);
   const setTool = useUiStore((s) => s.setTool);
-  const recentIds = useUiStore((s) => s.recentSymbolIds);
+  const quickIds = useUiStore((s) => s.quickSymbolIds);
+  const camera = useUiStore((s) => s.camera);
+  const viewport = useUiStore((s) => s.viewport);
   const place = useDocStore((s) => s.place);
   const erase = useDocStore((s) => s.erase);
   const insertPlacement = useDocStore((s) => s.insertPlacement);
   const replacePlacements = useDocStore((s) => s.replacePlacements);
   const repeats = useDocStore((s) => s.repeats);
   const instantiateRepeat = useDocStore((s) => s.instantiateRepeat);
+  const index = useDocStore((s) => s.index);
+  useDocStore((s) => s.revision);
 
   const [query, setQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const searchButtonRef = useRef<HTMLButtonElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [pos, setPos] = useState({ left: 0, top: 0 });
   const selectionSpan = target?.selectionSpan;
 
   const sections = useMemo(() => {
-    const built = buildSections(query, recentIds);
+    if (!query.trim()) return [];
+    const built = buildSections(query);
     if (!selectionSpan) return built;
     return built
       .map((section) => ({
@@ -93,11 +63,20 @@ export function StitchPicker() {
         symbols: section.symbols.filter((symbol) => symbol.span === selectionSpan),
       }))
       .filter((section) => section.symbols.length > 0);
-  }, [query, recentIds, selectionSpan]);
+  }, [query, selectionSpan]);
+
+  const quickSymbols = useMemo(
+    () => quickIds
+      .map((id) => getSymbol(id))
+      .filter((symbol): symbol is StitchSymbol =>
+        !!symbol && (!selectionSpan || symbol.span === selectionSpan))
+      .slice(0, 5),
+    [quickIds, selectionSpan],
+  );
 
   // Flat order is what the arrow keys walk, so it must match render order.
   const flat = useMemo(() => sections.flatMap((s) => s.symbols), [sections]);
-  const matchingRepeats = target?.selectionIds
+  const matchingRepeats = target?.selectionIds || !query.trim()
     ? []
     : repeats.filter((repeat) => repeat.name.toLowerCase().includes(query.trim().toLowerCase()));
 
@@ -110,29 +89,29 @@ export function StitchPicker() {
   useEffect(() => {
     if (!target) return;
     setQuery("");
-    inputRef.current?.focus();
-
-    if (target.currentSymbolId) {
-      const initial = buildSections("", recentIds).flatMap((s) => s.symbols);
-      const at = initial.findIndex((s) => s.id === target.currentSymbolId);
-      setActive(at >= 0 ? at : 0);
-    } else {
-      setActive(0);
-    }
-    // Only the identity of `target` should retrigger this — recentIds and
-    // query are read fresh inside, not watched.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setSearchOpen(false);
+    setActive(0);
+    requestAnimationFrame(() => searchButtonRef.current?.focus());
   }, [target]);
 
   // Keep the popover on screen when the clicked cell is near an edge.
   useLayoutEffect(() => {
     if (!target) return;
-    const height = rootRef.current?.offsetHeight ?? MAX_HEIGHT;
+    const root = rootRef.current;
+    if (!root) return;
+    const canvasRect = document.querySelector("canvas")?.getBoundingClientRect();
+    const cell = cellToScreenRect(target.col, target.row, camera, viewport);
+    const placement = index.placementAt(target.col, target.row);
+    const span = target.selectionSpan ?? (placement ? index.spanOf(placement) : 1);
+    const anchorX = (canvasRect?.left ?? 0) + cell.x + (cell.size * span) / 2;
+    const anchorY = (canvasRect?.top ?? 0) + cell.y;
+    const width = searchOpen ? SEARCH_WIDTH : MENU_WIDTH;
+    const height = root.offsetHeight;
     setPos({
-      left: Math.max(8, Math.min(target.x, window.innerWidth - WIDTH - 8)),
-      top: Math.max(8, Math.min(target.y, window.innerHeight - height - 8)),
+      left: Math.max(8, Math.min(anchorX - width / 2, window.innerWidth - width - 8)),
+      top: Math.max(8, Math.min(anchorY - height - 8, window.innerHeight - height - 8)),
     });
-  }, [target]);
+  }, [target, searchOpen, camera, viewport, index, query]);
 
   useEffect(() => {
     listRef.current
@@ -153,6 +132,13 @@ export function StitchPicker() {
   }, [closePicker]);
 
   if (!target) return null;
+
+  const openSearch = (initialQuery = "") => {
+    setSearchOpen(true);
+    setQuery(initialQuery);
+    setActive(0);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  };
 
   const currentSymbol = target.currentSymbolId ? getSymbol(target.currentSymbolId) : undefined;
   const placeholder = target.selectionIds
@@ -183,12 +169,17 @@ export function StitchPicker() {
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
+    if (!searchOpen && e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      e.preventDefault();
+      openSearch(e.key);
+      return;
+    }
     if (e.key === "Escape") {
       e.preventDefault();
       closePicker();
       return;
     }
-    if (e.key === "Enter") {
+    if (searchOpen && e.key === "Enter") {
       e.preventDefault();
       const symbol = flat[active];
       if (symbol) choose(symbol);
@@ -196,7 +187,7 @@ export function StitchPicker() {
     }
     // Only when the search box is empty, so backspacing out a typed query
     // never doubles as clearing the stitch underneath it.
-    if ((e.key === "Backspace" || e.key === "Delete") && !query && currentSymbol) {
+    if (searchOpen && (e.key === "Backspace" || e.key === "Delete") && !query && currentSymbol) {
       e.preventDefault();
       clear();
       return;
@@ -208,28 +199,87 @@ export function StitchPicker() {
     }
   };
 
-  let index = -1;
+  let resultIndex = -1;
 
   return (
     <div
       ref={rootRef}
       className="picker"
-      style={{ left: pos.left, top: pos.top, width: WIDTH, maxHeight: MAX_HEIGHT }}
+      data-search-open={searchOpen}
+      style={{
+        left: pos.left,
+        top: pos.top,
+        width: searchOpen ? SEARCH_WIDTH : MENU_WIDTH,
+        maxHeight: MAX_HEIGHT,
+      }}
       onKeyDown={onKeyDown}
     >
-      <div className="picker__header">
-        <input
-          ref={inputRef}
-          className="picker__search"
-          placeholder={placeholder}
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setActive(0);
-          }}
-          spellCheck={false}
-        />
-        {currentSymbol && (
+      <div className="picker__quick" aria-label="Choose a recent stitch or search">
+        {Array.from({ length: 5 }, (_, slot) => {
+          const symbol = quickSymbols[slot];
+          return symbol ? (
+            <button
+              key={symbol.id}
+              type="button"
+              className="picker__quickButton"
+              onClick={() => choose(symbol)}
+              title={symbol.label}
+              aria-label={symbol.label}
+            >
+              <SymbolGlyph symbol={symbol} cell={Math.max(7, Math.min(22, 58 / symbol.span))} />
+            </button>
+          ) : (
+            <button
+              key={`empty:${slot}`}
+              type="button"
+              className="picker__quickButton picker__quickSlot"
+              onClick={() => openSearch()}
+              title="Choose a stitch"
+              aria-label={`Choose a stitch for recent slot ${slot + 1}`}
+            >
+              <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true">
+                <path
+                  d="M10 5.5v9M5.5 10h9"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+          );
+        })}
+        <button
+          ref={searchButtonRef}
+          type="button"
+          className="picker__quickButton picker__searchButton"
+          data-active={!searchOpen}
+          onClick={() => openSearch()}
+          title="Search all stitches"
+          aria-label="Search all stitches"
+        >
+          <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+            <circle cx="8.5" cy="8.5" r="5.25" fill="none" stroke="currentColor" strokeWidth="1.6" />
+            <path d="m12.4 12.4 4 4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          </svg>
+        </button>
+      </div>
+
+      {searchOpen && (
+        <>
+          <div className="picker__header">
+            <input
+              ref={inputRef}
+              className="picker__search"
+              placeholder={placeholder}
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setActive(0);
+              }}
+              spellCheck={false}
+            />
+            {currentSymbol && (
           <button
             type="button"
             className="picker__clear"
@@ -248,8 +298,8 @@ export function StitchPicker() {
               />
             </svg>
           </button>
-        )}
-        <button
+            )}
+            <button
           type="button"
           className="picker__close"
           onClick={closePicker}
@@ -265,15 +315,18 @@ export function StitchPicker() {
               fill="none"
             />
           </svg>
-        </button>
-      </div>
+            </button>
+          </div>
 
-      <div className="picker__list" ref={listRef}>
-        {flat.length === 0 && matchingRepeats.length === 0 && (
-          <div className="picker__empty">No stitch matches that.</div>
-        )}
+          <div className="picker__list" ref={listRef}>
+            {!query.trim() && (
+              <div className="picker__empty">Type to search all stitches.</div>
+            )}
+            {!!query.trim() && flat.length === 0 && matchingRepeats.length === 0 && (
+              <div className="picker__empty">No stitch matches that.</div>
+            )}
 
-        {matchingRepeats.length > 0 && (
+            {matchingRepeats.length > 0 && (
           <div>
             <div className="picker__heading">This chart</div>
             {matchingRepeats.map((repeat) => (
@@ -297,15 +350,15 @@ export function StitchPicker() {
               </button>
             ))}
           </div>
-        )}
+            )}
 
-        {sections.map((section) => (
+            {sections.map((section) => (
           <div key={section.key}>
             {section.title && <div className="picker__heading">{section.title}</div>}
             {section.symbols.map((symbol) => {
-              index += 1;
-              const isActive = index === active;
-              const at = index;
+              resultIndex += 1;
+              const isActive = resultIndex === active;
+              const at = resultIndex;
               return (
                 <button
                   key={`${section.key}:${symbol.id}`}
@@ -329,8 +382,10 @@ export function StitchPicker() {
               );
             })}
           </div>
-        ))}
-      </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

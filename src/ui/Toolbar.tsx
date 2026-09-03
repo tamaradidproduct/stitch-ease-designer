@@ -7,7 +7,7 @@ export function Toolbar() {
   const armedId = useUiStore((s) => s.armedSymbolId);
   const tool = useUiStore((s) => s.tool);
   const selectHeld = useUiStore((s) => s.selectHeld);
-  const recentIds = useUiStore((s) => s.recentSymbolIds);
+  const quickIds = useUiStore((s) => s.quickSymbolIds);
   const setTool = useUiStore((s) => s.setTool);
   const setArmed = useUiStore((s) => s.setArmedSymbolId);
   const openPicker = useUiStore((s) => s.openPicker);
@@ -130,9 +130,9 @@ export function Toolbar() {
         </div>
       )}
 
-      {recentIds.length > 1 && (
+      {quickIds.length > 1 && (
         <div className="toolbar__recents">
-          {recentIds.map((id) => {
+          {quickIds.map((id) => {
             const symbol = getSymbol(id);
             if (!symbol) return null;
             return (

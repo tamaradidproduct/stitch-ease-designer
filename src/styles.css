@@ -301,11 +301,68 @@ body {
   flex-direction: column;
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   box-shadow:
     0 8px 24px rgb(15 23 42 / 14%),
     0 2px 6px rgb(15 23 42 / 8%);
   overflow: hidden;
+}
+
+.picker__quick {
+  display: grid;
+  grid-template-columns: repeat(6, 40px);
+  gap: 5px;
+  padding: 7px;
+  background: var(--bg);
+}
+
+.picker__quickButton,
+.picker__quickSlot {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border-radius: 7px;
+}
+
+.picker__quickButton {
+  padding: 0;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.picker__quickButton:hover,
+.picker__quickButton:focus-visible,
+.picker__quickButton[data-active="true"] {
+  border-color: #bae6fd;
+  background: #e0f2fe;
+  color: var(--accent);
+  outline: none;
+}
+
+.picker__quickSlot {
+  border: 1px dashed #dbe3ec;
+  background: #f8fafc;
+  color: #94a3b8;
+}
+
+.picker__quickSlot:hover,
+.picker__quickSlot:focus-visible {
+  border-style: solid;
+  border-color: #bae6fd;
+  background: #e0f2fe;
+  color: var(--accent);
+}
+
+.picker__searchButton {
+  border-left-color: var(--border);
+  border-radius: 0 7px 7px 0;
+}
+
+.picker[data-search-open="true"] .picker__quick {
+  border-bottom: 1px solid var(--border);
 }
 
 .picker__header {
