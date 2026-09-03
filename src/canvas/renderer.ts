@@ -1,10 +1,8 @@
 import type { DocIndex } from "../model/docIndex";
 import { canInsertAt } from "../model/ops";
-import { rowDirectionAt } from "../model/rowDirection";
 import { chartTopology, knittedRowNumbers, roundStitchNumbers } from "../model/stitchNumbers";
 import type { ReferenceImage } from "../model/types";
 import { getSymbol } from "../symbols/registry";
-import type { StitchSymbol } from "../symbols/types";
 import {
   CELL,
   type Camera,
@@ -43,7 +41,7 @@ export type RenderState = {
   referenceImageCalibrating: boolean;
   /** The calibration box's corners in world space, while one's being dragged out. */
   referenceImageCalibrationBox: { start: Point; current: Point } | null;
-  /** Symbol armed in the toolbar, previewed under the cursor. */
+  /** Symbol armed in the toolbar; CanvasView chooses the matching cursor state. */
   armedSymbolId: string | null;
   selectedPlacementIds: string[];
   tool: Tool;
@@ -294,40 +292,18 @@ function drawSelectionBox(ctx: CanvasRenderingContext2D, state: RenderState): vo
 }
 
 /**
- * The "nothing here yet, click to add" affordance for an empty cell: a
- * dashed border (stitches are always solid-stroked) plus a small "+" badge
- * tucked in the corner, meaning "a new stitch goes here" regardless of
- * whether anything's armed. When something IS armed, a second indicator - a
- * shrunk-down, true-shaped rendition of it - sits just outside the frame,
- * so the two together read as "new stitch" + "specifically this one",
- * rather than one badge trying to carry both meanings at once.
+ * The canvas-level target outline for an empty cell. The Figma cursor itself
+ * carries the add or armed-stitch badge, so it is intentionally not repeated
+ * here.
  */
 function drawAddState(
   ctx: CanvasRenderingContext2D,
   r: { x: number; y: number; size: number },
-  symbol: StitchSymbol | undefined,
-  sprites: SpriteCache,
 ): void {
   const { x, y, size } = r;
 
   strokeDashedRect(ctx, x + 1, y + 1, size - 2, size - 2, size);
 
-  // Too small a cell makes either indicator an illegible smudge; the dashed
-  // border alone still reads fine at that zoom.
-  if (size < 13) return;
-
-  const radius = Math.min(size * 0.2, 8);
-  drawPlusBadge(ctx, x + size - radius - 3, y + size - radius - 3, radius);
-
-  if (symbol) {
-    const h = Math.max(8, Math.min(size * 0.45, 13));
-    const w = h * symbol.span;
-    // Right-aligned under the box, but clear of it entirely - tucking it
-    // inside the corner made it read as part of the cell, which is exactly
-    // the "about to overwrite this" impression the dashed border is there
-    // to avoid.
-    drawStitchThumbnail(ctx, x + size - w, y + size + 3, h, symbol, sprites);
-  }
 }
 
 /** The dashed outline shared by every "not committed yet" preview state. */
@@ -347,74 +323,6 @@ function strokeDashedRect(
   ctx.restore();
 }
 
-/**
- * The generic "a new stitch goes here" badge, centred at (cx, cy) - shown
- * whether or not anything's armed, since it marks the action (add), not
- * which symbol. Shared by Draw's empty-cell hover and Insert's line.
- */
-function drawPlusBadge(
-  ctx: CanvasRenderingContext2D,
-  cx: number,
-  cy: number,
-  radius: number,
-): void {
-  ctx.beginPath();
-  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-  ctx.fillStyle = theme.hoverStroke;
-  ctx.fill();
-
-  ctx.strokeStyle = "#ffffff";
-  ctx.lineWidth = Math.max(1.2, radius * 0.28);
-  ctx.lineCap = "round";
-  const arm = radius * 0.45;
-  ctx.beginPath();
-  ctx.moveTo(cx - arm, cy);
-  ctx.lineTo(cx + arm, cy);
-  ctx.moveTo(cx, cy - arm);
-  ctx.lineTo(cx, cy + arm);
-  ctx.stroke();
-}
-
-/**
- * A shrunk-down, true-shaped rendition of the armed symbol, top-left corner
- * at (x, y) — square for a single stitch, a short rectangle for a
- * multi-cell one, same shape it'll actually have, just smaller. Sits
- * alongside `drawPlusBadge`, not instead of it: "+" says a stitch is about
- * to land, this says which one.
- */
-function drawStitchThumbnail(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  h: number,
-  symbol: StitchSymbol,
-  sprites: SpriteCache,
-): void {
-  const span = symbol.span;
-  const w = h * span;
-  const cellW = h;
-
-  ctx.fillStyle = theme.cellFill;
-  ctx.fillRect(x, y, w, h);
-  const fills = symbol.cellFills;
-  if (fills) {
-    for (let i = 0; i < span; i++) {
-      const fill = fills[i];
-      if (!fill) continue;
-      ctx.fillStyle = fill;
-      ctx.fillRect(x + i * cellW, y, cellW, h);
-    }
-  }
-  ctx.strokeStyle = theme.hoverStroke;
-  ctx.lineWidth = 1;
-  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
-
-  if (symbol.hasGlyph) {
-    const sprite = sprites.get(symbol, h, theme.symbol);
-    if (sprite) ctx.drawImage(sprite, x, y, w, h);
-  }
-}
-
 /** The plain highlight for hovering a cell that already has a stitch. */
 function drawEditHighlight(
   ctx: CanvasRenderingContext2D,
@@ -426,64 +334,6 @@ function drawEditHighlight(
   ctx.strokeStyle = theme.hoverStroke;
   ctx.lineWidth = 1.5;
   ctx.strokeRect(r.x + 0.5, r.y + 0.5, size - 1, size - 1);
-}
-
-/**
- * Insert's indicator: not a cell highlight (there's nothing to select or
- * overwrite - it's an insertion point, like a text cursor between two
- * characters), just a line at the boundary the new stitch will open up,
- * capped with a downward arrow so it doesn't read as a stray grid line.
- * Sits on the side of the hovered cell that stays fixed - the far side is
- * what's about to slide over to make room.
- */
-function drawInsertLine(
-  ctx: CanvasRenderingContext2D,
-  col: number,
-  row: number,
-  cam: Camera,
-  vp: Viewport,
-  size: number,
-  symbol: StitchSymbol | undefined,
-  sprites: SpriteCache,
-): void {
-  const rtl = rowDirectionAt(row) === "rtl";
-  const x = crispColX(rtl ? col + 1 : col, cam, vp);
-  const topY = crispRowY(row, cam, vp);
-  const botY = crispRowY(row - 1, cam, vp);
-
-  ctx.save();
-  ctx.strokeStyle = theme.hoverStroke;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(x, topY);
-  ctx.lineTo(x, botY);
-  ctx.stroke();
-
-  // Tip touches the line's top end, pointing down into the row.
-  const arrowW = Math.min(size * 0.22, 5);
-  const arrowH = arrowW * 0.85;
-  ctx.beginPath();
-  ctx.moveTo(x - arrowW, topY - arrowH);
-  ctx.lineTo(x + arrowW, topY - arrowH);
-  ctx.lineTo(x, topY);
-  ctx.closePath();
-  ctx.fillStyle = theme.hoverStroke;
-  ctx.fill();
-  ctx.restore();
-
-  // Same two-indicator language as Draw's empty-cell hint, anchored below
-  // the line's bottom end - tucking either against the row itself would sit
-  // it right on top of whichever real stitch is next to the boundary.
-  if (size < 13) return;
-  const radius = Math.min(size * 0.2, 8);
-  const plusCx = x + radius + 3;
-  const plusCy = botY + radius + 3;
-  drawPlusBadge(ctx, plusCx, plusCy, radius);
-
-  if (symbol) {
-    const h = Math.max(8, Math.min(size * 0.45, 13));
-    drawStitchThumbnail(ctx, plusCx + radius + 4, plusCy - h / 2, h, symbol, sprites);
-  }
 }
 
 /**
@@ -541,8 +391,7 @@ function drawReferenceImageOverlay(ctx: CanvasRenderingContext2D, state: RenderS
 }
 
 function drawHover(ctx: CanvasRenderingContext2D, state: RenderState): void {
-  const { camera: cam, viewport: vp, hover, insertHover, armedSymbolId, sprites, index, tool, selectHeld } =
-    state;
+  const { camera: cam, viewport: vp, hover, insertHover, index, tool, selectHeld } = state;
   // The reference-image panel owns the canvas while it's open - every
   // normal tool hint would otherwise show through underneath its own
   // move/resize/calibrate affordances, competing for the same attention.
@@ -557,8 +406,6 @@ function drawHover(ctx: CanvasRenderingContext2D, state: RenderState): void {
     // multi-cell symbol would cut it in half, and an empty stretch of the
     // row (or an empty row entirely) has no stitch to insert "between".
     if (!canInsertAt(index, insertHover.col, insertHover.row)) return;
-    const symbol = armedSymbolId ? getSymbol(armedSymbolId) : undefined;
-    drawInsertLine(ctx, insertHover.col, insertHover.row, cam, vp, size, symbol, sprites);
     return;
   }
 
@@ -580,8 +427,7 @@ function drawHover(ctx: CanvasRenderingContext2D, state: RenderState): void {
   // filled ones, handled above.
   if (tool === "eraser") return;
 
-  const symbol = armedSymbolId ? getSymbol(armedSymbolId) : undefined;
-  drawAddState(ctx, { x: r.x, y: r.y, size }, symbol, sprites);
+  drawAddState(ctx, { x: r.x, y: r.y, size });
 }
 
 /**
