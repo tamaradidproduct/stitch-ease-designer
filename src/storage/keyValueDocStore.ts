@@ -118,11 +118,11 @@ export function createKeyValueDocStore(
       const meta = requireMeta(readIndex(), id);
       const raw = backend.read(chartKey(id));
       if (raw === null) throw new ChartNotFoundError(id);
-      const { placements, unknownSymbolIds } = decode(JSON.parse(raw), knownSymbol);
-      return { meta, placements, unknownSymbolIds };
+      const { placements, repeats, unknownSymbolIds } = decode(JSON.parse(raw), knownSymbol);
+      return { meta, placements, repeats, unknownSymbolIds };
     },
 
-    async save(id, placements: Placement[], expectedRev: string): Promise<DocMeta> {
+    async save(id, placements: Placement[], expectedRev: string, repeats = []): Promise<DocMeta> {
       const index = readIndex();
       const current = requireMeta(index, id);
       if (current.rev !== expectedRev) {
@@ -132,7 +132,7 @@ export function createKeyValueDocStore(
       // Chart body first: if the index said "saved" but the body write failed,
       // the next load would hand back stale stitches under a fresh rev.
       const previousBody = backend.read(chartKey(id));
-      backend.write(chartKey(id), JSON.stringify(encode(placements)));
+      backend.write(chartKey(id), JSON.stringify(encode(placements, repeats)));
 
       const meta: DocMeta = { ...current, updatedAt: stamp(), rev: newUuid("rev_") };
       try {

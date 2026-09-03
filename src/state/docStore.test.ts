@@ -135,4 +135,92 @@ describe("selection edits", () => {
     expect(useDocStore.getState().index.placements.get(blocker.id)).toMatchObject({ col: 4, row: 0 });
     expect(useDocStore.getState().undoStack).toHaveLength(historyBeforeMove);
   });
+
+  it("creates a chart-local repeat and groups its source stitches", () => {
+    useDocStore.getState().createRepeat(["a", "b"]);
+    const state = useDocStore.getState();
+    expect(state.repeats).toHaveLength(1);
+    expect(state.repeats[0]).toMatchObject({ name: "Repeat 1", width: 2, height: 1 });
+    expect(state.repeats[0]!.stitches).toEqual([
+      { symbolId: "knit", col: 0, row: 0 },
+      { symbolId: "purl", col: 1, row: 0 },
+    ]);
+    expect(state.index.placements.get("a")!.groupId).toBe(
+      state.index.placements.get("b")!.groupId,
+    );
+  });
+
+  it("places and duplicates independent grouped repeat instances", () => {
+    useDocStore.getState().createRepeat(["a", "b"]);
+    const repeat = useDocStore.getState().repeats[0]!;
+    useDocStore.getState().instantiateRepeat(repeat.id, 10, 4);
+    const placed = useDocStore
+      .getState()
+      .index.toArray()
+      .filter((placement) => placement.col >= 10);
+    expect(placed).toHaveLength(2);
+    expect(new Set(placed.map((placement) => placement.groupId)).size).toBe(1);
+
+    const duplicateIds = useDocStore.getState().duplicatePlacements(placed.map((p) => p.id));
+    expect(duplicateIds).toHaveLength(2);
+    const duplicates = duplicateIds.map((id) => useDocStore.getState().index.placements.get(id)!);
+    expect(new Set(duplicates.map((placement) => placement.groupId)).size).toBe(1);
+    expect(duplicates[0]!.groupId).not.toBe(placed[0]!.groupId);
+  });
+
+  it("keeps a replaced stitch's group instead of silently dropping it", () => {
+    useDocStore.getState().createRepeat(["a", "b"]);
+    const groupId = useDocStore.getState().index.placements.get("a")!.groupId;
+
+    useDocStore.getState().replacePlacements(["a"], "yarn_over");
+
+    const replaced = useDocStore
+      .getState()
+      .index.toArray()
+      .find((p) => p.symbolId === "yarn_over")!;
+    expect(replaced.groupId).toBe(groupId);
+  });
+
+  it("instantiateRepeat reports failure on a collision instead of silently no-op-ing", () => {
+    useDocStore.getState().createRepeat(["a", "b"]);
+    const repeat = useDocStore.getState().repeats[0]!;
+    const before = useDocStore.getState().index.size;
+
+    // (0, 0) is still occupied by the source stitches of the repeat itself.
+    const placed = useDocStore.getState().instantiateRepeat(repeat.id, 0, 0);
+
+    expect(placed).toBe(false);
+    expect(useDocStore.getState().index.size).toBe(before);
+  });
+
+  it("undoing a created repeat removes the repeat definition too, not just the grouping", () => {
+    useDocStore.getState().createRepeat(["a", "b"]);
+    expect(useDocStore.getState().repeats).toHaveLength(1);
+
+    useDocStore.getState().undo();
+
+    expect(useDocStore.getState().repeats).toHaveLength(0);
+    expect(useDocStore.getState().index.placements.get("a")!.groupId).toBeUndefined();
+
+    useDocStore.getState().redo();
+    expect(useDocStore.getState().repeats).toHaveLength(1);
+    expect(useDocStore.getState().index.placements.get("a")!.groupId).toBeDefined();
+  });
+
+  it("duplicating a mix of grouped and ungrouped stitches preserves that structure", () => {
+    // "a"+"b" are an independent group (a repeat's source); "c" is
+    // ungrouped. Duplicating all three shouldn't merge "c" into the group,
+    // nor should it merge with "a"/"b"'s own new group.
+    useDocStore.getState().createRepeat(["a", "b"]);
+    useDocStore.getState().place("knit", 5, 5);
+    const c = useDocStore.getState().index.placementAt(5, 5)!;
+
+    const duplicateIds = useDocStore.getState().duplicatePlacements(["a", "b", c.id]);
+    const duplicates = duplicateIds.map((id) => useDocStore.getState().index.placements.get(id)!);
+    const [dupA, dupB, dupC] = duplicates;
+
+    expect(dupA!.groupId).toBeDefined();
+    expect(dupA!.groupId).toBe(dupB!.groupId);
+    expect(dupC!.groupId).toBeUndefined();
+  });
 });

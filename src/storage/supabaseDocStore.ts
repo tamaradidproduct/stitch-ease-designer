@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { DocMeta, Placement } from "../model/types";
+import type { DocMeta, Placement, RepeatDefinition } from "../model/types";
 import { getSymbol } from "../symbols/registry";
 import {
   ChartConflictError,
@@ -85,14 +85,19 @@ export function createSupabaseDocStore(client: SupabaseClient): DocStore {
       if (!data) throw new ChartNotFoundError(id);
 
       const row = data as ChartRow;
-      const { placements, unknownSymbolIds } = decode(row.data, knownSymbol);
-      return { meta: metaFromRow(row), placements, unknownSymbolIds };
+      const { placements, repeats, unknownSymbolIds } = decode(row.data, knownSymbol);
+      return { meta: metaFromRow(row), placements, repeats, unknownSymbolIds };
     },
 
-    async save(id: string, placements: Placement[], expectedRev: string): Promise<DocMeta> {
+    async save(
+      id: string,
+      placements: Placement[],
+      expectedRev: string,
+      repeats: RepeatDefinition[] = [],
+    ): Promise<DocMeta> {
       const { data, error } = await client
         .from("charts")
-        .update({ data: encode(placements) })
+        .update({ data: encode(placements, repeats) })
         .eq("id", id)
         .eq("rev", expectedRev)
         .select("id, name, created_at, updated_at, rev")
