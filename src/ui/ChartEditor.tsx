@@ -161,8 +161,8 @@ export function ChartEditor() {
           className="btn btn--quiet"
           disabled={!openMeta}
           onClick={() => {
-            const { index, meta: current } = useDocStore.getState();
-            if (current) exportChart(current.name, index.toArray(), repeats);
+            const { index, meta: current, referenceImage } = useDocStore.getState();
+            if (current) void exportChart(current.name, index.toArray(), repeats, referenceImage ?? undefined);
           }}
         >
           Export

@@ -3,7 +3,7 @@ import { CELL } from "../canvas/camera";
 import { resizeReferenceImageAround } from "../model/types";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
-import { uploadReferenceImage } from "../storage/referenceImages";
+import { removeReferenceImageFile, uploadReferenceImage } from "../storage/referenceImages";
 
 /**
  * Upload + transform controls for the chart's one reference image.
@@ -64,7 +64,9 @@ export function ReferenceImagePanel() {
     setBusy(true);
     setError(null);
     try {
+      const previousRef = image?.ref;
       const uploaded = await uploadReferenceImage(meta.id, file);
+      if (previousRef && previousRef !== uploaded.ref) await removeReferenceImageFile(previousRef);
       // Land it centred in the current view, sized to a comfortable fraction
       // of what's visible - close enough that the first thing a designer
       // does isn't hunt for a speck or a poster-sized image off-screen.
@@ -242,9 +244,19 @@ export function ReferenceImagePanel() {
                 type="button"
                 className="btn btn--quiet btn--danger"
                 onClick={() => {
-                  removeReferenceImage();
-                  setCalibrating(false);
-                  setCalibrationBox(null);
+                  if (!image) return;
+                  setBusy(true);
+                  setError(null);
+                  void removeReferenceImageFile(image.ref)
+                    .then(() => {
+                      removeReferenceImage();
+                      setCalibrating(false);
+                      setCalibrationBox(null);
+                    })
+                    .catch((e: unknown) =>
+                      setError(e instanceof Error ? e.message : "Could not remove reference image"),
+                    )
+                    .finally(() => setBusy(false));
                 }}
               >
                 Remove

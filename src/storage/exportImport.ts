@@ -1,7 +1,8 @@
-import type { DocMeta, Placement, RepeatDefinition } from "../model/types";
+import type { DocMeta, Placement, ReferenceImage, RepeatDefinition } from "../model/types";
 import { getSymbol } from "../symbols/registry";
 import { DEFAULT_CHART_NAME, type DocStore } from "./DocStore";
 import { decode, encode, type StoredChart } from "./serialize";
+import { resolveReferenceImageUrl, uploadReferenceImage } from "./referenceImages";
 
 /**
  * Export and import a chart as a file.
@@ -18,13 +19,29 @@ export type ChartFile = StoredChart & { name: string; exportedAt: string };
 const safeFilename = (name: string) =>
   `${name.trim().replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "") || "chart"}.stitchchart.json`;
 
-export function exportChart(
+const dataUrlFor = (blob: Blob): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error ?? new Error("Could not read reference image"));
+    reader.readAsDataURL(blob);
+  });
+
+async function exportableReferenceImage(image?: ReferenceImage): Promise<ReferenceImage | undefined> {
+  if (!image || image.ref.startsWith("data:")) return image;
+  const response = await fetch(await resolveReferenceImageUrl(image.ref));
+  if (!response.ok) throw new Error("Could not include reference image in export");
+  return { ...image, ref: await dataUrlFor(await response.blob()) };
+}
+
+export async function exportChart(
   name: string,
   placements: Iterable<Placement>,
   repeats: RepeatDefinition[] = [],
-): void {
+  referenceImage?: ReferenceImage,
+): Promise<void> {
   const file: ChartFile = {
-    ...encode(placements, repeats),
+    ...encode(placements, repeats, await exportableReferenceImage(referenceImage)),
     name,
     exportedAt: new Date().toISOString(),
   };
@@ -49,6 +66,7 @@ export type ImportedChart = {
   name: string;
   placements: Placement[];
   repeats: RepeatDefinition[];
+  referenceImage?: ReferenceImage;
   unknownSymbolIds: string[];
 };
 
@@ -60,7 +78,7 @@ export type ImportedChart = {
 export async function importChart(file: File): Promise<ImportedChart> {
   const text = await file.text();
   const parsed: unknown = JSON.parse(text);
-  const { placements, repeats, unknownSymbolIds } = decode(parsed, (id) => !!getSymbol(id));
+  const { placements, repeats, referenceImage, unknownSymbolIds } = decode(parsed, (id) => !!getSymbol(id));
 
   const fromFile = file.name.replace(/\.stitchchart\.json$|\.json$/i, "").trim();
   const name =
@@ -68,7 +86,13 @@ export async function importChart(file: File): Promise<ImportedChart> {
     fromFile ||
     DEFAULT_CHART_NAME;
 
-  return { name, placements, repeats, unknownSymbolIds };
+  return {
+    name,
+    placements,
+    repeats,
+    ...(referenceImage ? { referenceImage } : {}),
+    unknownSymbolIds,
+  };
 }
 
 /**
@@ -80,10 +104,20 @@ export async function importChart(file: File): Promise<ImportedChart> {
  * left behind as an orphan the user never asked for and can't see yet.
  */
 export async function importChartIntoStore(store: DocStore, file: File): Promise<DocMeta> {
-  const { name, placements, repeats } = await importChart(file);
+  const { name, placements, repeats, referenceImage } = await importChart(file);
   const meta = await store.create(name);
   try {
-    await store.save(meta.id, placements, meta.rev, repeats);
+    let importedImage: ReferenceImage | undefined;
+    if (referenceImage?.ref.startsWith("data:")) {
+      const response = await fetch(referenceImage.ref);
+      const blob = await response.blob();
+      const uploaded = await uploadReferenceImage(
+        meta.id,
+        new File([blob], "reference-image", { type: blob.type || "image/png" }),
+      );
+      importedImage = { ...referenceImage, ...uploaded };
+    }
+    await store.save(meta.id, placements, meta.rev, repeats, importedImage);
   } catch (error) {
     await store.remove(meta.id).catch(() => {});
     throw error;
