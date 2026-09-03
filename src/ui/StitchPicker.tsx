@@ -277,8 +277,11 @@ export function StitchPicker() {
                 type="button"
                 className="picker__item"
                 onClick={() => {
-                  instantiateRepeat(repeat.id, target.col, target.row);
-                  closePicker();
+                  // A collision (e.g. the target cell, or another cell the
+                  // repeat's footprint covers, is already occupied) leaves
+                  // nothing placed - keep the picker open rather than
+                  // closing it on what looked like a no-op click.
+                  if (instantiateRepeat(repeat.id, target.col, target.row)) closePicker();
                 }}
               >
                 <span className="picker__repeatGlyph" aria-hidden="true">↻</span>

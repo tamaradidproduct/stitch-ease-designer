@@ -97,6 +97,24 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         .map((candidate) => candidate.id);
     };
 
+    /**
+     * groupId -> member placement ids, for every grouped placement in the
+     * document. Built once per call rather than once per matched placement:
+     * a marquee drag calls this on every pointermove that crosses into a new
+     * cell, and groupIdsFor's own per-placement scan would otherwise re-walk
+     * every placement in the document for each cell the marquee covers.
+     */
+    const groupMembersMap = (): Map<string, string[]> => {
+      const map = new Map<string, string[]>();
+      for (const placement of doc().index.placements.values()) {
+        if (!placement.groupId) continue;
+        const members = map.get(placement.groupId);
+        if (members) members.push(placement.id);
+        else map.set(placement.groupId, [placement.id]);
+      }
+      return map;
+    };
+
     const onPointerDown = (e: PointerEvent) => {
       if (ui().spaceHeld || e.button === 1) return; // panning
 
@@ -179,9 +197,10 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         const maxCol = Math.max(start.col, cell.col);
         const minRow = Math.min(start.row, cell.row);
         const maxRow = Math.max(start.row, cell.row);
+        const groups = groupMembersMap();
         const ids = doc()
           .index.query({ minCol, maxCol, minRow, maxRow })
-          .flatMap((placement) => groupIdsFor(placement.id));
+          .flatMap((placement) => groups.get(placement.groupId ?? "") ?? [placement.id]);
         ui().setSelectedPlacementIds([...new Set([...selectionBaseline, ...ids])]);
         return;
       }

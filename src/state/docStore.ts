@@ -22,6 +22,16 @@ import type { LoadedChart } from "../storage/DocStore";
  */
 export type SaveStatus = "idle" | "saving" | "conflict" | "error";
 
+/**
+ * One undo/redo stack entry: the placement change to apply, plus - only for
+ * an action that also touches the repeats list (currently just createRepeat)
+ * - the repeats snapshot to restore when this entry is applied. Repeats are
+ * few and rarely mutated, so a full snapshot is simpler than a delta and
+ * keeps this local to docStore rather than teaching the shared Change/apply
+ * model (ops.ts) about a second kind of state to reverse.
+ */
+type HistoryEntry = { change: Change; repeats?: RepeatDefinition[] };
+
 type DocState = {
   index: DocIndex;
   /**
@@ -41,8 +51,8 @@ type DocState = {
   unknownSymbolIds: string[];
   repeats: RepeatDefinition[];
 
-  undoStack: Change[];
-  redoStack: Change[];
+  undoStack: HistoryEntry[];
+  redoStack: HistoryEntry[];
   /** Changes accumulated during the current drag, merged into one entry. */
   stroke: Change[] | null;
 
@@ -52,7 +62,8 @@ type DocState = {
   erasePlacements: (ids: string[]) => void;
   movePlacements: (ids: string[], deltaCol: number, deltaRow: number) => void;
   createRepeat: (ids: string[]) => void;
-  instantiateRepeat: (repeatId: string, col: number, row: number) => void;
+  /** Returns whether the repeat was actually placed (false on a collision). */
+  instantiateRepeat: (repeatId: string, col: number, row: number) => boolean;
   duplicatePlacements: (ids: string[]) => string[];
   beginStroke: () => void;
   endStroke: () => void;
@@ -83,19 +94,33 @@ export const selectIsDirty = (s: DocState): boolean => s.revision !== s.savedRev
 export const isChartOpen = (id: string): boolean => useDocStore.getState().meta?.id === id;
 
 export const useDocStore = create<DocState>((set, get) => {
-  /** Run a change, then either bank it as history or fold it into the stroke. */
-  const commit = (change: Change) => {
+  /**
+   * Run a change, then either bank it as history or fold it into the stroke.
+   *
+   * `repeatsAfter`, when given, is the repeats list this action leaves in
+   * place; the repeats list as it stood just before the change is captured
+   * on the undo entry so undo/redo can restore each side atomically with
+   * the placement edit. Not supported mid-stroke - no drag-paint action
+   * touches repeats, so `commit` never needs to merge a repeats change into
+   * an in-progress stroke.
+   */
+  const commit = (change: Change, repeatsAfter?: RepeatDefinition[]) => {
     if (isEmptyChange(change)) return;
-    const { index, stroke, revision, undoStack } = get();
+    const { index, stroke, revision, undoStack, repeats } = get();
     const inverse = apply(index, change);
 
     if (stroke) {
       set({ revision: revision + 1, stroke: [...stroke, change], redoStack: [] });
     } else {
+      const entry: HistoryEntry = {
+        change: inverse,
+        ...(repeatsAfter !== undefined ? { repeats } : {}),
+      };
       set({
         revision: revision + 1,
-        undoStack: [...undoStack, inverse],
+        undoStack: [...undoStack, entry],
         redoStack: [],
+        ...(repeatsAfter !== undefined ? { repeats: repeatsAfter } : {}),
       });
     }
   };
@@ -109,8 +134,8 @@ export const useDocStore = create<DocState>((set, get) => {
    */
   const blank = () => ({
     index: DocIndex.from([]),
-    undoStack: [] as Change[],
-    redoStack: [] as Change[],
+    undoStack: [] as HistoryEntry[],
+    redoStack: [] as HistoryEntry[],
     stroke: null,
   });
 
@@ -134,12 +159,10 @@ export const useDocStore = create<DocState>((set, get) => {
       if (selected.every((p) => p.symbolId === symbolId)) return;
       commit({
         removed: selected,
-        added: selected.map((p) => ({
-          id: newPlacementId(),
-          symbolId,
-          col: p.col,
-          row: p.row,
-        })),
+        // Spread first: a replaced stitch keeps whatever group it belonged
+        // to (a repeat instance, a duplicated cluster) rather than silently
+        // dropping out of it.
+        added: selected.map((p) => ({ ...p, id: newPlacementId(), symbolId })),
       });
     },
     erasePlacements: (ids) => {
@@ -197,15 +220,21 @@ export const useDocStore = create<DocState>((set, get) => {
         })),
       };
       const groupId = newUuid("group_");
-      commit({
-        removed: placements,
-        added: placements.map((p) => ({ ...p, groupId })),
-      });
-      set({ repeats: [...get().repeats, repeat] });
+      // Both the placement grouping and the new repeat definition are one
+      // logical action; passing the resulting repeats list to commit makes
+      // undo restore both together, instead of leaving an orphaned,
+      // unreferenced, undeletable repeat definition behind after an undo.
+      commit(
+        {
+          removed: placements,
+          added: placements.map((p) => ({ ...p, groupId })),
+        },
+        [...get().repeats, repeat],
+      );
     },
     instantiateRepeat: (repeatId, col, row) => {
       const repeat = get().repeats.find((candidate) => candidate.id === repeatId);
-      if (!repeat) return;
+      if (!repeat) return false;
       const groupId = newUuid("group_");
       const added = repeat.stitches.map((stitch) => ({
         id: newPlacementId(),
@@ -216,10 +245,11 @@ export const useDocStore = create<DocState>((set, get) => {
       }));
       for (const placement of added) {
         for (let offset = 0; offset < spanOf(placement.symbolId); offset++) {
-          if (get().index.placementAt(placement.col + offset, placement.row)) return;
+          if (get().index.placementAt(placement.col + offset, placement.row)) return false;
         }
       }
       commit({ added, removed: [] });
+      return true;
     },
     duplicatePlacements: (ids) => {
       const placements = ids
@@ -229,13 +259,24 @@ export const useDocStore = create<DocState>((set, get) => {
       const minRow = Math.min(...placements.map((p) => p.row));
       const maxRow = Math.max(...placements.map((p) => p.row));
       const deltaRow = maxRow - minRow + 2;
-      const groupId = newUuid("group_");
-      const added = placements.map((p) => ({
-        ...p,
-        id: newPlacementId(),
-        row: p.row + deltaRow,
-        groupId,
-      }));
+      // Preserve each source's own grouping rather than merging every
+      // selected placement into one new group: placements that already
+      // shared a groupId keep sharing one (a freshly minted id, so the
+      // duplicates don't merge with the originals), and placements that
+      // were ungrouped stay ungrouped.
+      const groupIdMap = new Map<string, string>();
+      const added = placements.map((p) => {
+        const next = { ...p, id: newPlacementId(), row: p.row + deltaRow };
+        if (p.groupId) {
+          let mapped = groupIdMap.get(p.groupId);
+          if (!mapped) {
+            mapped = newUuid("group_");
+            groupIdMap.set(p.groupId, mapped);
+          }
+          next.groupId = mapped;
+        }
+        return next;
+      });
       for (const placement of added) {
         for (let offset = 0; offset < get().index.spanOf(placement); offset++) {
           if (get().index.placementAt(placement.col + offset, placement.row)) return [];
@@ -257,30 +298,40 @@ export const useDocStore = create<DocState>((set, get) => {
       // The stroke is already applied; bank a single inverse for all of it.
       const merged = mergeChanges(stroke);
       const inverse: Change = { added: merged.removed, removed: merged.added };
-      set({ stroke: null, undoStack: [...undoStack, inverse], redoStack: [] });
+      set({ stroke: null, undoStack: [...undoStack, { change: inverse }], redoStack: [] });
     },
 
     undo: () => {
-      const { undoStack, redoStack, index, revision } = get();
-      const change = undoStack[undoStack.length - 1];
-      if (!change) return;
-      const inverse = apply(index, change);
+      const { undoStack, redoStack, index, revision, repeats } = get();
+      const entry = undoStack[undoStack.length - 1];
+      if (!entry) return;
+      const inverse = apply(index, entry.change);
+      const redoEntry: HistoryEntry = {
+        change: inverse,
+        ...(entry.repeats !== undefined ? { repeats } : {}),
+      };
       set({
         undoStack: undoStack.slice(0, -1),
-        redoStack: [...redoStack, inverse],
+        redoStack: [...redoStack, redoEntry],
         revision: revision + 1,
+        ...(entry.repeats !== undefined ? { repeats: entry.repeats } : {}),
       });
     },
 
     redo: () => {
-      const { undoStack, redoStack, index, revision } = get();
-      const change = redoStack[redoStack.length - 1];
-      if (!change) return;
-      const inverse = apply(index, change);
+      const { undoStack, redoStack, index, revision, repeats } = get();
+      const entry = redoStack[redoStack.length - 1];
+      if (!entry) return;
+      const inverse = apply(index, entry.change);
+      const undoEntry: HistoryEntry = {
+        change: inverse,
+        ...(entry.repeats !== undefined ? { repeats } : {}),
+      };
       set({
         redoStack: redoStack.slice(0, -1),
-        undoStack: [...undoStack, inverse],
+        undoStack: [...undoStack, undoEntry],
         revision: revision + 1,
+        ...(entry.repeats !== undefined ? { repeats: entry.repeats } : {}),
       });
     },
 
