@@ -18,17 +18,27 @@ export function CanvasView() {
   useDocStore((s) => s.revision);
   const cursor = useUiStore((s) => {
     if (s.picker) return "default";
-    if (s.selectionMove || s.isPanning) return "grabbing";
+    if (s.selectionMove) return s.selectionMove.blocked ? "not-allowed" : "grabbing";
+    if (s.isPanning) return "grabbing";
     if (s.spaceHeld) return "grab";
-    if (s.tool === "select" || s.selectHeld) {
+    // An existing selection is draggable from any tool, so its own cells
+    // always get the "grab" cursor - checked before the tool-specific cases.
+    if (s.selectedPlacementIds.length) {
       const hovered = s.hover
         ? useDocStore.getState().index.placementAt(s.hover.col, s.hover.row)
         : undefined;
       if (hovered && s.selectedPlacementIds.includes(hovered.id)) return "grab";
+    }
+    const hovered = s.hover
+      ? useDocStore.getState().index.placementAt(s.hover.col, s.hover.row)
+      : undefined;
+    if (s.tool === "select" || s.selectHeld) {
       if (s.tool === "select" && !hovered) return "crosshair";
       return "default";
     }
-    return s.tool === "eraser" ? "cell" : "crosshair";
+    // A filled, unselected cell is a click-to-select target, not a place/erase
+    // target - "pointer" reads as clickable the way "crosshair" doesn't.
+    return hovered ? "pointer" : "crosshair";
   });
 
   usePanZoom(ref);

@@ -7,20 +7,22 @@ import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
 
 /**
- * Placing and erasing stitches.
+ * Placing, selecting, and moving stitches.
  *
- *   click empty cell      place the armed stitch, or open the picker if none is armed
- *   click filled cell     open the picker to replace the placed symbol
- *   drag in Select        marquee-select every symbol in the cell rectangle
- *   cmd/ctrl + click/drag temporarily use Select
- *   drag                  paint the armed stitch across cells, filled or not
- *   right / alt           erase
- *   double click          reopen the picker at that cell
+ *   click empty cell        place the armed stitch, or open the picker if none is armed
+ *   click filled cell       select it (its whole group, if it's part of one)
+ *   drag an existing selection   move it together, from any tool
+ *   drag in Select           marquee-select every symbol in the cell rectangle
+ *   cmd/ctrl + click/drag    temporarily use Select
+ *   drag from an empty cell  paint the armed stitch across cells
+ *   double click              open the picker at that cell, to place or replace
+ *
+ * There's no dedicated erase gesture: select a stitch (or several) and press
+ * Delete instead.
  *
  * A click and a drag start the same way, so the filled-cell check only applies
- * to the initial pointerdown — once a stroke is underway, dragging across
- * already-filled cells keeps painting through them as normal. Erasing is
- * unaffected either way: erase is already the "edit this cell" action.
+ * to the initial pointerdown — once a paint stroke is underway, dragging
+ * across already-filled cells keeps painting through them as normal.
  *
  * Pan gestures win: space-drag and middle-drag are handled by usePanZoom, and
  * this hook stays out of the way when either is in play.
@@ -35,7 +37,6 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
 
     let painting = false;
     let selecting = false;
-    let erasing = false;
     let last: Cell | null = null;
     let selectionStart: Cell | null = null;
     let selectionBaseline: string[] = [];
@@ -55,10 +56,6 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
     const paint = (cell: Cell) => {
       if (last && last.col === cell.col && last.row === cell.row) return;
       last = cell;
-      if (erasing) {
-        doc().erase(cell.col, cell.row);
-        return;
-      }
       const armed = ui().armedSymbolId;
       if (armed) doc().place(armed, cell.col, cell.row);
     };
@@ -115,8 +112,24 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       return map;
     };
 
+    /** Select `placementId`'s whole group; `additive` toggles it into/out of the existing selection. */
+    const selectExisting = (placementId: string, additive: boolean) => {
+      const ids = groupIdsFor(placementId);
+      if (!additive) {
+        ui().setSelectedPlacementIds(ids);
+        return;
+      }
+      const selected = new Set(ui().selectedPlacementIds);
+      const removing = ids.every((id) => selected.has(id));
+      for (const id of ids) {
+        if (removing) selected.delete(id);
+        else selected.add(id);
+      }
+      ui().setSelectedPlacementIds([...selected]);
+    };
+
     const onPointerDown = (e: PointerEvent) => {
-      if (ui().spaceHeld || e.button === 1) return; // panning
+      if (ui().spaceHeld || e.button !== 0) return; // panning, or not a plain left click
 
       // A click on the canvas while the picker is open just dismisses it,
       // rather than also dropping a stitch where the user aimed to close.
@@ -128,17 +141,21 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       const cell = cellAt(e);
       if (!cell) return;
 
+      // An existing multi-select is always draggable from within it, no
+      // matter which tool is active - Cmd/Select is only needed to *start* a
+      // selection, not to move one that's already made.
+      if (!e.shiftKey && ui().selectedPlacementIds.length && insideSelectedArea(cell)) {
+        e.preventDefault();
+        movingSelection = true;
+        selectionStart = cell;
+        last = cell;
+        canvas.setPointerCapture(e.pointerId);
+        return;
+      }
+
       const temporarySelect = ui().selectHeld || e.metaKey || e.ctrlKey;
       if (ui().tool === "select" || temporarySelect) {
-        if (e.button !== 0) return;
         e.preventDefault();
-        if (!e.shiftKey && insideSelectedArea(cell)) {
-          movingSelection = true;
-          selectionStart = cell;
-          last = cell;
-          canvas.setPointerCapture(e.pointerId);
-          return;
-        }
         selecting = true;
         selectionStart = cell;
         selectionBaseline = e.shiftKey ? [...ui().selectedPlacementIds] : [];
@@ -149,26 +166,28 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         return;
       }
 
-      const wantsErase = e.button === 2 || e.altKey || ui().tool === "eraser";
-      if (!wantsErase) {
-        const existing = doc().index.placementAt(cell.col, cell.row);
-        if (existing || !ui().armedSymbolId) {
-          const rect = canvas.getBoundingClientRect();
-          ui().openPicker({
-            col: cell.col,
-            row: cell.row,
-            x: e.clientX - rect.left + 8,
-            y: e.clientY - rect.top + 8,
-            ...(existing ? { currentSymbolId: existing.symbolId } : null),
-          });
-          return;
-        }
+      // A click that starts on an existing stitch selects it rather than
+      // painting or opening the picker - the picker still opens via double
+      // click, and there's no dedicated erase gesture: select and Delete.
+      const existing = doc().index.placementAt(cell.col, cell.row);
+      if (existing) {
+        selectExisting(existing.id, e.shiftKey);
+        return;
       }
 
-      if (e.button !== 0 && e.button !== 2) return;
+      if (!ui().armedSymbolId) {
+        const rect = canvas.getBoundingClientRect();
+        ui().openPicker({
+          col: cell.col,
+          row: cell.row,
+          x: e.clientX - rect.left + 8,
+          y: e.clientY - rect.top + 8,
+        });
+        return;
+      }
+
       e.preventDefault();
       painting = true;
-      erasing = wantsErase;
       last = null;
       canvas.setPointerCapture(e.pointerId);
       doc().beginStroke();
@@ -180,10 +199,11 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         const cell = cellAt(e);
         if (!cell || !selectionStart) return;
         last = cell;
-        ui().setSelectionMove({
-          col: cell.col - selectionStart.col,
-          row: cell.row - selectionStart.row,
-        });
+        const move = { col: cell.col - selectionStart.col, row: cell.row - selectionStart.row };
+        const blocked =
+          (move.col !== 0 || move.row !== 0) &&
+          !doc().canMovePlacements(ui().selectedPlacementIds, move.col, move.row);
+        ui().setSelectionMove({ ...move, blocked });
         return;
       }
       if (selecting) {
@@ -225,16 +245,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         const existing = doc().index.placementAt(start.col, start.row);
         if (!selectionMoved) {
           if (existing) {
-            const ids = groupIdsFor(existing.id);
-            if (selectionAdditive) {
-              const selected = new Set(ui().selectedPlacementIds);
-              const removing = ids.every((id) => selected.has(id));
-              for (const id of ids) {
-                if (removing) selected.delete(id);
-                else selected.add(id);
-              }
-              ui().setSelectedPlacementIds([...selected]);
-            } else ui().setSelectedPlacementIds(ids);
+            selectExisting(existing.id, selectionAdditive);
           } else if (!selectionAdditive) {
             ui().clearSelection();
             if (!ui().selectHeld && ui().tool === "select") {
@@ -265,16 +276,12 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       }
       if (!painting) return;
       painting = false;
-      erasing = false;
       last = null;
       if (canvas.hasPointerCapture(e.pointerId)) {
         canvas.releasePointerCapture(e.pointerId);
       }
       doc().endStroke();
     };
-
-    // Right-drag is an erase gesture, so the context menu must not interrupt.
-    const onContextMenu = (e: MouseEvent) => e.preventDefault();
 
     const onDoubleClick = (e: MouseEvent) => {
       if (ui().tool === "select" || ui().selectHeld || e.metaKey || e.ctrlKey) return;
@@ -295,7 +302,6 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
     canvas.addEventListener("pointermove", onPointerMove);
     canvas.addEventListener("pointerup", endStroke);
     canvas.addEventListener("pointercancel", endStroke);
-    canvas.addEventListener("contextmenu", onContextMenu);
     canvas.addEventListener("dblclick", onDoubleClick);
 
     return () => {
@@ -303,7 +309,6 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       canvas.removeEventListener("pointermove", onPointerMove);
       canvas.removeEventListener("pointerup", endStroke);
       canvas.removeEventListener("pointercancel", endStroke);
-      canvas.removeEventListener("contextmenu", onContextMenu);
       canvas.removeEventListener("dblclick", onDoubleClick);
     };
   }, [ref]);

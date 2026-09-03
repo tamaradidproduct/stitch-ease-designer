@@ -55,17 +55,6 @@ export function Toolbar() {
       >
         Draw
       </button>
-      <button
-        type="button"
-        className="toolbar__btn"
-        data-on={tool === "eraser"}
-        aria-pressed={tool === "eraser"}
-        onClick={() => setTool("eraser")}
-        title="Eraser (E) — or right-click the canvas"
-      >
-        Eraser
-      </button>
-
       {selected.length > 0 && (
         <div className="toolbar__selection">
           <span>{selected.length} selected</span>

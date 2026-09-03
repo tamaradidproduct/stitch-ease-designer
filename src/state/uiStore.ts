@@ -8,7 +8,7 @@ import {
   zoomAt,
 } from "../canvas/camera";
 
-export type Tool = "select" | "stitch" | "eraser";
+export type Tool = "select" | "stitch";
 
 /** Where the picker is anchored: which cell it will fill, and where to draw it. */
 export type PickerTarget = {
@@ -24,7 +24,8 @@ export type PickerTarget = {
 };
 
 export type SelectionBox = { start: Cell; current: Cell };
-export type SelectionMove = { col: number; row: number };
+/** `blocked` is true when the move would land on an unselected stitch. */
+export type SelectionMove = { col: number; row: number; blocked: boolean };
 
 /** How many recently used symbols the picker keeps at the top. */
 const RECENT_LIMIT = 12;

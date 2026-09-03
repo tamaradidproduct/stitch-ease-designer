@@ -61,6 +61,8 @@ type DocState = {
   replacePlacements: (ids: string[], symbolId: string) => void;
   erasePlacements: (ids: string[]) => void;
   movePlacements: (ids: string[], deltaCol: number, deltaRow: number) => void;
+  /** Whether `movePlacements` would actually move anything, without doing it. */
+  canMovePlacements: (ids: string[], deltaCol: number, deltaRow: number) => boolean;
   createRepeat: (ids: string[]) => void;
   /** Returns whether the repeat was actually placed (false on a collision). */
   instantiateRepeat: (repeatId: string, col: number, row: number) => boolean;
@@ -171,13 +173,13 @@ export const useDocStore = create<DocState>((set, get) => {
         .filter((p): p is NonNullable<typeof p> => !!p);
       if (removed.length) commit({ added: [], removed });
     },
-    movePlacements: (ids, deltaCol, deltaRow) => {
-      if (deltaCol === 0 && deltaRow === 0) return;
+    canMovePlacements: (ids, deltaCol, deltaRow) => {
+      if (deltaCol === 0 && deltaRow === 0) return false;
       const selectedIds = new Set(ids);
       const selected = ids
         .map((id) => get().index.placements.get(id))
         .filter((p): p is NonNullable<typeof p> => !!p);
-      if (!selected.length) return;
+      if (!selected.length) return false;
 
       for (const placement of selected) {
         const span = get().index.spanOf(placement);
@@ -186,9 +188,16 @@ export const useDocStore = create<DocState>((set, get) => {
             placement.col + deltaCol + offset,
             placement.row + deltaRow,
           );
-          if (hit && !selectedIds.has(hit.id)) return;
+          if (hit && !selectedIds.has(hit.id)) return false;
         }
       }
+      return true;
+    },
+    movePlacements: (ids, deltaCol, deltaRow) => {
+      if (!get().canMovePlacements(ids, deltaCol, deltaRow)) return;
+      const selected = ids
+        .map((id) => get().index.placements.get(id))
+        .filter((p): p is NonNullable<typeof p> => !!p);
 
       commit({
         removed: selected,

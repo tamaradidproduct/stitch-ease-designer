@@ -16,7 +16,7 @@ const isTyping = (target: EventTarget | null) =>
  *   /                 open the picker at the hovered cell
  *   escape            clear selection, or disarm the current stitch
  *   S / D             select / draw
- *   E                 toggle the eraser
+ *   Delete/Backspace  erase the selection
  */
 export function useShortcuts(): void {
   useEffect(() => {
@@ -89,10 +89,6 @@ export function useShortcuts(): void {
           ...(existing ? { currentSymbolId: existing.symbolId } : null),
         });
         return;
-      }
-
-      if (e.key.toLowerCase() === "e" && !e.metaKey && !e.ctrlKey) {
-        ui.setTool(ui.tool === "eraser" ? "stitch" : "eraser");
       }
     };
 

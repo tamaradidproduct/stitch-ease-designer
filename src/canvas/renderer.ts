@@ -14,7 +14,7 @@ import {
 } from "./camera";
 import { drawGrid, labelStep } from "./grid";
 import type { SpriteCache } from "./spriteCache";
-import type { SelectionBox, SelectionMove } from "../state/uiStore";
+import type { SelectionBox, SelectionMove, Tool } from "../state/uiStore";
 import { RULER, theme } from "./theme";
 
 export type RenderState = {
@@ -26,7 +26,7 @@ export type RenderState = {
   /** Symbol armed in the toolbar, previewed under the cursor. */
   armedSymbolId: string | null;
   selectedPlacementIds: string[];
-  tool: "select" | "stitch" | "eraser";
+  tool: Tool;
   selectHeld: boolean;
   selectionBox: SelectionBox | null;
   selectionMove: SelectionMove | null;
@@ -195,8 +195,16 @@ function drawSelection(ctx: CanvasRenderingContext2D, state: RenderState): void 
   if (size < 3) return;
 
   ctx.save();
-  ctx.fillStyle = "rgba(2, 132, 199, 0.14)";
-  ctx.strokeStyle = theme.hoverStroke;
+  if (selectionMove?.blocked) {
+    // A stitch already occupies the drop target - paint the drag preview in
+    // the same red as the rest of the UI's destructive/blocked actions, so
+    // a rejected drop reads as rejected instead of silently doing nothing.
+    ctx.fillStyle = "rgba(220, 38, 38, 0.14)";
+    ctx.strokeStyle = "#dc2626";
+  } else {
+    ctx.fillStyle = "rgba(2, 132, 199, 0.14)";
+    ctx.strokeStyle = theme.hoverStroke;
+  }
   ctx.lineWidth = 2;
   for (const id of selectedPlacementIds) {
     const placement = index.placements.get(id);
@@ -379,8 +387,7 @@ function drawEditHighlight(
 }
 
 function drawHover(ctx: CanvasRenderingContext2D, state: RenderState): void {
-  const { camera: cam, viewport: vp, hover, armedSymbolId, sprites, index, tool, selectHeld } =
-    state;
+  const { camera: cam, viewport: vp, hover, armedSymbolId, sprites, index, selectHeld } = state;
   if (!hover) return;
   // Below this the outline is bigger than the cell and just looks like noise.
   if (cellPx(cam) < 4) return;
@@ -388,24 +395,21 @@ function drawHover(ctx: CanvasRenderingContext2D, state: RenderState): void {
   const size = cellPx(cam);
   const r = cellToScreenRect(hover.col, hover.row, cam, vp);
   const existing = index.placementAt(hover.col, hover.row);
-  const symbol = !existing && armedSymbolId ? getSymbol(armedSymbolId) : undefined;
 
-  if (existing && tool !== "eraser") {
+  // A filled cell is a click-to-select target regardless of tool, so its
+  // hover state doesn't depend on what's armed.
+  if (existing) {
     drawEditHighlight(ctx, r, size);
     return;
   }
 
   if (selectHeld) return;
 
+  const symbol = armedSymbolId ? getSymbol(armedSymbolId) : undefined;
   if (symbol) {
     // Preview the armed symbol's full footprint, so it's obvious before
     // clicking that a 3/3 cable is about to consume six cells.
     drawArmedPreview(ctx, symbol, hover.col, hover.row, r, size, symbol.span, sprites, cam, vp);
-    return;
-  }
-
-  if (existing) {
-    drawEditHighlight(ctx, r, size);
   } else {
     drawAddState(ctx, { x: r.x, y: r.y, size });
   }
