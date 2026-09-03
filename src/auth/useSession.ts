@@ -48,7 +48,19 @@ export function useSession(): SessionState {
     if (DEV_SKIP_AUTH) return;
 
     let cancelled = false;
-    const supabase = getSupabase();
+    let supabase;
+    try {
+      supabase = getSupabase();
+    } catch {
+      // Missing/invalid env vars (and DEV_SKIP_AUTH isn't on). There's no
+      // error boundary anywhere in the app, so letting this throw
+      // uncaught would blank the whole page instead of showing anything —
+      // fall through to the sign-in screen instead, where attempting to
+      // actually sign in surfaces the real message (sendMagicLink hits the
+      // same getSupabase() call and reports it properly).
+      setState({ status: "signedOut" });
+      return;
+    }
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (cancelled) return;
@@ -88,7 +100,21 @@ export type SendMagicLinkResult =
  * Supabase returns an error we can catch and label accurately.
  */
 export async function sendMagicLink(email: string): Promise<SendMagicLinkResult> {
-  const { error } = await getSupabase().auth.signInWithOtp({
+  let supabase;
+  try {
+    supabase = getSupabase();
+  } catch (caught) {
+    // Missing/invalid env vars. Reported through the normal error path
+    // rather than left to reject this promise - the caller (SignIn) awaits
+    // this expecting a result, not a throw, and has no catch of its own.
+    return {
+      ok: false,
+      reason: "error",
+      message: caught instanceof Error ? caught.message : "Could not send sign-in link",
+    };
+  }
+
+  const { error } = await supabase.auth.signInWithOtp({
     email,
     options: {
       shouldCreateUser: false,
