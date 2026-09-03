@@ -28,6 +28,7 @@ export class DocIndex {
   /** Every covered cell -> the placement covering it. */
   readonly occupancy = new Map<string, string>();
   private readonly chunks = new Map<string, Set<string>>();
+  private readonly groups = new Map<string, Set<string>>();
 
   static from(placements: Iterable<Placement>): DocIndex {
     const index = new DocIndex();
@@ -45,6 +46,11 @@ export class DocIndex {
 
   add(p: Placement): void {
     this.placements.set(p.id, p);
+    if (p.groupId) {
+      let members = this.groups.get(p.groupId);
+      if (!members) this.groups.set(p.groupId, (members = new Set()));
+      members.add(p.id);
+    }
     const span = this.spanOf(p);
     for (let c = p.col; c < p.col + span; c++) {
       this.occupancy.set(cellKey(c, p.row), p.id);
@@ -59,6 +65,13 @@ export class DocIndex {
     const p = this.placements.get(id);
     if (!p) return undefined;
     this.placements.delete(id);
+    if (p.groupId) {
+      const members = this.groups.get(p.groupId);
+      if (members) {
+        members.delete(id);
+        if (members.size === 0) this.groups.delete(p.groupId);
+      }
+    }
 
     const span = this.spanOf(p);
     for (let c = p.col; c < p.col + span; c++) {
@@ -80,6 +93,13 @@ export class DocIndex {
   placementAt(col: number, row: number): Placement | undefined {
     const id = this.occupancy.get(cellKey(col, row));
     return id === undefined ? undefined : this.placements.get(id);
+  }
+
+  /** Every placement in one explicit repeat/group instance. */
+  groupMembers(groupId: string): Placement[] {
+    return [...(this.groups.get(groupId) ?? [])]
+      .map((id) => this.placements.get(id))
+      .filter((placement): placement is Placement => !!placement);
   }
 
   /**

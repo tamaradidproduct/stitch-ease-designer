@@ -17,7 +17,6 @@ import { SpriteCache } from "./spriteCache";
 export function CanvasView() {
   const ref = useRef<HTMLCanvasElement | null>(null);
   const dirty = useRef(true);
-  useDocStore((s) => s.revision);
   const cursor = useUiStore((s) => {
     if (s.picker) return "default";
     if (s.selectionMove) {
@@ -139,7 +138,7 @@ export function CanvasView() {
         selectionBox,
         selectionMove,
       } = useUiStore.getState();
-      const { index } = useDocStore.getState();
+      const { index, revision } = useDocStore.getState();
       const dpr = window.devicePixelRatio || 1;
 
       ctx.save();
@@ -154,6 +153,7 @@ export function CanvasView() {
         hover,
         insertHover,
         index,
+        revision,
         sprites,
         armedSymbolId: picker ? null : armedSymbolId,
         selectedPlacementIds,
