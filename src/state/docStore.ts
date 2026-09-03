@@ -43,6 +43,7 @@ type DocState = {
   erase: (col: number, row: number) => void;
   replacePlacements: (ids: string[], symbolId: string) => void;
   erasePlacements: (ids: string[]) => void;
+  movePlacements: (ids: string[], deltaCol: number, deltaRow: number) => void;
   beginStroke: () => void;
   endStroke: () => void;
   undo: () => void;
@@ -135,6 +136,34 @@ export const useDocStore = create<DocState>((set, get) => {
         .map((id) => get().index.placements.get(id))
         .filter((p): p is NonNullable<typeof p> => !!p);
       if (removed.length) commit({ added: [], removed });
+    },
+    movePlacements: (ids, deltaCol, deltaRow) => {
+      if (deltaCol === 0 && deltaRow === 0) return;
+      const selectedIds = new Set(ids);
+      const selected = ids
+        .map((id) => get().index.placements.get(id))
+        .filter((p): p is NonNullable<typeof p> => !!p);
+      if (!selected.length) return;
+
+      for (const placement of selected) {
+        const span = get().index.spanOf(placement);
+        for (let offset = 0; offset < span; offset++) {
+          const hit = get().index.placementAt(
+            placement.col + deltaCol + offset,
+            placement.row + deltaRow,
+          );
+          if (hit && !selectedIds.has(hit.id)) return;
+        }
+      }
+
+      commit({
+        removed: selected,
+        added: selected.map((placement) => ({
+          ...placement,
+          col: placement.col + deltaCol,
+          row: placement.row + deltaRow,
+        })),
+      });
     },
 
     beginStroke: () => set({ stroke: [] }),

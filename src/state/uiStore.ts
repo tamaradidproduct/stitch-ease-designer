@@ -23,6 +23,9 @@ export type PickerTarget = {
   selectionSpan?: number;
 };
 
+export type SelectionBox = { start: Cell; current: Cell };
+export type SelectionMove = { col: number; row: number };
+
 /** How many recently used symbols the picker keeps at the top. */
 const RECENT_LIMIT = 12;
 
@@ -32,6 +35,8 @@ type UiState = {
   hover: Cell | null;
   /** True while space is held, which arms drag-to-pan. */
   spaceHeld: boolean;
+  /** True while Cmd/Ctrl is held, temporarily enabling Select. */
+  selectHeld: boolean;
   isPanning: boolean;
 
   tool: Tool;
@@ -43,6 +48,8 @@ type UiState = {
   recentSymbolIds: string[];
   picker: PickerTarget | null;
   selectedPlacementIds: string[];
+  selectionBox: SelectionBox | null;
+  selectionMove: SelectionMove | null;
 
   setTool: (tool: Tool) => void;
   setArmedSymbolId: (id: string | null) => void;
@@ -50,11 +57,15 @@ type UiState = {
   openPicker: (target: PickerTarget) => void;
   closePicker: () => void;
   selectPlacement: (id: string, additive: boolean) => void;
+  setSelectedPlacementIds: (ids: string[]) => void;
+  setSelectionBox: (box: SelectionBox | null) => void;
+  setSelectionMove: (move: SelectionMove | null) => void;
   clearSelection: () => void;
 
   setViewport: (vp: Viewport) => void;
   setHover: (cell: Cell | null) => void;
   setSpaceHeld: (held: boolean) => void;
+  setSelectHeld: (held: boolean) => void;
   setPanning: (panning: boolean) => void;
   panByScreen: (dx: number, dy: number) => void;
   zoomAt: (factor: number, sx: number, sy: number) => void;
@@ -69,6 +80,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   viewport: { width: 1, height: 1 },
   hover: null,
   spaceHeld: false,
+  selectHeld: false,
   isPanning: false,
 
   tool: "stitch",
@@ -76,6 +88,8 @@ export const useUiStore = create<UiState>((set, get) => ({
   recentSymbolIds: [],
   picker: null,
   selectedPlacementIds: [],
+  selectionBox: null,
+  selectionMove: null,
 
   setTool: (tool) => set({ tool, picker: null, ...(tool === "select" ? {} : { selectedPlacementIds: [] }) }),
   setArmedSymbolId: (armedSymbolId) =>
@@ -107,7 +121,14 @@ export const useUiStore = create<UiState>((set, get) => ({
         : [...selected, id],
     });
   },
-  clearSelection: () => set({ selectedPlacementIds: [] }),
+  setSelectedPlacementIds: (selectedPlacementIds) => set({ selectedPlacementIds }),
+  setSelectionBox: (selectionBox) => set({ selectionBox }),
+  setSelectionMove: (selectionMove) => set({ selectionMove }),
+  clearSelection: () => set({
+    selectedPlacementIds: [],
+    selectionBox: null,
+    selectionMove: null,
+  }),
 
   setViewport: (viewport) => set({ viewport }),
 
@@ -120,6 +141,11 @@ export const useUiStore = create<UiState>((set, get) => ({
   setSpaceHeld: (spaceHeld) => {
     if (get().spaceHeld === spaceHeld) return;
     set({ spaceHeld });
+  },
+
+  setSelectHeld: (selectHeld) => {
+    if (get().selectHeld === selectHeld) return;
+    set({ selectHeld });
   },
 
   setPanning: (isPanning) => set({ isPanning }),

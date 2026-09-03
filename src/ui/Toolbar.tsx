@@ -6,6 +6,7 @@ import { SymbolGlyph } from "./SymbolGlyph";
 export function Toolbar() {
   const armedId = useUiStore((s) => s.armedSymbolId);
   const tool = useUiStore((s) => s.tool);
+  const selectHeld = useUiStore((s) => s.selectHeld);
   const recentIds = useUiStore((s) => s.recentSymbolIds);
   const setTool = useUiStore((s) => s.setTool);
   const setArmed = useUiStore((s) => s.setArmedSymbolId);
@@ -34,10 +35,10 @@ export function Toolbar() {
       <button
         type="button"
         className="toolbar__btn"
-        data-on={tool === "select"}
-        aria-pressed={tool === "select"}
+        data-on={tool === "select" || selectHeld}
+        aria-pressed={tool === "select" || selectHeld}
         onClick={() => setTool("select")}
-        title="Select (V) — Shift-click to add or remove"
+        title="Select (S) — hold Cmd/Ctrl for temporary selection"
       >
         Select
       </button>
@@ -47,9 +48,9 @@ export function Toolbar() {
         data-on={tool === "stitch"}
         aria-pressed={tool === "stitch"}
         onClick={() => setTool("stitch")}
-        title="Paint (B)"
+        title="Draw (D)"
       >
-        Paint
+        Draw
       </button>
       <button
         type="button"

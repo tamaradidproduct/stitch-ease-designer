@@ -111,4 +111,28 @@ describe("selection edits", () => {
     ]);
     expect(useDocStore.getState().undoStack).toHaveLength(0);
   });
+
+  it("moves a selection as one undoable edit while preserving its ids", () => {
+    useDocStore.getState().movePlacements(["a", "b"], 4, 3);
+    expect(useDocStore.getState().index.placements.get("a")).toMatchObject({ col: 4, row: 3 });
+    expect(useDocStore.getState().index.placements.get("b")).toMatchObject({ col: 5, row: 3 });
+    expect(useDocStore.getState().undoStack).toHaveLength(1);
+
+    useDocStore.getState().undo();
+    expect(useDocStore.getState().index.placements.get("a")).toMatchObject({ col: 0, row: 0 });
+    expect(useDocStore.getState().index.placements.get("b")).toMatchObject({ col: 1, row: 0 });
+  });
+
+  it("does not move a selection through an unselected stitch", () => {
+    useDocStore.getState().place("knit", 4, 0);
+    const blocker = useDocStore.getState().index.placementAt(4, 0)!;
+    const historyBeforeMove = useDocStore.getState().undoStack.length;
+
+    useDocStore.getState().movePlacements(["a", "b"], 3, 0);
+
+    expect(useDocStore.getState().index.placements.get("a")).toMatchObject({ col: 0, row: 0 });
+    expect(useDocStore.getState().index.placements.get("b")).toMatchObject({ col: 1, row: 0 });
+    expect(useDocStore.getState().index.placements.get(blocker.id)).toMatchObject({ col: 4, row: 0 });
+    expect(useDocStore.getState().undoStack).toHaveLength(historyBeforeMove);
+  });
 });

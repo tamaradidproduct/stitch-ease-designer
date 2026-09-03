@@ -7,6 +7,7 @@ export function StatusBar() {
   const zoom = useUiStore((s) => s.camera.zoom);
   const resetView = useUiStore((s) => s.resetView);
   const tool = useUiStore((s) => s.tool);
+  const selectHeld = useUiStore((s) => s.selectHeld);
   const selectedCount = useUiStore((s) => s.selectedPlacementIds.length);
   const index = useDocStore((s) => s.index);
   useDocStore((s) => s.revision);
@@ -24,7 +25,7 @@ export function StatusBar() {
       </span>
       <span className="statusbar__spacer" />
       <span className="statusbar__hint">
-        {tool === "select"
+        {tool === "select" || selectHeld
           ? selectedCount
             ? `${selectedCount} selected · Shift-click to add or remove · Delete to clear`
             : "Click to select · Shift-click to select multiple"
