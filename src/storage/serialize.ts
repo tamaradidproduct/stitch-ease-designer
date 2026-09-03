@@ -159,6 +159,31 @@ function validate(stored: unknown): StoredChart {
     }
   });
 
+  // A repeat is user-controlled data on import, not just something produced
+  // by createRepeat(). Reject a malformed footprint before it can be
+  // instantiated: DocIndex records one owner per cell, so overlapping repeat
+  // stitches would otherwise silently overwrite each other's occupancy.
+  chart.repeats.forEach((repeat, i) => {
+    const occupied = new Set<string>();
+    for (const stitch of repeat.stitches) {
+      const span = getSymbol(stitch.symbolId)?.span ?? 1;
+      if (
+        stitch.col < 0 ||
+        stitch.row < 0 ||
+        stitch.row >= repeat.height ||
+        stitch.col + span > repeat.width
+      ) {
+        throw new ChartFormatError(`repeat ${i} has a stitch outside its footprint`);
+      }
+      for (let col = stitch.col; col < stitch.col + span; col++) {
+        const key = `${col},${stitch.row}`;
+        if (occupied.has(key)) {
+          throw new ChartFormatError(`repeat ${i} has overlapping stitches at col ${col}, row ${stitch.row}`);
+        }
+        occupied.add(key);
+      }
+    }
+  });
   return chart as StoredChart;
 }
 

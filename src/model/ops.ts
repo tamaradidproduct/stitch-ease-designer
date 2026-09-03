@@ -1,3 +1,4 @@
+import { rowDirectionAt } from "./rowDirection";
 import { spanOf } from "../symbols/registry";
 import { newUuid } from "../uuid";
 import type { DocIndex } from "./docIndex";
@@ -69,6 +70,75 @@ export function placeChange(
 export function eraseChange(index: DocIndex, col: number, row: number): Change {
   const hit = index.placementAt(col, row);
   return hit ? { added: [], removed: [hit] } : EMPTY_CHANGE;
+}
+
+/**
+ * Whether `insertChange` would actually insert at this cell: false if it
+ * falls inside an existing multi-cell symbol without being that symbol's own
+ * start (splitting a cable isn't a thing), and false if this spot isn't
+ * actually adjacent to a stitch - there's nothing to insert "between" in a
+ * stretch of empty cells, or an empty row (starting one is a separate,
+ * not-yet-built action).
+ */
+export function canInsertAt(index: DocIndex, col: number, row: number): boolean {
+  const existing = index.placementAt(col, row);
+  if (existing) return existing.col === col;
+  return index.placementAt(col - 1, row) !== undefined || index.placementAt(col + 1, row) !== undefined;
+}
+
+/**
+ * Where a `symbolId` placement would land if inserted at (col, row); null if
+ * `canInsertAt` refuses the cell.
+ *
+ * Row direction only matters here because of how span is stored: a
+ * placement's `col` is always its own leftmost cell, span extending
+ * rightward, regardless of which way the row reads. Left-to-right needs
+ * nothing special - span already extends the same way the row reads, so the
+ * new symbol just lands at `col`. Right-to-left is the twisty case: the
+ * placement sitting at the click (if any) has to slide left by its *own*
+ * width too, not just the new symbol's, because its rightmost cell - not its
+ * leftmost - is what ends up adjacent to the new stitch.
+ */
+export function insertTargetCol(
+  index: DocIndex,
+  symbolId: string,
+  col: number,
+  row: number,
+): number | null {
+  if (!canInsertAt(index, col, row)) return null;
+  if (rowDirectionAt(row) !== "rtl") return col;
+  const existing = index.placementAt(col, row);
+  const existingSpan = existing ? spanOf(existing.symbolId) : 1;
+  return col - spanOf(symbolId) + existingSpan;
+}
+
+/**
+ * Inserts `symbolId` at (col, row), shifting whatever's there - and
+ * everything further along the row in the knitting direction - out of the
+ * way, rather than overwriting it.
+ */
+export function insertChange(
+  index: DocIndex,
+  symbolId: string,
+  col: number,
+  row: number,
+): Change {
+  const newCol = insertTargetCol(index, symbolId, col, row);
+  if (newCol === null) return EMPTY_CHANGE;
+
+  const span = spanOf(symbolId);
+  const rtl = rowDirectionAt(row) === "rtl";
+  const moving = [...index.placements.values()].filter(
+    (p) => p.row === row && (rtl ? p.col <= col : p.col >= col),
+  );
+
+  return {
+    removed: moving,
+    added: [
+      ...moving.map((p) => ({ ...p, col: p.col + (rtl ? -span : span) })),
+      { id: newId(), symbolId, col: newCol, row },
+    ],
+  };
 }
 
 /** Merge changes made during one drag into a single undo entry. */

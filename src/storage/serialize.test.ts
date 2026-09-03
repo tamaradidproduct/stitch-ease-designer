@@ -175,6 +175,24 @@ describe("validation", () => {
       palette: [CABLE, "knit"],
       stitches: [[0, 0, 0], [4, 0, 1]],
     },
+    "overlap within a repeat": {
+      v: STORED_VERSION,
+      palette: [],
+      stitches: [],
+      groups: [],
+      repeats: [
+        {
+          id: "repeat-1",
+          name: "Bad repeat",
+          width: 2,
+          height: 1,
+          stitches: [
+            { symbolId: "knit", col: 0, row: 0 },
+            { symbolId: "purl", col: 0, row: 0 },
+          ],
+        },
+      ],
+    },
   };
 
   for (const [name, input] of Object.entries(bad)) {

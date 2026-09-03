@@ -8,7 +8,7 @@ import {
   zoomAt,
 } from "../canvas/camera";
 
-export type Tool = "select" | "stitch" | "eraser";
+export type Tool = "select" | "stitch" | "eraser" | "insert";
 
 /** Where the picker is anchored: which cell it will fill, and where to draw it. */
 export type PickerTarget = {
@@ -21,10 +21,18 @@ export type PickerTarget = {
   /** When present, choosing a symbol replaces this whole selection. */
   selectionIds?: string[];
   selectionSpan?: number;
+  /** When true, choosing a symbol inserts and shifts rather than placing/replacing. */
+  insert?: boolean;
 };
 
 export type SelectionBox = { start: Cell; current: Cell };
-export type SelectionMove = { col: number; row: number };
+/**
+ * `blocked` is true when the drop target is occupied (by an unselected
+ * stitch for a move, or by anything at all for a duplicate). `duplicating`
+ * is true while Alt/Opt is held, which copies the selection instead of
+ * moving it.
+ */
+export type SelectionMove = { col: number; row: number; blocked: boolean; duplicating: boolean };
 
 /** How many recently used symbols the picker keeps at the top. */
 const RECENT_LIMIT = 12;
@@ -33,6 +41,13 @@ type UiState = {
   camera: Camera;
   viewport: Viewport;
   hover: Cell | null;
+  /**
+   * Where Insert would land, computed with half-cell-overlapping boundary
+   * snapping rather than `hover`'s plain per-cell hit test - see
+   * `screenToInsertCell`. Kept separate so every other tool, and the status
+   * bar, keep using ordinary per-cell `hover`.
+   */
+  insertHover: Cell | null;
   /** True while space is held, which arms drag-to-pan. */
   spaceHeld: boolean;
   /** True while Cmd/Ctrl is held, temporarily enabling Select. */
@@ -50,10 +65,17 @@ type UiState = {
   selectedPlacementIds: string[];
   selectionBox: SelectionBox | null;
   selectionMove: SelectionMove | null;
+  /**
+   * The selection just before the most recent "click away" or Escape
+   * cleared it - one level, consumed by the next `restoreLastClearedSelection`
+   * and invalidated by any other selection change in between.
+   */
+  lastClearedSelection: string[] | null;
 
   setTool: (tool: Tool) => void;
   setArmedSymbolId: (id: string | null) => void;
-  chooseSymbol: (id: string) => void;
+  /** Arms `id`; lands back on `tool` (Draw by default - Insert stays Insert). */
+  chooseSymbol: (id: string, tool?: Tool) => void;
   openPicker: (target: PickerTarget) => void;
   closePicker: () => void;
   selectPlacement: (id: string, additive: boolean) => void;
@@ -61,9 +83,14 @@ type UiState = {
   setSelectionBox: (box: SelectionBox | null) => void;
   setSelectionMove: (move: SelectionMove | null) => void;
   clearSelection: () => void;
+  /** Clears the selection, remembering it so Cmd/Ctrl+Z can bring it back. */
+  clearSelectionWithUndo: () => void;
+  /** Restores the selection stashed by `clearSelectionWithUndo`, if any. Returns whether it did. */
+  restoreLastClearedSelection: () => boolean;
 
   setViewport: (vp: Viewport) => void;
   setHover: (cell: Cell | null) => void;
+  setInsertHover: (cell: Cell | null) => void;
   setSpaceHeld: (held: boolean) => void;
   setSelectHeld: (held: boolean) => void;
   setPanning: (panning: boolean) => void;
@@ -79,6 +106,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   camera: defaultCamera(),
   viewport: { width: 1, height: 1 },
   hover: null,
+  insertHover: null,
   spaceHeld: false,
   selectHeld: false,
   isPanning: false,
@@ -90,20 +118,28 @@ export const useUiStore = create<UiState>((set, get) => ({
   selectedPlacementIds: [],
   selectionBox: null,
   selectionMove: null,
+  lastClearedSelection: null,
 
-  setTool: (tool) => set({ tool, picker: null, ...(tool === "select" ? {} : { selectedPlacementIds: [] }) }),
+  setTool: (tool) =>
+    set({
+      tool,
+      picker: null,
+      lastClearedSelection: null,
+      ...(tool === "select" ? {} : { selectedPlacementIds: [] }),
+    }),
   setArmedSymbolId: (armedSymbolId) =>
-    set({ armedSymbolId, tool: "stitch", selectedPlacementIds: [] }),
+    set({ armedSymbolId, tool: "stitch", selectedPlacementIds: [], lastClearedSelection: null }),
 
   /** Arm a symbol and remember it, most recent first. */
-  chooseSymbol: (id) => {
+  chooseSymbol: (id, tool = "stitch") => {
     const recent = [id, ...get().recentSymbolIds.filter((r) => r !== id)];
     set({
       armedSymbolId: id,
-      tool: "stitch",
+      tool,
       recentSymbolIds: recent.slice(0, RECENT_LIMIT),
       picker: null,
       selectedPlacementIds: [],
+      lastClearedSelection: null,
     });
   },
 
@@ -112,23 +148,42 @@ export const useUiStore = create<UiState>((set, get) => ({
   selectPlacement: (id, additive) => {
     const selected = get().selectedPlacementIds;
     if (!additive) {
-      set({ selectedPlacementIds: [id] });
+      set({ selectedPlacementIds: [id], lastClearedSelection: null });
       return;
     }
     set({
       selectedPlacementIds: selected.includes(id)
         ? selected.filter((selectedId) => selectedId !== id)
         : [...selected, id],
+      lastClearedSelection: null,
     });
   },
-  setSelectedPlacementIds: (selectedPlacementIds) => set({ selectedPlacementIds }),
+  setSelectedPlacementIds: (selectedPlacementIds) =>
+    set({ selectedPlacementIds, lastClearedSelection: null }),
   setSelectionBox: (selectionBox) => set({ selectionBox }),
   setSelectionMove: (selectionMove) => set({ selectionMove }),
   clearSelection: () => set({
     selectedPlacementIds: [],
+    lastClearedSelection: null,
     selectionBox: null,
     selectionMove: null,
   }),
+  clearSelectionWithUndo: () => {
+    const current = get().selectedPlacementIds;
+    if (!current.length) return;
+    set({
+      selectedPlacementIds: [],
+      lastClearedSelection: current,
+      selectionBox: null,
+      selectionMove: null,
+    });
+  },
+  restoreLastClearedSelection: () => {
+    const stash = get().lastClearedSelection;
+    if (!stash) return false;
+    set({ selectedPlacementIds: stash, lastClearedSelection: null });
+    return true;
+  },
 
   setViewport: (viewport) => set({ viewport }),
 
@@ -136,6 +191,10 @@ export const useUiStore = create<UiState>((set, get) => ({
   setHover: (cell) => {
     if (sameCell(get().hover, cell)) return;
     set({ hover: cell });
+  },
+  setInsertHover: (cell) => {
+    if (sameCell(get().insertHover, cell)) return;
+    set({ insertHover: cell });
   },
 
   setSpaceHeld: (spaceHeld) => {

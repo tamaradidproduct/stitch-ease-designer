@@ -61,11 +61,20 @@ export function Toolbar() {
         data-on={tool === "eraser"}
         aria-pressed={tool === "eraser"}
         onClick={() => setTool("eraser")}
-        title="Eraser (E) — or right-click the canvas"
+        title="Eraser (E)"
       >
         Eraser
       </button>
-
+      <button
+        type="button"
+        className="toolbar__btn"
+        data-on={tool === "insert"}
+        aria-pressed={tool === "insert"}
+        onClick={() => setTool("insert")}
+        title="Insert (I) — add a stitch and shift the rest of the row over"
+      >
+        Insert
+      </button>
       {selected.length > 0 && (
         <div className="toolbar__selection">
           <span>{selected.length} selected</span>

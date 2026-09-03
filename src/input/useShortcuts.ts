@@ -12,11 +12,12 @@ const isTyping = (target: EventTarget | null) =>
 /**
  * Editing shortcuts.
  *
- *   cmd/ctrl Z        undo            shift for redo
+ *   cmd/ctrl Z        undo            shift for redo - restores a just-cleared
+ *                     selection first, before touching the chart history
  *   /                 open the picker at the hovered cell
  *   escape            clear selection, or disarm the current stitch
- *   S / D             select / draw
- *   E                 toggle the eraser
+ *   S / D / E / I     select / draw / erase / insert
+ *   Delete/Backspace  erase the selection
  */
 export function useShortcuts(): void {
   useEffect(() => {
@@ -34,7 +35,22 @@ export function useShortcuts(): void {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
         e.preventDefault();
         if (e.shiftKey) doc.redo();
-        else doc.undo();
+        else if (!ui.restoreLastClearedSelection()) doc.undo();
+        return;
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "d") {
+        if (!ui.selectedPlacementIds.length) return;
+        e.preventDefault();
+        const ids = doc.duplicatePlacements(ui.selectedPlacementIds);
+        if (ids.length) ui.setSelectedPlacementIds(ids);
+        return;
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "g") {
+        if (!ui.selectedPlacementIds.length) return;
+        e.preventDefault();
+        doc.createRepeat(ui.selectedPlacementIds);
         return;
       }
 
@@ -55,7 +71,7 @@ export function useShortcuts(): void {
 
       if (e.key === "Escape") {
         if (ui.picker) ui.closePicker();
-        else if (ui.selectedPlacementIds.length) ui.clearSelection();
+        else if (ui.selectedPlacementIds.length) ui.clearSelectionWithUndo();
         else ui.setArmedSymbolId(null);
         return;
       }
@@ -77,6 +93,16 @@ export function useShortcuts(): void {
         return;
       }
 
+      if (e.key.toLowerCase() === "e" && !e.metaKey && !e.ctrlKey) {
+        ui.setTool(ui.tool === "eraser" ? "stitch" : "eraser");
+        return;
+      }
+
+      if (e.key.toLowerCase() === "i" && !e.metaKey && !e.ctrlKey) {
+        ui.setTool(ui.tool === "insert" ? "stitch" : "insert");
+        return;
+      }
+
       if (e.key === "/" && ui.hover) {
         e.preventDefault();
         const r = cellToScreenRect(ui.hover.col, ui.hover.row, ui.camera, ui.viewport);
@@ -89,10 +115,6 @@ export function useShortcuts(): void {
           ...(existing ? { currentSymbolId: existing.symbolId } : null),
         });
         return;
-      }
-
-      if (e.key.toLowerCase() === "e" && !e.metaKey && !e.ctrlKey) {
-        ui.setTool(ui.tool === "eraser" ? "stitch" : "eraser");
       }
     };
 

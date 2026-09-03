@@ -71,6 +71,7 @@ export function StitchPicker() {
   const recentIds = useUiStore((s) => s.recentSymbolIds);
   const place = useDocStore((s) => s.place);
   const erase = useDocStore((s) => s.erase);
+  const insertPlacement = useDocStore((s) => s.insertPlacement);
   const replacePlacements = useDocStore((s) => s.replacePlacements);
   const repeats = useDocStore((s) => s.repeats);
   const instantiateRepeat = useDocStore((s) => s.instantiateRepeat);
@@ -156,19 +157,23 @@ export function StitchPicker() {
   const currentSymbol = target.currentSymbolId ? getSymbol(target.currentSymbolId) : undefined;
   const placeholder = target.selectionIds
     ? `Replace ${target.selectionIds.length} selected stitch${target.selectionIds.length === 1 ? "" : "es"}`
-    : currentSymbol
-      ? `Replace ${currentSymbol.label} at col ${target.col}, row ${target.row}`
-      : `Add a stitch at col ${target.col}, row ${target.row}`;
+    : target.insert
+      ? `Insert a stitch at col ${target.col}, row ${target.row}`
+      : currentSymbol
+        ? `Replace ${currentSymbol.label} at col ${target.col}, row ${target.row}`
+        : `Add a stitch at col ${target.col}, row ${target.row}`;
 
   const choose = (symbol: StitchSymbol) => {
     const replacingSelection = !!target.selectionIds;
     if (target.selectionIds) {
       replacePlacements(target.selectionIds, symbol.id);
       clearSelection();
+    } else if (target.insert) {
+      insertPlacement(symbol.id, target.col, target.row);
     } else {
       place(symbol.id, target.col, target.row);
     }
-    chooseSymbol(symbol.id);
+    chooseSymbol(symbol.id, target.insert ? "insert" : "stitch");
     if (replacingSelection) setTool("select");
   };
 
