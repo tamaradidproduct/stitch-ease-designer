@@ -6,7 +6,18 @@ import { useReferenceImageTool } from "../input/useReferenceImageTool";
 import { useShortcuts } from "../input/useShortcuts";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
-import { DUPLICATE_CURSOR } from "./cursors";
+import {
+  ADD_CURSOR,
+  BLOCKED_MOVE_CURSOR,
+  DUPLICATE_CURSOR,
+  ERASE_CURSOR,
+  GRAB_CURSOR,
+  GRABBING_CURSOR,
+  INSERT_ADD_CURSOR,
+  INSERT_BLOCKED_CURSOR,
+  armedStitchCursor,
+  insertStitchCursor,
+} from "./cursors";
 import { ReferenceImageCache } from "./referenceImageCache";
 import { render } from "./renderer";
 import { SpriteCache } from "./spriteCache";
@@ -36,18 +47,18 @@ export function CanvasView() {
       return image && image.visible && !image.locked ? "move" : "default";
     }
     if (s.selectionMove) {
-      if (s.selectionMove.blocked) return "not-allowed";
-      return s.selectionMove.duplicating ? DUPLICATE_CURSOR : "grabbing";
+      if (s.selectionMove.blocked) return BLOCKED_MOVE_CURSOR;
+      return s.selectionMove.duplicating ? DUPLICATE_CURSOR : GRABBING_CURSOR;
     }
-    if (s.isPanning) return "grabbing";
-    if (s.spaceHeld) return "grab";
+    if (s.isPanning) return GRABBING_CURSOR;
+    if (s.spaceHeld) return GRAB_CURSOR;
     // An existing selection is draggable from any tool, so its own cells
     // always get the "grab" cursor - checked before the tool-specific cases.
     if (s.selectedPlacementIds.length) {
       const hovered = s.hover
         ? useDocStore.getState().index.placementAt(s.hover.col, s.hover.row)
         : undefined;
-      if (hovered && s.selectedPlacementIds.includes(hovered.id)) return "grab";
+      if (hovered && s.selectedPlacementIds.includes(hovered.id)) return GRAB_CURSOR;
     }
     const hovered = s.hover
       ? useDocStore.getState().index.placementAt(s.hover.col, s.hover.row)
@@ -56,15 +67,19 @@ export function CanvasView() {
       if (s.tool === "select" && !hovered) return "crosshair";
       return "default";
     }
-    if (s.tool === "eraser") return "cell";
+    if (s.tool === "eraser") return ERASE_CURSOR;
     if (s.tool === "insert") {
-      if (!s.insertHover) return "cell";
-      const ok = canInsertAt(useDocStore.getState().index, s.insertHover.col, s.insertHover.row);
-      return ok ? "cell" : "not-allowed";
+      // No insertHover yet (over the ruler, or before the first pointer
+      // move) isn't a blocked target - it's just nothing to judge yet.
+      const ok =
+        !s.insertHover || canInsertAt(useDocStore.getState().index, s.insertHover.col, s.insertHover.row);
+      if (!ok) return INSERT_BLOCKED_CURSOR;
+      return s.armedSymbolId ? insertStitchCursor(s.armedSymbolId) : INSERT_ADD_CURSOR;
     }
-    // Draw: a filled, unselected cell is a click-to-select target, not a
-    // place target - "pointer" reads as clickable the way "crosshair" doesn't.
-    return hovered ? "pointer" : "crosshair";
+    // Draw leaves existing stitches as plain-arrow selection targets. Empty
+    // cells carry either the add badge or the armed-stitch preview.
+    if (hovered) return "default";
+    return s.armedSymbolId ? armedStitchCursor(s.armedSymbolId) : ADD_CURSOR;
   });
 
   // Registered first so it gets first refusal on every pointer event - it
@@ -126,8 +141,6 @@ export function CanvasView() {
         state.camera !== prev.camera ||
         state.viewport !== prev.viewport ||
         state.hover !== prev.hover ||
-        state.insertHover !== prev.insertHover ||
-        state.armedSymbolId !== prev.armedSymbolId ||
         state.picker !== prev.picker ||
         state.selectedPlacementIds !== prev.selectedPlacementIds ||
         state.selectionBox !== prev.selectionBox ||
@@ -153,8 +166,6 @@ export function CanvasView() {
         camera,
         viewport,
         hover,
-        insertHover,
-        armedSymbolId,
         picker,
         selectedPlacementIds,
         tool,
@@ -171,14 +182,10 @@ export function CanvasView() {
       ctx.save();
       // Work in CSS pixels; the DPR scale is applied once, here.
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      // While the picker is open, the cursor isn't armed to place anything —
-      // showing the stitch preview underneath the popover would suggest a
-      // click still drops a stitch where it doesn't.
       render(ctx, {
         camera,
         viewport,
         hover,
-        insertHover,
         index,
         revision,
         sprites,
@@ -187,7 +194,6 @@ export function CanvasView() {
         referenceImagePanelOpen,
         referenceImageCalibrating,
         referenceImageCalibrationBox,
-        armedSymbolId: picker ? null : armedSymbolId,
         pickerTarget: picker,
         selectedPlacementIds,
         tool,
