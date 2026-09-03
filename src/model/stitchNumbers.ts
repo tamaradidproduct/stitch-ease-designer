@@ -11,12 +11,19 @@ export type StitchGroup = {
   stitchColsByRow: Map<number, number[]>;
 };
 
+export type ChartTopology = {
+  groups: StitchGroup[];
+  groupByCell: Map<string, StitchGroup>;
+};
+
+const topologyCache = new WeakMap<DocIndex, { revision: number; topology: ChartTopology }>();
+
 /**
  * Infer temporary chart scopes from touching placements. Horizontal, vertical,
  * and diagonal neighbours belong to one group, which keeps ordinary shaping
  * connected while allowing distant motifs to number independently.
  */
-export function stitchGroups(index: DocIndex): StitchGroup[] {
+function buildTopology(index: DocIndex): ChartTopology {
   const cells = new Map<string, { col: number; row: number; isStitch: boolean }>();
 
   for (const placement of index.placements.values()) {
@@ -32,6 +39,7 @@ export function stitchGroups(index: DocIndex): StitchGroup[] {
 
   const unseen = new Set(cells.keys());
   const groups: StitchGroup[] = [];
+  const groupByCell = new Map<string, StitchGroup>();
   while (unseen.size) {
     const first = unseen.values().next().value as string;
     const queue = [first];
@@ -60,17 +68,36 @@ export function stitchGroups(index: DocIndex): StitchGroup[] {
 
     // No-stitch placeholders can bridge real stitches, but a placeholder-only
     // island does not have knitter-facing numbering of its own.
-    if (stitchColsByRow.size) groups.push({ cells: groupCells, stitchColsByRow });
+    if (stitchColsByRow.size) {
+      const group = { cells: groupCells, stitchColsByRow };
+      groups.push(group);
+      for (const cell of groupCells) groupByCell.set(cell, group);
+    }
   }
 
-  return groups;
+  return { groups, groupByCell };
+}
+
+/** Builds chart-wide numbering topology once per document revision. */
+export function chartTopology(index: DocIndex, revision: number): ChartTopology {
+  const cached = topologyCache.get(index);
+  if (cached?.revision === revision) return cached.topology;
+  const topology = buildTopology(index);
+  topologyCache.set(index, { revision, topology });
+  return topology;
+}
+
+export function stitchGroups(index: DocIndex, revision?: number): StitchGroup[] {
+  return revision === undefined ? buildTopology(index).groups : chartTopology(index, revision).groups;
 }
 
 export function stitchGroupAt(
   index: DocIndex,
   col: number,
   row: number,
+  revision?: number,
 ): StitchGroup | null {
+  if (revision !== undefined) return chartTopology(index, revision).groupByCell.get(key(col, row)) ?? null;
   return stitchGroups(index).find((group) => group.cells.has(key(col, row))) ?? null;
 }
 
@@ -79,8 +106,9 @@ export function roundStitchNumbers(
   index: DocIndex,
   col: number,
   row: number,
+  revision?: number,
 ): Map<number, number> {
-  const group = stitchGroupAt(index, col, row);
+  const group = stitchGroupAt(index, col, row, revision);
   const cols = [...(group?.stitchColsByRow.get(row) ?? [])].sort((a, b) => b - a);
   return new Map(cols.map((stitchCol, i) => [stitchCol, i + 1]));
 }
@@ -89,8 +117,9 @@ export function roundStitchNumberAt(
   index: DocIndex,
   col: number,
   row: number,
+  revision?: number,
 ): number | null {
-  return roundStitchNumbers(index, col, row).get(col) ?? null;
+  return roundStitchNumbers(index, col, row, revision).get(col) ?? null;
 }
 
 /** Knitter-facing rows for one connected group, counted bottom to top. */
@@ -106,7 +135,8 @@ export function knittedRowNumberAt(
   index: DocIndex,
   col: number,
   row: number,
+  revision?: number,
 ): number | null {
-  const group = stitchGroupAt(index, col, row);
+  const group = stitchGroupAt(index, col, row, revision);
   return group ? knittedRowNumbers(group).get(row) ?? null : null;
 }

@@ -1,7 +1,7 @@
 import type { DocIndex } from "../model/docIndex";
 import { canInsertAt } from "../model/ops";
 import { rowDirectionAt } from "../model/rowDirection";
-import { knittedRowNumbers, roundStitchNumbers, stitchGroups } from "../model/stitchNumbers";
+import { chartTopology, knittedRowNumbers, roundStitchNumbers } from "../model/stitchNumbers";
 import { getSymbol } from "../symbols/registry";
 import type { StitchSymbol } from "../symbols/types";
 import {
@@ -26,6 +26,7 @@ export type RenderState = {
   /** Where Insert would land - see `screenToInsertCell`. Only Insert reads this. */
   insertHover: Cell | null;
   index: DocIndex;
+  revision: number;
   sprites: SpriteCache;
   /** Symbol armed in the toolbar, previewed under the cursor. */
   armedSymbolId: string | null;
@@ -68,7 +69,7 @@ export function crispRowY(row: number, cam: Camera, vp: Viewport): number {
  * row. For knitting in the round, stitch 1 is the rightmost actual stitch.
  */
 function drawRulers(ctx: CanvasRenderingContext2D, state: RenderState): void {
-  const { camera: cam, viewport: vp, hover } = state;
+  const { camera: cam, viewport: vp, hover, index, revision } = state;
   const b = visibleCellBounds(cam, vp, 0);
 
   ctx.fillStyle = theme.rulerBackground;
@@ -103,7 +104,7 @@ function drawRulers(ctx: CanvasRenderingContext2D, state: RenderState): void {
   const step = labelStep(cam);
 
   if (hover) {
-    const stitchNumbers = roundStitchNumbers(state.index, hover.col, hover.row);
+    const stitchNumbers = roundStitchNumbers(index, hover.col, hover.row, revision);
     for (const [col, stitchNumber] of stitchNumbers) {
       if (col < b.minCol || col > b.maxCol) continue;
       // Keep the ruler readable when zoomed out, while always retaining the
@@ -117,7 +118,7 @@ function drawRulers(ctx: CanvasRenderingContext2D, state: RenderState): void {
     }
   }
 
-  for (const group of stitchGroups(state.index)) {
+  for (const group of chartTopology(index, revision).groups) {
     for (const [row, rowNumber] of knittedRowNumbers(group)) {
       if (row < b.minRow || row > b.maxRow) continue;
       if (rowNumber !== 1 && rowNumber % step !== 0 && row !== hover?.row) continue;
