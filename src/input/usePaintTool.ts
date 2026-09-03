@@ -7,6 +7,17 @@ import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
 
 /**
+ * Whether a click/pointerdown that just produced `ids` (via `selectExisting`)
+ * should open that single stitch's edit picker. A shift/cmd-additive click is
+ * building or trimming a multi-selection, never editing it, regardless of how
+ * many ids the selection happens to land on afterward - so it must never
+ * open the picker, even when it leaves exactly one id selected.
+ */
+export function shouldOpenPickerForSelection(ids: string[], additive: boolean): boolean {
+  return !additive && ids.length === 1;
+}
+
+/**
  * Placing, selecting, moving, and inserting stitches.
  *
  *   click empty cell (Draw)     place the armed stitch, or open the picker if none is armed
@@ -141,8 +152,8 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       return next;
     };
 
-    const openPickerForSingleSelection = (ids: string[], e: PointerEvent) => {
-      if (ids.length !== 1) return;
+    const openPickerForSingleSelection = (ids: string[], e: PointerEvent, additive: boolean) => {
+      if (!shouldOpenPickerForSelection(ids, additive)) return;
       const placement = doc().index.placements.get(ids[0]!);
       if (!placement) return;
       const rect = canvas.getBoundingClientRect();
@@ -266,7 +277,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
           last = cell;
           canvas.setPointerCapture(e.pointerId);
         } else {
-          openPickerForSingleSelection(ids, e);
+          openPickerForSingleSelection(ids, e, e.shiftKey);
         }
         return;
       }
@@ -356,8 +367,10 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         } else {
           // Pointerdown on an existing selection is provisionally a move.
           // If it never leaves the cell, it was a click instead: edit the
-          // one selected stitch rather than silently doing nothing.
-          openPickerForSingleSelection(ui().selectedPlacementIds, e);
+          // one selected stitch rather than silently doing nothing. This
+          // gesture only ever starts non-additive (see the two `!e.shiftKey`
+          // guards that set movingSelection), so it always may open.
+          openPickerForSingleSelection(ui().selectedPlacementIds, e, false);
         }
         movingSelection = false;
         selectionStart = null;
@@ -372,7 +385,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         if (!selectionMoved) {
           if (existing) {
             const ids = selectExisting(existing.id, selectionAdditive);
-            openPickerForSingleSelection(ids, e);
+            openPickerForSingleSelection(ids, e, selectionAdditive);
           } else if (!selectionAdditive) {
             ui().clearSelectionWithUndo();
             if (!ui().selectHeld && ui().tool === "select") {
