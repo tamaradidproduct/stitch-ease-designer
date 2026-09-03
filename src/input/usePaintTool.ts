@@ -277,13 +277,22 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         const maxCol = Math.max(start.col, cell.col);
         const minRow = Math.min(start.row, cell.row);
         const maxRow = Math.max(start.row, cell.row);
+        // Resolve each distinct group's membership once per call rather than
+        // once per matched placement: a marquee over many members of one
+        // large group would otherwise re-walk that group's full membership
+        // set once per member it happens to cross.
+        const resolvedGroups = new Map<string, string[]>();
         const ids = doc()
           .index.query({ minCol, maxCol, minRow, maxRow })
-          .flatMap((placement) =>
-            placement.groupId
-              ? doc().index.groupMembers(placement.groupId).map((member) => member.id)
-              : [placement.id],
-          );
+          .flatMap((placement) => {
+            if (!placement.groupId) return [placement.id];
+            let members = resolvedGroups.get(placement.groupId);
+            if (!members) {
+              members = doc().index.groupMembers(placement.groupId).map((member) => member.id);
+              resolvedGroups.set(placement.groupId, members);
+            }
+            return members;
+          });
         ui().setSelectedPlacementIds([...new Set([...selectionBaseline, ...ids])]);
         return;
       }

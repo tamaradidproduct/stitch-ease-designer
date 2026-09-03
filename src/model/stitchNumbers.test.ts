@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { DocIndex } from "./docIndex";
 import {
+  chartTopology,
   knittedRowNumberAt,
   knittedRowNumbers,
   roundStitchNumberAt,
   roundStitchNumbers,
+  stitchGroupAt,
   stitchGroups,
 } from "./stitchNumbers";
 import type { Placement } from "./types";
@@ -100,5 +102,43 @@ describe("round stitch numbering", () => {
 
     expect(roundStitchNumberAt(index, 0, 0)).toBe(1);
     expect(roundStitchNumberAt(index, 20, 0)).toBe(1);
+  });
+});
+
+describe("chartTopology cache", () => {
+  it("reuses the cached topology for the same index at the same revision", () => {
+    const index = DocIndex.from([stitch("a", "knit", 0, 0)]);
+
+    const first = chartTopology(index, 1);
+    const second = chartTopology(index, 1);
+
+    expect(second).toBe(first);
+  });
+
+  it("recomputes once the revision changes, reflecting the new placements", () => {
+    const index = DocIndex.from([stitch("a", "knit", 0, 0)]);
+
+    const before = chartTopology(index, 1);
+    expect(stitchGroupAt(index, 5, 0, 1)).toBeNull();
+
+    index.add(stitch("b", "knit", 5, 0));
+    const after = chartTopology(index, 2);
+
+    expect(after).not.toBe(before);
+    expect(stitchGroupAt(index, 5, 0, 2)).not.toBeNull();
+    // The stale revision-1 read above must not have poisoned revision 2's group.
+    expect(roundStitchNumberAt(index, 5, 0, 2)).toBe(1);
+  });
+
+  it("keeps separate cache entries per DocIndex instance", () => {
+    const a = DocIndex.from([stitch("a", "knit", 0, 0)]);
+    const b = DocIndex.from([stitch("b", "purl", 9, 9)]);
+
+    const topologyA = chartTopology(a, 1);
+    const topologyB = chartTopology(b, 1);
+
+    expect(topologyA).not.toBe(topologyB);
+    expect(stitchGroupAt(a, 9, 9, 1)).toBeNull();
+    expect(stitchGroupAt(b, 0, 0, 1)).toBeNull();
   });
 });
