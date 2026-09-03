@@ -64,12 +64,15 @@ export function CanvasView() {
       ? useDocStore.getState().index.placementAt(s.hover.col, s.hover.row)
       : undefined;
     if (s.tool === "select" || s.selectHeld) {
+      if (s.tool === "select" && !hovered) return "crosshair";
       return "default";
     }
     if (s.tool === "eraser") return ERASE_CURSOR;
     if (s.tool === "insert") {
-      if (!s.insertHover) return INSERT_BLOCKED_CURSOR;
-      const ok = canInsertAt(useDocStore.getState().index, s.insertHover.col, s.insertHover.row);
+      // No insertHover yet (over the ruler, or before the first pointer
+      // move) isn't a blocked target - it's just nothing to judge yet.
+      const ok =
+        !s.insertHover || canInsertAt(useDocStore.getState().index, s.insertHover.col, s.insertHover.row);
       if (!ok) return INSERT_BLOCKED_CURSOR;
       return s.armedSymbolId ? insertStitchCursor(s.armedSymbolId) : INSERT_ADD_CURSOR;
     }
@@ -138,8 +141,6 @@ export function CanvasView() {
         state.camera !== prev.camera ||
         state.viewport !== prev.viewport ||
         state.hover !== prev.hover ||
-        state.insertHover !== prev.insertHover ||
-        state.armedSymbolId !== prev.armedSymbolId ||
         state.selectedPlacementIds !== prev.selectedPlacementIds ||
         state.selectionBox !== prev.selectionBox ||
         state.selectionMove !== prev.selectionMove ||
@@ -164,9 +165,6 @@ export function CanvasView() {
         camera,
         viewport,
         hover,
-        insertHover,
-        armedSymbolId,
-        picker,
         selectedPlacementIds,
         tool,
         selectHeld,
@@ -182,14 +180,10 @@ export function CanvasView() {
       ctx.save();
       // Work in CSS pixels; the DPR scale is applied once, here.
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      // While the picker is open, the cursor isn't armed to place anything —
-      // showing the stitch preview underneath the popover would suggest a
-      // click still drops a stitch where it doesn't.
       render(ctx, {
         camera,
         viewport,
         hover,
-        insertHover,
         index,
         revision,
         sprites,
@@ -198,7 +192,6 @@ export function CanvasView() {
         referenceImagePanelOpen,
         referenceImageCalibrating,
         referenceImageCalibrationBox,
-        armedSymbolId: picker ? null : armedSymbolId,
         selectedPlacementIds,
         tool,
         selectHeld,

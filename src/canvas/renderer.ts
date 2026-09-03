@@ -1,5 +1,4 @@
 import type { DocIndex } from "../model/docIndex";
-import { canInsertAt } from "../model/ops";
 import { chartTopology, knittedRowNumbers, roundStitchNumbers } from "../model/stitchNumbers";
 import type { ReferenceImage } from "../model/types";
 import { getSymbol } from "../symbols/registry";
@@ -24,8 +23,6 @@ export type RenderState = {
   camera: Camera;
   viewport: Viewport;
   hover: Cell | null;
-  /** Where Insert would land - see `screenToInsertCell`. Only Insert reads this. */
-  insertHover: Cell | null;
   index: DocIndex;
   revision: number;
   sprites: SpriteCache;
@@ -41,8 +38,6 @@ export type RenderState = {
   referenceImageCalibrating: boolean;
   /** The calibration box's corners in world space, while one's being dragged out. */
   referenceImageCalibrationBox: { start: Point; current: Point } | null;
-  /** Symbol armed in the toolbar; CanvasView chooses the matching cursor state. */
-  armedSymbolId: string | null;
   selectedPlacementIds: string[];
   tool: Tool;
   selectHeld: boolean;
@@ -391,7 +386,7 @@ function drawReferenceImageOverlay(ctx: CanvasRenderingContext2D, state: RenderS
 }
 
 function drawHover(ctx: CanvasRenderingContext2D, state: RenderState): void {
-  const { camera: cam, viewport: vp, hover, insertHover, index, tool, selectHeld } = state;
+  const { camera: cam, viewport: vp, hover, index, tool, selectHeld } = state;
   // The reference-image panel owns the canvas while it's open - every
   // normal tool hint would otherwise show through underneath its own
   // move/resize/calibrate affordances, competing for the same attention.
@@ -400,14 +395,9 @@ function drawHover(ctx: CanvasRenderingContext2D, state: RenderState): void {
   if (cellPx(cam) < 4) return;
   const size = cellPx(cam);
 
-  if (tool === "insert") {
-    if (!insertHover) return;
-    // No indicator at all when it's not a valid target - landing inside a
-    // multi-cell symbol would cut it in half, and an empty stretch of the
-    // row (or an empty row entirely) has no stitch to insert "between".
-    if (!canInsertAt(index, insertHover.col, insertHover.row)) return;
-    return;
-  }
+  // Insert's indicator lives entirely in the CSS cursor (see cursors.ts /
+  // CanvasView's cursor selector) - nothing to draw on the canvas itself.
+  if (tool === "insert") return;
 
   if (!hover) return;
   const r = cellToScreenRect(hover.col, hover.row, cam, vp);
