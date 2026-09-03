@@ -22,6 +22,8 @@ export function CanvasView() {
         ? "grabbing"
         : s.spaceHeld
           ? "grab"
+          : s.tool === "select"
+            ? "default"
           : s.tool === "eraser"
             ? "cell"
             : "crosshair",
@@ -81,7 +83,9 @@ export function CanvasView() {
         state.camera !== prev.camera ||
         state.viewport !== prev.viewport ||
         state.hover !== prev.hover ||
-        state.armedSymbolId !== prev.armedSymbolId
+        state.armedSymbolId !== prev.armedSymbolId ||
+        state.selectedPlacementIds !== prev.selectedPlacementIds ||
+        state.tool !== prev.tool
       ) {
         markDirty();
       }
@@ -95,7 +99,8 @@ export function CanvasView() {
       if (!dirty.current) return;
       dirty.current = false;
 
-      const { camera, viewport, hover, armedSymbolId, picker } = useUiStore.getState();
+      const { camera, viewport, hover, armedSymbolId, picker, selectedPlacementIds, tool } =
+        useUiStore.getState();
       const { index } = useDocStore.getState();
       const dpr = window.devicePixelRatio || 1;
 
@@ -112,6 +117,8 @@ export function CanvasView() {
         index,
         sprites,
         armedSymbolId: picker ? null : armedSymbolId,
+        selectedPlacementIds,
+        tool,
       });
       ctx.restore();
     };

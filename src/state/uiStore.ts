@@ -8,7 +8,7 @@ import {
   zoomAt,
 } from "../canvas/camera";
 
-export type Tool = "stitch" | "eraser";
+export type Tool = "select" | "stitch" | "eraser";
 
 /** Where the picker is anchored: which cell it will fill, and where to draw it. */
 export type PickerTarget = {
@@ -18,6 +18,9 @@ export type PickerTarget = {
   y: number;
   /** The stitch already occupying this cell, if any — the picker is editing it. */
   currentSymbolId?: string;
+  /** When present, choosing a symbol replaces this whole selection. */
+  selectionIds?: string[];
+  selectionSpan?: number;
 };
 
 /** How many recently used symbols the picker keeps at the top. */
@@ -39,12 +42,15 @@ type UiState = {
   armedSymbolId: string | null;
   recentSymbolIds: string[];
   picker: PickerTarget | null;
+  selectedPlacementIds: string[];
 
   setTool: (tool: Tool) => void;
   setArmedSymbolId: (id: string | null) => void;
   chooseSymbol: (id: string) => void;
   openPicker: (target: PickerTarget) => void;
   closePicker: () => void;
+  selectPlacement: (id: string, additive: boolean) => void;
+  clearSelection: () => void;
 
   setViewport: (vp: Viewport) => void;
   setHover: (cell: Cell | null) => void;
@@ -69,9 +75,11 @@ export const useUiStore = create<UiState>((set, get) => ({
   armedSymbolId: null,
   recentSymbolIds: [],
   picker: null,
+  selectedPlacementIds: [],
 
-  setTool: (tool) => set({ tool, picker: null }),
-  setArmedSymbolId: (armedSymbolId) => set({ armedSymbolId, tool: "stitch" }),
+  setTool: (tool) => set({ tool, picker: null, ...(tool === "select" ? {} : { selectedPlacementIds: [] }) }),
+  setArmedSymbolId: (armedSymbolId) =>
+    set({ armedSymbolId, tool: "stitch", selectedPlacementIds: [] }),
 
   /** Arm a symbol and remember it, most recent first. */
   chooseSymbol: (id) => {
@@ -81,11 +89,25 @@ export const useUiStore = create<UiState>((set, get) => ({
       tool: "stitch",
       recentSymbolIds: recent.slice(0, RECENT_LIMIT),
       picker: null,
+      selectedPlacementIds: [],
     });
   },
 
   openPicker: (picker) => set({ picker }),
   closePicker: () => set({ picker: null }),
+  selectPlacement: (id, additive) => {
+    const selected = get().selectedPlacementIds;
+    if (!additive) {
+      set({ selectedPlacementIds: [id] });
+      return;
+    }
+    set({
+      selectedPlacementIds: selected.includes(id)
+        ? selected.filter((selectedId) => selectedId !== id)
+        : [...selected, id],
+    });
+  },
+  clearSelection: () => set({ selectedPlacementIds: [] }),
 
   setViewport: (viewport) => set({ viewport }),
 

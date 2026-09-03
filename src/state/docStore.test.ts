@@ -66,3 +66,49 @@ describe("openChart", () => {
     expect(revision).toBe(savedRevision);
   });
 });
+
+describe("selection edits", () => {
+  beforeEach(() => {
+    useDocStore.getState().openChart({
+      meta: meta("selection"),
+      placements: [
+        { id: "a", symbolId: "knit", col: 0, row: 0 },
+        { id: "b", symbolId: "purl", col: 1, row: 0 },
+      ],
+      unknownSymbolIds: [],
+    });
+  });
+
+  it("replaces several same-span placements as one undoable edit", () => {
+    useDocStore.getState().replacePlacements(["a", "b"], "yarn_over");
+    expect(useDocStore.getState().index.toArray().map((p) => p.symbolId)).toEqual([
+      "yarn_over",
+      "yarn_over",
+    ]);
+    expect(useDocStore.getState().undoStack).toHaveLength(1);
+
+    useDocStore.getState().undo();
+    expect(useDocStore.getState().index.toArray().map((p) => p.symbolId).sort()).toEqual([
+      "knit",
+      "purl",
+    ]);
+  });
+
+  it("deletes several placements as one undoable edit", () => {
+    useDocStore.getState().erasePlacements(["a", "b"]);
+    expect(useDocStore.getState().index.size).toBe(0);
+    expect(useDocStore.getState().undoStack).toHaveLength(1);
+
+    useDocStore.getState().undo();
+    expect(useDocStore.getState().index.size).toBe(2);
+  });
+
+  it("refuses a bulk replacement with a different span", () => {
+    useDocStore.getState().replacePlacements(["a", "b"], "3_3_left_cable");
+    expect(useDocStore.getState().index.toArray().map((p) => p.symbolId).sort()).toEqual([
+      "knit",
+      "purl",
+    ]);
+    expect(useDocStore.getState().undoStack).toHaveLength(0);
+  });
+});

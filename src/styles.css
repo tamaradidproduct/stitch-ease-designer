@@ -311,6 +311,16 @@ body {
   flex: 1;
 }
 
+.toolbar__selection {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
 /* ---- stitch picker ----------------------------------------------------- */
 
 .picker {

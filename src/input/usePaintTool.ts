@@ -66,6 +66,15 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       const cell = cellAt(e);
       if (!cell) return;
 
+      if (ui().tool === "select") {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        const existing = doc().index.placementAt(cell.col, cell.row);
+        if (existing) ui().selectPlacement(existing.id, e.shiftKey);
+        else if (!e.shiftKey) ui().clearSelection();
+        return;
+      }
+
       const wantsErase = e.button === 2 || e.altKey || ui().tool === "eraser";
       if (!wantsErase) {
         const existing = doc().index.placementAt(cell.col, cell.row);
@@ -116,6 +125,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
     const onContextMenu = (e: MouseEvent) => e.preventDefault();
 
     const onDoubleClick = (e: MouseEvent) => {
+      if (ui().tool === "select") return;
       const cell = cellAt(e);
       if (!cell) return;
       const rect = canvas.getBoundingClientRect();

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { DocIndex } from "../model/docIndex";
-import { apply, eraseChange, mergeChanges, placeChange } from "../model/ops";
+import { apply, eraseChange, mergeChanges, newPlacementId, placeChange } from "../model/ops";
+import { spanOf } from "../symbols/registry";
 import { isEmptyChange, type Change, type DocMeta } from "../model/types";
 import type { LoadedChart } from "../storage/DocStore";
 
@@ -40,6 +41,8 @@ type DocState = {
 
   place: (symbolId: string, col: number, row: number) => void;
   erase: (col: number, row: number) => void;
+  replacePlacements: (ids: string[], symbolId: string) => void;
+  erasePlacements: (ids: string[]) => void;
   beginStroke: () => void;
   endStroke: () => void;
   undo: () => void;
@@ -111,6 +114,28 @@ export const useDocStore = create<DocState>((set, get) => {
 
     place: (symbolId, col, row) => commit(placeChange(get().index, symbolId, col, row)),
     erase: (col, row) => commit(eraseChange(get().index, col, row)),
+    replacePlacements: (ids, symbolId) => {
+      const selected = ids
+        .map((id) => get().index.placements.get(id))
+        .filter((p): p is NonNullable<typeof p> => !!p);
+      if (!selected.length || selected.some((p) => get().index.spanOf(p) !== spanOf(symbolId))) return;
+      if (selected.every((p) => p.symbolId === symbolId)) return;
+      commit({
+        removed: selected,
+        added: selected.map((p) => ({
+          id: newPlacementId(),
+          symbolId,
+          col: p.col,
+          row: p.row,
+        })),
+      });
+    },
+    erasePlacements: (ids) => {
+      const removed = ids
+        .map((id) => get().index.placements.get(id))
+        .filter((p): p is NonNullable<typeof p> => !!p);
+      if (removed.length) commit({ added: [], removed });
+    },
 
     beginStroke: () => set({ stroke: [] }),
 

@@ -24,6 +24,8 @@ export type RenderState = {
   sprites: SpriteCache;
   /** Symbol armed in the toolbar, previewed under the cursor. */
   armedSymbolId: string | null;
+  selectedPlacementIds: string[];
+  tool: "select" | "stitch" | "eraser";
 };
 
 /**
@@ -183,6 +185,26 @@ function drawPlacements(ctx: CanvasRenderingContext2D, state: RenderState): void
   }
 }
 
+function drawSelection(ctx: CanvasRenderingContext2D, state: RenderState): void {
+  const { camera: cam, viewport: vp, index, selectedPlacementIds } = state;
+  const size = cellPx(cam);
+  if (size < 3) return;
+
+  ctx.save();
+  ctx.fillStyle = "rgba(2, 132, 199, 0.14)";
+  ctx.strokeStyle = theme.hoverStroke;
+  ctx.lineWidth = 2;
+  for (const id of selectedPlacementIds) {
+    const placement = index.placements.get(id);
+    if (!placement) continue;
+    const r = cellToScreenRect(placement.col, placement.row, cam, vp);
+    const width = size * index.spanOf(placement);
+    ctx.fillRect(r.x, r.y, width, size);
+    ctx.strokeRect(r.x + 1, r.y + 1, width - 2, size - 2);
+  }
+  ctx.restore();
+}
+
 /**
  * The "nothing here yet, click to add" affordance for an empty cell with
  * nothing armed. Deliberately NOT a plus centered in the cell — that's
@@ -319,13 +341,13 @@ function drawEditHighlight(
 }
 
 function drawHover(ctx: CanvasRenderingContext2D, state: RenderState): void {
-  const { camera: cam, viewport: vp, hover, armedSymbolId, sprites, index } = state;
+  const { camera: cam, viewport: vp, hover, armedSymbolId, sprites, index, tool } = state;
   if (!hover) return;
   // Below this the outline is bigger than the cell and just looks like noise.
   if (cellPx(cam) < 4) return;
 
   const size = cellPx(cam);
-  const symbol = armedSymbolId ? getSymbol(armedSymbolId) : undefined;
+  const symbol = tool === "stitch" && armedSymbolId ? getSymbol(armedSymbolId) : undefined;
   const r = cellToScreenRect(hover.col, hover.row, cam, vp);
 
   if (symbol) {
@@ -337,7 +359,7 @@ function drawHover(ctx: CanvasRenderingContext2D, state: RenderState): void {
 
   if (index.placementAt(hover.col, hover.row)) {
     drawEditHighlight(ctx, r, size);
-  } else {
+  } else if (tool !== "select") {
     drawAddState(ctx, { x: r.x, y: r.y, size });
   }
 }
@@ -354,6 +376,7 @@ export function render(ctx: CanvasRenderingContext2D, state: RenderState): void 
 
   drawGrid(ctx, state.camera, vp, theme);
   drawPlacements(ctx, state);
+  drawSelection(ctx, state);
   drawHover(ctx, state);
   drawRulers(ctx, state);
 }

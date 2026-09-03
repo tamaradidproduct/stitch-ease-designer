@@ -14,7 +14,8 @@ const isTyping = (target: EventTarget | null) =>
  *
  *   cmd/ctrl Z        undo            shift for redo
  *   /                 open the picker at the hovered cell
- *   escape            disarm, so the next click opens the picker again
+ *   escape            clear selection, or disarm the current stitch
+ *   V / B             select / paint
  *   E                 toggle the eraser
  */
 export function useShortcuts(): void {
@@ -35,7 +36,25 @@ export function useShortcuts(): void {
 
       if (e.key === "Escape") {
         if (ui.picker) ui.closePicker();
+        else if (ui.selectedPlacementIds.length) ui.clearSelection();
         else ui.setArmedSymbolId(null);
+        return;
+      }
+
+      if ((e.key === "Backspace" || e.key === "Delete") && ui.selectedPlacementIds.length) {
+        e.preventDefault();
+        doc.erasePlacements(ui.selectedPlacementIds);
+        ui.clearSelection();
+        return;
+      }
+
+      if (e.key.toLowerCase() === "v" && !e.metaKey && !e.ctrlKey) {
+        ui.setTool("select");
+        return;
+      }
+
+      if (e.key.toLowerCase() === "b" && !e.metaKey && !e.ctrlKey) {
+        ui.setTool("stitch");
         return;
       }
 
