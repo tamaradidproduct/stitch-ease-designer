@@ -10,7 +10,6 @@ export function Toolbar() {
   const setTool = useUiStore((s) => s.setTool);
   const setArmed = useUiStore((s) => s.setArmedSymbolId);
   const openPicker = useUiStore((s) => s.openPicker);
-  const hover = useUiStore((s) => s.hover);
   const selectedIds = useUiStore((s) => s.selectedPlacementIds);
   const clearSelection = useUiStore((s) => s.clearSelection);
 
@@ -22,7 +21,6 @@ export function Toolbar() {
   useDocStore((s) => s.revision);
   const erasePlacements = useDocStore((s) => s.erasePlacements);
 
-  const armed = armedId ? getSymbol(armedId) : undefined;
   const selected = selectedIds.flatMap((id) => {
     const placement = index.placements.get(id);
     return placement ? [placement] : [];
@@ -30,11 +28,6 @@ export function Toolbar() {
   const selectedSpan = selected[0] ? index.spanOf(selected[0]) : null;
   const sameSpan =
     selectedSpan !== null && selected.every((placement) => index.spanOf(placement) === selectedSpan);
-
-  // The picker normally anchors to a clicked cell; from the toolbar there
-  // isn't one, so fall back to the hovered cell or the canvas origin.
-  const openFromToolbar = () =>
-    openPicker({ col: hover?.col ?? 0, row: hover?.row ?? 0, x: 16, y: 52 });
 
   return (
     <div className="toolbar">
@@ -58,24 +51,6 @@ export function Toolbar() {
       >
         Paint
       </button>
-      <button
-        type="button"
-        className="toolbar__armed"
-        onClick={openFromToolbar}
-        title="Choose a stitch (/)"
-      >
-        {armed ? (
-          <>
-            <SymbolGlyph symbol={armed} cell={Math.min(20, 140 / armed.span)} />
-            <span className="toolbar__armedLabel">{armed.label}</span>
-          </>
-        ) : (
-          <span className="toolbar__armedLabel toolbar__armedLabel--empty">
-            Click a cell to choose a stitch
-          </span>
-        )}
-      </button>
-
       <button
         type="button"
         className="toolbar__btn"
