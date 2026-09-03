@@ -1,5 +1,5 @@
 import { type RefObject, useEffect } from "react";
-import { screenToCell } from "../canvas/camera";
+import { screenToCell, screenToInsertCell } from "../canvas/camera";
 import { RULER } from "../canvas/theme";
 import { useUiStore } from "../state/uiStore";
 
@@ -87,10 +87,12 @@ export function usePanZoom(ref: RefObject<HTMLCanvasElement | null>): void {
       // beneath them aren't hoverable.
       if (sx < RULER + 1 || sy < RULER + 1) {
         ui().setHover(null);
+        ui().setInsertHover(null);
         return;
       }
       const { camera, viewport } = ui();
       ui().setHover(screenToCell(sx, sy, camera, viewport));
+      ui().setInsertHover(screenToInsertCell(sx, sy, camera, viewport));
     };
 
     const endPan = (e: PointerEvent) => {
@@ -108,7 +110,10 @@ export function usePanZoom(ref: RefObject<HTMLCanvasElement | null>): void {
     };
 
     const onPointerLeave = () => {
-      if (!pan) ui().setHover(null);
+      if (!pan) {
+        ui().setHover(null);
+        ui().setInsertHover(null);
+      }
     };
 
     const onKeyDown = (e: KeyboardEvent) => {

@@ -1,3 +1,5 @@
+import { rowDirectionAt } from "../model/rowDirection";
+
 /**
  * Coordinate systems.
  *
@@ -91,6 +93,32 @@ export function screenToCell(
 ): Cell {
   const w = screenToWorld(sx, sy, cam, vp);
   return worldToCell(w.x, w.y);
+}
+
+/**
+ * The insertion boundary nearest a screen point, expressed as the "cell"
+ * whose edge is that boundary (matching `insertTargetCol`'s convention: the
+ * boundary sits at a cell's *right* edge for a right-to-left row, its left
+ * edge for left-to-right).
+ *
+ * `screenToCell` flips at each cell's own edge, so if Insert used it
+ * directly, the boundary it shows would jump a full cell the instant the
+ * pointer crossed into the next one. Rounding to the nearest whole-CELL
+ * world coordinate instead flips at each cell's *centre* - the hover zone
+ * for a given boundary extends half a cell into each neighbour, matching
+ * however the row reads.
+ */
+export function screenToInsertCell(
+  sx: number,
+  sy: number,
+  cam: Camera,
+  vp: Viewport,
+): Cell {
+  const w = screenToWorld(sx, sy, cam, vp);
+  const row = Math.floor(w.y / CELL);
+  const boundary = Math.round(w.x / CELL);
+  const col = rowDirectionAt(row) === "rtl" ? boundary - 1 : boundary;
+  return { col, row };
 }
 
 /**

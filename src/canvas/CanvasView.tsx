@@ -1,9 +1,11 @@
 import { useEffect, useRef } from "react";
+import { canInsertAt } from "../model/ops";
 import { usePaintTool } from "../input/usePaintTool";
 import { usePanZoom } from "../input/usePanZoom";
 import { useShortcuts } from "../input/useShortcuts";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
+import { DUPLICATE_CURSOR } from "./cursors";
 import { render } from "./renderer";
 import { SpriteCache } from "./spriteCache";
 
@@ -18,7 +20,10 @@ export function CanvasView() {
   useDocStore((s) => s.revision);
   const cursor = useUiStore((s) => {
     if (s.picker) return "default";
-    if (s.selectionMove) return s.selectionMove.blocked ? "not-allowed" : "grabbing";
+    if (s.selectionMove) {
+      if (s.selectionMove.blocked) return "not-allowed";
+      return s.selectionMove.duplicating ? DUPLICATE_CURSOR : "grabbing";
+    }
     if (s.isPanning) return "grabbing";
     if (s.spaceHeld) return "grab";
     // An existing selection is draggable from any tool, so its own cells
@@ -36,8 +41,14 @@ export function CanvasView() {
       if (s.tool === "select" && !hovered) return "crosshair";
       return "default";
     }
-    // A filled, unselected cell is a click-to-select target, not a place/erase
-    // target - "pointer" reads as clickable the way "crosshair" doesn't.
+    if (s.tool === "eraser") return "cell";
+    if (s.tool === "insert") {
+      if (!s.insertHover) return "cell";
+      const ok = canInsertAt(useDocStore.getState().index, s.insertHover.col, s.insertHover.row);
+      return ok ? "cell" : "not-allowed";
+    }
+    // Draw: a filled, unselected cell is a click-to-select target, not a
+    // place target - "pointer" reads as clickable the way "crosshair" doesn't.
     return hovered ? "pointer" : "crosshair";
   });
 
@@ -95,6 +106,7 @@ export function CanvasView() {
         state.camera !== prev.camera ||
         state.viewport !== prev.viewport ||
         state.hover !== prev.hover ||
+        state.insertHover !== prev.insertHover ||
         state.armedSymbolId !== prev.armedSymbolId ||
         state.selectedPlacementIds !== prev.selectedPlacementIds ||
         state.selectionBox !== prev.selectionBox ||
@@ -118,6 +130,7 @@ export function CanvasView() {
         camera,
         viewport,
         hover,
+        insertHover,
         armedSymbolId,
         picker,
         selectedPlacementIds,
@@ -139,6 +152,7 @@ export function CanvasView() {
         camera,
         viewport,
         hover,
+        insertHover,
         index,
         sprites,
         armedSymbolId: picker ? null : armedSymbolId,

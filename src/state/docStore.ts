@@ -1,6 +1,14 @@
 import { create } from "zustand";
 import { DocIndex } from "../model/docIndex";
-import { apply, eraseChange, mergeChanges, newPlacementId, placeChange } from "../model/ops";
+import {
+  apply,
+  canInsertAt as canInsertAtIndex,
+  eraseChange,
+  insertChange,
+  mergeChanges,
+  newPlacementId,
+  placeChange,
+} from "../model/ops";
 import { spanOf } from "../symbols/registry";
 import {
   isEmptyChange,
@@ -67,6 +75,18 @@ type DocState = {
   /** Returns whether the repeat was actually placed (false on a collision). */
   instantiateRepeat: (repeatId: string, col: number, row: number) => boolean;
   duplicatePlacements: (ids: string[]) => string[];
+  /** Whether `duplicatePlacementsAt` would place a copy, without doing it. */
+  canDuplicatePlacements: (ids: string[], deltaCol: number, deltaRow: number) => boolean;
+  /** Copies `ids` to `deltaCol`/`deltaRow` away, leaving the originals in place. Returns the copies' ids. */
+  duplicatePlacementsAt: (ids: string[], deltaCol: number, deltaRow: number) => string[];
+  /** Whether `insertPlacement` could insert at this cell - false inside an existing multi-cell symbol. */
+  canInsertAt: (col: number, row: number) => boolean;
+  /**
+   * Inserts a stitch at `col`/`row`, shifting whatever's there - and
+   * everything further along the row in the knitting direction - out of the
+   * way to make room, rather than overwriting it.
+   */
+  insertPlacement: (symbolId: string, col: number, row: number) => void;
   beginStroke: () => void;
   endStroke: () => void;
   undo: () => void;
@@ -153,6 +173,9 @@ export const useDocStore = create<DocState>((set, get) => {
 
     place: (symbolId, col, row) => commit(placeChange(get().index, symbolId, col, row)),
     erase: (col, row) => commit(eraseChange(get().index, col, row)),
+    canInsertAt: (col, row) => canInsertAtIndex(get().index, col, row),
+    insertPlacement: (symbolId, col, row) =>
+      commit(insertChange(get().index, symbolId, col, row)),
     replacePlacements: (ids, symbolId) => {
       const selected = ids
         .map((id) => get().index.placements.get(id))
@@ -292,6 +315,54 @@ export const useDocStore = create<DocState>((set, get) => {
         }
       }
       commit({ added, removed: [] });
+      return added.map((p) => p.id);
+    },
+    canDuplicatePlacements: (ids, deltaCol, deltaRow) => {
+      if (deltaCol === 0 && deltaRow === 0) return false;
+      const selected = ids
+        .map((id) => get().index.placements.get(id))
+        .filter((p): p is NonNullable<typeof p> => !!p);
+      if (!selected.length) return false;
+
+      // Unlike a move, the originals aren't going anywhere, so the copy has
+      // to clear every existing placement - including the ones it's copied
+      // from - not just the ones outside the selection.
+      for (const placement of selected) {
+        const span = get().index.spanOf(placement);
+        for (let offset = 0; offset < span; offset++) {
+          if (get().index.placementAt(placement.col + deltaCol + offset, placement.row + deltaRow)) {
+            return false;
+          }
+        }
+      }
+      return true;
+    },
+    duplicatePlacementsAt: (ids, deltaCol, deltaRow) => {
+      if (!get().canDuplicatePlacements(ids, deltaCol, deltaRow)) return [];
+      const selected = ids
+        .map((id) => get().index.placements.get(id))
+        .filter((p): p is NonNullable<typeof p> => !!p);
+
+      // Each original group becomes its own new group in the copy, so
+      // duplicating a selection spanning several repeats/cables keeps them
+      // as separate draggable units rather than fusing them into one.
+      const groupIds = new Map<string, string>();
+      const added = selected.map((p) => {
+        const { groupId: originalGroupId, ...rest } = p;
+        const groupId = originalGroupId
+          ? (groupIds.get(originalGroupId) ?? newUuid("group_"))
+          : undefined;
+        if (originalGroupId && groupId) groupIds.set(originalGroupId, groupId);
+        return {
+          ...rest,
+          id: newPlacementId(),
+          col: p.col + deltaCol,
+          row: p.row + deltaRow,
+          ...(groupId ? { groupId } : null),
+        };
+      });
+
+      commit({ removed: [], added });
       return added.map((p) => p.id);
     },
 

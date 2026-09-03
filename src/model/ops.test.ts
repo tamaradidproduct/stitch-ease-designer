@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getSymbol } from "../symbols/registry";
 import { CHUNK, DocIndex } from "./docIndex";
-import { apply, eraseChange, mergeChanges, placeChange } from "./ops";
+import { apply, canInsertAt, eraseChange, insertChange, mergeChanges, placeChange } from "./ops";
 import { isEmptyChange, type Placement } from "./types";
 
 // Anchored to the real library rather than fixtures: if a cable's span changes
@@ -148,6 +148,80 @@ describe("mergeChanges", () => {
     expect(merged.added.map((p) => p.symbolId)).toEqual([CABLE]);
     // The knit never existed before the stroke, so undo must not resurrect it.
     expect(merged.removed).toHaveLength(0);
+  });
+});
+
+describe("insertChange (rows read right to left, the only direction today)", () => {
+  it("shifts only what's at or before the click, leaving already-worked stitches fixed", () => {
+    const index = DocIndex.from([]);
+    place(index, "knit", 0, 0);
+    place(index, "purl", 1, 0);
+
+    apply(index, insertChange(index, "yarn_over", 0, 0));
+
+    // stitch1 (col1, already "worked" in RTL order) never moves...
+    expect(index.placementAt(1, 0)!.symbolId).toBe("purl");
+    // ...the new stitch takes the clicked slot...
+    expect(index.placementAt(0, 0)!.symbolId).toBe("yarn_over");
+    // ...and whatever was there slides one further along the row.
+    expect(index.placementAt(-1, 0)!.symbolId).toBe("knit");
+    expect(index.size).toBe(3);
+  });
+
+  it("is a no-op inside a multi-cell symbol, but allowed at its own start column", () => {
+    const index = DocIndex.from([]);
+    place(index, CABLE, 10, 5); // occupies 10..15
+
+    expect(canInsertAt(index, 12, 5)).toBe(false);
+    expect(isEmptyChange(insertChange(index, "knit", 12, 5))).toBe(true);
+
+    expect(canInsertAt(index, 10, 5)).toBe(true);
+    apply(index, insertChange(index, "knit", 10, 5));
+
+    // The cable slides left by the new stitch's width...
+    expect(occupiedCols(index, 5, 8, 16)).toEqual([
+      undefined,
+      CABLE,
+      CABLE,
+      CABLE,
+      CABLE,
+      CABLE,
+      CABLE,
+      "knit",
+      undefined,
+    ]);
+    // ...and the new stitch lands adjacent to it, not overlapping it - this
+    // is the case a uniform shift-by-the-new-symbol's-width alone gets
+    // wrong, because the cable's own width also has to be accounted for.
+    expect(index.size).toBe(2);
+  });
+
+  it("refuses to insert into a row that has nothing in it yet", () => {
+    const index = DocIndex.from([]);
+    place(index, "knit", 0, 5); // row 5 has content, row 9 doesn't
+
+    expect(canInsertAt(index, 3, 9)).toBe(false);
+    expect(isEmptyChange(insertChange(index, "knit", 3, 9))).toBe(true);
+  });
+
+  it("refuses an empty cell that isn't actually adjacent to a stitch, even in a populated row", () => {
+    const index = DocIndex.from([]);
+    place(index, "knit", 0, 0);
+    place(index, "purl", 10, 0); // a wide gap between the two
+
+    expect(canInsertAt(index, 5, 0)).toBe(false); // middle of the gap
+    // ...but the cells touching either stitch are still fair game.
+    expect(canInsertAt(index, 1, 0)).toBe(true);
+    expect(canInsertAt(index, 9, 0)).toBe(true);
+  });
+
+  it("does not touch a different row", () => {
+    const index = DocIndex.from([]);
+    place(index, "knit", 0, 0);
+    place(index, "purl", 0, 1);
+
+    apply(index, insertChange(index, "yarn_over", 0, 0));
+    expect(index.placementAt(0, 1)!.symbolId).toBe("purl");
   });
 });
 
