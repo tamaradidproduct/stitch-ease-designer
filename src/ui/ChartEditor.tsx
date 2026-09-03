@@ -6,6 +6,7 @@ import { exportChart } from "../storage/exportImport";
 import { chartStore } from "../storage/store";
 import { useAutosave } from "../storage/useAutosave";
 import { isChartOpen, selectIsDirty, useDocStore } from "../state/docStore";
+import { useUiStore } from "../state/uiStore";
 import { StatusBar } from "./StatusBar";
 import { StitchPicker } from "./StitchPicker";
 import { Toolbar } from "./Toolbar";
@@ -47,7 +48,12 @@ export function ChartEditor() {
         const loaded = await chartStore.load(id);
         // The route can change while a load is in flight; applying a stale
         // result would put the wrong chart on screen under the right URL.
-        if (!cancelled) useDocStore.getState().openChart(loaded);
+        if (!cancelled) {
+          useDocStore.getState().openChart(loaded);
+          // Placement ids only exist for the currently loaded chart. Keep a
+          // selection from the previous chart from leaking into this editor.
+          useUiStore.getState().clearSelection();
+        }
       } catch (error) {
         if (cancelled) return;
         if (error instanceof ChartNotFoundError) {

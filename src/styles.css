@@ -224,35 +224,6 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
-.toolbar__armed {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 180px;
-  max-width: 320px;
-  padding: 4px 10px 4px 6px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--chrome);
-  font: inherit;
-  color: var(--text);
-  cursor: pointer;
-}
-
-.toolbar__armed:hover {
-  border-color: var(--accent);
-}
-
-.toolbar__armedLabel {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.toolbar__armedLabel--empty {
-  color: var(--text-muted);
-}
-
 .toolbar__btn {
   padding: 5px 10px;
   border: 1px solid var(--border);
@@ -309,6 +280,16 @@ body {
 
 .toolbar__spacer {
   flex: 1;
+}
+
+.toolbar__selection {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+  color: var(--text-muted);
+  white-space: nowrap;
 }
 
 /* ---- stitch picker ----------------------------------------------------- */

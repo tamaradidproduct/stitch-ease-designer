@@ -6,53 +6,98 @@ import { SymbolGlyph } from "./SymbolGlyph";
 export function Toolbar() {
   const armedId = useUiStore((s) => s.armedSymbolId);
   const tool = useUiStore((s) => s.tool);
+  const selectHeld = useUiStore((s) => s.selectHeld);
   const recentIds = useUiStore((s) => s.recentSymbolIds);
   const setTool = useUiStore((s) => s.setTool);
   const setArmed = useUiStore((s) => s.setArmedSymbolId);
   const openPicker = useUiStore((s) => s.openPicker);
-  const hover = useUiStore((s) => s.hover);
+  const selectedIds = useUiStore((s) => s.selectedPlacementIds);
+  const clearSelection = useUiStore((s) => s.clearSelection);
 
   const undo = useDocStore((s) => s.undo);
   const redo = useDocStore((s) => s.redo);
   const canUndo = useDocStore((s) => s.undoStack.length > 0);
   const canRedo = useDocStore((s) => s.redoStack.length > 0);
+  const index = useDocStore((s) => s.index);
+  useDocStore((s) => s.revision);
+  const erasePlacements = useDocStore((s) => s.erasePlacements);
 
-  const armed = armedId ? getSymbol(armedId) : undefined;
-
-  // The picker normally anchors to a clicked cell; from the toolbar there
-  // isn't one, so fall back to the hovered cell or the canvas origin.
-  const openFromToolbar = () =>
-    openPicker({ col: hover?.col ?? 0, row: hover?.row ?? 0, x: 16, y: 52 });
+  const selected = selectedIds.flatMap((id) => {
+    const placement = index.placements.get(id);
+    return placement ? [placement] : [];
+  });
+  const selectedSpan = selected[0] ? index.spanOf(selected[0]) : null;
+  const sameSpan =
+    selectedSpan !== null && selected.every((placement) => index.spanOf(placement) === selectedSpan);
 
   return (
     <div className="toolbar">
       <button
         type="button"
-        className="toolbar__armed"
-        onClick={openFromToolbar}
-        title="Choose a stitch (/)"
+        className="toolbar__btn"
+        data-on={tool === "select" || selectHeld}
+        aria-pressed={tool === "select" || selectHeld}
+        onClick={() => setTool("select")}
+        title="Select (S) — hold Cmd/Ctrl for temporary selection"
       >
-        {armed ? (
-          <>
-            <SymbolGlyph symbol={armed} cell={Math.min(20, 140 / armed.span)} />
-            <span className="toolbar__armedLabel">{armed.label}</span>
-          </>
-        ) : (
-          <span className="toolbar__armedLabel toolbar__armedLabel--empty">
-            Click a cell to choose a stitch
-          </span>
-        )}
+        Select
       </button>
-
+      <button
+        type="button"
+        className="toolbar__btn"
+        data-on={tool === "stitch"}
+        aria-pressed={tool === "stitch"}
+        onClick={() => setTool("stitch")}
+        title="Draw (D)"
+      >
+        Draw
+      </button>
       <button
         type="button"
         className="toolbar__btn"
         data-on={tool === "eraser"}
-        onClick={() => setTool(tool === "eraser" ? "stitch" : "eraser")}
+        aria-pressed={tool === "eraser"}
+        onClick={() => setTool("eraser")}
         title="Eraser (E) — or right-click the canvas"
       >
         Eraser
       </button>
+
+      {selected.length > 0 && (
+        <div className="toolbar__selection">
+          <span>{selected.length} selected</span>
+          <button
+            type="button"
+            className="toolbar__btn"
+            disabled={!sameSpan}
+            title={sameSpan ? "Replace selected stitches" : "Select stitches of the same width to replace"}
+            onClick={() => {
+              const first = selected[0]!;
+              openPicker({
+                col: first.col,
+                row: first.row,
+                x: 16,
+                y: 92,
+                selectionIds: selected.map((placement) => placement.id),
+                selectionSpan: selectedSpan!,
+              });
+            }}
+          >
+            Replace…
+          </button>
+          <button
+            type="button"
+            className="toolbar__btn"
+            onClick={() => {
+              erasePlacements(selected.map((placement) => placement.id));
+              clearSelection();
+            }}
+            title="Delete selected stitches (Delete)"
+          >
+            Delete
+          </button>
+        </div>
+      )}
 
       {recentIds.length > 1 && (
         <div className="toolbar__recents">

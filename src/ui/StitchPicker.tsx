@@ -66,9 +66,12 @@ export function StitchPicker() {
   const target = useUiStore((s) => s.picker);
   const closePicker = useUiStore((s) => s.closePicker);
   const chooseSymbol = useUiStore((s) => s.chooseSymbol);
+  const clearSelection = useUiStore((s) => s.clearSelection);
+  const setTool = useUiStore((s) => s.setTool);
   const recentIds = useUiStore((s) => s.recentSymbolIds);
   const place = useDocStore((s) => s.place);
   const erase = useDocStore((s) => s.erase);
+  const replacePlacements = useDocStore((s) => s.replacePlacements);
 
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
@@ -76,8 +79,18 @@ export function StitchPicker() {
   const listRef = useRef<HTMLDivElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [pos, setPos] = useState({ left: 0, top: 0 });
+  const selectionSpan = target?.selectionSpan;
 
-  const sections = useMemo(() => buildSections(query, recentIds), [query, recentIds]);
+  const sections = useMemo(() => {
+    const built = buildSections(query, recentIds);
+    if (!selectionSpan) return built;
+    return built
+      .map((section) => ({
+        ...section,
+        symbols: section.symbols.filter((symbol) => symbol.span === selectionSpan),
+      }))
+      .filter((section) => section.symbols.length > 0);
+  }, [query, recentIds, selectionSpan]);
 
   // Flat order is what the arrow keys walk, so it must match render order.
   const flat = useMemo(() => sections.flatMap((s) => s.symbols), [sections]);
@@ -136,13 +149,22 @@ export function StitchPicker() {
   if (!target) return null;
 
   const currentSymbol = target.currentSymbolId ? getSymbol(target.currentSymbolId) : undefined;
-  const placeholder = currentSymbol
-    ? `Replace ${currentSymbol.label} at col ${target.col}, row ${target.row}`
-    : `Add a stitch at col ${target.col}, row ${target.row}`;
+  const placeholder = target.selectionIds
+    ? `Replace ${target.selectionIds.length} selected stitch${target.selectionIds.length === 1 ? "" : "es"}`
+    : currentSymbol
+      ? `Replace ${currentSymbol.label} at col ${target.col}, row ${target.row}`
+      : `Add a stitch at col ${target.col}, row ${target.row}`;
 
   const choose = (symbol: StitchSymbol) => {
-    place(symbol.id, target.col, target.row);
+    const replacingSelection = !!target.selectionIds;
+    if (target.selectionIds) {
+      replacePlacements(target.selectionIds, symbol.id);
+      clearSelection();
+    } else {
+      place(symbol.id, target.col, target.row);
+    }
     chooseSymbol(symbol.id);
+    if (replacingSelection) setTool("select");
   };
 
   const clear = () => {

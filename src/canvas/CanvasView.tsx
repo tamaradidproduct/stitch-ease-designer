@@ -15,17 +15,21 @@ import { SpriteCache } from "./spriteCache";
 export function CanvasView() {
   const ref = useRef<HTMLCanvasElement | null>(null);
   const dirty = useRef(true);
-  const cursor = useUiStore((s) =>
-    s.picker
-      ? "default"
-      : s.isPanning
-        ? "grabbing"
-        : s.spaceHeld
-          ? "grab"
-          : s.tool === "eraser"
-            ? "cell"
-            : "crosshair",
-  );
+  useDocStore((s) => s.revision);
+  const cursor = useUiStore((s) => {
+    if (s.picker) return "default";
+    if (s.selectionMove || s.isPanning) return "grabbing";
+    if (s.spaceHeld) return "grab";
+    if (s.tool === "select" || s.selectHeld) {
+      const hovered = s.hover
+        ? useDocStore.getState().index.placementAt(s.hover.col, s.hover.row)
+        : undefined;
+      if (hovered && s.selectedPlacementIds.includes(hovered.id)) return "grab";
+      if (s.tool === "select" && !hovered) return "crosshair";
+      return "default";
+    }
+    return s.tool === "eraser" ? "cell" : "crosshair";
+  });
 
   usePanZoom(ref);
   usePaintTool(ref);
@@ -81,7 +85,12 @@ export function CanvasView() {
         state.camera !== prev.camera ||
         state.viewport !== prev.viewport ||
         state.hover !== prev.hover ||
-        state.armedSymbolId !== prev.armedSymbolId
+        state.armedSymbolId !== prev.armedSymbolId ||
+        state.selectedPlacementIds !== prev.selectedPlacementIds ||
+        state.selectionBox !== prev.selectionBox ||
+        state.selectionMove !== prev.selectionMove ||
+        state.tool !== prev.tool ||
+        state.selectHeld !== prev.selectHeld
       ) {
         markDirty();
       }
@@ -95,7 +104,18 @@ export function CanvasView() {
       if (!dirty.current) return;
       dirty.current = false;
 
-      const { camera, viewport, hover, armedSymbolId, picker } = useUiStore.getState();
+      const {
+        camera,
+        viewport,
+        hover,
+        armedSymbolId,
+        picker,
+        selectedPlacementIds,
+        tool,
+        selectHeld,
+        selectionBox,
+        selectionMove,
+      } = useUiStore.getState();
       const { index } = useDocStore.getState();
       const dpr = window.devicePixelRatio || 1;
 
@@ -112,6 +132,11 @@ export function CanvasView() {
         index,
         sprites,
         armedSymbolId: picker ? null : armedSymbolId,
+        selectedPlacementIds,
+        tool,
+        selectHeld,
+        selectionBox,
+        selectionMove,
       });
       ctx.restore();
     };

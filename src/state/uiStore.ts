@@ -8,7 +8,7 @@ import {
   zoomAt,
 } from "../canvas/camera";
 
-export type Tool = "stitch" | "eraser";
+export type Tool = "select" | "stitch" | "eraser";
 
 /** Where the picker is anchored: which cell it will fill, and where to draw it. */
 export type PickerTarget = {
@@ -18,7 +18,13 @@ export type PickerTarget = {
   y: number;
   /** The stitch already occupying this cell, if any — the picker is editing it. */
   currentSymbolId?: string;
+  /** When present, choosing a symbol replaces this whole selection. */
+  selectionIds?: string[];
+  selectionSpan?: number;
 };
+
+export type SelectionBox = { start: Cell; current: Cell };
+export type SelectionMove = { col: number; row: number };
 
 /** How many recently used symbols the picker keeps at the top. */
 const RECENT_LIMIT = 12;
@@ -29,6 +35,8 @@ type UiState = {
   hover: Cell | null;
   /** True while space is held, which arms drag-to-pan. */
   spaceHeld: boolean;
+  /** True while Cmd/Ctrl is held, temporarily enabling Select. */
+  selectHeld: boolean;
   isPanning: boolean;
 
   tool: Tool;
@@ -39,16 +47,25 @@ type UiState = {
   armedSymbolId: string | null;
   recentSymbolIds: string[];
   picker: PickerTarget | null;
+  selectedPlacementIds: string[];
+  selectionBox: SelectionBox | null;
+  selectionMove: SelectionMove | null;
 
   setTool: (tool: Tool) => void;
   setArmedSymbolId: (id: string | null) => void;
   chooseSymbol: (id: string) => void;
   openPicker: (target: PickerTarget) => void;
   closePicker: () => void;
+  selectPlacement: (id: string, additive: boolean) => void;
+  setSelectedPlacementIds: (ids: string[]) => void;
+  setSelectionBox: (box: SelectionBox | null) => void;
+  setSelectionMove: (move: SelectionMove | null) => void;
+  clearSelection: () => void;
 
   setViewport: (vp: Viewport) => void;
   setHover: (cell: Cell | null) => void;
   setSpaceHeld: (held: boolean) => void;
+  setSelectHeld: (held: boolean) => void;
   setPanning: (panning: boolean) => void;
   panByScreen: (dx: number, dy: number) => void;
   zoomAt: (factor: number, sx: number, sy: number) => void;
@@ -63,15 +80,20 @@ export const useUiStore = create<UiState>((set, get) => ({
   viewport: { width: 1, height: 1 },
   hover: null,
   spaceHeld: false,
+  selectHeld: false,
   isPanning: false,
 
   tool: "stitch",
   armedSymbolId: null,
   recentSymbolIds: [],
   picker: null,
+  selectedPlacementIds: [],
+  selectionBox: null,
+  selectionMove: null,
 
-  setTool: (tool) => set({ tool, picker: null }),
-  setArmedSymbolId: (armedSymbolId) => set({ armedSymbolId, tool: "stitch" }),
+  setTool: (tool) => set({ tool, picker: null, ...(tool === "select" ? {} : { selectedPlacementIds: [] }) }),
+  setArmedSymbolId: (armedSymbolId) =>
+    set({ armedSymbolId, tool: "stitch", selectedPlacementIds: [] }),
 
   /** Arm a symbol and remember it, most recent first. */
   chooseSymbol: (id) => {
@@ -81,11 +103,32 @@ export const useUiStore = create<UiState>((set, get) => ({
       tool: "stitch",
       recentSymbolIds: recent.slice(0, RECENT_LIMIT),
       picker: null,
+      selectedPlacementIds: [],
     });
   },
 
   openPicker: (picker) => set({ picker }),
   closePicker: () => set({ picker: null }),
+  selectPlacement: (id, additive) => {
+    const selected = get().selectedPlacementIds;
+    if (!additive) {
+      set({ selectedPlacementIds: [id] });
+      return;
+    }
+    set({
+      selectedPlacementIds: selected.includes(id)
+        ? selected.filter((selectedId) => selectedId !== id)
+        : [...selected, id],
+    });
+  },
+  setSelectedPlacementIds: (selectedPlacementIds) => set({ selectedPlacementIds }),
+  setSelectionBox: (selectionBox) => set({ selectionBox }),
+  setSelectionMove: (selectionMove) => set({ selectionMove }),
+  clearSelection: () => set({
+    selectedPlacementIds: [],
+    selectionBox: null,
+    selectionMove: null,
+  }),
 
   setViewport: (viewport) => set({ viewport }),
 
@@ -98,6 +141,11 @@ export const useUiStore = create<UiState>((set, get) => ({
   setSpaceHeld: (spaceHeld) => {
     if (get().spaceHeld === spaceHeld) return;
     set({ spaceHeld });
+  },
+
+  setSelectHeld: (selectHeld) => {
+    if (get().selectHeld === selectHeld) return;
+    set({ selectHeld });
   },
 
   setPanning: (isPanning) => set({ isPanning }),

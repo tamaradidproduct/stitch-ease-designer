@@ -14,6 +14,7 @@ import {
 } from "./camera";
 import { drawGrid, labelStep } from "./grid";
 import type { SpriteCache } from "./spriteCache";
+import type { SelectionBox, SelectionMove } from "../state/uiStore";
 import { RULER, theme } from "./theme";
 
 export type RenderState = {
@@ -24,6 +25,11 @@ export type RenderState = {
   sprites: SpriteCache;
   /** Symbol armed in the toolbar, previewed under the cursor. */
   armedSymbolId: string | null;
+  selectedPlacementIds: string[];
+  tool: "select" | "stitch" | "eraser";
+  selectHeld: boolean;
+  selectionBox: SelectionBox | null;
+  selectionMove: SelectionMove | null;
 };
 
 /**
@@ -183,6 +189,61 @@ function drawPlacements(ctx: CanvasRenderingContext2D, state: RenderState): void
   }
 }
 
+function drawSelection(ctx: CanvasRenderingContext2D, state: RenderState): void {
+  const { camera: cam, viewport: vp, index, selectedPlacementIds, selectionMove } = state;
+  const size = cellPx(cam);
+  if (size < 3) return;
+
+  ctx.save();
+  ctx.fillStyle = "rgba(2, 132, 199, 0.14)";
+  ctx.strokeStyle = theme.hoverStroke;
+  ctx.lineWidth = 2;
+  for (const id of selectedPlacementIds) {
+    const placement = index.placements.get(id);
+    if (!placement) continue;
+    const r = cellToScreenRect(
+      placement.col + (selectionMove?.col ?? 0),
+      placement.row + (selectionMove?.row ?? 0),
+      cam,
+      vp,
+    );
+    const width = size * index.spanOf(placement);
+    ctx.fillRect(r.x, r.y, width, size);
+    ctx.strokeRect(r.x + 1, r.y + 1, width - 2, size - 2);
+  }
+  ctx.restore();
+}
+
+function drawSelectionBox(ctx: CanvasRenderingContext2D, state: RenderState): void {
+  const { selectionBox, camera: cam, viewport: vp } = state;
+  if (!selectionBox) return;
+  const minCol = Math.min(selectionBox.start.col, selectionBox.current.col);
+  const maxCol = Math.max(selectionBox.start.col, selectionBox.current.col);
+  const minRow = Math.min(selectionBox.start.row, selectionBox.current.row);
+  const maxRow = Math.max(selectionBox.start.row, selectionBox.current.row);
+  const size = cellPx(cam);
+  const topLeft = cellToScreenRect(minCol, maxRow, cam, vp);
+
+  ctx.save();
+  ctx.fillStyle = "rgba(2, 132, 199, 0.08)";
+  ctx.strokeStyle = theme.hoverStroke;
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([5, 3]);
+  ctx.fillRect(
+    topLeft.x,
+    topLeft.y,
+    (maxCol - minCol + 1) * size,
+    (maxRow - minRow + 1) * size,
+  );
+  ctx.strokeRect(
+    topLeft.x + 0.5,
+    topLeft.y + 0.5,
+    (maxCol - minCol + 1) * size - 1,
+    (maxRow - minRow + 1) * size - 1,
+  );
+  ctx.restore();
+}
+
 /**
  * The "nothing here yet, click to add" affordance for an empty cell with
  * nothing armed. Deliberately NOT a plus centered in the cell — that's
@@ -304,8 +365,7 @@ function drawArmedPreview(
   strokeDashedRect(ctx, r.x + 1, r.y + 1, width - 2, size - 2, size);
 }
 
-/** The plain highlight for hovering a cell that already has a stitch, with
- * nothing armed — clicking here opens the picker to edit it, not paint. */
+/** The plain highlight for hovering a cell that already has a stitch. */
 function drawEditHighlight(
   ctx: CanvasRenderingContext2D,
   r: { x: number; y: number },
@@ -319,14 +379,23 @@ function drawEditHighlight(
 }
 
 function drawHover(ctx: CanvasRenderingContext2D, state: RenderState): void {
-  const { camera: cam, viewport: vp, hover, armedSymbolId, sprites, index } = state;
+  const { camera: cam, viewport: vp, hover, armedSymbolId, sprites, index, tool, selectHeld } =
+    state;
   if (!hover) return;
   // Below this the outline is bigger than the cell and just looks like noise.
   if (cellPx(cam) < 4) return;
 
   const size = cellPx(cam);
-  const symbol = armedSymbolId ? getSymbol(armedSymbolId) : undefined;
   const r = cellToScreenRect(hover.col, hover.row, cam, vp);
+  const existing = index.placementAt(hover.col, hover.row);
+  const symbol = !existing && armedSymbolId ? getSymbol(armedSymbolId) : undefined;
+
+  if (existing && tool !== "eraser") {
+    drawEditHighlight(ctx, r, size);
+    return;
+  }
+
+  if (selectHeld) return;
 
   if (symbol) {
     // Preview the armed symbol's full footprint, so it's obvious before
@@ -335,7 +404,7 @@ function drawHover(ctx: CanvasRenderingContext2D, state: RenderState): void {
     return;
   }
 
-  if (index.placementAt(hover.col, hover.row)) {
+  if (existing) {
     drawEditHighlight(ctx, r, size);
   } else {
     drawAddState(ctx, { x: r.x, y: r.y, size });
@@ -354,6 +423,8 @@ export function render(ctx: CanvasRenderingContext2D, state: RenderState): void 
 
   drawGrid(ctx, state.camera, vp, theme);
   drawPlacements(ctx, state);
+  drawSelection(ctx, state);
+  drawSelectionBox(ctx, state);
   drawHover(ctx, state);
   drawRulers(ctx, state);
 }

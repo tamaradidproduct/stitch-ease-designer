@@ -66,3 +66,73 @@ describe("openChart", () => {
     expect(revision).toBe(savedRevision);
   });
 });
+
+describe("selection edits", () => {
+  beforeEach(() => {
+    useDocStore.getState().openChart({
+      meta: meta("selection"),
+      placements: [
+        { id: "a", symbolId: "knit", col: 0, row: 0 },
+        { id: "b", symbolId: "purl", col: 1, row: 0 },
+      ],
+      unknownSymbolIds: [],
+    });
+  });
+
+  it("replaces several same-span placements as one undoable edit", () => {
+    useDocStore.getState().replacePlacements(["a", "b"], "yarn_over");
+    expect(useDocStore.getState().index.toArray().map((p) => p.symbolId)).toEqual([
+      "yarn_over",
+      "yarn_over",
+    ]);
+    expect(useDocStore.getState().undoStack).toHaveLength(1);
+
+    useDocStore.getState().undo();
+    expect(useDocStore.getState().index.toArray().map((p) => p.symbolId).sort()).toEqual([
+      "knit",
+      "purl",
+    ]);
+  });
+
+  it("deletes several placements as one undoable edit", () => {
+    useDocStore.getState().erasePlacements(["a", "b"]);
+    expect(useDocStore.getState().index.size).toBe(0);
+    expect(useDocStore.getState().undoStack).toHaveLength(1);
+
+    useDocStore.getState().undo();
+    expect(useDocStore.getState().index.size).toBe(2);
+  });
+
+  it("refuses a bulk replacement with a different span", () => {
+    useDocStore.getState().replacePlacements(["a", "b"], "3_3_left_cable");
+    expect(useDocStore.getState().index.toArray().map((p) => p.symbolId).sort()).toEqual([
+      "knit",
+      "purl",
+    ]);
+    expect(useDocStore.getState().undoStack).toHaveLength(0);
+  });
+
+  it("moves a selection as one undoable edit while preserving its ids", () => {
+    useDocStore.getState().movePlacements(["a", "b"], 4, 3);
+    expect(useDocStore.getState().index.placements.get("a")).toMatchObject({ col: 4, row: 3 });
+    expect(useDocStore.getState().index.placements.get("b")).toMatchObject({ col: 5, row: 3 });
+    expect(useDocStore.getState().undoStack).toHaveLength(1);
+
+    useDocStore.getState().undo();
+    expect(useDocStore.getState().index.placements.get("a")).toMatchObject({ col: 0, row: 0 });
+    expect(useDocStore.getState().index.placements.get("b")).toMatchObject({ col: 1, row: 0 });
+  });
+
+  it("does not move a selection through an unselected stitch", () => {
+    useDocStore.getState().place("knit", 4, 0);
+    const blocker = useDocStore.getState().index.placementAt(4, 0)!;
+    const historyBeforeMove = useDocStore.getState().undoStack.length;
+
+    useDocStore.getState().movePlacements(["a", "b"], 3, 0);
+
+    expect(useDocStore.getState().index.placements.get("a")).toMatchObject({ col: 0, row: 0 });
+    expect(useDocStore.getState().index.placements.get("b")).toMatchObject({ col: 1, row: 0 });
+    expect(useDocStore.getState().index.placements.get(blocker.id)).toMatchObject({ col: 4, row: 0 });
+    expect(useDocStore.getState().undoStack).toHaveLength(historyBeforeMove);
+  });
+});
