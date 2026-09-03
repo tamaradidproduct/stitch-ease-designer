@@ -142,6 +142,12 @@ describe("validation", () => {
     "non-integer coordinate": { v: 1, palette: ["knit"], stitches: [[0.5, 0, 0]] },
     "palette index out of range": { v: 1, palette: ["knit"], stitches: [[0, 0, 3]] },
     "negative palette index": { v: 1, palette: ["knit"], stitches: [[0, 0, -1]] },
+    "duplicate cell": { v: 1, palette: ["knit"], stitches: [[0, 0, 0], [0, 0, 0]] },
+    "overlap within a cable span": {
+      v: 1,
+      palette: [CABLE, "knit"],
+      stitches: [[0, 0, 0], [4, 0, 1]],
+    },
   };
 
   for (const [name, input] of Object.entries(bad)) {

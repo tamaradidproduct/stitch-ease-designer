@@ -11,9 +11,9 @@ import { ceilTo } from "./math";
 /**
  * Grid level-of-detail.
  *
- * Below roughly 7px per line the grid stops reading as a grid and starts
+ * Below roughly 7px per mark the grid stops reading as a grid and starts
  * reading as grey mush, so we step up to every 2nd, 5th, 10th cell and so on.
- * Emphasis lines stay on multiples of 10, which is the convention knitters
+ * Emphasis marks stay on multiples of 10, which is the convention knitters
  * expect when counting stitches and rows.
  */
 const MIN_LINE_SPACING_PX = 7;
@@ -50,49 +50,61 @@ export function labelStep(cam: Camera, minSpacingPx = 48): number {
 /** Crisp 1px lines: land on a half-pixel so the stroke doesn't straddle two. */
 const crisp = (v: number) => Math.round(v) + 0.5;
 
+/** Fixed size regardless of zoom — only the LOD spacing between marks changes. */
+const CROSS_ARM = 3.5;
+/** Gap between dots along a minor grid line, in screen px. */
+const DOT_GAP = 4;
+
 export function drawGrid(
   ctx: CanvasRenderingContext2D,
   cam: Camera,
   vp: Viewport,
-  theme: { gridMinor: string; gridMajor: string; axis: string },
+  theme: { gridMajor: string },
 ): void {
   const b = visibleCellBounds(cam, vp, 1);
   const { minor, major } = gridSteps(cam);
 
+  // Minor grid: full lines at every minor step, dotted rather than solid, in
+  // the same colour as the major crosses — one colour for the whole grid,
+  // just two different marks (a faint dotted line vs. a small cross) for the
+  // two levels of emphasis.
+  //
+  // A dotted line, not a dashed one: `lineCap: "round"` turns a near-zero
+  // dash segment into a round dot rather than a short square tick, which is
+  // what actually reads as "dotted" instead of "dashed" at 1px.
+  ctx.save();
+  ctx.strokeStyle = theme.gridMajor;
   ctx.lineWidth = 1;
-
-  // Three passes so we don't restroke a line in a heavier colour: minor lines
-  // skip anything that a major line will cover, and both skip the axes.
-  const drawPass = (step: number, colour: string, skip: (n: number) => boolean) => {
-    ctx.strokeStyle = colour;
-    ctx.beginPath();
-    for (let col = ceilTo(b.minCol, step); col <= b.maxCol; col += step) {
-      if (skip(col)) continue;
-      const x = crisp(worldToScreen(col * CELL, 0, cam, vp).x);
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, vp.height);
-    }
-    for (let row = ceilTo(b.minRow, step); row <= b.maxRow; row += step) {
-      if (skip(row)) continue;
-      const y = crisp(worldToScreen(0, row * CELL, cam, vp).y);
-      ctx.moveTo(0, y);
-      ctx.lineTo(vp.width, y);
-    }
-    ctx.stroke();
-  };
-
-  drawPass(minor, theme.gridMinor, (n) => n === 0 || n % major === 0);
-  drawPass(major, theme.gridMajor, (n) => n === 0);
-
-  // The origin axes, so "home" is always findable on an unbounded canvas.
-  ctx.strokeStyle = theme.axis;
+  ctx.lineCap = "round";
+  ctx.setLineDash([0.001, DOT_GAP]);
   ctx.beginPath();
-  const origin = worldToScreen(0, 0, cam, vp);
-  const ox = crisp(origin.x);
-  const oy = crisp(origin.y);
-  ctx.moveTo(ox, 0);
-  ctx.lineTo(ox, vp.height);
-  ctx.moveTo(0, oy);
-  ctx.lineTo(vp.width, oy);
+  for (let col = ceilTo(b.minCol, minor); col <= b.maxCol; col += minor) {
+    const x = crisp(worldToScreen(col * CELL, 0, cam, vp).x);
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, vp.height);
+  }
+  for (let row = ceilTo(b.minRow, minor); row <= b.maxRow; row += minor) {
+    const y = crisp(worldToScreen(0, row * CELL, cam, vp).y);
+    ctx.moveTo(0, y);
+    ctx.lineTo(vp.width, y);
+  }
+  ctx.stroke();
+  ctx.restore(); // drop the dash pattern so it can't leak into the crosses below
+
+  // Major grid: unchanged, a small "+" at each major intersection.
+  ctx.strokeStyle = theme.gridMajor;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let col = ceilTo(b.minCol, major); col <= b.maxCol; col += major) {
+    for (let row = ceilTo(b.minRow, major); row <= b.maxRow; row += major) {
+      const { x, y } = worldToScreen(col * CELL, row * CELL, cam, vp);
+      const cx = crisp(x);
+      const cy = crisp(y);
+      ctx.moveTo(cx - CROSS_ARM, cy);
+      ctx.lineTo(cx + CROSS_ARM, cy);
+      ctx.moveTo(cx, cy - CROSS_ARM);
+      ctx.lineTo(cx, cy + CROSS_ARM);
+    }
+  }
   ctx.stroke();
 }
