@@ -19,6 +19,11 @@ import { SpriteCache } from "./spriteCache";
 export function CanvasView() {
   const ref = useRef<HTMLCanvasElement | null>(null);
   const dirty = useRef(true);
+  // The cursor selector below reads useDocStore.getState().index imperatively
+  // (it isn't itself a useDocStore selector), so without this subscription a
+  // doc-only change like undo/redo - which bumps revision without touching
+  // uiStore - never re-runs it, leaving a stale cursor until the next
+  // hover-changing pointer move.
   useDocStore((s) => s.revision);
   const cursor = useUiStore((s) => {
     if (s.picker) return "default";
@@ -159,7 +164,7 @@ export function CanvasView() {
         referenceImageCalibrating,
         referenceImageCalibrationBox,
       } = useUiStore.getState();
-      const { index, referenceImage } = useDocStore.getState();
+      const { index, revision, referenceImage } = useDocStore.getState();
       const dpr = window.devicePixelRatio || 1;
 
       ctx.save();
@@ -174,6 +179,7 @@ export function CanvasView() {
         hover,
         insertHover,
         index,
+        revision,
         sprites,
         referenceImage,
         referenceImageCache: referenceImages,

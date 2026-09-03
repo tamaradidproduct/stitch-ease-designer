@@ -10,9 +10,9 @@ export function StatusBar() {
   const selectHeld = useUiStore((s) => s.selectHeld);
   const selectedCount = useUiStore((s) => s.selectedPlacementIds.length);
   const index = useDocStore((s) => s.index);
-  useDocStore((s) => s.revision);
-  const stitch = hover ? roundStitchNumberAt(index, hover.col, hover.row) : null;
-  const row = hover ? knittedRowNumberAt(index, hover.col, hover.row) : null;
+  const revision = useDocStore((s) => s.revision);
+  const stitch = hover ? roundStitchNumberAt(index, hover.col, hover.row, revision) : null;
+  const row = hover ? knittedRowNumberAt(index, hover.col, hover.row, revision) : null;
 
   return (
     <div className="statusbar">
