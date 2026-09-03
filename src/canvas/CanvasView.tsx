@@ -128,6 +128,7 @@ export function CanvasView() {
         state.hover !== prev.hover ||
         state.insertHover !== prev.insertHover ||
         state.armedSymbolId !== prev.armedSymbolId ||
+        state.picker !== prev.picker ||
         state.selectedPlacementIds !== prev.selectedPlacementIds ||
         state.selectionBox !== prev.selectionBox ||
         state.selectionMove !== prev.selectionMove ||
@@ -187,6 +188,7 @@ export function CanvasView() {
         referenceImageCalibrating,
         referenceImageCalibrationBox,
         armedSymbolId: picker ? null : armedSymbolId,
+        pickerTarget: picker,
         selectedPlacementIds,
         tool,
         selectHeld,
