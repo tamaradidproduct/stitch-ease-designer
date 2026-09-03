@@ -7,6 +7,17 @@ import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
 
 /**
+ * Whether a click/pointerdown that just produced `ids` (via `selectExisting`)
+ * should open that single stitch's edit picker. A shift/cmd-additive click is
+ * building or trimming a multi-selection, never editing it, regardless of how
+ * many ids the selection happens to land on afterward - so it must never
+ * open the picker, even when it leaves exactly one id selected.
+ */
+export function shouldOpenPickerForSelection(ids: string[], additive: boolean): boolean {
+  return !additive && ids.length === 1;
+}
+
+/**
  * Placing, selecting, moving, and inserting stitches.
  *
  *   click empty cell (Draw)     place the armed stitch, or open the picker if none is armed
@@ -123,12 +134,12 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       return doc().index.groupMembers(placement.groupId).map((candidate) => candidate.id);
     };
 
-    /** Select `placementId`'s whole group; `additive` toggles it into/out of the existing selection. */
-    const selectExisting = (placementId: string, additive: boolean) => {
+    /** Select `placementId`'s whole group and return the resulting selection. */
+    const selectExisting = (placementId: string, additive: boolean): string[] => {
       const ids = groupIdsFor(placementId);
       if (!additive) {
         ui().setSelectedPlacementIds(ids);
-        return;
+        return ids;
       }
       const selected = new Set(ui().selectedPlacementIds);
       const removing = ids.every((id) => selected.has(id));
@@ -136,15 +147,48 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         if (removing) selected.delete(id);
         else selected.add(id);
       }
-      ui().setSelectedPlacementIds([...selected]);
+      const next = [...selected];
+      ui().setSelectedPlacementIds(next);
+      return next;
     };
+
+    const openPickerForSingleSelection = (ids: string[], e: PointerEvent, additive: boolean) => {
+      if (!shouldOpenPickerForSelection(ids, additive)) return;
+      const placement = doc().index.placements.get(ids[0]!);
+      if (!placement) return;
+      const rect = canvas.getBoundingClientRect();
+      ui().openPicker({
+        col: placement.col,
+        row: placement.row,
+        x: e.clientX - rect.left + 8,
+        y: e.clientY - rect.top + 8,
+        currentSymbolId: placement.symbolId,
+        selectionIds: ids,
+        selectionSpan: doc().index.spanOf(placement),
+      });
+    };
+
     const onPointerDown = (e: PointerEvent) => {
       if (ui().spaceHeld || e.button !== 0) return; // panning, or not a plain left click
 
-      // A click on the canvas while the picker is open just dismisses it,
-      // rather than also dropping a stitch where the user aimed to close.
+      // The selected stitch remains draggable while its edit picker is open.
+      // Other canvas clicks only dismiss the picker, rather than also acting
+      // on whatever happened to be underneath the dismissal click.
       if (ui().picker) {
+        const pickerCell = cellAt(e);
         ui().closePicker();
+        if (
+          pickerCell &&
+          !e.shiftKey &&
+          ui().selectedPlacementIds.length &&
+          insideSelectedArea(pickerCell)
+        ) {
+          e.preventDefault();
+          movingSelection = true;
+          selectionStart = pickerCell;
+          last = pickerCell;
+          canvas.setPointerCapture(e.pointerId);
+        }
         return;
       }
 
@@ -220,11 +264,21 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         return;
       }
 
-      // A click that starts on an existing stitch selects it rather than
-      // painting or opening the picker - the picker still opens via double
-      // click.
+      // A single selected stitch is the edit target: keep its selection
+      // visible underneath the picker. Treat pointerdown as a provisional
+      // move so the picker opens only after a click is confirmed on pointerup
+      // and can never appear underneath the gesture that initiated it.
       if (existing) {
-        selectExisting(existing.id, e.shiftKey);
+        const ids = selectExisting(existing.id, e.shiftKey);
+        if (ids.length === 1 && !e.shiftKey) {
+          e.preventDefault();
+          movingSelection = true;
+          selectionStart = cell;
+          last = cell;
+          canvas.setPointerCapture(e.pointerId);
+        } else {
+          openPickerForSingleSelection(ids, e, e.shiftKey);
+        }
         return;
       }
 
@@ -304,11 +358,19 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
     const endStroke = (e: PointerEvent) => {
       if (movingSelection) {
         const move = ui().selectionMove;
-        if (move?.duplicating) {
+        const moved = !!move && (move.col !== 0 || move.row !== 0);
+        if (moved && move.duplicating) {
           const copyIds = doc().duplicatePlacementsAt(ui().selectedPlacementIds, move.col, move.row);
           if (copyIds.length) ui().setSelectedPlacementIds(copyIds);
-        } else if (move) {
+        } else if (moved) {
           doc().movePlacements(ui().selectedPlacementIds, move.col, move.row);
+        } else {
+          // Pointerdown on an existing selection is provisionally a move.
+          // If it never leaves the cell, it was a click instead: edit the
+          // one selected stitch rather than silently doing nothing. This
+          // gesture only ever starts non-additive (see the two `!e.shiftKey`
+          // guards that set movingSelection), so it always may open.
+          openPickerForSingleSelection(ui().selectedPlacementIds, e, false);
         }
         movingSelection = false;
         selectionStart = null;
@@ -322,7 +384,8 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         const existing = doc().index.placementAt(start.col, start.row);
         if (!selectionMoved) {
           if (existing) {
-            selectExisting(existing.id, selectionAdditive);
+            const ids = selectExisting(existing.id, selectionAdditive);
+            openPickerForSingleSelection(ids, e, selectionAdditive);
           } else if (!selectionAdditive) {
             ui().clearSelectionWithUndo();
             if (!ui().selectHeld && ui().tool === "select") {

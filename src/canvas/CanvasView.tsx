@@ -141,6 +141,7 @@ export function CanvasView() {
         state.camera !== prev.camera ||
         state.viewport !== prev.viewport ||
         state.hover !== prev.hover ||
+        state.picker !== prev.picker ||
         state.selectedPlacementIds !== prev.selectedPlacementIds ||
         state.selectionBox !== prev.selectionBox ||
         state.selectionMove !== prev.selectionMove ||
@@ -165,6 +166,7 @@ export function CanvasView() {
         camera,
         viewport,
         hover,
+        picker,
         selectedPlacementIds,
         tool,
         selectHeld,
@@ -192,6 +194,7 @@ export function CanvasView() {
         referenceImagePanelOpen,
         referenceImageCalibrating,
         referenceImageCalibrationBox,
+        pickerTarget: picker,
         selectedPlacementIds,
         tool,
         selectHeld,

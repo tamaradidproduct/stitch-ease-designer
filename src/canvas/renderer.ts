@@ -16,7 +16,7 @@ import {
 import { drawGrid, labelStep } from "./grid";
 import type { ReferenceImageCache } from "./referenceImageCache";
 import type { SpriteCache } from "./spriteCache";
-import type { SelectionBox, SelectionMove, Tool } from "../state/uiStore";
+import type { PickerTarget, SelectionBox, SelectionMove, Tool } from "../state/uiStore";
 import { RULER, theme } from "./theme";
 
 export type RenderState = {
@@ -38,6 +38,8 @@ export type RenderState = {
   referenceImageCalibrating: boolean;
   /** The calibration box's corners in world space, while one's being dragged out. */
   referenceImageCalibrationBox: { start: Point; current: Point } | null;
+  /** Cell whose place, replace, or insert picker is currently open. */
+  pickerTarget: PickerTarget | null;
   selectedPlacementIds: string[];
   tool: Tool;
   selectHeld: boolean;
@@ -287,6 +289,39 @@ function drawSelectionBox(ctx: CanvasRenderingContext2D, state: RenderState): vo
 }
 
 /**
+ * Keep the cell affected by an open stitch picker visible after the pointer
+ * leaves the canvas. For an existing multi-cell stitch, highlight its whole
+ * footprint because replacing it affects the placement rather than only the
+ * covered cell that happened to be clicked.
+ */
+export function pickerTargetFootprint(
+  index: DocIndex,
+  target: PickerTarget,
+): { col: number; row: number; span: number } {
+  const placement = index.placementAt(target.col, target.row);
+  return placement
+    ? { col: placement.col, row: placement.row, span: index.spanOf(placement) }
+    : { col: target.col, row: target.row, span: 1 };
+}
+
+function drawPickerTarget(ctx: CanvasRenderingContext2D, state: RenderState): void {
+  const { pickerTarget, camera: cam, viewport: vp, index } = state;
+  if (!pickerTarget || pickerTarget.selectionIds?.length || cellPx(cam) < 3) return;
+
+  const { col, row, span } = pickerTargetFootprint(index, pickerTarget);
+  const r = cellToScreenRect(col, row, cam, vp);
+  const width = r.size * span;
+
+  ctx.save();
+  ctx.fillStyle = "rgba(2, 132, 199, 0.14)";
+  ctx.strokeStyle = theme.hoverStroke;
+  ctx.lineWidth = 2;
+  ctx.fillRect(r.x, r.y, width, r.size);
+  ctx.strokeRect(r.x + 1, r.y + 1, width - 2, r.size - 2);
+  ctx.restore();
+}
+
+/**
  * The canvas-level target outline for an empty cell. The Figma cursor itself
  * carries the add or armed-stitch badge, so it is intentionally not repeated
  * here.
@@ -298,7 +333,6 @@ function drawAddState(
   const { x, y, size } = r;
 
   strokeDashedRect(ctx, x + 1, y + 1, size - 2, size - 2, size);
-
 }
 
 /** The dashed outline shared by every "not committed yet" preview state. */
@@ -391,6 +425,10 @@ function drawHover(ctx: CanvasRenderingContext2D, state: RenderState): void {
   // normal tool hint would otherwise show through underneath its own
   // move/resize/calibrate affordances, competing for the same attention.
   if (state.referenceImagePanelOpen) return;
+  // The picker target becomes the persistent interaction context while the
+  // menu is open; a second hover affordance elsewhere would make the pending
+  // destination ambiguous.
+  if (state.pickerTarget) return;
   // Below this the outline is bigger than the cell and just looks like noise.
   if (cellPx(cam) < 4) return;
   const size = cellPx(cam);
@@ -466,6 +504,7 @@ export function render(ctx: CanvasRenderingContext2D, state: RenderState): void 
   drawSelection(ctx, state);
   drawSelectionBox(ctx, state);
   drawHover(ctx, state);
+  drawPickerTarget(ctx, state);
   drawReferenceImageOverlay(ctx, state);
   drawRulers(ctx, state);
 }
