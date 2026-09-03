@@ -135,4 +135,36 @@ describe("selection edits", () => {
     expect(useDocStore.getState().index.placements.get(blocker.id)).toMatchObject({ col: 4, row: 0 });
     expect(useDocStore.getState().undoStack).toHaveLength(historyBeforeMove);
   });
+
+  it("creates a chart-local repeat and groups its source stitches", () => {
+    useDocStore.getState().createRepeat(["a", "b"]);
+    const state = useDocStore.getState();
+    expect(state.repeats).toHaveLength(1);
+    expect(state.repeats[0]).toMatchObject({ name: "Repeat 1", width: 2, height: 1 });
+    expect(state.repeats[0]!.stitches).toEqual([
+      { symbolId: "knit", col: 0, row: 0 },
+      { symbolId: "purl", col: 1, row: 0 },
+    ]);
+    expect(state.index.placements.get("a")!.groupId).toBe(
+      state.index.placements.get("b")!.groupId,
+    );
+  });
+
+  it("places and duplicates independent grouped repeat instances", () => {
+    useDocStore.getState().createRepeat(["a", "b"]);
+    const repeat = useDocStore.getState().repeats[0]!;
+    useDocStore.getState().instantiateRepeat(repeat.id, 10, 4);
+    const placed = useDocStore
+      .getState()
+      .index.toArray()
+      .filter((placement) => placement.col >= 10);
+    expect(placed).toHaveLength(2);
+    expect(new Set(placed.map((placement) => placement.groupId)).size).toBe(1);
+
+    const duplicateIds = useDocStore.getState().duplicatePlacements(placed.map((p) => p.id));
+    expect(duplicateIds).toHaveLength(2);
+    const duplicates = duplicateIds.map((id) => useDocStore.getState().index.placements.get(id)!);
+    expect(new Set(duplicates.map((placement) => placement.groupId)).size).toBe(1);
+    expect(duplicates[0]!.groupId).not.toBe(placed[0]!.groupId);
+  });
 });

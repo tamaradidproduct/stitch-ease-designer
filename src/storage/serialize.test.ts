@@ -31,6 +31,8 @@ describe("encode", () => {
         [1, 0, 1],
         [2, 0, 0],
       ],
+      groups: [],
+      repeats: [],
     });
     // No trace of the runtime ids anywhere in the output.
     expect(JSON.stringify(stored)).not.toContain("seed_");
@@ -50,6 +52,31 @@ describe("encode", () => {
 });
 
 describe("round trip", () => {
+  it("preserves group membership and chart-local repeats", () => {
+    const placements = [
+      { ...place("knit", 0, 0), groupId: "group-a" },
+      { ...place("purl", 1, 0), groupId: "group-a" },
+    ];
+    const repeats = [
+      {
+        id: "repeat-a",
+        name: "Repeat 1",
+        width: 2,
+        height: 1,
+        stitches: [
+          { symbolId: "knit", col: 0, row: 0 },
+          { symbolId: "purl", col: 1, row: 0 },
+        ],
+      },
+    ];
+    const decoded = decode(encode(placements, repeats), known);
+    expect(decoded.placements.map((placement) => placement.groupId)).toEqual([
+      "group-a",
+      "group-a",
+    ]);
+    expect(decoded.repeats).toEqual(repeats);
+  });
+
   const cases: Record<string, Placement[]> = {
     empty: [],
     "single stitch": [place("knit", 0, 0)],

@@ -26,7 +26,7 @@ export function useAutosave(store: DocStore): void {
 
   useEffect(() => {
     const save = async () => {
-      const { meta, index, revision, savedRevision, status } = useDocStore.getState();
+      const { meta, index, repeats, revision, savedRevision, status } = useDocStore.getState();
 
       if (!meta || revision === savedRevision) return;
       // A conflict is unresolved until the user says otherwise; writing anyway
@@ -42,7 +42,7 @@ export function useAutosave(store: DocStore): void {
       useDocStore.getState().setStatus("saving");
 
       try {
-        const next = await store.save(meta.id, index.toArray(), meta.rev);
+        const next = await store.save(meta.id, index.toArray(), meta.rev, repeats);
         // The route can change while this request is in flight. Applying a
         // result for chart A after chart B has loaded would attach A's fresh
         // rev (and metadata) to B's placements, making B's next save fail or

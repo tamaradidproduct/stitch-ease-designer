@@ -2,7 +2,13 @@ import { create } from "zustand";
 import { DocIndex } from "../model/docIndex";
 import { apply, eraseChange, mergeChanges, newPlacementId, placeChange } from "../model/ops";
 import { spanOf } from "../symbols/registry";
-import { isEmptyChange, type Change, type DocMeta } from "../model/types";
+import {
+  isEmptyChange,
+  type Change,
+  type DocMeta,
+  type RepeatDefinition,
+} from "../model/types";
+import { newUuid } from "../uuid";
 import type { LoadedChart } from "../storage/DocStore";
 
 /**
@@ -33,6 +39,7 @@ type DocState = {
   statusDetail: string | null;
   /** Symbols the stored chart referenced that this build's library lacks. */
   unknownSymbolIds: string[];
+  repeats: RepeatDefinition[];
 
   undoStack: Change[];
   redoStack: Change[];
@@ -44,6 +51,9 @@ type DocState = {
   replacePlacements: (ids: string[], symbolId: string) => void;
   erasePlacements: (ids: string[]) => void;
   movePlacements: (ids: string[], deltaCol: number, deltaRow: number) => void;
+  createRepeat: (ids: string[]) => void;
+  instantiateRepeat: (repeatId: string, col: number, row: number) => void;
+  duplicatePlacements: (ids: string[]) => string[];
   beginStroke: () => void;
   endStroke: () => void;
   undo: () => void;
@@ -112,6 +122,7 @@ export const useDocStore = create<DocState>((set, get) => {
     status: "idle" as SaveStatus,
     statusDetail: null,
     unknownSymbolIds: [],
+    repeats: [],
 
     place: (symbolId, col, row) => commit(placeChange(get().index, symbolId, col, row)),
     erase: (col, row) => commit(eraseChange(get().index, col, row)),
@@ -165,6 +176,74 @@ export const useDocStore = create<DocState>((set, get) => {
         })),
       });
     },
+    createRepeat: (ids) => {
+      const placements = ids
+        .map((id) => get().index.placements.get(id))
+        .filter((p): p is NonNullable<typeof p> => !!p);
+      if (!placements.length) return;
+      const minCol = Math.min(...placements.map((p) => p.col));
+      const minRow = Math.min(...placements.map((p) => p.row));
+      const maxCol = Math.max(...placements.map((p) => p.col + get().index.spanOf(p) - 1));
+      const maxRow = Math.max(...placements.map((p) => p.row));
+      const repeat: RepeatDefinition = {
+        id: newUuid("repeat_"),
+        name: `Repeat ${get().repeats.length + 1}`,
+        width: maxCol - minCol + 1,
+        height: maxRow - minRow + 1,
+        stitches: placements.map((p) => ({
+          symbolId: p.symbolId,
+          col: p.col - minCol,
+          row: p.row - minRow,
+        })),
+      };
+      const groupId = newUuid("group_");
+      commit({
+        removed: placements,
+        added: placements.map((p) => ({ ...p, groupId })),
+      });
+      set({ repeats: [...get().repeats, repeat] });
+    },
+    instantiateRepeat: (repeatId, col, row) => {
+      const repeat = get().repeats.find((candidate) => candidate.id === repeatId);
+      if (!repeat) return;
+      const groupId = newUuid("group_");
+      const added = repeat.stitches.map((stitch) => ({
+        id: newPlacementId(),
+        symbolId: stitch.symbolId,
+        col: col + stitch.col,
+        row: row + stitch.row,
+        groupId,
+      }));
+      for (const placement of added) {
+        for (let offset = 0; offset < spanOf(placement.symbolId); offset++) {
+          if (get().index.placementAt(placement.col + offset, placement.row)) return;
+        }
+      }
+      commit({ added, removed: [] });
+    },
+    duplicatePlacements: (ids) => {
+      const placements = ids
+        .map((id) => get().index.placements.get(id))
+        .filter((p): p is NonNullable<typeof p> => !!p);
+      if (!placements.length) return [];
+      const minRow = Math.min(...placements.map((p) => p.row));
+      const maxRow = Math.max(...placements.map((p) => p.row));
+      const deltaRow = maxRow - minRow + 2;
+      const groupId = newUuid("group_");
+      const added = placements.map((p) => ({
+        ...p,
+        id: newPlacementId(),
+        row: p.row + deltaRow,
+        groupId,
+      }));
+      for (const placement of added) {
+        for (let offset = 0; offset < get().index.spanOf(placement); offset++) {
+          if (get().index.placementAt(placement.col + offset, placement.row)) return [];
+        }
+      }
+      commit({ added, removed: [] });
+      return added.map((p) => p.id);
+    },
 
     beginStroke: () => set({ stroke: [] }),
 
@@ -205,7 +284,7 @@ export const useDocStore = create<DocState>((set, get) => {
       });
     },
 
-    openChart: ({ meta, placements, unknownSymbolIds }) => {
+    openChart: ({ meta, placements, repeats = [], unknownSymbolIds }) => {
       const revision = get().revision + 1;
       set({
         ...blank(),
@@ -218,6 +297,7 @@ export const useDocStore = create<DocState>((set, get) => {
         status: "idle",
         statusDetail: null,
         unknownSymbolIds,
+        repeats,
       });
     },
 

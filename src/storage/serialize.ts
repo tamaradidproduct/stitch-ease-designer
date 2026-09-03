@@ -1,5 +1,5 @@
 import { newPlacementId } from "../model/ops";
-import type { Placement } from "../model/types";
+import type { Placement, RepeatDefinition } from "../model/types";
 import { getSymbol } from "../symbols/registry";
 
 /**
@@ -20,15 +20,19 @@ export type StoredChart = {
   /** Symbol slugs. A stitch's third tuple element indexes into this. */
   palette: string[];
   /** [col, row, paletteIndex] per stitch. */
-  stitches: [number, number, number][];
+  stitches: ([number, number, number] | [number, number, number, number])[];
+  groups?: string[];
+  repeats?: RepeatDefinition[];
 };
 
-export const STORED_VERSION = 1;
+export const STORED_VERSION = 2;
 
 export const emptyChart = (): StoredChart => ({
   v: STORED_VERSION,
   palette: [],
   stitches: [],
+  groups: [],
+  repeats: [],
 });
 
 /**
@@ -51,12 +55,17 @@ export class ChartFormatError extends Error {
  * contents: re-encoding an unchanged chart produces byte-identical JSON, so
  * autosave can skip no-op writes and diffs stay readable.
  */
-export function encode(placements: Iterable<Placement>): StoredChart {
+export function encode(
+  placements: Iterable<Placement>,
+  repeats: RepeatDefinition[] = [],
+): StoredChart {
   const sorted = [...placements].sort((a, b) => a.row - b.row || a.col - b.col);
 
   const palette: string[] = [];
   const indexOf = new Map<string, number>();
-  const stitches: [number, number, number][] = [];
+  const stitches: StoredChart["stitches"] = [];
+  const groups: string[] = [];
+  const groupIndex = new Map<string, number>();
 
   for (const p of sorted) {
     let paletteIndex = indexOf.get(p.symbolId);
@@ -65,10 +74,20 @@ export function encode(placements: Iterable<Placement>): StoredChart {
       palette.push(p.symbolId);
       indexOf.set(p.symbolId, paletteIndex);
     }
-    stitches.push([p.col, p.row, paletteIndex]);
+    if (p.groupId) {
+      let at = groupIndex.get(p.groupId);
+      if (at === undefined) {
+        at = groups.length;
+        groups.push(p.groupId);
+        groupIndex.set(p.groupId, at);
+      }
+      stitches.push([p.col, p.row, paletteIndex, at]);
+    } else {
+      stitches.push([p.col, p.row, paletteIndex]);
+    }
   }
 
-  return { v: STORED_VERSION, palette, stitches };
+  return { v: STORED_VERSION, palette, stitches, groups, repeats };
 }
 
 const isInteger = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n);
@@ -80,7 +99,7 @@ function validate(stored: unknown): StoredChart {
   const chart = stored as Partial<StoredChart>;
 
   if (!isInteger(chart.v)) throw new ChartFormatError("missing version");
-  if (chart.v !== STORED_VERSION) {
+  if (chart.v !== 1 && chart.v !== STORED_VERSION) {
     // The version field is the migration hook. There's nothing to migrate from
     // yet, so anything else is either corrupt or from a newer build.
     throw new ChartFormatError(
@@ -96,12 +115,47 @@ function validate(stored: unknown): StoredChart {
   }
 
   chart.stitches.forEach((stitch, i) => {
-    if (!Array.isArray(stitch) || stitch.length !== 3 || !stitch.every(isInteger)) {
-      throw new ChartFormatError(`stitch ${i} is not [col, row, paletteIndex] integers`);
+    if (!Array.isArray(stitch) || ![3, 4].includes(stitch.length) || !stitch.every(isInteger)) {
+      throw new ChartFormatError(`stitch ${i} has an invalid tuple`);
     }
     const paletteIndex = stitch[2] as number;
     if (paletteIndex < 0 || paletteIndex >= chart.palette!.length) {
       throw new ChartFormatError(`stitch ${i} references palette index ${paletteIndex}`);
+    }
+  });
+
+  chart.groups ??= [];
+  chart.repeats ??= [];
+  if (!Array.isArray(chart.groups) || chart.groups.some((id) => typeof id !== "string")) {
+    throw new ChartFormatError("groups must be an array of ids");
+  }
+  if (!Array.isArray(chart.repeats)) throw new ChartFormatError("repeats must be an array");
+  chart.stitches.forEach((stitch, i) => {
+    if (stitch.length === 4 && (stitch[3] < 0 || stitch[3] >= chart.groups!.length)) {
+      throw new ChartFormatError(`stitch ${i} references an invalid group`);
+    }
+  });
+  chart.repeats.forEach((repeat, i) => {
+    if (
+      typeof repeat !== "object" ||
+      repeat === null ||
+      typeof repeat.id !== "string" ||
+      typeof repeat.name !== "string" ||
+      !isInteger(repeat.width) ||
+      repeat.width < 1 ||
+      !isInteger(repeat.height) ||
+      repeat.height < 1 ||
+      !Array.isArray(repeat.stitches) ||
+      repeat.stitches.some(
+        (stitch) =>
+          typeof stitch !== "object" ||
+          stitch === null ||
+          typeof stitch.symbolId !== "string" ||
+          !isInteger(stitch.col) ||
+          !isInteger(stitch.row),
+      )
+    ) {
+      throw new ChartFormatError(`repeat ${i} is invalid`);
     }
   });
 
@@ -110,6 +164,7 @@ function validate(stored: unknown): StoredChart {
 
 export type DecodedChart = {
   placements: Placement[];
+  repeats: RepeatDefinition[];
   /**
    * Symbols the stored chart references that this build's library doesn't have
    * — a chart saved before a symbol was renamed or removed in Figma. They're
@@ -146,12 +201,13 @@ export function decode(stored: unknown, knownSymbol: (id: string) => boolean): D
     }
   }
 
-  const placements = chart.stitches.map(([col, row, paletteIndex]) => ({
+  const placements = chart.stitches.map(([col, row, paletteIndex, groupIndex]) => ({
     id: newPlacementId(),
     symbolId: chart.palette[paletteIndex]!,
     col,
     row,
+    ...(groupIndex === undefined ? {} : { groupId: chart.groups![groupIndex] }),
   }));
 
-  return { placements, unknownSymbolIds: [...unknown] };
+  return { placements, repeats: chart.repeats!, unknownSymbolIds: [...unknown] };
 }

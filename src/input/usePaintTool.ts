@@ -89,6 +89,14 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       });
     };
 
+    const groupIdsFor = (placementId: string): string[] => {
+      const placement = doc().index.placements.get(placementId);
+      if (!placement?.groupId) return placement ? [placement.id] : [];
+      return [...doc().index.placements.values()]
+        .filter((candidate) => candidate.groupId === placement.groupId)
+        .map((candidate) => candidate.id);
+    };
+
     const onPointerDown = (e: PointerEvent) => {
       if (ui().spaceHeld || e.button === 1) return; // panning
 
@@ -173,7 +181,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         const maxRow = Math.max(start.row, cell.row);
         const ids = doc()
           .index.query({ minCol, maxCol, minRow, maxRow })
-          .map((placement) => placement.id);
+          .flatMap((placement) => groupIdsFor(placement.id));
         ui().setSelectedPlacementIds([...new Set([...selectionBaseline, ...ids])]);
         return;
       }
@@ -198,8 +206,16 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         const existing = doc().index.placementAt(start.col, start.row);
         if (!selectionMoved) {
           if (existing) {
-            if (selectionAdditive) ui().selectPlacement(existing.id, true);
-            else ui().setSelectedPlacementIds([existing.id]);
+            const ids = groupIdsFor(existing.id);
+            if (selectionAdditive) {
+              const selected = new Set(ui().selectedPlacementIds);
+              const removing = ids.every((id) => selected.has(id));
+              for (const id of ids) {
+                if (removing) selected.delete(id);
+                else selected.add(id);
+              }
+              ui().setSelectedPlacementIds([...selected]);
+            } else ui().setSelectedPlacementIds(ids);
           } else if (!selectionAdditive) {
             ui().clearSelection();
             if (!ui().selectHeld && ui().tool === "select") {

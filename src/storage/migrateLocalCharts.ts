@@ -25,9 +25,9 @@ export async function migrateLocalCharts(
 
   for (const meta of charts) {
     try {
-      const { placements } = await source.load(meta.id);
+      const { placements, repeats } = await source.load(meta.id);
       const created = await target.create(meta.name);
-      await target.save(created.id, placements, created.rev);
+      await target.save(created.id, placements, created.rev, repeats);
       await source.remove(meta.id);
       result.migrated.push(meta.name);
     } catch (error) {

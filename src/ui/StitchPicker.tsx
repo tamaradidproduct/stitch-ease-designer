@@ -72,6 +72,8 @@ export function StitchPicker() {
   const place = useDocStore((s) => s.place);
   const erase = useDocStore((s) => s.erase);
   const replacePlacements = useDocStore((s) => s.replacePlacements);
+  const repeats = useDocStore((s) => s.repeats);
+  const instantiateRepeat = useDocStore((s) => s.instantiateRepeat);
 
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
@@ -94,6 +96,9 @@ export function StitchPicker() {
 
   // Flat order is what the arrow keys walk, so it must match render order.
   const flat = useMemo(() => sections.flatMap((s) => s.symbols), [sections]);
+  const matchingRepeats = target?.selectionIds
+    ? []
+    : repeats.filter((repeat) => repeat.name.toLowerCase().includes(query.trim().toLowerCase()));
 
   // The picker never unmounts — it just renders null while closed — so a
   // mount-only effect would focus and reset state exactly once, the first
@@ -259,7 +264,32 @@ export function StitchPicker() {
       </div>
 
       <div className="picker__list" ref={listRef}>
-        {flat.length === 0 && <div className="picker__empty">No stitch matches that.</div>}
+        {flat.length === 0 && matchingRepeats.length === 0 && (
+          <div className="picker__empty">No stitch matches that.</div>
+        )}
+
+        {matchingRepeats.length > 0 && (
+          <div>
+            <div className="picker__heading">This chart</div>
+            {matchingRepeats.map((repeat) => (
+              <button
+                key={repeat.id}
+                type="button"
+                className="picker__item"
+                onClick={() => {
+                  instantiateRepeat(repeat.id, target.col, target.row);
+                  closePicker();
+                }}
+              >
+                <span className="picker__repeatGlyph" aria-hidden="true">↻</span>
+                <span className="picker__label">{repeat.name}</span>
+                <span className="picker__span">
+                  {repeat.width} × {repeat.height}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
 
         {sections.map((section) => (
           <div key={section.key}>
