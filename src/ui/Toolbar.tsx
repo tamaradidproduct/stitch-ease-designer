@@ -21,6 +21,9 @@ export function Toolbar() {
   const index = useDocStore((s) => s.index);
   useDocStore((s) => s.revision);
   const erasePlacements = useDocStore((s) => s.erasePlacements);
+  const createRepeat = useDocStore((s) => s.createRepeat);
+  const duplicatePlacements = useDocStore((s) => s.duplicatePlacements);
+  const setSelectedPlacementIds = useUiStore((s) => s.setSelectedPlacementIds);
 
   const selected = selectedIds.flatMap((id) => {
     const placement = index.placements.get(id);
@@ -66,6 +69,25 @@ export function Toolbar() {
       {selected.length > 0 && (
         <div className="toolbar__selection">
           <span>{selected.length} selected</span>
+          <button
+            type="button"
+            className="toolbar__btn"
+            onClick={() => createRepeat(selected.map((placement) => placement.id))}
+            title="Group these stitches as a chart-local repeat"
+          >
+            Create repeat
+          </button>
+          <button
+            type="button"
+            className="toolbar__btn"
+            onClick={() => {
+              const ids = duplicatePlacements(selected.map((placement) => placement.id));
+              if (ids.length) setSelectedPlacementIds(ids);
+            }}
+            title="Duplicate selected stitches (⌘D)"
+          >
+            Duplicate
+          </button>
           <button
             type="button"
             className="toolbar__btn"

@@ -1,4 +1,4 @@
-import type { DocMeta, Placement } from "../model/types";
+import type { DocMeta, Placement, RepeatDefinition } from "../model/types";
 import { getSymbol } from "../symbols/registry";
 import { DEFAULT_CHART_NAME, type DocStore } from "./DocStore";
 import { decode, encode, type StoredChart } from "./serialize";
@@ -18,9 +18,13 @@ export type ChartFile = StoredChart & { name: string; exportedAt: string };
 const safeFilename = (name: string) =>
   `${name.trim().replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "") || "chart"}.stitchchart.json`;
 
-export function exportChart(name: string, placements: Iterable<Placement>): void {
+export function exportChart(
+  name: string,
+  placements: Iterable<Placement>,
+  repeats: RepeatDefinition[] = [],
+): void {
   const file: ChartFile = {
-    ...encode(placements),
+    ...encode(placements, repeats),
     name,
     exportedAt: new Date().toISOString(),
   };
@@ -44,6 +48,7 @@ export function exportChart(name: string, placements: Iterable<Placement>): void
 export type ImportedChart = {
   name: string;
   placements: Placement[];
+  repeats: RepeatDefinition[];
   unknownSymbolIds: string[];
 };
 
@@ -55,7 +60,7 @@ export type ImportedChart = {
 export async function importChart(file: File): Promise<ImportedChart> {
   const text = await file.text();
   const parsed: unknown = JSON.parse(text);
-  const { placements, unknownSymbolIds } = decode(parsed, (id) => !!getSymbol(id));
+  const { placements, repeats, unknownSymbolIds } = decode(parsed, (id) => !!getSymbol(id));
 
   const fromFile = file.name.replace(/\.stitchchart\.json$|\.json$/i, "").trim();
   const name =
@@ -63,7 +68,7 @@ export async function importChart(file: File): Promise<ImportedChart> {
     fromFile ||
     DEFAULT_CHART_NAME;
 
-  return { name, placements, unknownSymbolIds };
+  return { name, placements, repeats, unknownSymbolIds };
 }
 
 /**
@@ -75,10 +80,10 @@ export async function importChart(file: File): Promise<ImportedChart> {
  * left behind as an orphan the user never asked for and can't see yet.
  */
 export async function importChartIntoStore(store: DocStore, file: File): Promise<DocMeta> {
-  const { name, placements } = await importChart(file);
+  const { name, placements, repeats } = await importChart(file);
   const meta = await store.create(name);
   try {
-    await store.save(meta.id, placements, meta.rev);
+    await store.save(meta.id, placements, meta.rev, repeats);
   } catch (error) {
     await store.remove(meta.id).catch(() => {});
     throw error;

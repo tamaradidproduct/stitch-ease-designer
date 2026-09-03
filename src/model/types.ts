@@ -7,6 +7,19 @@ export type Placement = {
   col: number;
   /** Row index. +row is UP: row 0 is the bottom of a chart. */
   row: number;
+  /** Independent repeat/group instance this placement belongs to. */
+  groupId?: string;
+};
+
+export type RepeatStitch = { symbolId: string; col: number; row: number };
+
+/** A reusable stitch sequence stored only with the chart that created it. */
+export type RepeatDefinition = {
+  id: string;
+  name: string;
+  width: number;
+  height: number;
+  stitches: RepeatStitch[];
 };
 
 /**

@@ -1,4 +1,4 @@
-import type { DocMeta, Placement } from "../model/types";
+import type { DocMeta, Placement, RepeatDefinition } from "../model/types";
 
 /**
  * Where charts live.
@@ -20,7 +20,12 @@ export interface DocStore {
    * `expectedRev` is the rev the caller loaded. If the stored chart has moved
    * on since, this rejects with `ChartConflictError` rather than overwriting.
    */
-  save(id: string, placements: Placement[], expectedRev: string): Promise<DocMeta>;
+  save(
+    id: string,
+    placements: Placement[],
+    expectedRev: string,
+    repeats?: RepeatDefinition[],
+  ): Promise<DocMeta>;
   rename(id: string, name: string): Promise<DocMeta>;
   remove(id: string): Promise<void>;
 }
@@ -28,6 +33,7 @@ export interface DocStore {
 export type LoadedChart = {
   meta: DocMeta;
   placements: Placement[];
+  repeats?: RepeatDefinition[];
   /** Symbols this build's library no longer has. See `decode` in serialize.ts. */
   unknownSymbolIds: string[];
 };

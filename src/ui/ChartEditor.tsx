@@ -36,6 +36,7 @@ export function ChartEditor() {
   const unknownSymbolIds = useDocStore((s) => s.unknownSymbolIds);
   const statusDetail = useDocStore((s) => s.statusDetail);
   const status = useDocStore((s) => s.status);
+  const repeats = useDocStore((s) => s.repeats);
 
   useAutosave(chartStore);
 
@@ -148,7 +149,7 @@ export function ChartEditor() {
           disabled={!openMeta}
           onClick={() => {
             const { index, meta: current } = useDocStore.getState();
-            if (current) exportChart(current.name, index.toArray());
+            if (current) exportChart(current.name, index.toArray(), repeats);
           }}
         >
           Export
