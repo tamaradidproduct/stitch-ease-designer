@@ -1,4 +1,4 @@
-import type { DocMeta, Placement } from "../model/types";
+import type { DocMeta, Placement, ReferenceImage } from "../model/types";
 import { getSymbol } from "../symbols/registry";
 import { newUuid } from "../uuid";
 import {
@@ -118,11 +118,20 @@ export function createKeyValueDocStore(
       const meta = requireMeta(readIndex(), id);
       const raw = backend.read(chartKey(id));
       if (raw === null) throw new ChartNotFoundError(id);
-      const { placements, repeats, unknownSymbolIds } = decode(JSON.parse(raw), knownSymbol);
-      return { meta, placements, repeats, unknownSymbolIds };
+      const { placements, repeats, referenceImage, unknownSymbolIds } = decode(
+        JSON.parse(raw),
+        knownSymbol,
+      );
+      return { meta, placements, repeats, unknownSymbolIds, ...(referenceImage ? { referenceImage } : null) };
     },
 
-    async save(id, placements: Placement[], expectedRev: string, repeats = []): Promise<DocMeta> {
+    async save(
+      id,
+      placements: Placement[],
+      expectedRev: string,
+      repeats = [],
+      referenceImage?: ReferenceImage,
+    ): Promise<DocMeta> {
       const index = readIndex();
       const current = requireMeta(index, id);
       if (current.rev !== expectedRev) {
@@ -132,7 +141,7 @@ export function createKeyValueDocStore(
       // Chart body first: if the index said "saved" but the body write failed,
       // the next load would hand back stale stitches under a fresh rev.
       const previousBody = backend.read(chartKey(id));
-      backend.write(chartKey(id), JSON.stringify(encode(placements, repeats)));
+      backend.write(chartKey(id), JSON.stringify(encode(placements, repeats, referenceImage)));
 
       const meta: DocMeta = { ...current, updatedAt: stamp(), rev: newUuid("rev_") };
       try {

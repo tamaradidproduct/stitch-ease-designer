@@ -2,10 +2,12 @@ import { useEffect, useRef } from "react";
 import { canInsertAt } from "../model/ops";
 import { usePaintTool } from "../input/usePaintTool";
 import { usePanZoom } from "../input/usePanZoom";
+import { useReferenceImageTool } from "../input/useReferenceImageTool";
 import { useShortcuts } from "../input/useShortcuts";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
 import { DUPLICATE_CURSOR } from "./cursors";
+import { ReferenceImageCache } from "./referenceImageCache";
 import { render } from "./renderer";
 import { SpriteCache } from "./spriteCache";
 
@@ -25,6 +27,14 @@ export function CanvasView() {
   useDocStore((s) => s.revision);
   const cursor = useUiStore((s) => {
     if (s.picker) return "default";
+    // The panel owns the canvas entirely while it's open - every state below
+    // this is about a tool it has already overridden the hover/selection
+    // feedback for.
+    if (s.referenceImagePanelOpen) {
+      if (s.referenceImageCalibrating) return "crosshair";
+      const image = useDocStore.getState().referenceImage;
+      return image && image.visible && !image.locked ? "move" : "default";
+    }
     if (s.selectionMove) {
       if (s.selectionMove.blocked) return "not-allowed";
       return s.selectionMove.duplicating ? DUPLICATE_CURSOR : "grabbing";
@@ -57,6 +67,10 @@ export function CanvasView() {
     return hovered ? "pointer" : "crosshair";
   });
 
+  // Registered first so it gets first refusal on every pointer event - it
+  // claims a drag (and stops the event reaching the tools below) only when
+  // its panel is open and the click actually lands on the image.
+  useReferenceImageTool(ref);
   usePanZoom(ref);
   usePaintTool(ref);
   useShortcuts();
@@ -74,6 +88,7 @@ export function CanvasView() {
     // A glyph finishing rasterisation has to trigger another frame, or it
     // won't appear until something else happens to invalidate the canvas.
     const sprites = new SpriteCache(markDirty);
+    const referenceImages = new ReferenceImageCache(markDirty);
 
     /**
      * Match the backing store to the element's CSS size. Idempotent, so it's
@@ -117,7 +132,9 @@ export function CanvasView() {
         state.selectionBox !== prev.selectionBox ||
         state.selectionMove !== prev.selectionMove ||
         state.tool !== prev.tool ||
-        state.selectHeld !== prev.selectHeld
+        state.selectHeld !== prev.selectHeld ||
+        state.referenceImagePanelOpen !== prev.referenceImagePanelOpen ||
+        state.referenceImageCalibrationBox !== prev.referenceImageCalibrationBox
       ) {
         markDirty();
       }
@@ -143,8 +160,11 @@ export function CanvasView() {
         selectHeld,
         selectionBox,
         selectionMove,
+        referenceImagePanelOpen,
+        referenceImageCalibrating,
+        referenceImageCalibrationBox,
       } = useUiStore.getState();
-      const { index, revision } = useDocStore.getState();
+      const { index, revision, referenceImage } = useDocStore.getState();
       const dpr = window.devicePixelRatio || 1;
 
       ctx.save();
@@ -161,6 +181,11 @@ export function CanvasView() {
         index,
         revision,
         sprites,
+        referenceImage,
+        referenceImageCache: referenceImages,
+        referenceImagePanelOpen,
+        referenceImageCalibrating,
+        referenceImageCalibrationBox,
         armedSymbolId: picker ? null : armedSymbolId,
         selectedPlacementIds,
         tool,

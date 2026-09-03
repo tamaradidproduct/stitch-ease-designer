@@ -1,4 +1,4 @@
-import type { DocMeta, Placement, RepeatDefinition } from "../model/types";
+import type { DocMeta, Placement, ReferenceImage, RepeatDefinition } from "../model/types";
 
 /**
  * Where charts live.
@@ -25,6 +25,7 @@ export interface DocStore {
     placements: Placement[],
     expectedRev: string,
     repeats?: RepeatDefinition[],
+    referenceImage?: ReferenceImage,
   ): Promise<DocMeta>;
   rename(id: string, name: string): Promise<DocMeta>;
   remove(id: string): Promise<void>;
@@ -34,6 +35,7 @@ export type LoadedChart = {
   meta: DocMeta;
   placements: Placement[];
   repeats?: RepeatDefinition[];
+  referenceImage?: ReferenceImage;
   /** Symbols this build's library no longer has. See `decode` in serialize.ts. */
   unknownSymbolIds: string[];
 };

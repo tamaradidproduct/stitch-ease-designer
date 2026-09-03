@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DocIndex } from "../model/docIndex";
-import type { Placement } from "../model/types";
+import type { Placement, ReferenceImage } from "../model/types";
 import { getSymbol } from "../symbols/registry";
 import {
   ChartFormatError,
@@ -126,6 +126,48 @@ describe("round trip", () => {
     }
     expect(after.placementAt(6, 0)).toBeUndefined();
     expect(after.placementAt(11, 3)?.symbolId).toBe(WIDE);
+  });
+});
+
+describe("referenceImage", () => {
+  const image: ReferenceImage = {
+    ref: "user-1/chart-1/reference.png",
+    x: -10,
+    y: 5,
+    width: 120,
+    height: 90,
+    naturalWidth: 800,
+    naturalHeight: 600,
+    opacity: 0.5,
+    visible: true,
+    locked: false,
+  };
+
+  it("round-trips unchanged", () => {
+    const stored = encode([place("knit", 0, 0)], [], image);
+    expect(stored.referenceImage).toEqual(image);
+    const decoded = decode(stored, known);
+    expect(decoded.referenceImage).toEqual(image);
+  });
+
+  it("is omitted entirely when there isn't one, not stored as null/undefined", () => {
+    const stored = encode([place("knit", 0, 0)]);
+    expect(stored).not.toHaveProperty("referenceImage");
+    expect(decode(stored, known)).not.toHaveProperty("referenceImage");
+  });
+
+  it("rejects a malformed referenceImage", () => {
+    const bad: Record<string, unknown> = {
+      "missing ref": { ...image, ref: undefined },
+      "zero width": { ...image, width: 0 },
+      "zero height": { ...image, height: 0 },
+      "negative naturalWidth": { ...image, naturalWidth: -1 },
+      "non-boolean visible": { ...image, visible: "yes" },
+    };
+    for (const referenceImage of Object.values(bad)) {
+      const stored = { ...encode([]), referenceImage };
+      expect(() => decode(stored, known)).toThrow(ChartFormatError);
+    }
   });
 });
 

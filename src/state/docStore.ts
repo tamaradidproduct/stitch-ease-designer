@@ -14,6 +14,7 @@ import {
   isEmptyChange,
   type Change,
   type DocMeta,
+  type ReferenceImage,
   type RepeatDefinition,
 } from "../model/types";
 import { newUuid } from "../uuid";
@@ -58,6 +59,8 @@ type DocState = {
   /** Symbols the stored chart referenced that this build's library lacks. */
   unknownSymbolIds: string[];
   repeats: RepeatDefinition[];
+  /** The pattern screenshot behind the chart, if one's been uploaded. Not undoable, like camera pan/zoom. */
+  referenceImage: ReferenceImage | null;
 
   undoStack: HistoryEntry[];
   redoStack: HistoryEntry[];
@@ -87,6 +90,11 @@ type DocState = {
    * way to make room, rather than overwriting it.
    */
   insertPlacement: (symbolId: string, col: number, row: number) => void;
+  /** Sets or replaces the reference image outright (a fresh upload). */
+  setReferenceImage: (image: ReferenceImage) => void;
+  /** Patches the existing reference image's transform/visibility/lock - a no-op if none is set. */
+  updateReferenceImage: (patch: Partial<Omit<ReferenceImage, "ref">>) => void;
+  removeReferenceImage: () => void;
   beginStroke: () => void;
   endStroke: () => void;
   undo: () => void;
@@ -170,12 +178,26 @@ export const useDocStore = create<DocState>((set, get) => {
     statusDetail: null,
     unknownSymbolIds: [],
     repeats: [],
+    referenceImage: null,
 
     place: (symbolId, col, row) => commit(placeChange(get().index, symbolId, col, row)),
     erase: (col, row) => commit(eraseChange(get().index, col, row)),
     canInsertAt: (col, row) => canInsertAtIndex(get().index, col, row),
     insertPlacement: (symbolId, col, row) =>
       commit(insertChange(get().index, symbolId, col, row)),
+
+    // Not routed through `commit`: that's specifically for placement
+    // Changes, which the reference image isn't - it doesn't touch undo/redo
+    // history, same as panning or zooming the camera doesn't.
+    setReferenceImage: (referenceImage) =>
+      set((s) => ({ referenceImage, revision: s.revision + 1 })),
+    updateReferenceImage: (patch) =>
+      set((s) => (s.referenceImage
+        ? { referenceImage: { ...s.referenceImage, ...patch }, revision: s.revision + 1 }
+        : {})),
+    removeReferenceImage: () =>
+      set((s) => (s.referenceImage ? { referenceImage: null, revision: s.revision + 1 } : {})),
+
     replacePlacements: (ids, symbolId) => {
       const selected = ids
         .map((id) => get().index.placements.get(id))
@@ -415,7 +437,7 @@ export const useDocStore = create<DocState>((set, get) => {
       });
     },
 
-    openChart: ({ meta, placements, repeats = [], unknownSymbolIds }) => {
+    openChart: ({ meta, placements, repeats = [], referenceImage = null, unknownSymbolIds }) => {
       const revision = get().revision + 1;
       set({
         ...blank(),
@@ -429,6 +451,7 @@ export const useDocStore = create<DocState>((set, get) => {
         statusDetail: null,
         unknownSymbolIds,
         repeats,
+        referenceImage,
       });
     },
 

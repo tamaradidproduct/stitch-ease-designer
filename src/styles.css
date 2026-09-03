@@ -435,6 +435,120 @@ body {
   letter-spacing: 0.03em;
 }
 
+/* ---- reference image panel ---------------------------------------------- */
+
+.refpanel {
+  position: fixed;
+  top: 56px;
+  right: 16px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  width: 240px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow:
+    0 8px 24px rgb(15 23 42 / 14%),
+    0 2px 6px rgb(15 23 42 / 8%);
+  overflow: hidden;
+}
+
+.refpanel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 6px 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.refpanel__title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.refpanel__body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+}
+
+.refpanel__hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.refpanel__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.refpanel__row input[type="range"] {
+  flex: 1;
+}
+
+.refpanel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.refpanel__stepper {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.refpanel__stepBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.refpanel__stepBtn:hover:not(:disabled) {
+  background: var(--chrome);
+}
+
+.refpanel__stepBtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.refpanel__stepValue {
+  min-width: 40px;
+  padding: 0 4px;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  text-align: center;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.refpanel__error {
+  margin: 0;
+  color: #dc2626;
+  font-size: 12px;
+}
+
 /* ---- buttons ----------------------------------------------------------- */
 
 .btn {
@@ -480,6 +594,12 @@ body {
 .btn--danger:hover:not(:disabled) {
   border-color: #dc2626;
   color: #dc2626;
+}
+
+.btn[data-on="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
 }
 
 /* ---- chart list -------------------------------------------------------- */

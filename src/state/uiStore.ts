@@ -2,6 +2,7 @@ import { create } from "zustand";
 import {
   type Camera,
   type Cell,
+  type Point,
   type Viewport,
   defaultCamera,
   panByScreen,
@@ -72,6 +73,27 @@ type UiState = {
    */
   lastClearedSelection: string[] | null;
 
+  /**
+   * Whether the reference-image panel is open. While it is, and the image
+   * is unlocked, dragging it on the canvas moves/resizes it instead of
+   * whatever the active tool would otherwise do there - closing the panel
+   * hands the canvas back entirely, so there's no lingering mode to
+   * accidentally leave on.
+   */
+  referenceImagePanelOpen: boolean;
+  setReferenceImagePanelOpen: (open: boolean) => void;
+  /**
+   * Armed by the panel's "Set stitch size" button: the next drag on the
+   * canvas draws a calibration box instead of moving/resizing the image -
+   * one-shot, cleared the moment that drag ends (successful or not), so it
+   * never lingers as a mode someone has to remember to turn off.
+   */
+  referenceImageCalibrating: boolean;
+  setReferenceImageCalibrating: (calibrating: boolean) => void;
+  /** The calibration box's two corners in world space, while it's being dragged out. */
+  referenceImageCalibrationBox: { start: Point; current: Point } | null;
+  setReferenceImageCalibrationBox: (box: { start: Point; current: Point } | null) => void;
+
   setTool: (tool: Tool) => void;
   setArmedSymbolId: (id: string | null) => void;
   /** Arms `id`; lands back on `tool` (Draw by default - Insert stays Insert). */
@@ -110,6 +132,21 @@ export const useUiStore = create<UiState>((set, get) => ({
   spaceHeld: false,
   selectHeld: false,
   isPanning: false,
+  referenceImagePanelOpen: false,
+  setReferenceImagePanelOpen: (open) =>
+    // Closing the panel drops any in-progress calibration along with it -
+    // there's no reason to leave that armed once the canvas goes back to
+    // the normal tools.
+    set(open ? { referenceImagePanelOpen: true } : {
+      referenceImagePanelOpen: false,
+      referenceImageCalibrating: false,
+      referenceImageCalibrationBox: null,
+    }),
+  referenceImageCalibrating: false,
+  setReferenceImageCalibrating: (referenceImageCalibrating) => set({ referenceImageCalibrating }),
+  referenceImageCalibrationBox: null,
+  setReferenceImageCalibrationBox: (referenceImageCalibrationBox) =>
+    set({ referenceImageCalibrationBox }),
 
   tool: "stitch",
   armedSymbolId: null,

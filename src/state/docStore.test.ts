@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import type { DocMeta } from "../model/types";
+import type { DocMeta, ReferenceImage } from "../model/types";
 import type { LoadedChart } from "../storage/DocStore";
 import { isChartOpen, useDocStore } from "./docStore";
 
@@ -222,5 +222,55 @@ describe("selection edits", () => {
     expect(dupA!.groupId).toBeDefined();
     expect(dupA!.groupId).toBe(dupB!.groupId);
     expect(dupC!.groupId).toBeUndefined();
+  });
+});
+
+describe("reference image", () => {
+  const image: ReferenceImage = {
+    ref: "data:image/png;base64,abc",
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 75,
+    naturalWidth: 400,
+    naturalHeight: 300,
+    opacity: 0.5,
+    visible: true,
+    locked: false,
+  };
+
+  beforeEach(() => {
+    useDocStore.getState().openChart({ meta: meta("ref"), placements: [], unknownSymbolIds: [] });
+  });
+
+  it("sets, patches, and removes it, bumping revision each time so autosave notices", () => {
+    const r0 = useDocStore.getState().revision;
+
+    useDocStore.getState().setReferenceImage(image);
+    expect(useDocStore.getState().referenceImage).toEqual(image);
+    expect(useDocStore.getState().revision).toBeGreaterThan(r0);
+
+    const r1 = useDocStore.getState().revision;
+    useDocStore.getState().updateReferenceImage({ opacity: 0.8, locked: true });
+    expect(useDocStore.getState().referenceImage).toMatchObject({ opacity: 0.8, locked: true });
+    expect(useDocStore.getState().revision).toBeGreaterThan(r1);
+
+    const r2 = useDocStore.getState().revision;
+    useDocStore.getState().removeReferenceImage();
+    expect(useDocStore.getState().referenceImage).toBeNull();
+    expect(useDocStore.getState().revision).toBeGreaterThan(r2);
+  });
+
+  it("is not undoable - it isn't on the undo stack at all", () => {
+    const before = useDocStore.getState().undoStack.length;
+    useDocStore.getState().setReferenceImage(image);
+    expect(useDocStore.getState().undoStack).toHaveLength(before);
+  });
+
+  it("updateReferenceImage without one set is a harmless no-op", () => {
+    const r0 = useDocStore.getState().revision;
+    useDocStore.getState().updateReferenceImage({ opacity: 0.2 });
+    expect(useDocStore.getState().referenceImage).toBeNull();
+    expect(useDocStore.getState().revision).toBe(r0);
   });
 });

@@ -4,6 +4,7 @@ import { DEV_SKIP_AUTH, signOut } from "../auth/useSession";
 import type { DocMeta } from "../model/types";
 import { chartStore } from "../storage/store";
 import { importChartIntoStore } from "../storage/exportImport";
+import { removeReferenceImageFile } from "../storage/referenceImages";
 
 const formatWhen = (iso: string) => {
   const date = new Date(iso);
@@ -165,7 +166,11 @@ export function ChartList() {
                 className="btn btn--quiet btn--danger"
                 onClick={() => {
                   if (confirm(`Delete "${chart.name}"? This can't be undone.`)) {
-                    void run(() => chartStore.remove(chart.id));
+                    void run(async () => {
+                      const loaded = await chartStore.load(chart.id);
+                      if (loaded.referenceImage) await removeReferenceImageFile(loaded.referenceImage.ref);
+                      await chartStore.remove(chart.id);
+                    });
                   }
                 }}
               >

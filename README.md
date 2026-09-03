@@ -116,6 +116,18 @@ ownership can't be transferred and the conflict token can't be forged.
 this is a public URL serving a public bundle. Verify with two real accounts
 after any policy change, not by reading the SQL.
 
+One private Storage bucket, `reference-images` — the pattern screenshot a
+designer places behind a chart to trace against (`src/storage/referenceImages.ts`).
+One object per chart, at `{auth.uid()}/{chartId}/reference.<ext>` (PNG/JPG/WebP,
+10 MB cap, both enforced by the bucket itself); storage policies scope every
+select/insert/update/delete to the path's own `{auth.uid()}` segment, the same
+ownership pattern as the `charts` table. The bucket is private — the app never
+stores or hands out a bare URL, only the object path, resolved to a short-lived
+signed URL at render time. Not signed in (`VITE_DEV_SKIP_AUTH`): there's no
+account to own a Storage path, so the image is inlined as a `data:` URL in the
+chart's own stored JSON instead — `ReferenceImage.ref` being a `data:` URL vs.
+a bucket path is how the app (and this bucket) tell the two cases apart.
+
 Inviting someone: Supabase dashboard → Authentication → Users → Invite user.
 Public signup is off, so this is the only way an account gets created.
 
