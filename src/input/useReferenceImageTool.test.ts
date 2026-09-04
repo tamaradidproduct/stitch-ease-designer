@@ -195,6 +195,12 @@ describe("stitchResizeTransform", () => {
     // ...but the same drag is fine once zoomed in enough to have meant it.
     expect(stitchResizeTransform(startImage, anchorWorld, anchorFrac, { x: 101, y: 101 }, 8)).not.toBeNull();
   });
+
+  it("keeps the recalibrated pin on the image when a handle is dragged past an edge", () => {
+    const next = stitchResizeTransform(startImage, anchorWorld, anchorFrac, { x: -100, y: -100 }, 1)!;
+
+    expect(next.stitchPin).toEqual({ u: 0, v: 0 });
+  });
 });
 
 describe("snapImageToGrid", () => {
