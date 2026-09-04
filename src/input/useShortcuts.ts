@@ -41,10 +41,16 @@ export function useShortcuts(): void {
         useUiStore.getState().setSelectHeld(true);
       }
 
-      // The picker owns its own keys while its search field has focus.
-      if (isTyping(e.target) && e.key !== "Tab") return;
-
       const ui = useUiStore.getState();
+
+      // The picker owns its own keys while its search field has focus, and
+      // Tab there steps to the next stitch in the row. Everywhere else Tab
+      // has to stay Tab: swallowing it inside a form field means focus
+      // can't move between inputs, which broke typing a mark's stitch and
+      // row numbers - the Tab opened the picker instead of reaching the
+      // next field.
+      if (isTyping(e.target) && !(e.key === "Tab" && ui.picker)) return;
+
       const doc = useDocStore.getState();
 
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {

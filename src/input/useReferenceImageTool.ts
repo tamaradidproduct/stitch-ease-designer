@@ -12,7 +12,12 @@ import {
   type Corner,
   type ReferenceImage,
 } from "../model/types";
-import { snapImageToGrid, type CalibrationPoint } from "../model/referenceCalibration";
+import {
+  addCalibrationPoint,
+  newCalibrationPointId,
+  patchCalibrationPoint,
+  snapImageToGrid,
+} from "../model/referenceCalibration";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
 
@@ -200,9 +205,9 @@ export function stitchResizeTransform(
  * The calibration mark under the cursor, if any - so clicking an existing
  * one nudges it instead of dropping a second mark on top of it.
  */
-function markAt(image: ReferenceImage, w: Point, zoom: number): CalibrationPoint | null {
+function markAt(image: ReferenceImage, w: Point, zoom: number): { id: string } | null {
   const radius = MARK_PX / zoom;
-  for (const p of useUiStore.getState().referenceImagePoints) {
+  for (const p of image.calibrationPoints ?? []) {
     const x = image.x + p.u * image.width;
     const y = image.y + p.v * image.height;
     if (Math.abs(w.x - x) <= radius && Math.abs(w.y - y) <= radius) return p;
@@ -302,19 +307,36 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
       // the image itself - the marks name stitches *in the photo*, so a
       // click outside it can't mean anything and is left to pan/zoom.
       if (useUiStore.getState().referenceImageMarking) {
-        const u = (w.x - image.x) / image.width;
-        const v = (w.y - image.y) / image.height;
-        if (u < 0 || u > 1 || v < 0 || v > 1) return;
+        // Marking claims every click on the canvas, including ones that
+        // miss the photo. Letting a stray click through drew a stitch
+        // underneath the marks instead, which is both destructive and
+        // invisible while the photo is covering it.
         e.preventDefault();
         e.stopImmediatePropagation();
-        const existing = markAt(image, w, zoom);
-        if (existing) {
-          drag = { mode: "markMove", id: existing.id };
-        } else {
-          const id = `mark_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
-          useUiStore.getState().addReferenceImagePoint({ id, u, v, stitch: null, row: null });
-          drag = { mode: "markMove", id };
+        const u = (w.x - image.x) / image.width;
+        const v = (w.y - image.y) / image.height;
+        if (u < 0 || u > 1 || v < 0 || v > 1) {
+          useUiStore.getState().setReferenceImageActiveMark(null);
+          return;
         }
+        const existing = markAt(image, w, zoom);
+        const id = existing?.id ?? newCalibrationPointId();
+        if (!existing) {
+          useDocStore.getState().updateReferenceImage({
+            calibrationPoints: addCalibrationPoint(image.calibrationPoints, {
+              id,
+              u,
+              v,
+              stitch: null,
+              row: null,
+            }),
+          });
+        }
+        // Opening the popover on the mark just placed is the whole point of
+        // placing it: the numbers get read off the photo at that spot,
+        // while looking at it.
+        useUiStore.getState().setReferenceImageActiveMark(id);
+        drag = { mode: "markMove", id };
         canvas.setPointerCapture(e.pointerId);
         return;
       }
@@ -459,9 +481,11 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
       } else if (drag.mode === "markMove") {
         const img = useDocStore.getState().referenceImage;
         if (!img) return;
-        useUiStore.getState().updateReferenceImagePoint(drag.id, {
-          u: Math.max(0, Math.min(1, (w.x - img.x) / img.width)),
-          v: Math.max(0, Math.min(1, (w.y - img.y) / img.height)),
+        useDocStore.getState().updateReferenceImage({
+          calibrationPoints: patchCalibrationPoint(img.calibrationPoints, drag.id, {
+            u: Math.max(0, Math.min(1, (w.x - img.x) / img.width)),
+            v: Math.max(0, Math.min(1, (w.y - img.y) / img.height)),
+          }),
         });
       } else {
         useUiStore.getState().setReferenceImageCalibrationBox({ start: drag.start, current: w });

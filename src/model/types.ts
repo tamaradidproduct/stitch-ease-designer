@@ -126,6 +126,34 @@ export type ReferenceImage = {
    * carries it along with no separate bookkeeping to keep in sync.
    */
   stitchPin?: { u: number; v: number };
+  /**
+   * Marks placed by "Set scale from stitches", each naming a stitch and row
+   * read off the photo's printed numbering.
+   *
+   * Stored with the image rather than held in UI state: placing four of
+   * them accurately is real work, and losing it to a refresh - or to
+   * flipping to another chart and back - made the feature feel like it was
+   * eating progress. They also belong to this photo specifically, which is
+   * exactly what the image record is.
+   */
+  calibrationPoints?: CalibrationPoint[];
+};
+
+/**
+ * One place on the reference photo the designer has identified.
+ *
+ * Position is a fraction of the image (0..1 from its bottom-left) rather
+ * than world units, so a mark travels with the image for free while it is
+ * moved or rescaled - including the rescale the calibration itself applies,
+ * which is what lets the fit be re-run after nudging one mark.
+ */
+export type CalibrationPoint = {
+  id: string;
+  u: number;
+  v: number;
+  /** Numbers as *printed on the chart*, not grid coordinates. Null until typed. */
+  stitch: number | null;
+  row: number | null;
 };
 
 /**

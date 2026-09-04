@@ -2,8 +2,7 @@ import type { DocIndex } from "../model/docIndex";
 import { canInsertAt } from "../model/ops";
 import { rowDirectionAt } from "../model/rowDirection";
 import { chartTopology, knittedRowNumbers, roundStitchNumbers } from "../model/stitchNumbers";
-import type { CalibrationPoint } from "../model/referenceCalibration";
-import { CORNERS, cornerPoint, stitchBoxRect, type ReferenceImage } from "../model/types";
+import { CORNERS, cornerPoint, stitchBoxRect, type CalibrationPoint, type ReferenceImage } from "../model/types";
 import { getSymbol } from "../symbols/registry";
 import {
   CELL,
@@ -44,6 +43,7 @@ export type RenderState = {
   /** The calibration box's corners in world space, while one's being dragged out. */
   referenceImageCalibrationBox: { start: Point; current: Point } | null;
   referenceImagePoints: CalibrationPoint[];
+  referenceImageActiveMark: string | null;
   /** Cell whose place, replace, or insert picker is currently open. */
   pickerTarget: PickerTarget | null;
   selectedPlacementIds: string[];
@@ -409,8 +409,11 @@ function drawEditHighlight(
  * stitch with its pinned corner marked, and the calibration box while one's
  * being dragged out.
  */
+/** On-screen size of a calibration mark's reticle, matching its hit-radius. */
+const MARK_RETICLE_PX = 18;
+
 function drawReferenceImageOverlay(ctx: CanvasRenderingContext2D, state: RenderState): void {
-  const { referenceImagePanelOpen, referenceImage, referenceImageCalibrationBox, referenceImagePoints, camera: cam, viewport: vp } =
+  const { referenceImagePanelOpen, referenceImage, referenceImageCalibrationBox, referenceImagePoints, referenceImageActiveMark, camera: cam, viewport: vp } =
     state;
   if (!referenceImagePanelOpen) return;
 
@@ -490,7 +493,7 @@ function drawReferenceImageOverlay(ctx: CanvasRenderingContext2D, state: RenderS
   }
 
   // The calibration marks, numbered in the order they were placed so the
-  // panel's rows can be matched to them by eye. Drawn over everything else
+  // popover and the canvas can be paired by eye. Drawn over everything else
   // in the overlay: they are what's being aimed, and a handle sitting on
   // top of one would hide exactly the pixel being aimed at.
   if (referenceImage?.visible && referenceImagePoints.length) {
@@ -502,31 +505,48 @@ function drawReferenceImageOverlay(ctx: CanvasRenderingContext2D, state: RenderS
         vp,
       );
       const labelled = p.stitch !== null && p.row !== null;
+      const active = p.id === referenceImageActiveMark;
+      const colour = active ? "#0284c7" : labelled ? "#7c3aed" : "#94a3b8";
+      // A fixed screen-size reticle rather than a cell-sized box: the whole
+      // question being answered is how big a stitch is on this photo, so a
+      // box drawn at some assumed stitch size would be asserting the very
+      // thing that isn't known yet. It still gives the mark visible bounds
+      // and shows how big a target it is to grab.
+      const half = MARK_RETICLE_PX / 2;
+
       ctx.save();
-      // A cross-hair rather than a filled dot: the mark names one point,
-      // and a dot big enough to click would cover it.
-      ctx.strokeStyle = labelled ? "#7c3aed" : "#94a3b8";
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(s.x - 8, s.y);
-      ctx.lineTo(s.x + 8, s.y);
-      ctx.moveTo(s.x, s.y - 8);
-      ctx.lineTo(s.x, s.y + 8);
+      ctx.lineJoin = "round";
+      // White underlay first, so a mark stays legible on dark chart ink.
       ctx.strokeStyle = "#ffffff";
-      ctx.stroke();
-      ctx.strokeStyle = labelled ? "#7c3aed" : "#94a3b8";
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = 4;
+      ctx.strokeRect(s.x - half, s.y - half, MARK_RETICLE_PX, MARK_RETICLE_PX);
+      ctx.beginPath();
+      ctx.moveTo(s.x - half + 3, s.y);
+      ctx.lineTo(s.x + half - 3, s.y);
+      ctx.moveTo(s.x, s.y - half + 3);
+      ctx.lineTo(s.x, s.y + half - 3);
       ctx.stroke();
 
-      ctx.fillStyle = labelled ? "#7c3aed" : "#94a3b8";
+      ctx.strokeStyle = colour;
+      ctx.lineWidth = active ? 2.5 : 1.5;
+      ctx.strokeRect(s.x - half, s.y - half, MARK_RETICLE_PX, MARK_RETICLE_PX);
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.arc(s.x + 11, s.y - 11, 8, 0, Math.PI * 2);
+      ctx.moveTo(s.x - half + 3, s.y);
+      ctx.lineTo(s.x + half - 3, s.y);
+      ctx.moveTo(s.x, s.y - half + 3);
+      ctx.lineTo(s.x, s.y + half - 3);
+      ctx.stroke();
+
+      ctx.fillStyle = colour;
+      ctx.beginPath();
+      ctx.arc(s.x + half + 2, s.y - half - 2, 8, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = "#ffffff";
       ctx.font = "600 11px system-ui, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(String(i + 1), s.x + 11, s.y - 10);
+      ctx.fillText(String(i + 1), s.x + half + 2, s.y - half - 1);
       ctx.restore();
     }
   }

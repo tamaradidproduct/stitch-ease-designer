@@ -8,7 +8,6 @@ import {
   panByScreen,
   zoomAt,
 } from "../canvas/camera";
-import type { CalibrationPoint } from "../model/referenceCalibration";
 import type { BoxHandle, Placement } from "../model/types";
 
 export type Tool = "select" | "stitch" | "eraser" | "insert";
@@ -151,16 +150,13 @@ type UiState = {
   referenceImageMarking: boolean;
   setReferenceImageMarking: (marking: boolean) => void;
   /**
-   * The marks placed so far, each naming a stitch and row read off the
-   * photo. Held here rather than on the document: they are scaffolding for
-   * one calibration, not part of the chart, and the scale they produce is
-   * what actually persists.
+   * The mark whose stitch/row popover is open, anchored to it on the
+   * canvas. Set the moment a mark is placed, so the numbers are typed while
+   * looking at the stitch they describe rather than matched up afterwards
+   * against a list.
    */
-  referenceImagePoints: CalibrationPoint[];
-  addReferenceImagePoint: (point: CalibrationPoint) => void;
-  updateReferenceImagePoint: (id: string, patch: Partial<CalibrationPoint>) => void;
-  removeReferenceImagePoint: (id: string) => void;
-  clearReferenceImagePoints: () => void;
+  referenceImageActiveMark: string | null;
+  setReferenceImageActiveMark: (id: string | null) => void;
 
   setTool: (tool: Tool) => void;
   setArmedSymbolId: (id: string | null) => void;
@@ -217,6 +213,7 @@ export const useUiStore = create<UiState>((set, get) => ({
       referenceImageCalibrating: false,
       referenceImageCalibrationBox: null,
       referenceImageMarking: false,
+      referenceImageActiveMark: null,
       referenceImageCalibrationRejected: false,
       referenceImageHandle: null,
     }),
@@ -224,18 +221,8 @@ export const useUiStore = create<UiState>((set, get) => ({
   setReferenceImageCalibrating: (referenceImageCalibrating) => set({ referenceImageCalibrating }),
   referenceImageMarking: false,
   setReferenceImageMarking: (referenceImageMarking) => set({ referenceImageMarking }),
-  referenceImagePoints: [],
-  addReferenceImagePoint: (point) =>
-    set((s) => ({ referenceImagePoints: [...s.referenceImagePoints, point] })),
-  updateReferenceImagePoint: (id, patch) =>
-    set((s) => ({
-      referenceImagePoints: s.referenceImagePoints.map((p) =>
-        p.id === id ? { ...p, ...patch } : p,
-      ),
-    })),
-  removeReferenceImagePoint: (id) =>
-    set((s) => ({ referenceImagePoints: s.referenceImagePoints.filter((p) => p.id !== id) })),
-  clearReferenceImagePoints: () => set({ referenceImagePoints: [] }),
+  referenceImageActiveMark: null,
+  setReferenceImageActiveMark: (referenceImageActiveMark) => set({ referenceImageActiveMark }),
   referenceImageCalibrationBox: null,
   setReferenceImageCalibrationBox: (referenceImageCalibrationBox) =>
     set({ referenceImageCalibrationBox }),

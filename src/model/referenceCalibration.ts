@@ -1,26 +1,5 @@
 import { CELL } from "../canvas/camera";
-import type { ReferenceImage } from "./types";
-
-/**
- * One place on the reference photo the designer has identified, by reading
- * the stitch and row numbers printed along the chart's edges.
- *
- * Stored as a fraction of the image (0..1 from its bottom-left) rather than
- * in world units, so the marks travel with the image for free while it is
- * moved or rescaled - including the rescale this calibration itself
- * applies, which is what lets the fit be re-run after nudging one mark.
- */
-export type CalibrationPoint = {
-  id: string;
-  u: number;
-  v: number;
-  /**
-   * Numbers as *printed on the chart*, not grid coordinates. Null until
-   * typed - a mark can be placed before it's labelled.
-   */
-  stitch: number | null;
-  row: number | null;
-};
+import type { CalibrationPoint, ReferenceImage } from "./types";
 
 /** Smallest the fit is allowed to scale an image to, in world units: one cell. */
 const MIN_SIZE = 24;
@@ -147,3 +126,24 @@ export function snapImageToGrid(
     y: y + (Math.round(pinY / CELL) * CELL - pinY),
   };
 }
+
+/** A fresh mark id. Only has to be unique within one image's list. */
+export function newCalibrationPointId(): string {
+  return `mark_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+export const addCalibrationPoint = (
+  points: CalibrationPoint[] | undefined,
+  point: CalibrationPoint,
+): CalibrationPoint[] => [...(points ?? []), point];
+
+export const patchCalibrationPoint = (
+  points: CalibrationPoint[] | undefined,
+  id: string,
+  patch: Partial<CalibrationPoint>,
+): CalibrationPoint[] => (points ?? []).map((p) => (p.id === id ? { ...p, ...patch } : p));
+
+export const withoutCalibrationPoint = (
+  points: CalibrationPoint[] | undefined,
+  id: string,
+): CalibrationPoint[] => (points ?? []).filter((p) => p.id !== id);

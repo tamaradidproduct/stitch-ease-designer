@@ -217,6 +217,29 @@ function validate(stored: unknown): StoredChart {
     ) {
       throw new ChartFormatError("referenceImage is invalid");
     }
+    if (img.calibrationPoints !== undefined) {
+      // Scaffolding for one calibration, but stored, so it survives a
+      // reload - which means it arrives from untrusted storage like
+      // everything else here. A mark off the image would anchor a fit to a
+      // point that isn't on the photo.
+      if (
+        !Array.isArray(img.calibrationPoints) ||
+        img.calibrationPoints.some(
+          (point) =>
+            typeof point !== "object" ||
+            point === null ||
+            typeof point.id !== "string" ||
+            typeof point.u !== "number" ||
+            typeof point.v !== "number" ||
+            !(point.u >= 0 && point.u <= 1) ||
+            !(point.v >= 0 && point.v <= 1) ||
+            (point.stitch !== null && !Number.isFinite(point.stitch)) ||
+            (point.row !== null && !Number.isFinite(point.row)),
+        )
+      ) {
+        throw new ChartFormatError("referenceImage.calibrationPoints is invalid");
+      }
+    }
     if (img.stitchPin !== undefined) {
       const pin = img.stitchPin as Partial<NonNullable<ReferenceImage["stitchPin"]>> | null;
       // A fraction of the image, so both components are bounded - anything

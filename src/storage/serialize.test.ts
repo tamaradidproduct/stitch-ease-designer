@@ -156,6 +156,20 @@ describe("referenceImage", () => {
     expect(decode(stored, known).referenceImage).toEqual(calibrated);
   });
 
+  it("round-trips calibration marks, so placing four survives a reload", () => {
+    // The bug this guards: marks lived in memory only, so a refresh threw
+    // away the part of the work that takes the longest.
+    const marked = {
+      ...image,
+      calibrationPoints: [
+        { id: "m1", u: 0.1, v: 0.1, stitch: 36, row: 2 },
+        { id: "m2", u: 0.4, v: 0.1, stitch: 30, row: null },
+      ],
+    };
+    const stored = encode([place("knit", 0, 0)], [], marked);
+    expect(decode(stored, known).referenceImage).toEqual(marked);
+  });
+
   it("is omitted entirely when there isn't one, not stored as null/undefined", () => {
     const stored = encode([place("knit", 0, 0)]);
     expect(stored).not.toHaveProperty("referenceImage");
@@ -174,6 +188,12 @@ describe("referenceImage", () => {
       "out-of-range stitchPin": { ...image, stitchPin: { u: 1.5, v: 0.5 } },
       "incomplete stitchPin": { ...image, stitchPin: { u: 0.5 } },
       "non-numeric stitchPin": { ...image, stitchPin: { u: "0.5", v: 0.5 } },
+      "calibrationPoints not an array": { ...image, calibrationPoints: {} },
+      "mark off the image": {
+        ...image,
+        calibrationPoints: [{ id: "m", u: 1.4, v: 0.5, stitch: 1, row: 1 }],
+      },
+      "mark with no id": { ...image, calibrationPoints: [{ u: 0.5, v: 0.5, stitch: 1, row: 1 }] },
     };
     for (const referenceImage of Object.values(bad)) {
       const stored = { ...encode([]), referenceImage };

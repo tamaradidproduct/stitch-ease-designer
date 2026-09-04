@@ -8,6 +8,7 @@ import { useAutosave } from "../storage/useAutosave";
 import { isChartOpen, selectIsDirty, useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
 import { ReferenceImagePanel } from "./ReferenceImagePanel";
+import { ReferenceMarkEditor } from "./ReferenceMarkEditor";
 import { StatusBar } from "./StatusBar";
 import { StitchPicker } from "./StitchPicker";
 import { Toolbar } from "./Toolbar";
@@ -170,6 +171,7 @@ export function ChartEditor() {
         </button>
       </header>
       <ReferenceImagePanel />
+      <ReferenceMarkEditor />
 
       {(status === "conflict" || status === "error") && statusDetail && (
         <div className="banner banner--bad">

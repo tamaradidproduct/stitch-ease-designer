@@ -25,10 +25,7 @@ export function ReferenceImagePanel() {
   const calibrationRejected = useUiStore((s) => s.referenceImageCalibrationRejected);
   const marking = useUiStore((s) => s.referenceImageMarking);
   const setMarking = useUiStore((s) => s.setReferenceImageMarking);
-  const points = useUiStore((s) => s.referenceImagePoints);
-  const updatePoint = useUiStore((s) => s.updateReferenceImagePoint);
-  const removePoint = useUiStore((s) => s.removeReferenceImagePoint);
-  const clearPoints = useUiStore((s) => s.clearReferenceImagePoints);
+  const setActiveMark = useUiStore((s) => s.setReferenceImageActiveMark);
   const setCalibrationRejected = useUiStore((s) => s.setReferenceImageCalibrationRejected);
 
   const meta = useDocStore((s) => s.meta);
@@ -40,6 +37,8 @@ export function ReferenceImagePanel() {
   // Recomputed as the numbers are typed, so "Apply scale" is only live once
   // the marks actually determine a scale - which is also the clearest way to
   // say that two of them naming the same row pins nothing down.
+  const points = image?.calibrationPoints ?? [];
+  const labelled = points.filter((p) => p.stitch !== null && p.row !== null);
   const fit = image && marking ? scaleFromCalibrationPoints(image, points) : null;
 
   const [busy, setBusy] = useState(false);
@@ -238,48 +237,13 @@ export function ReferenceImagePanel() {
             </label>
             {marking && (
               <div className="refpanel__marks">
-                {points.length === 0 && (
-                  <p className="refpanel__hint">No marks yet.</p>
-                )}
-                {points.map((point, i) => (
-                  <div key={point.id} className="refpanel__mark">
-                    <span className="refpanel__markIndex" data-labelled={point.stitch !== null && point.row !== null}>
-                      {i + 1}
-                    </span>
-                    <label>
-                      <span>st</span>
-                      <input
-                        type="number"
-                        value={point.stitch ?? ""}
-                        onChange={(e) =>
-                          updatePoint(point.id, {
-                            stitch: e.target.value === "" ? null : Number(e.target.value),
-                          })
-                        }
-                      />
-                    </label>
-                    <label>
-                      <span>row</span>
-                      <input
-                        type="number"
-                        value={point.row ?? ""}
-                        onChange={(e) =>
-                          updatePoint(point.id, {
-                            row: e.target.value === "" ? null : Number(e.target.value),
-                          })
-                        }
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      className="refpanel__markRemove"
-                      title="Remove this mark"
-                      onClick={() => removePoint(point.id)}
-                    >
-                      &times;
-                    </button>
-                  </div>
-                ))}
+                <p className="refpanel__hint">
+                  {labelled.length < 2
+                    ? `${points.length} mark${points.length === 1 ? "" : "s"} placed, ${labelled.length} numbered.`
+                    : fit
+                      ? `${labelled.length} numbered — ready to scale.`
+                      : `${labelled.length} numbered, but they need two different stitch numbers and two different row numbers.`}
+                </p>
                 <div className="refpanel__markActions">
                   <button
                     type="button"
@@ -292,14 +256,21 @@ export function ReferenceImagePanel() {
                     }
                     onClick={() => {
                       if (!fit) return;
-                      updateReferenceImage(fit);
-                      clearPoints();
+                      updateReferenceImage({ ...fit, calibrationPoints: [] });
+                      setActiveMark(null);
                       setMarking(false);
                     }}
                   >
                     Apply scale
                   </button>
-                  <button type="button" className="btn btn--quiet" onClick={clearPoints}>
+                  <button
+                    type="button"
+                    className="btn btn--quiet"
+                    onClick={() => {
+                      updateReferenceImage({ calibrationPoints: [] });
+                      setActiveMark(null);
+                    }}
+                  >
                     Clear marks
                   </button>
                 </div>
@@ -312,7 +283,11 @@ export function ReferenceImagePanel() {
               disabled={!image.visible}
               title="Identify four stitches by their printed numbers and scale the image to match"
               onClick={() => {
-                if (marking) clearPoints();
+                // Leaving the mode drops the marks; coming back to a photo
+                // half-marked from some earlier session, with no memory of
+                // which stitch was which, is worse than starting over.
+                if (marking) updateReferenceImage({ calibrationPoints: [] });
+                setActiveMark(null);
                 setCalibrating(false);
                 setMarking(!marking);
               }}
