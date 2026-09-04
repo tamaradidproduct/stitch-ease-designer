@@ -35,8 +35,36 @@ export type SelectionBox = { start: Cell; current: Cell };
  */
 export type SelectionMove = { col: number; row: number; blocked: boolean; duplicating: boolean };
 
-/** How many recently used symbols the picker keeps at the top. */
-const RECENT_LIMIT = 12;
+/** Five stable quick-access slots shared by the stitch picker and toolbar. */
+const QUICK_SLOT_LIMIT = 5;
+const QUICK_SLOT_STORAGE_KEY = "stitch-ease:quick-symbols";
+
+export function assignQuickSymbol(slots: string[], id: string): string[] {
+  if (slots.includes(id) || slots.length >= QUICK_SLOT_LIMIT) return slots;
+  return [...slots, id];
+}
+
+function loadQuickSymbolIds(): string[] {
+  if (typeof localStorage === "undefined") return [];
+  try {
+    const stored: unknown = JSON.parse(localStorage.getItem(QUICK_SLOT_STORAGE_KEY) ?? "[]");
+    if (!Array.isArray(stored)) return [];
+    return [...new Set(stored.filter((id): id is string => typeof id === "string"))]
+      .slice(0, QUICK_SLOT_LIMIT);
+  } catch {
+    return [];
+  }
+}
+
+function saveQuickSymbolIds(ids: string[]): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(QUICK_SLOT_STORAGE_KEY, JSON.stringify(ids));
+  } catch {
+    // Storage can be unavailable in private/restricted browser contexts;
+    // stable slots still work for the lifetime of the current app session.
+  }
+}
 
 type UiState = {
   camera: Camera;
@@ -61,7 +89,7 @@ type UiState = {
    * instead, which is the state the canvas starts in.
    */
   armedSymbolId: string | null;
-  recentSymbolIds: string[];
+  quickSymbolIds: string[];
   picker: PickerTarget | null;
   selectedPlacementIds: string[];
   selectionBox: SelectionBox | null;
@@ -150,7 +178,7 @@ export const useUiStore = create<UiState>((set, get) => ({
 
   tool: "stitch",
   armedSymbolId: null,
-  recentSymbolIds: [],
+  quickSymbolIds: loadQuickSymbolIds(),
   picker: null,
   selectedPlacementIds: [],
   selectionBox: null,
@@ -167,13 +195,15 @@ export const useUiStore = create<UiState>((set, get) => ({
   setArmedSymbolId: (armedSymbolId) =>
     set({ armedSymbolId, tool: "stitch", selectedPlacementIds: [], lastClearedSelection: null }),
 
-  /** Arm a symbol and remember it, most recent first. */
+  /** Arm a symbol and assign it to the next free quick slot, without reordering. */
   chooseSymbol: (id, tool = "stitch") => {
-    const recent = [id, ...get().recentSymbolIds.filter((r) => r !== id)];
+    const current = get().quickSymbolIds;
+    const quickSymbolIds = assignQuickSymbol(current, id);
+    if (quickSymbolIds !== current) saveQuickSymbolIds(quickSymbolIds);
     set({
       armedSymbolId: id,
       tool,
-      recentSymbolIds: recent.slice(0, RECENT_LIMIT),
+      quickSymbolIds,
       picker: null,
       selectedPlacementIds: [],
       lastClearedSelection: null,
