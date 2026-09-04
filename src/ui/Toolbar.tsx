@@ -11,6 +11,7 @@ export function Toolbar() {
   const setTool = useUiStore((s) => s.setTool);
   const setArmed = useUiStore((s) => s.setArmedSymbolId);
   const openPicker = useUiStore((s) => s.openPicker);
+  const closePicker = useUiStore((s) => s.closePicker);
   const selectedIds = useUiStore((s) => s.selectedPlacementIds);
   const clearSelection = useUiStore((s) => s.clearSelection);
 
@@ -22,7 +23,7 @@ export function Toolbar() {
   useDocStore((s) => s.revision);
   const erasePlacements = useDocStore((s) => s.erasePlacements);
   const createRepeat = useDocStore((s) => s.createRepeat);
-  const duplicatePlacements = useDocStore((s) => s.duplicatePlacements);
+  const duplicatePlacements = useDocStore((s) => s.duplicatePlacementsInRow);
   const setSelectedPlacementIds = useUiStore((s) => s.setSelectedPlacementIds);
 
   const selected = selectedIds.flatMap((id) => {
@@ -91,7 +92,10 @@ export function Toolbar() {
             className="toolbar__btn"
             onClick={() => {
               const ids = duplicatePlacements(selected.map((placement) => placement.id));
-              if (ids.length) setSelectedPlacementIds(ids);
+              if (ids.length) {
+                closePicker();
+                setSelectedPlacementIds(ids, false);
+              }
             }}
             title="Duplicate selected stitches (⌘D)"
           >

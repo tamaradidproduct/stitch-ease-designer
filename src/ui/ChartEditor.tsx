@@ -54,9 +54,10 @@ export function ChartEditor() {
         // result would put the wrong chart on screen under the right URL.
         if (!cancelled) {
           useDocStore.getState().openChart(loaded);
-          // Placement ids only exist for the currently loaded chart. Keep a
-          // selection from the previous chart from leaking into this editor.
-          useUiStore.getState().clearSelection();
+          // Tools and quick slots describe the editing session, not the
+          // document. A newly opened chart always starts without inheriting
+          // an armed stitch, picker history, or selection from another one.
+          useUiStore.getState().resetForChart();
         }
       } catch (error) {
         if (cancelled) return;

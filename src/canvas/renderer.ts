@@ -1,4 +1,6 @@
 import type { DocIndex } from "../model/docIndex";
+import { canInsertAt } from "../model/ops";
+import { rowDirectionAt } from "../model/rowDirection";
 import { chartTopology, knittedRowNumbers, roundStitchNumbers } from "../model/stitchNumbers";
 import type { ReferenceImage } from "../model/types";
 import { getSymbol } from "../symbols/registry";
@@ -23,6 +25,8 @@ export type RenderState = {
   camera: Camera;
   viewport: Viewport;
   hover: Cell | null;
+  insertHover: Cell | null;
+  insertAnimation: { cell: Cell; startedAt: number } | null;
   index: DocIndex;
   revision: number;
   sprites: SpriteCache;
@@ -43,6 +47,7 @@ export type RenderState = {
   selectedPlacementIds: string[];
   tool: Tool;
   selectHeld: boolean;
+  keyboardSelectionActive: boolean;
   selectionBox: SelectionBox | null;
   selectionMove: SelectionMove | null;
 };
@@ -222,6 +227,23 @@ function drawSelectionAt(
   }
 }
 
+function drawInsertAnimation(ctx: CanvasRenderingContext2D, state: RenderState): void {
+  const animation = state.insertAnimation;
+  if (!animation) return;
+  const progress = Math.min(1, (performance.now() - animation.startedAt) / 220);
+  const eased = 1 - (1 - progress) ** 3;
+  const r = cellToScreenRect(animation.cell.col, animation.cell.row, state.camera, state.viewport);
+  const inset = (1 - eased) * r.size * 0.18;
+
+  ctx.save();
+  ctx.fillStyle = `rgba(0, 156, 240, ${0.16 * (1 - progress)})`;
+  ctx.strokeStyle = `rgba(0, 156, 240, ${0.75 * (1 - progress)})`;
+  ctx.lineWidth = 2;
+  ctx.fillRect(r.x + inset, r.y + inset, r.size - inset * 2, r.size - inset * 2);
+  ctx.strokeRect(r.x + inset, r.y + inset, r.size - inset * 2, r.size - inset * 2);
+  ctx.restore();
+}
+
 function drawSelection(ctx: CanvasRenderingContext2D, state: RenderState): void {
   const { selectionMove } = state;
   if (cellPx(state.camera) < 3) return;
@@ -308,6 +330,21 @@ function drawPickerTarget(ctx: CanvasRenderingContext2D, state: RenderState): vo
   const { pickerTarget, camera: cam, viewport: vp, index } = state;
   if (!pickerTarget || pickerTarget.selectionIds?.length || cellPx(cam) < 3) return;
 
+  if (pickerTarget.insert) {
+    const r = cellToScreenRect(pickerTarget.col, pickerTarget.row, cam, vp);
+    const x = rowDirectionAt(pickerTarget.row) === "rtl" ? r.x + r.size : r.x;
+    ctx.save();
+    ctx.strokeStyle = "#009cf0";
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(x, r.y + 2);
+    ctx.lineTo(x, r.y + r.size - 2);
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
+
   const { col, row, span } = pickerTargetFootprint(index, pickerTarget);
   const r = cellToScreenRect(col, row, cam, vp);
   const width = r.size * span;
@@ -360,9 +397,7 @@ function drawEditHighlight(
 ): void {
   ctx.fillStyle = theme.hoverFill;
   ctx.fillRect(r.x, r.y, size, size);
-  ctx.strokeStyle = theme.hoverStroke;
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(r.x + 0.5, r.y + 0.5, size - 1, size - 1);
+  strokeDashedRect(ctx, r.x + 1, r.y + 1, size - 2, size - 2, size);
 }
 
 /**
@@ -420,24 +455,47 @@ function drawReferenceImageOverlay(ctx: CanvasRenderingContext2D, state: RenderS
 }
 
 function drawHover(ctx: CanvasRenderingContext2D, state: RenderState): void {
-  const { camera: cam, viewport: vp, hover, index, tool, selectHeld } = state;
+  const { camera: cam, viewport: vp, hover, insertHover, index, tool, selectHeld } = state;
   // The reference-image panel owns the canvas while it's open - every
   // normal tool hint would otherwise show through underneath its own
   // move/resize/calibrate affordances, competing for the same attention.
   if (state.referenceImagePanelOpen) return;
-  // The picker target becomes the persistent interaction context while the
-  // menu is open; a second hover affordance elsewhere would make the pending
-  // destination ambiguous.
-  if (state.pickerTarget) return;
+  if (state.keyboardSelectionActive) return;
   // Below this the outline is bigger than the cell and just looks like noise.
   if (cellPx(cam) < 4) return;
   const size = cellPx(cam);
 
-  // Insert's indicator lives entirely in the CSS cursor (see cursors.ts /
-  // CanvasView's cursor selector) - nothing to draw on the canvas itself.
-  if (tool === "insert") return;
+  if (tool === "insert") {
+    if (!insertHover || !canInsertAt(index, insertHover.col, insertHover.row)) return;
+    if (
+      state.pickerTarget?.insert &&
+      state.pickerTarget.col === insertHover.col &&
+      state.pickerTarget.row === insertHover.row
+    ) return;
+    const r = cellToScreenRect(insertHover.col, insertHover.row, cam, vp);
+    const x = rowDirectionAt(insertHover.row) === "rtl" ? r.x + r.size : r.x;
+    ctx.save();
+    ctx.strokeStyle = "#009cf0";
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(x, r.y + 2);
+    ctx.lineTo(x, r.y + r.size - 2);
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
 
   if (!hover) return;
+  if (state.pickerTarget && !state.pickerTarget.insert) {
+    const active = pickerTargetFootprint(index, state.pickerTarget);
+    if (
+      hover.row === active.row &&
+      hover.col >= active.col &&
+      hover.col < active.col + active.span
+    ) return;
+  }
   const r = cellToScreenRect(hover.col, hover.row, cam, vp);
   const existing = index.placementAt(hover.col, hover.row);
 
@@ -501,6 +559,7 @@ export function render(ctx: CanvasRenderingContext2D, state: RenderState): void 
   drawReferenceImage(ctx, state);
   drawGrid(ctx, state.camera, vp, theme);
   drawPlacements(ctx, state);
+  drawInsertAnimation(ctx, state);
   drawSelection(ctx, state);
   drawSelectionBox(ctx, state);
   drawHover(ctx, state);

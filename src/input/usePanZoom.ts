@@ -80,6 +80,8 @@ export function usePanZoom(ref: RefObject<HTMLCanvasElement | null>): void {
         return;
       }
 
+      ui().setKeyboardSelectionActive(false);
+
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
       // The rulers float above the canvas, including their border stroke,

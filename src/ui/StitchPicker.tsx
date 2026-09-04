@@ -4,11 +4,12 @@ import { allSymbols, getSymbol } from "../symbols/registry";
 import type { StitchSymbol } from "../symbols/types";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
+import { insertTargetCol } from "../model/ops";
 import { SymbolGlyph } from "./SymbolGlyph";
 import { searchSymbols } from "./symbolSearch";
 
 const MENU_WIDTH = 284;
-const SEARCH_WIDTH = 320;
+const SEARCH_SLOT_WIDTH = 200;
 const MAX_HEIGHT = 380;
 const GLYPH_BUDGET = 210;
 
@@ -30,7 +31,8 @@ export function StitchPicker() {
   const closePicker = useUiStore((s) => s.closePicker);
   const chooseSymbol = useUiStore((s) => s.chooseSymbol);
   const clearSelection = useUiStore((s) => s.clearSelection);
-  const setTool = useUiStore((s) => s.setTool);
+  const tool = useUiStore((s) => s.tool);
+  const setInsertAnimation = useUiStore((s) => s.setInsertAnimation);
   const quickIds = useUiStore((s) => s.quickSymbolIds);
   const camera = useUiStore((s) => s.camera);
   const viewport = useUiStore((s) => s.viewport);
@@ -45,13 +47,17 @@ export function StitchPicker() {
 
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchOrigin, setSearchOrigin] = useState(5);
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const searchButtonRef = useRef<HTMLButtonElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const [pos, setPos] = useState({ left: 0, top: 0 });
+  const [pos, setPos] = useState({ compactLeft: 0, searchLeft: 0, top: 0 });
   const selectionSpan = target?.selectionSpan;
+  const currentSymbol = target?.currentSymbolId ? getSymbol(target.currentSymbolId) : undefined;
+  const menuWidth = MENU_WIDTH + (currentSymbol ? 45 : 0);
+  const expandedMenuWidth = menuWidth + SEARCH_SLOT_WIDTH - 40;
 
   const sections = useMemo(() => {
     if (!query.trim()) return [];
@@ -90,6 +96,7 @@ export function StitchPicker() {
     if (!target) return;
     setQuery("");
     setSearchOpen(false);
+    setSearchOrigin(5);
     setActive(0);
     requestAnimationFrame(() => searchButtonRef.current?.focus());
   }, [target]);
@@ -105,13 +112,22 @@ export function StitchPicker() {
     const span = target.selectionSpan ?? (placement ? index.spanOf(placement) : 1);
     const anchorX = (canvasRect?.left ?? 0) + cell.x + (cell.size * span) / 2;
     const anchorY = (canvasRect?.top ?? 0) + cell.y;
-    const width = searchOpen ? SEARCH_WIDTH : MENU_WIDTH;
     const height = root.offsetHeight;
+    const compactLeft = Math.max(8, Math.min(
+      anchorX - menuWidth / 2,
+      window.innerWidth - menuWidth - 8,
+    ));
+    const searchFieldOffset = 7 + searchOrigin * 45;
+    const searchLeft = Math.max(8, Math.min(
+      anchorX - SEARCH_SLOT_WIDTH / 2 - searchFieldOffset,
+      window.innerWidth - expandedMenuWidth - 8,
+    ));
     setPos({
-      left: Math.max(8, Math.min(anchorX - width / 2, window.innerWidth - width - 8)),
-      top: Math.max(8, Math.min(anchorY - height - 8, window.innerHeight - height - 8)),
+      compactLeft,
+      searchLeft,
+      top: Math.max(8, Math.min(anchorY - height - 14, window.innerHeight - height - 8)),
     });
-  }, [target, searchOpen, camera, viewport, index, query]);
+  }, [target, camera, viewport, index, searchOrigin, menuWidth, expandedMenuWidth]);
 
   useEffect(() => {
     listRef.current
@@ -133,14 +149,14 @@ export function StitchPicker() {
 
   if (!target) return null;
 
-  const openSearch = (initialQuery = "") => {
+  const openSearch = (initialQuery = "", origin = 5) => {
     setSearchOpen(true);
+    setSearchOrigin(origin);
     setQuery(initialQuery);
     setActive(0);
     requestAnimationFrame(() => inputRef.current?.focus());
   };
 
-  const currentSymbol = target.currentSymbolId ? getSymbol(target.currentSymbolId) : undefined;
   const placeholder = target.selectionIds
     ? `Replace ${target.selectionIds.length} selected stitch${target.selectionIds.length === 1 ? "" : "es"}`
     : target.insert
@@ -155,12 +171,15 @@ export function StitchPicker() {
       replacePlacements(target.selectionIds, symbol.id);
       clearSelection();
     } else if (target.insert) {
+      const insertedCol = insertTargetCol(index, symbol.id, target.col, target.row);
       insertPlacement(symbol.id, target.col, target.row);
+      if (insertedCol !== null) {
+        setInsertAnimation({ col: insertedCol, row: target.row });
+      }
     } else {
       place(symbol.id, target.col, target.row);
     }
-    chooseSymbol(symbol.id, target.insert ? "insert" : "stitch");
-    if (replacingSelection) setTool("select");
+    chooseSymbol(symbol.id, target.insert ? "insert" : replacingSelection ? tool : "stitch");
   };
 
   const clear = () => {
@@ -199,6 +218,37 @@ export function StitchPicker() {
     }
   };
 
+  const renderSearchField = (key: string) => (
+    <div key={key} className="picker__morphSearch" data-origin={searchOrigin}>
+      <svg className="picker__searchIcon" viewBox="0 0 20 20" width="17" height="17" aria-hidden="true">
+        <circle cx="8.5" cy="8.5" r="5.25" fill="none" stroke="currentColor" strokeWidth="1.6" />
+        <path d="m12.4 12.4 4 4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
+      <input
+        ref={inputRef}
+        className="picker__search"
+        placeholder={placeholder}
+        value={query}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setActive(0);
+        }}
+        spellCheck={false}
+      />
+      <button
+        type="button"
+        className="picker__close"
+        onClick={closePicker}
+        aria-label="Close"
+        title="Close (Esc)"
+      >
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+          <path d="M3.5 3.5l9 9m0-9-9 9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" fill="none" />
+        </svg>
+      </button>
+    </div>
+  );
+
   let resultIndex = -1;
 
   return (
@@ -207,185 +257,143 @@ export function StitchPicker() {
       className="picker"
       data-search-open={searchOpen}
       style={{
-        left: pos.left,
+        left: searchOpen ? pos.searchLeft : pos.compactLeft,
         top: pos.top,
-        width: searchOpen ? SEARCH_WIDTH : MENU_WIDTH,
+        width: searchOpen ? expandedMenuWidth : menuWidth,
         maxHeight: MAX_HEIGHT,
       }}
       onKeyDown={onKeyDown}
     >
       <div className="picker__quick" aria-label="Choose a recent stitch or search">
-        {Array.from({ length: 5 }, (_, slot) => {
-          const symbol = quickSymbols[slot];
-          return symbol ? (
+          {Array.from({ length: 5 }, (_, slot) => {
+            if (searchOpen && searchOrigin === slot) return renderSearchField(`search:${slot}`);
+            const symbol = quickSymbols[slot];
+            return symbol ? (
+              <button
+                key={symbol.id}
+                type="button"
+                className="picker__quickButton"
+                onClick={() => choose(symbol)}
+                title={symbol.label}
+                aria-label={symbol.label}
+              >
+                <SymbolGlyph symbol={symbol} cell={Math.max(7, Math.min(22, 58 / symbol.span))} />
+              </button>
+            ) : (
+              <button
+                key={`empty:${slot}`}
+                type="button"
+                className="picker__quickButton picker__quickSlot"
+                onClick={() => openSearch("", slot)}
+                title="Choose a stitch"
+                aria-label={`Choose a stitch for recent slot ${slot + 1}`}
+              >
+                <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true">
+                  <path
+                    d="M10 5.5v9M5.5 10h9"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </button>
+            );
+          })}
+          {searchOpen && searchOrigin === 5 ? renderSearchField("search:5") : (
             <button
-              key={symbol.id}
+              ref={searchButtonRef}
               type="button"
-              className="picker__quickButton"
-              onClick={() => choose(symbol)}
-              title={symbol.label}
-              aria-label={symbol.label}
+              className="picker__quickButton picker__searchButton"
+              data-active="true"
+              onClick={() => openSearch("", 5)}
+              title="Search all stitches"
+              aria-label="Search all stitches"
             >
-              <SymbolGlyph symbol={symbol} cell={Math.max(7, Math.min(22, 58 / symbol.span))} />
+              <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+                <circle cx="8.5" cy="8.5" r="5.25" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                <path d="m12.4 12.4 4 4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              </svg>
             </button>
-          ) : (
+          )}
+          {currentSymbol && (
             <button
-              key={`empty:${slot}`}
               type="button"
-              className="picker__quickButton picker__quickSlot"
-              onClick={() => openSearch()}
-              title="Choose a stitch"
-              aria-label={`Choose a stitch for recent slot ${slot + 1}`}
+              className="picker__quickButton picker__deleteButton"
+              onClick={clear}
+              aria-label="Clear stitch"
+              title="Clear this stitch (Backspace)"
             >
-              <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true">
+              <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
                 <path
-                  d="M10 5.5v9M5.5 10h9"
-                  fill="none"
+                  d="M3.5 5h9M6.5 5V3.5h3V5M4.5 5l.5 8h6l.5-8"
                   stroke="currentColor"
-                  strokeWidth="1.4"
+                  strokeWidth="1.3"
                   strokeLinecap="round"
+                  strokeLinejoin="round"
+                  fill="none"
                 />
               </svg>
             </button>
-          );
-        })}
-        <button
-          ref={searchButtonRef}
-          type="button"
-          className="picker__quickButton picker__searchButton"
-          data-active={!searchOpen}
-          onClick={() => openSearch()}
-          title="Search all stitches"
-          aria-label="Search all stitches"
-        >
-          <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
-            <circle cx="8.5" cy="8.5" r="5.25" fill="none" stroke="currentColor" strokeWidth="1.6" />
-            <path d="m12.4 12.4 4 4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-          </svg>
-        </button>
-      </div>
+          )}
+        </div>
 
-      {searchOpen && (
-        <>
-          <div className="picker__header">
-            <input
-              ref={inputRef}
-              className="picker__search"
-              placeholder={placeholder}
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setActive(0);
-              }}
-              spellCheck={false}
-            />
-            {currentSymbol && (
-          <button
-            type="button"
-            className="picker__clear"
-            onClick={clear}
-            aria-label="Clear stitch"
-            title="Clear this stitch (Backspace)"
-          >
-            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-              <path
-                d="M3.5 5h9M6.5 5V3.5h3V5M4.5 5l.5 8h6l.5-8"
-                stroke="currentColor"
-                strokeWidth="1.3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                fill="none"
-              />
-            </svg>
-          </button>
-            )}
-            <button
-          type="button"
-          className="picker__close"
-          onClick={closePicker}
-          aria-label="Close"
-          title="Close (Esc)"
-        >
-          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-            <path
-              d="M3.5 3.5l9 9m0-9l-9 9"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              fill="none"
-            />
-          </svg>
-            </button>
-          </div>
-
-          <div className="picker__list" ref={listRef}>
-            {!query.trim() && (
-              <div className="picker__empty">Type to search all stitches.</div>
-            )}
-            {!!query.trim() && flat.length === 0 && matchingRepeats.length === 0 && (
+          {searchOpen && !!query.trim() && (
+            <div className="picker__results picker__list" ref={listRef}>
+            {flat.length === 0 && matchingRepeats.length === 0 && (
               <div className="picker__empty">No stitch matches that.</div>
             )}
 
             {matchingRepeats.length > 0 && (
-          <div>
-            <div className="picker__heading">This chart</div>
-            {matchingRepeats.map((repeat) => (
-              <button
-                key={repeat.id}
-                type="button"
-                className="picker__item"
-                onClick={() => {
-                  // A collision (e.g. the target cell, or another cell the
-                  // repeat's footprint covers, is already occupied) leaves
-                  // nothing placed - keep the picker open rather than
-                  // closing it on what looked like a no-op click.
-                  if (instantiateRepeat(repeat.id, target.col, target.row)) closePicker();
-                }}
-              >
-                <span className="picker__repeatGlyph" aria-hidden="true">↻</span>
-                <span className="picker__label">{repeat.name}</span>
-                <span className="picker__span">
-                  {repeat.width} × {repeat.height}
-                </span>
-              </button>
-            ))}
-          </div>
+              <div>
+                <div className="picker__heading">This chart</div>
+                {matchingRepeats.map((repeat) => (
+                  <button
+                    key={repeat.id}
+                    type="button"
+                    className="picker__item"
+                    onClick={() => {
+                      if (instantiateRepeat(repeat.id, target.col, target.row)) closePicker();
+                    }}
+                  >
+                    <span className="picker__repeatGlyph" aria-hidden="true">↻</span>
+                    <span className="picker__label">{repeat.name}</span>
+                    <span className="picker__span">{repeat.width} × {repeat.height}</span>
+                  </button>
+                ))}
+              </div>
             )}
 
             {sections.map((section) => (
-          <div key={section.key}>
-            {section.title && <div className="picker__heading">{section.title}</div>}
-            {section.symbols.map((symbol) => {
-              resultIndex += 1;
-              const isActive = resultIndex === active;
-              const at = resultIndex;
-              return (
-                <button
-                  key={`${section.key}:${symbol.id}`}
-                  type="button"
-                  className="picker__item"
-                  data-active={isActive}
-                  onPointerEnter={() => setActive(at)}
-                  onClick={() => choose(symbol)}
-                >
-                  <span className="picker__glyph">
-                    <SymbolGlyph symbol={symbol} cell={cellSizeFor(symbol)} />
-                  </span>
-                  <span className="picker__label">{symbol.label}</span>
-                  {symbol.id === target.currentSymbolId && (
-                    <span className="picker__current">current</span>
-                  )}
-                  {symbol.span > 1 && (
-                    <span className="picker__span">{symbol.span} sts</span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+              <div key={section.key}>
+                {section.symbols.map((symbol) => {
+                  resultIndex += 1;
+                  const isActive = resultIndex === active;
+                  const at = resultIndex;
+                  return (
+                    <button
+                      key={`${section.key}:${symbol.id}`}
+                      type="button"
+                      className="picker__item"
+                      data-active={isActive}
+                      onPointerEnter={() => setActive(at)}
+                      onClick={() => choose(symbol)}
+                    >
+                      <span className="picker__glyph">
+                        <SymbolGlyph symbol={symbol} cell={cellSizeFor(symbol)} />
+                      </span>
+                      <span className="picker__label">{symbol.label}</span>
+                      {symbol.id === target.currentSymbolId && (
+                        <span className="picker__current">current</span>
+                      )}
+                      {symbol.span > 1 && <span className="picker__span">{symbol.span} sts</span>}
+                    </button>
+                  );
+                })}
+              </div>
             ))}
-          </div>
-        </>
-      )}
+            </div>
+          )}
     </div>
   );
 }

@@ -52,6 +52,7 @@ export function CanvasView() {
     }
     if (s.isPanning) return GRABBING_CURSOR;
     if (s.spaceHeld) return GRAB_CURSOR;
+    if (s.keyboardSelectionActive) return "default";
     // An existing selection is draggable from any tool, so its own cells
     // always get the "grab" cursor - checked before the tool-specific cases.
     if (s.selectedPlacementIds.length) {
@@ -141,12 +142,15 @@ export function CanvasView() {
         state.camera !== prev.camera ||
         state.viewport !== prev.viewport ||
         state.hover !== prev.hover ||
+        state.insertHover !== prev.insertHover ||
+        state.insertAnimation !== prev.insertAnimation ||
         state.picker !== prev.picker ||
         state.selectedPlacementIds !== prev.selectedPlacementIds ||
         state.selectionBox !== prev.selectionBox ||
         state.selectionMove !== prev.selectionMove ||
         state.tool !== prev.tool ||
         state.selectHeld !== prev.selectHeld ||
+        state.keyboardSelectionActive !== prev.keyboardSelectionActive ||
         state.referenceImagePanelOpen !== prev.referenceImagePanelOpen ||
         state.referenceImageCalibrationBox !== prev.referenceImageCalibrationBox
       ) {
@@ -166,10 +170,13 @@ export function CanvasView() {
         camera,
         viewport,
         hover,
+        insertHover,
+        insertAnimation,
         picker,
         selectedPlacementIds,
         tool,
         selectHeld,
+        keyboardSelectionActive,
         selectionBox,
         selectionMove,
         referenceImagePanelOpen,
@@ -186,6 +193,8 @@ export function CanvasView() {
         camera,
         viewport,
         hover,
+        insertHover,
+        insertAnimation,
         index,
         revision,
         sprites,
@@ -198,10 +207,15 @@ export function CanvasView() {
         selectedPlacementIds,
         tool,
         selectHeld,
+        keyboardSelectionActive,
         selectionBox,
         selectionMove,
       });
       ctx.restore();
+      if (insertAnimation) {
+        if (performance.now() - insertAnimation.startedAt < 220) dirty.current = true;
+        else useUiStore.getState().setInsertAnimation(null);
+      }
     };
     frame = requestAnimationFrame(loop);
 
