@@ -38,10 +38,33 @@ export type SelectionMove = { col: number; row: number; blocked: boolean; duplic
 
 /** Five stable quick-access slots shared by the stitch picker and toolbar. */
 const QUICK_SLOT_LIMIT = 5;
+const QUICK_SLOT_STORAGE_KEY = "stitch-ease:quick-symbols";
 
 export function assignQuickSymbol(slots: string[], id: string): string[] {
   if (slots.includes(id) || slots.length >= QUICK_SLOT_LIMIT) return slots;
   return [...slots, id];
+}
+
+function loadQuickSymbolIds(): string[] {
+  if (typeof localStorage === "undefined") return [];
+  try {
+    const stored: unknown = JSON.parse(localStorage.getItem(QUICK_SLOT_STORAGE_KEY) ?? "[]");
+    if (!Array.isArray(stored)) return [];
+    return [...new Set(stored.filter((id): id is string => typeof id === "string"))]
+      .slice(0, QUICK_SLOT_LIMIT);
+  } catch {
+    return [];
+  }
+}
+
+function saveQuickSymbolIds(ids: string[]): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(QUICK_SLOT_STORAGE_KEY, JSON.stringify(ids));
+  } catch {
+    // Storage can be unavailable in private/restricted browser contexts;
+    // stable slots still work for the lifetime of the current app session.
+  }
 }
 
 type UiState = {
@@ -168,7 +191,7 @@ export const useUiStore = create<UiState>((set, get) => ({
 
   tool: "stitch",
   armedSymbolId: null,
-  quickSymbolIds: [],
+  quickSymbolIds: loadQuickSymbolIds(),
   picker: null,
   selectedPlacementIds: [],
   clipboardPlacements: [],
@@ -190,6 +213,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   chooseSymbol: (id, tool = "stitch") => {
     const current = get().quickSymbolIds;
     const quickSymbolIds = assignQuickSymbol(current, id);
+    if (quickSymbolIds !== current) saveQuickSymbolIds(quickSymbolIds);
     set({
       armedSymbolId: id,
       tool,
@@ -296,7 +320,6 @@ export const useUiStore = create<UiState>((set, get) => ({
     camera: defaultCamera(),
     tool: "stitch",
     armedSymbolId: null,
-    quickSymbolIds: [],
     picker: null,
     selectedPlacementIds: [],
     selectionBox: null,

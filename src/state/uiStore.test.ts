@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { assignQuickSymbol, useUiStore } from "./uiStore";
 
 beforeEach(() => {
+  useUiStore.setState({ quickSymbolIds: [], armedSymbolId: null, tool: "stitch" });
   useUiStore.getState().resetForChart();
   useUiStore.getState().setClipboardPlacements([]);
 });
@@ -22,7 +23,7 @@ describe("assignQuickSymbol", () => {
 });
 
 describe("resetForChart", () => {
-  it("clears the armed stitch and quick slots for a fresh chart session", () => {
+  it("clears the armed stitch while preserving stable quick slots", () => {
     useUiStore.getState().chooseSymbol("knit");
     useUiStore.getState().chooseSymbol("purl");
 
@@ -32,7 +33,7 @@ describe("resetForChart", () => {
     useUiStore.getState().resetForChart();
 
     expect(useUiStore.getState().armedSymbolId).toBeNull();
-    expect(useUiStore.getState().quickSymbolIds).toEqual([]);
+    expect(useUiStore.getState().quickSymbolIds).toEqual(["knit", "purl"]);
     expect(useUiStore.getState().tool).toBe("stitch");
   });
 
