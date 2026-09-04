@@ -150,6 +150,12 @@ describe("referenceImage", () => {
     expect(decoded.referenceImage).toEqual(image);
   });
 
+  it("round-trips the calibrated stitch pin, so alignment survives a reload", () => {
+    const calibrated = { ...image, stitchPin: { u: 0.25, v: 0.5 } };
+    const stored = encode([place("knit", 0, 0)], [], calibrated);
+    expect(decode(stored, known).referenceImage).toEqual(calibrated);
+  });
+
   it("is omitted entirely when there isn't one, not stored as null/undefined", () => {
     const stored = encode([place("knit", 0, 0)]);
     expect(stored).not.toHaveProperty("referenceImage");
@@ -163,6 +169,11 @@ describe("referenceImage", () => {
       "zero height": { ...image, height: 0 },
       "negative naturalWidth": { ...image, naturalWidth: -1 },
       "non-boolean visible": { ...image, visible: "yes" },
+      // An off-image pin would anchor every resize to a point that isn't
+      // on the image at all.
+      "out-of-range stitchPin": { ...image, stitchPin: { u: 1.5, v: 0.5 } },
+      "incomplete stitchPin": { ...image, stitchPin: { u: 0.5 } },
+      "non-numeric stitchPin": { ...image, stitchPin: { u: "0.5", v: 0.5 } },
     };
     for (const referenceImage of Object.values(bad)) {
       const stored = { ...encode([]), referenceImage };
