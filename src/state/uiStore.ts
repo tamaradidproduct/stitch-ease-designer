@@ -25,6 +25,8 @@ export type PickerTarget = {
   selectionSpan?: number;
   /** When true, choosing a symbol inserts and shifts rather than placing/replacing. */
   insert?: boolean;
+  /** When true, choosing a symbol only arms Draw instead of editing the canvas. */
+  armOnly?: boolean;
 };
 
 export type SelectionBox = { start: Cell; current: Cell };
@@ -36,12 +38,11 @@ export type SelectionBox = { start: Cell; current: Cell };
  */
 export type SelectionMove = { col: number; row: number; blocked: boolean; duplicating: boolean };
 
-/** Five stable quick-access slots shared by the stitch picker and toolbar. */
-const QUICK_SLOT_LIMIT = 5;
+/** Stable quick-access order; the first five entries also have number-key shortcuts. */
 const QUICK_SLOT_STORAGE_KEY = "stitch-ease:quick-symbols";
 
 export function assignQuickSymbol(slots: string[], id: string): string[] {
-  if (slots.includes(id) || slots.length >= QUICK_SLOT_LIMIT) return slots;
+  if (slots.includes(id)) return slots;
   return [...slots, id];
 }
 
@@ -50,8 +51,7 @@ function loadQuickSymbolIds(): string[] {
   try {
     const stored: unknown = JSON.parse(localStorage.getItem(QUICK_SLOT_STORAGE_KEY) ?? "[]");
     if (!Array.isArray(stored)) return [];
-    return [...new Set(stored.filter((id): id is string => typeof id === "string"))]
-      .slice(0, QUICK_SLOT_LIMIT);
+    return [...new Set(stored.filter((id): id is string => typeof id === "string"))];
   } catch {
     return [];
   }
@@ -85,6 +85,9 @@ type UiState = {
   selectHeld: boolean;
   /** Suppresses stale pointer feedback after keyboard-driven selection until the mouse moves. */
   keyboardSelectionActive: boolean;
+  /** Editor-only tint behind placed stitches, useful when tracing a reference image. */
+  stitchHighlightColor: string;
+  stitchHighlightOpacity: number;
   isPanning: boolean;
 
   tool: Tool;
@@ -132,6 +135,8 @@ type UiState = {
   setArmedSymbolId: (id: string | null) => void;
   /** Arms `id`; lands back on `tool` (Draw by default - Insert stays Insert). */
   chooseSymbol: (id: string, tool?: Tool) => void;
+  /** Removes a stitch from its quick-access assignment. */
+  removeQuickSymbol: (id: string) => void;
   openPicker: (target: PickerTarget) => void;
   closePicker: () => void;
   selectPlacement: (id: string, additive: boolean) => void;
@@ -152,9 +157,12 @@ type UiState = {
   setSpaceHeld: (held: boolean) => void;
   setSelectHeld: (held: boolean) => void;
   setKeyboardSelectionActive: (active: boolean) => void;
+  setStitchHighlight: (color: string, opacity?: number) => void;
+  setStitchHighlightOpacity: (opacity: number) => void;
   setPanning: (panning: boolean) => void;
   panByScreen: (dx: number, dy: number) => void;
   zoomAt: (factor: number, sx: number, sy: number) => void;
+  centerViewAt100: (x: number, y: number) => void;
   resetView: () => void;
   /** Start an opened chart without carrying transient tools from another chart/session. */
   resetForChart: () => void;
@@ -172,6 +180,8 @@ export const useUiStore = create<UiState>((set, get) => ({
   spaceHeld: false,
   selectHeld: false,
   keyboardSelectionActive: false,
+  stitchHighlightColor: "#f59e0b",
+  stitchHighlightOpacity: 0,
   isPanning: false,
   referenceImagePanelOpen: false,
   setReferenceImagePanelOpen: (open) =>
@@ -221,6 +231,17 @@ export const useUiStore = create<UiState>((set, get) => ({
       picker: null,
       selectedPlacementIds: [],
       lastClearedSelection: null,
+    });
+  },
+
+  removeQuickSymbol: (id) => {
+    const state = get();
+    const quickSymbolIds = state.quickSymbolIds.filter((symbolId) => symbolId !== id);
+    if (quickSymbolIds.length === state.quickSymbolIds.length) return;
+    saveQuickSymbolIds(quickSymbolIds);
+    set({
+      quickSymbolIds,
+      ...(state.armedSymbolId === id ? { armedSymbolId: null } : {}),
     });
   },
 
@@ -298,6 +319,11 @@ export const useUiStore = create<UiState>((set, get) => ({
     if (get().keyboardSelectionActive === keyboardSelectionActive) return;
     set({ keyboardSelectionActive });
   },
+  setStitchHighlight: (stitchHighlightColor, opacity) => set({
+    stitchHighlightColor,
+    ...(opacity === undefined ? null : { stitchHighlightOpacity: opacity }),
+  }),
+  setStitchHighlightOpacity: (stitchHighlightOpacity) => set({ stitchHighlightOpacity }),
 
   setPanning: (isPanning) => set({ isPanning }),
 
@@ -313,6 +339,8 @@ export const useUiStore = create<UiState>((set, get) => ({
     const next = zoomAt(camera, factor, sx, sy, viewport);
     if (next !== camera) set({ camera: next, picker: null });
   },
+
+  centerViewAt100: (x, y) => set({ camera: { x, y, zoom: 1 }, picker: null }),
 
   resetView: () => set({ camera: defaultCamera(), picker: null }),
 

@@ -19,6 +19,7 @@ const isTyping = (target: EventTarget | null) =>
  *   /                 open the picker at the hovered cell
  *   escape            clear selection, or disarm the current stitch
  *   S / D / E / I     select / draw / erase / insert
+ *   1–5               arm the stitch in that quick-access slot
  *   Delete/Backspace  erase the selection
  */
 export function useShortcuts(): void {
@@ -36,6 +37,15 @@ export function useShortcuts(): void {
 
       const ui = useUiStore.getState();
       const doc = useDocStore.getState();
+
+      if (/^[1-5]$/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const symbolId = ui.quickSymbolIds[Number(e.key) - 1];
+        if (symbolId) {
+          e.preventDefault();
+          ui.chooseSymbol(symbolId);
+        }
+        return;
+      }
 
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
         e.preventDefault();

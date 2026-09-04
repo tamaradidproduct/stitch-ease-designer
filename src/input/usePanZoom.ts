@@ -128,6 +128,16 @@ export function usePanZoom(ref: RefObject<HTMLCanvasElement | null>): void {
         e.preventDefault();
         ui().resetView();
       }
+      if ((e.metaKey || e.ctrlKey) && (e.key === "+" || e.key === "=")) {
+        e.preventDefault();
+        const { viewport } = ui();
+        ui().zoomAt(1.2, viewport.width / 2, viewport.height / 2);
+      }
+      if ((e.metaKey || e.ctrlKey) && (e.key === "-" || e.key === "_")) {
+        e.preventDefault();
+        const { viewport } = ui();
+        ui().zoomAt(1 / 1.2, viewport.width / 2, viewport.height / 2);
+      }
     };
 
     const onKeyUp = (e: KeyboardEvent) => {

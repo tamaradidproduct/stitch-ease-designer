@@ -32,8 +32,6 @@ export function ReferenceImagePanel() {
   const [error, setError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement | null>(null);
 
-  if (!open) return null;
-
   // Each axis's size as a percentage of its uploaded pixel dimensions - 100%
   // means one world unit per source pixel, same "how zoomed in is it"
   // reading a percentage has anywhere else in an image editor. Independent
@@ -94,9 +92,26 @@ export function ReferenceImagePanel() {
   };
 
   return (
-    <div className="refpanel">
-      <div className="refpanel__header">
-        <span className="refpanel__title">Reference image</span>
+    <section className="sideModule refpanel">
+      <button
+        type="button"
+        className="sideModule__header sideModule__toggle"
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+      >
+        <div>
+          <h2>Reference image</h2>
+          <span>{image ? (image.visible ? "Visible on canvas" : "Hidden") : "No image added"}</span>
+        </div>
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" data-open={open}>
+          <path d="m4 6 4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+        </svg>
+      </button>
+
+      {open && (
+      <div className="refpanel__body">
+        <div className="refpanel__header">
+          <span className="refpanel__title">Image controls</span>
         <button
           type="button"
           className="picker__close"
@@ -113,9 +128,7 @@ export function ReferenceImagePanel() {
             />
           </svg>
         </button>
-      </div>
-
-      <div className="refpanel__body">
+        </div>
         <input
           ref={fileInput}
           type="file"
@@ -267,6 +280,7 @@ export function ReferenceImagePanel() {
 
         {error && <p className="refpanel__error">{error}</p>}
       </div>
-    </div>
+      )}
+    </section>
   );
 }

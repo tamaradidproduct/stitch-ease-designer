@@ -15,10 +15,10 @@ describe("assignQuickSymbol", () => {
     expect(assignQuickSymbol(slots, "knit")).toBe(slots);
   });
 
-  it("leaves a full set of five slots unchanged", () => {
+  it("progressively adds a slot after the first five", () => {
     const slots = ["knit", "purl", "yo", "m1l", "m1r"];
 
-    expect(assignQuickSymbol(slots, "k2tog")).toBe(slots);
+    expect(assignQuickSymbol(slots, "k2tog")).toEqual([...slots, "k2tog"]);
   });
 });
 
@@ -52,5 +52,16 @@ describe("resetForChart", () => {
     useUiStore.getState().resetForChart();
 
     expect(useUiStore.getState().clipboardPlacements).toEqual(copied);
+  });
+});
+
+describe("removeQuickSymbol", () => {
+  it("removes the assignment and disarms the removed stitch", () => {
+    useUiStore.getState().chooseSymbol("knit");
+    useUiStore.getState().chooseSymbol("purl");
+    useUiStore.getState().removeQuickSymbol("purl");
+
+    expect(useUiStore.getState().quickSymbolIds).toEqual(["knit"]);
+    expect(useUiStore.getState().armedSymbolId).toBeNull();
   });
 });

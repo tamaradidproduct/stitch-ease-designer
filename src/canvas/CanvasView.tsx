@@ -30,6 +30,11 @@ import { SpriteCache } from "./spriteCache";
 export function CanvasView() {
   const ref = useRef<HTMLCanvasElement | null>(null);
   const dirty = useRef(true);
+  // A hot-reloaded renderer can change without any store state changing.
+  // Re-render once so visual-only edits appear immediately in the preview.
+  useEffect(() => {
+    dirty.current = true;
+  });
   // The cursor selector below reads useDocStore.getState().index imperatively
   // (it isn't itself a useDocStore selector), so without this subscription a
   // doc-only change like undo/redo - which bumps revision without touching
@@ -44,7 +49,10 @@ export function CanvasView() {
     if (s.referenceImagePanelOpen) {
       if (s.referenceImageCalibrating) return "crosshair";
       const image = useDocStore.getState().referenceImage;
-      return image && image.visible && !image.locked ? "move" : "default";
+      // An expanded module isn't itself a canvas mode. Only an editable,
+      // visible image takes over the cursor; otherwise the chosen stitch
+      // tool below (including Erase) remains in control.
+      if (image && image.visible && !image.locked) return "move";
     }
     if (s.selectionMove) {
       if (s.selectionMove.blocked) return BLOCKED_MOVE_CURSOR;
@@ -151,6 +159,8 @@ export function CanvasView() {
         state.tool !== prev.tool ||
         state.selectHeld !== prev.selectHeld ||
         state.keyboardSelectionActive !== prev.keyboardSelectionActive ||
+        state.stitchHighlightColor !== prev.stitchHighlightColor ||
+        state.stitchHighlightOpacity !== prev.stitchHighlightOpacity ||
         state.referenceImagePanelOpen !== prev.referenceImagePanelOpen ||
         state.referenceImageCalibrationBox !== prev.referenceImageCalibrationBox
       ) {
@@ -177,6 +187,8 @@ export function CanvasView() {
         tool,
         selectHeld,
         keyboardSelectionActive,
+        stitchHighlightColor,
+        stitchHighlightOpacity,
         selectionBox,
         selectionMove,
         referenceImagePanelOpen,
@@ -208,6 +220,8 @@ export function CanvasView() {
         tool,
         selectHeld,
         keyboardSelectionActive,
+        stitchHighlightColor,
+        stitchHighlightOpacity,
         selectionBox,
         selectionMove,
       });
