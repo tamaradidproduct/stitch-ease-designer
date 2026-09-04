@@ -175,8 +175,12 @@ export function stitchResizeTransform(
   cursor: Point,
   zoom: number,
 ): Partial<ReferenceImage> | null {
-  const fx = (cursor.x - startImage.x) / startImage.width;
-  const fy = (cursor.y - startImage.y) / startImage.height;
+  // The green box is a stitch *in this image*, so its dragged corner cannot
+  // leave the image's own 0..1 coordinate space. Besides keeping the box
+  // meaningful, this prevents persisting an invalid stitchPin that the chart
+  // serializer would reject on the next reload.
+  const fx = Math.max(0, Math.min(1, (cursor.x - startImage.x) / startImage.width));
+  const fy = Math.max(0, Math.min(1, (cursor.y - startImage.y) / startImage.height));
   const boxW = Math.abs(fx - anchorFrac.x);
   const boxH = Math.abs(fy - anchorFrac.y);
 
