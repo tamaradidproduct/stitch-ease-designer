@@ -212,9 +212,25 @@ function validate(stored: unknown): StoredChart {
       !(img.naturalHeight > 0) ||
       typeof img.opacity !== "number" ||
       typeof img.visible !== "boolean" ||
-      typeof img.locked !== "boolean"
+      typeof img.locked !== "boolean" ||
+      (img.inFront !== undefined && typeof img.inFront !== "boolean")
     ) {
       throw new ChartFormatError("referenceImage is invalid");
+    }
+    if (img.stitchPin !== undefined) {
+      const pin = img.stitchPin as Partial<NonNullable<ReferenceImage["stitchPin"]>> | null;
+      // A fraction of the image, so both components are bounded - anything
+      // outside 0..1 would pin a point that isn't on the image at all.
+      if (
+        typeof pin !== "object" ||
+        pin === null ||
+        typeof pin.u !== "number" ||
+        typeof pin.v !== "number" ||
+        !(pin.u >= 0 && pin.u <= 1) ||
+        !(pin.v >= 0 && pin.v <= 1)
+      ) {
+        throw new ChartFormatError("referenceImage.stitchPin is invalid");
+      }
     }
   }
 

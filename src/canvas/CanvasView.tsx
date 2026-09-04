@@ -44,7 +44,16 @@ export function CanvasView() {
     if (s.referenceImagePanelOpen) {
       if (s.referenceImageCalibrating) return "crosshair";
       const image = useDocStore.getState().referenceImage;
-      return image && image.visible && !image.locked ? "move" : "default";
+      if (!image || !image.visible || image.locked) return "default";
+      // Handles say which way they resize; everywhere else on the image is
+      // a move. The edges have no drawn marker of their own, so this cursor
+      // is the only thing announcing them - which is how every other design
+      // tool does it too.
+      const handle = s.referenceImageHandle?.handle;
+      if (handle === "l" || handle === "r") return "ew-resize";
+      if (handle === "t" || handle === "b") return "ns-resize";
+      if (handle) return handle === "bl" || handle === "tr" ? "nesw-resize" : "nwse-resize";
+      return "move";
     }
     if (s.selectionMove) {
       if (s.selectionMove.blocked) return BLOCKED_MOVE_CURSOR;
