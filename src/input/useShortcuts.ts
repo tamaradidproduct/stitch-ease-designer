@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { CELL, cellToScreenRect } from "../canvas/camera";
 import type { Placement } from "../model/types";
+import { patchCalibrationPoint } from "../model/referenceCalibration";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
 
@@ -183,6 +184,22 @@ export function useShortcuts(): void {
       // move either way.
       if (ARROWS[e.key] && ui.referenceImagePanelOpen && !e.metaKey && !e.ctrlKey) {
         const image = doc.referenceImage;
+        // With a mark selected, the arrows belong to it rather than to the
+        // photo: a mark names one stitch out of hundreds, and lining it up
+        // is finer work than a mouse drag can finish.
+        const active = image?.calibrationPoints?.find((p) => p.id === ui.referenceImageActiveMark);
+        if (ui.referenceImageMarking && active && image) {
+          e.preventDefault();
+          const step = e.shiftKey ? CELL : 1;
+          const [dx, dy] = ARROWS[e.key]!;
+          doc.updateReferenceImage({
+            calibrationPoints: patchCalibrationPoint(image.calibrationPoints, active.id, {
+              u: Math.max(0, Math.min(1, active.u + (dx * step) / image.width)),
+              v: Math.max(0, Math.min(1, active.v + (dy * step) / image.height)),
+            }),
+          });
+          return;
+        }
         if (image && image.visible && !image.locked) {
           e.preventDefault();
           // A whole cell with shift, otherwise a single world unit - 1/24th

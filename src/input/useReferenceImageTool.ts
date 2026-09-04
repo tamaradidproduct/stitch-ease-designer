@@ -23,8 +23,15 @@ import { useUiStore } from "../state/uiStore";
 
 /** Hit-radius for the resize handle, in screen px (constant regardless of zoom). */
 const HANDLE_PX = 10;
-/** Hit-radius for a placed calibration mark, in screen px. */
-const MARK_PX = 9;
+/**
+ * Hit-radius for grabbing a placed calibration mark, in screen px.
+ *
+ * Deliberately larger than the 18px reticle it grabs. A press that missed
+ * used to drop a *second* mark on top of the first rather than picking it
+ * up, so aiming slightly off didn't just fail - it silently added a mark
+ * and moved that instead, which reads as "the marks won't drag".
+ */
+const MARK_PX = 15;
 /** Smallest a reference image can be scaled down to, in world units. */
 const MIN_SIZE = 24;
 /**

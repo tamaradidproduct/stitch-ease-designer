@@ -1,6 +1,9 @@
 import { useRef, useState } from "react";
 import { CELL } from "../canvas/camera";
-import { scaleFromCalibrationPoints } from "../model/referenceCalibration";
+import {
+  scaleFromCalibrationPoints,
+  withoutCalibrationPoint,
+} from "../model/referenceCalibration";
 import { resizeReferenceImageAround, stitchBoxRect } from "../model/types";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
@@ -26,6 +29,7 @@ export function ReferenceImagePanel() {
   const marking = useUiStore((s) => s.referenceImageMarking);
   const setMarking = useUiStore((s) => s.setReferenceImageMarking);
   const setActiveMark = useUiStore((s) => s.setReferenceImageActiveMark);
+  const activeMark = useUiStore((s) => s.referenceImageActiveMark);
   const setCalibrationRejected = useUiStore((s) => s.setReferenceImageCalibrationRejected);
 
   const meta = useDocStore((s) => s.meta);
@@ -237,12 +241,59 @@ export function ReferenceImagePanel() {
             </label>
             {marking && (
               <div className="refpanel__marks">
+                {points.length === 0 ? (
+                  <p className="refpanel__hint">No marks yet.</p>
+                ) : (
+                  <ul className="refpanel__markList">
+                    {points.map((point, i) => {
+                      const named = point.stitch !== null && point.row !== null;
+                      return (
+                        <li key={point.id}>
+                          {/* Selecting here opens that mark's popover on the
+                              canvas, so the panel stays a summary and there
+                              is only ever one place to type. */}
+                          <button
+                            type="button"
+                            className="refpanel__markRow"
+                            data-active={point.id === activeMark}
+                            onClick={() => setActiveMark(point.id)}
+                          >
+                            <span className="refpanel__markIndex" data-labelled={named}>
+                              {i + 1}
+                            </span>
+                            <span className="refpanel__markNumbers" data-unset={!named}>
+                              {point.stitch === null && point.row === null
+                                ? "not numbered"
+                                : `st ${point.stitch ?? "?"} · row ${point.row ?? "?"}`}
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            className="refpanel__markRemove"
+                            title="Remove this mark"
+                            onClick={() => {
+                              updateReferenceImage({
+                                calibrationPoints: withoutCalibrationPoint(
+                                  image.calibrationPoints,
+                                  point.id,
+                                ),
+                              });
+                              if (point.id === activeMark) setActiveMark(null);
+                            }}
+                          >
+                            &times;
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
                 <p className="refpanel__hint">
-                  {labelled.length < 2
-                    ? `${points.length} mark${points.length === 1 ? "" : "s"} placed, ${labelled.length} numbered.`
-                    : fit
-                      ? `${labelled.length} numbered — ready to scale.`
-                      : `${labelled.length} numbered, but they need two different stitch numbers and two different row numbers.`}
+                  {fit
+                    ? `${labelled.length} numbered — ready to scale.`
+                    : labelled.length < 2
+                      ? "Number at least two marks."
+                      : "Needs two different stitch numbers and two different row numbers."}
                 </p>
                 <div className="refpanel__markActions">
                   <button

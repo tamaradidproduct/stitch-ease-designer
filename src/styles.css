@@ -968,6 +968,81 @@ body {
   gap: 6px;
 }
 
+.refpanel__markList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.refpanel__markList li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.refpanel__markRow {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.refpanel__markRow:hover {
+  background: var(--chrome);
+}
+
+.refpanel__markRow[data-active="true"] {
+  border-color: var(--accent);
+}
+
+.refpanel__markNumbers[data-unset="true"] {
+  color: var(--text-muted);
+}
+
+/* Matches the badge drawn beside the mark on the canvas. */
+.refpanel__markIndex {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border-radius: 50%;
+  background: #94a3b8;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.refpanel__markIndex[data-labelled="true"] {
+  background: #7c3aed;
+}
+
+.refpanel__markRemove {
+  border: 0;
+  background: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 4px;
+}
+
+.refpanel__markRemove:hover {
+  color: var(--text);
+}
+
 /* The stitch/row prompt anchored to the mark just placed on the canvas. */
 .markpop {
   position: absolute;
