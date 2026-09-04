@@ -42,7 +42,9 @@ export function CanvasView() {
     // this is about a tool it has already overridden the hover/selection
     // feedback for.
     if (s.referenceImagePanelOpen) {
-      if (s.referenceImageCalibrating) return "crosshair";
+      // Both calibration modes aim at a specific point, which is exactly
+      // what a crosshair is for.
+      if (s.referenceImageCalibrating || s.referenceImageMarking) return "crosshair";
       const image = useDocStore.getState().referenceImage;
       if (!image || !image.visible || image.locked) return "default";
       // Handles say which way they resize; everywhere else on the image is
@@ -161,7 +163,8 @@ export function CanvasView() {
         state.selectHeld !== prev.selectHeld ||
         state.keyboardSelectionActive !== prev.keyboardSelectionActive ||
         state.referenceImagePanelOpen !== prev.referenceImagePanelOpen ||
-        state.referenceImageCalibrationBox !== prev.referenceImageCalibrationBox
+        state.referenceImageCalibrationBox !== prev.referenceImageCalibrationBox ||
+        state.referenceImagePoints !== prev.referenceImagePoints
       ) {
         markDirty();
       }
@@ -191,6 +194,7 @@ export function CanvasView() {
         referenceImagePanelOpen,
         referenceImageCalibrating,
         referenceImageCalibrationBox,
+        referenceImagePoints,
       } = useUiStore.getState();
       const { index, revision, referenceImage } = useDocStore.getState();
       const dpr = window.devicePixelRatio || 1;
@@ -212,6 +216,7 @@ export function CanvasView() {
         referenceImagePanelOpen,
         referenceImageCalibrating,
         referenceImageCalibrationBox,
+        referenceImagePoints,
         pickerTarget: picker,
         selectedPlacementIds,
         tool,

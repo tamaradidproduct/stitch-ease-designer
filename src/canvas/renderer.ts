@@ -2,6 +2,7 @@ import type { DocIndex } from "../model/docIndex";
 import { canInsertAt } from "../model/ops";
 import { rowDirectionAt } from "../model/rowDirection";
 import { chartTopology, knittedRowNumbers, roundStitchNumbers } from "../model/stitchNumbers";
+import type { CalibrationPoint } from "../model/referenceCalibration";
 import { CORNERS, cornerPoint, stitchBoxRect, type ReferenceImage } from "../model/types";
 import { getSymbol } from "../symbols/registry";
 import {
@@ -42,6 +43,7 @@ export type RenderState = {
   referenceImageCalibrating: boolean;
   /** The calibration box's corners in world space, while one's being dragged out. */
   referenceImageCalibrationBox: { start: Point; current: Point } | null;
+  referenceImagePoints: CalibrationPoint[];
   /** Cell whose place, replace, or insert picker is currently open. */
   pickerTarget: PickerTarget | null;
   selectedPlacementIds: string[];
@@ -408,7 +410,7 @@ function drawEditHighlight(
  * being dragged out.
  */
 function drawReferenceImageOverlay(ctx: CanvasRenderingContext2D, state: RenderState): void {
-  const { referenceImagePanelOpen, referenceImage, referenceImageCalibrationBox, camera: cam, viewport: vp } =
+  const { referenceImagePanelOpen, referenceImage, referenceImageCalibrationBox, referenceImagePoints, camera: cam, viewport: vp } =
     state;
   if (!referenceImagePanelOpen) return;
 
@@ -485,6 +487,48 @@ function drawReferenceImageOverlay(ctx: CanvasRenderingContext2D, state: RenderS
       ctx.stroke();
     }
     ctx.restore();
+  }
+
+  // The calibration marks, numbered in the order they were placed so the
+  // panel's rows can be matched to them by eye. Drawn over everything else
+  // in the overlay: they are what's being aimed, and a handle sitting on
+  // top of one would hide exactly the pixel being aimed at.
+  if (referenceImage?.visible && referenceImagePoints.length) {
+    for (const [i, p] of referenceImagePoints.entries()) {
+      const s = worldToScreen(
+        referenceImage.x + p.u * referenceImage.width,
+        referenceImage.y + p.v * referenceImage.height,
+        cam,
+        vp,
+      );
+      const labelled = p.stitch !== null && p.row !== null;
+      ctx.save();
+      // A cross-hair rather than a filled dot: the mark names one point,
+      // and a dot big enough to click would cover it.
+      ctx.strokeStyle = labelled ? "#7c3aed" : "#94a3b8";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(s.x - 8, s.y);
+      ctx.lineTo(s.x + 8, s.y);
+      ctx.moveTo(s.x, s.y - 8);
+      ctx.lineTo(s.x, s.y + 8);
+      ctx.strokeStyle = "#ffffff";
+      ctx.stroke();
+      ctx.strokeStyle = labelled ? "#7c3aed" : "#94a3b8";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      ctx.fillStyle = labelled ? "#7c3aed" : "#94a3b8";
+      ctx.beginPath();
+      ctx.arc(s.x + 11, s.y - 11, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "600 11px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(String(i + 1), s.x + 11, s.y - 10);
+      ctx.restore();
+    }
   }
 
   if (referenceImageCalibrationBox) {

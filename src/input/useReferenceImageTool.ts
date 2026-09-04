@@ -12,11 +12,14 @@ import {
   type Corner,
   type ReferenceImage,
 } from "../model/types";
+import { snapImageToGrid, type CalibrationPoint } from "../model/referenceCalibration";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
 
 /** Hit-radius for the resize handle, in screen px (constant regardless of zoom). */
 const HANDLE_PX = 10;
+/** Hit-radius for a placed calibration mark, in screen px. */
+const MARK_PX = 9;
 /** Smallest a reference image can be scaled down to, in world units. */
 const MIN_SIZE = 24;
 /**
@@ -74,7 +77,16 @@ type Drag =
       /** ...and as a fraction of the image, which the rescale preserves. */
       anchorFrac: { x: number; y: number };
     }
-  | { mode: "calibrate"; start: Point };
+  | { mode: "calibrate"; start: Point }
+  | {
+      /**
+       * Nudging an already-placed mark. Marks are read off printed numbers
+       * a few source pixels apart, so being able to correct one by a pixel
+       * without re-placing it is what makes four of them worth collecting.
+       */
+      mode: "markMove";
+      id: string;
+    };
 
 /**
  * Computes the transform that makes the box the user just drew equal one
@@ -124,30 +136,6 @@ export function calibrationTransform(
       u: (anchor.x - resized.x) / resized.width,
       v: (anchor.y - resized.y) / resized.height,
     },
-  };
-}
-
-/**
- * Nudges a candidate image position so the calibrated stitch lands squarely
- * on a grid cell.
- *
- * The stitch box is exactly one cell, so putting its bottom-left on a grid
- * intersection makes it coincide with a cell outright - which is the whole
- * goal of positioning a chart photo, and fiddly to hit by hand at any
- * useful zoom. The nearest intersection is always within half a cell, so
- * this needs no threshold: it can only ever pull the image a short way.
- */
-export function snapImageToGrid(
-  x: number,
-  y: number,
-  size: { width: number; height: number },
-  pin: { u: number; v: number },
-): { x: number; y: number } {
-  const pinX = x + pin.u * size.width;
-  const pinY = y + pin.v * size.height;
-  return {
-    x: x + (Math.round(pinX / CELL) * CELL - pinX),
-    y: y + (Math.round(pinY / CELL) * CELL - pinY),
   };
 }
 
@@ -208,6 +196,20 @@ export function stitchResizeTransform(
  * at, so a stitch box shrunk to a speck can't quietly swallow every click
  * meant for the image underneath it.
  */
+/**
+ * The calibration mark under the cursor, if any - so clicking an existing
+ * one nudges it instead of dropping a second mark on top of it.
+ */
+function markAt(image: ReferenceImage, w: Point, zoom: number): CalibrationPoint | null {
+  const radius = MARK_PX / zoom;
+  for (const p of useUiStore.getState().referenceImagePoints) {
+    const x = image.x + p.u * image.width;
+    const y = image.y + p.v * image.height;
+    if (Math.abs(w.x - x) <= radius && Math.abs(w.y - y) <= radius) return p;
+  }
+  return null;
+}
+
 export function handleAt(
   image: ReferenceImage,
   w: Point,
@@ -295,6 +297,28 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
       if (image.locked || !image.visible) return;
 
       const zoom = useUiStore.getState().camera.zoom;
+
+      // Marking is a mode too, but unlike the box it only claims clicks on
+      // the image itself - the marks name stitches *in the photo*, so a
+      // click outside it can't mean anything and is left to pan/zoom.
+      if (useUiStore.getState().referenceImageMarking) {
+        const u = (w.x - image.x) / image.width;
+        const v = (w.y - image.y) / image.height;
+        if (u < 0 || u > 1 || v < 0 || v > 1) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        const existing = markAt(image, w, zoom);
+        if (existing) {
+          drag = { mode: "markMove", id: existing.id };
+        } else {
+          const id = `mark_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+          useUiStore.getState().addReferenceImagePoint({ id, u, v, stitch: null, row: null });
+          drag = { mode: "markMove", id };
+        }
+        canvas.setPointerCapture(e.pointerId);
+        return;
+      }
+
       const handle = handleAt(image, w, zoom);
       const inside =
         w.x >= image.x &&
@@ -432,6 +456,13 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
           useUiStore.getState().camera.zoom,
         );
         if (next) useDocStore.getState().updateReferenceImage(next);
+      } else if (drag.mode === "markMove") {
+        const img = useDocStore.getState().referenceImage;
+        if (!img) return;
+        useUiStore.getState().updateReferenceImagePoint(drag.id, {
+          u: Math.max(0, Math.min(1, (w.x - img.x) / img.width)),
+          v: Math.max(0, Math.min(1, (w.y - img.y) / img.height)),
+        });
       } else {
         useUiStore.getState().setReferenceImageCalibrationBox({ start: drag.start, current: w });
       }

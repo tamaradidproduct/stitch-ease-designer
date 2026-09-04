@@ -1,12 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CELL } from "../canvas/camera";
 import { cornerPoint, stitchBoxRect, type ReferenceImage } from "../model/types";
-import {
-  calibrationTransform,
-  handleAt,
-  snapImageToGrid,
-  stitchResizeTransform,
-} from "./useReferenceImageTool";
+import { calibrationTransform, handleAt, stitchResizeTransform } from "./useReferenceImageTool";
 
 /**
  * Deliberately the shape that used to break: a chart photo scaled down to
@@ -200,51 +195,5 @@ describe("stitchResizeTransform", () => {
     const next = stitchResizeTransform(startImage, anchorWorld, anchorFrac, { x: -100, y: -100 }, 1)!;
 
     expect(next.stitchPin).toEqual({ u: 0, v: 0 });
-  });
-});
-
-describe("snapImageToGrid", () => {
-  const size = { width: 480, height: 360 };
-  const pin = { u: 0.25, v: 0.5 }; // pin sits 120 right and 180 up from the origin
-
-  const pinAt = (x: number, y: number) => ({
-    x: x + pin.u * size.width,
-    y: y + pin.v * size.height,
-  });
-
-  it("lands the pin exactly on a grid intersection", () => {
-    const next = snapImageToGrid(7, -3, size, pin);
-    const p = pinAt(next.x, next.y);
-    expect(p.x % CELL).toBeCloseTo(0, 9);
-    expect(p.y % CELL).toBeCloseTo(0, 9);
-  });
-
-  it("picks the nearest intersection, so it never pulls more than half a cell", () => {
-    for (const [x, y] of [
-      [0, 0],
-      [5, 5],
-      [-13, 41],
-      [1000.4, -777.9],
-    ]) {
-      const next = snapImageToGrid(x!, y!, size, pin);
-      expect(Math.abs(next.x - x!)).toBeLessThanOrEqual(CELL / 2 + 1e-9);
-      expect(Math.abs(next.y - y!)).toBeLessThanOrEqual(CELL / 2 + 1e-9);
-    }
-  });
-
-  it("leaves an already-aligned image exactly alone", () => {
-    const aligned = snapImageToGrid(0, 0, size, pin);
-    expect(snapImageToGrid(aligned.x, aligned.y, size, pin)).toEqual(aligned);
-  });
-
-  it("makes the stitch box coincide with a real chart cell", () => {
-    const img = { ...smallImage(), ...size, stitchPin: pin };
-    const snapped = { ...img, ...snapImageToGrid(11, 7, size, pin) };
-    const box = stitchBoxRect(snapped)!;
-    // Same size as a cell and on a cell boundary: it *is* a cell.
-    expect(box.width).toBe(CELL);
-    expect(box.height).toBe(CELL);
-    expect(Math.round(box.x / CELL) * CELL).toBeCloseTo(box.x, 9);
-    expect(Math.round(box.y / CELL) * CELL).toBeCloseTo(box.y, 9);
   });
 });

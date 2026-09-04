@@ -8,6 +8,7 @@ import {
   panByScreen,
   zoomAt,
 } from "../canvas/camera";
+import type { CalibrationPoint } from "../model/referenceCalibration";
 import type { BoxHandle, Placement } from "../model/types";
 
 export type Tool = "select" | "stitch" | "eraser" | "insert";
@@ -141,6 +142,25 @@ type UiState = {
   /** The calibration box's two corners in world space, while it's being dragged out. */
   referenceImageCalibrationBox: { start: Point; current: Point } | null;
   setReferenceImageCalibrationBox: (box: { start: Point; current: Point } | null) => void;
+  /**
+   * Armed by "Set scale from stitches": clicks on the canvas drop marks on
+   * the photo instead of moving it. Unlike the one-shot box calibration
+   * this is a mode you stay in, because it takes four marks and typing
+   * their numbers in between.
+   */
+  referenceImageMarking: boolean;
+  setReferenceImageMarking: (marking: boolean) => void;
+  /**
+   * The marks placed so far, each naming a stitch and row read off the
+   * photo. Held here rather than on the document: they are scaffolding for
+   * one calibration, not part of the chart, and the scale they produce is
+   * what actually persists.
+   */
+  referenceImagePoints: CalibrationPoint[];
+  addReferenceImagePoint: (point: CalibrationPoint) => void;
+  updateReferenceImagePoint: (id: string, patch: Partial<CalibrationPoint>) => void;
+  removeReferenceImagePoint: (id: string) => void;
+  clearReferenceImagePoints: () => void;
 
   setTool: (tool: Tool) => void;
   setArmedSymbolId: (id: string | null) => void;
@@ -196,11 +216,26 @@ export const useUiStore = create<UiState>((set, get) => ({
       referenceImagePanelOpen: false,
       referenceImageCalibrating: false,
       referenceImageCalibrationBox: null,
+      referenceImageMarking: false,
       referenceImageCalibrationRejected: false,
       referenceImageHandle: null,
     }),
   referenceImageCalibrating: false,
   setReferenceImageCalibrating: (referenceImageCalibrating) => set({ referenceImageCalibrating }),
+  referenceImageMarking: false,
+  setReferenceImageMarking: (referenceImageMarking) => set({ referenceImageMarking }),
+  referenceImagePoints: [],
+  addReferenceImagePoint: (point) =>
+    set((s) => ({ referenceImagePoints: [...s.referenceImagePoints, point] })),
+  updateReferenceImagePoint: (id, patch) =>
+    set((s) => ({
+      referenceImagePoints: s.referenceImagePoints.map((p) =>
+        p.id === id ? { ...p, ...patch } : p,
+      ),
+    })),
+  removeReferenceImagePoint: (id) =>
+    set((s) => ({ referenceImagePoints: s.referenceImagePoints.filter((p) => p.id !== id) })),
+  clearReferenceImagePoints: () => set({ referenceImagePoints: [] }),
   referenceImageCalibrationBox: null,
   setReferenceImageCalibrationBox: (referenceImageCalibrationBox) =>
     set({ referenceImageCalibrationBox }),

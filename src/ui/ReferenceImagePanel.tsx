@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { CELL } from "../canvas/camera";
+import { scaleFromCalibrationPoints } from "../model/referenceCalibration";
 import { resizeReferenceImageAround, stitchBoxRect } from "../model/types";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
@@ -22,6 +23,12 @@ export function ReferenceImagePanel() {
   const setCalibrating = useUiStore((s) => s.setReferenceImageCalibrating);
   const setCalibrationBox = useUiStore((s) => s.setReferenceImageCalibrationBox);
   const calibrationRejected = useUiStore((s) => s.referenceImageCalibrationRejected);
+  const marking = useUiStore((s) => s.referenceImageMarking);
+  const setMarking = useUiStore((s) => s.setReferenceImageMarking);
+  const points = useUiStore((s) => s.referenceImagePoints);
+  const updatePoint = useUiStore((s) => s.updateReferenceImagePoint);
+  const removePoint = useUiStore((s) => s.removeReferenceImagePoint);
+  const clearPoints = useUiStore((s) => s.clearReferenceImagePoints);
   const setCalibrationRejected = useUiStore((s) => s.setReferenceImageCalibrationRejected);
 
   const meta = useDocStore((s) => s.meta);
@@ -29,6 +36,11 @@ export function ReferenceImagePanel() {
   const setReferenceImage = useDocStore((s) => s.setReferenceImage);
   const updateReferenceImage = useDocStore((s) => s.updateReferenceImage);
   const removeReferenceImage = useDocStore((s) => s.removeReferenceImage);
+
+  // Recomputed as the numbers are typed, so "Apply scale" is only live once
+  // the marks actually determine a scale - which is also the clearest way to
+  // say that two of them naming the same row pins nothing down.
+  const fit = image && marking ? scaleFromCalibrationPoints(image, points) : null;
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -159,7 +171,9 @@ export function ReferenceImagePanel() {
                   : "refpanel__hint"
               }
             >
-              {calibrating
+              {marking
+                ? "Click four stitches in the photo \u2014 two along the bottom row, two along the top \u2014 and type the numbers printed on the chart for each. Drag a mark to nudge it."
+                : calibrating
                 ? calibrationRejected
                   ? "That box was too small to read. Zoom in and drag across one whole stitch."
                   : "Draw a box around one stitch in the image."
@@ -222,6 +236,89 @@ export function ReferenceImagePanel() {
                 </button>
               </div>
             </label>
+            {marking && (
+              <div className="refpanel__marks">
+                {points.length === 0 && (
+                  <p className="refpanel__hint">No marks yet.</p>
+                )}
+                {points.map((point, i) => (
+                  <div key={point.id} className="refpanel__mark">
+                    <span className="refpanel__markIndex" data-labelled={point.stitch !== null && point.row !== null}>
+                      {i + 1}
+                    </span>
+                    <label>
+                      <span>st</span>
+                      <input
+                        type="number"
+                        value={point.stitch ?? ""}
+                        onChange={(e) =>
+                          updatePoint(point.id, {
+                            stitch: e.target.value === "" ? null : Number(e.target.value),
+                          })
+                        }
+                      />
+                    </label>
+                    <label>
+                      <span>row</span>
+                      <input
+                        type="number"
+                        value={point.row ?? ""}
+                        onChange={(e) =>
+                          updatePoint(point.id, {
+                            row: e.target.value === "" ? null : Number(e.target.value),
+                          })
+                        }
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="refpanel__markRemove"
+                      title="Remove this mark"
+                      onClick={() => removePoint(point.id)}
+                    >
+                      &times;
+                    </button>
+                  </div>
+                ))}
+                <div className="refpanel__markActions">
+                  <button
+                    type="button"
+                    className="btn btn--primary"
+                    disabled={!fit}
+                    title={
+                      fit
+                        ? "Scale the image so the marked stitches are one cell apart"
+                        : "Mark at least two stitches with different stitch numbers and different row numbers"
+                    }
+                    onClick={() => {
+                      if (!fit) return;
+                      updateReferenceImage(fit);
+                      clearPoints();
+                      setMarking(false);
+                    }}
+                  >
+                    Apply scale
+                  </button>
+                  <button type="button" className="btn btn--quiet" onClick={clearPoints}>
+                    Clear marks
+                  </button>
+                </div>
+              </div>
+            )}
+            <button
+              type="button"
+              className="btn btn--quiet"
+              data-on={marking}
+              disabled={!image.visible}
+              title="Identify four stitches by their printed numbers and scale the image to match"
+              onClick={() => {
+                if (marking) clearPoints();
+                setCalibrating(false);
+                setMarking(!marking);
+              }}
+            >
+              {marking ? "Cancel scaling" : "Set scale from stitches"}
+            </button>
             <button
               type="button"
               className="btn btn--quiet"
@@ -235,6 +332,7 @@ export function ReferenceImagePanel() {
               onClick={() => {
                 if (calibrating) setCalibrationBox(null);
                 setCalibrationRejected(false);
+                setMarking(false);
                 setCalibrating(!calibrating);
               }}
             >
