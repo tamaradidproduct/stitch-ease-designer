@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { cellToScreenRect } from "../canvas/camera";
+import type { Placement } from "../model/types";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
 
@@ -14,6 +15,7 @@ const isTyping = (target: EventTarget | null) =>
  *
  *   cmd/ctrl Z        undo            shift for redo - restores a just-cleared
  *                     selection first, before touching the chart history
+ *   Tab / Shift+Tab   select the next stitch to the right / left
  *   /                 open the picker at the hovered cell
  *   escape            clear selection, or disarm the current stitch
  *   S / D / E / I     select / draw / erase / insert
@@ -21,13 +23,16 @@ const isTyping = (target: EventTarget | null) =>
  */
 export function useShortcuts(): void {
   useEffect(() => {
+    let shiftHeld = false;
+
     const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Shift") shiftHeld = true;
       if (e.key === "Meta" || e.key === "Control") {
         useUiStore.getState().setSelectHeld(true);
       }
 
       // The picker owns its own keys while its search field has focus.
-      if (isTyping(e.target)) return;
+      if (isTyping(e.target) && e.key !== "Tab") return;
 
       const ui = useUiStore.getState();
       const doc = useDocStore.getState();
@@ -39,26 +44,97 @@ export function useShortcuts(): void {
         return;
       }
 
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "d") {
-        if (!ui.selectedPlacementIds.length) return;
+      if (e.key === "Tab") {
         e.preventDefault();
-        const ids = doc.duplicatePlacements(ui.selectedPlacementIds);
-        if (ids.length) ui.setSelectedPlacementIds(ids);
+        ui.setKeyboardSelectionActive(true);
+        ui.setHover(null);
+        ui.setInsertHover(null);
+        const selected = ui.selectedPlacementIds
+          .map((id) => doc.index.placements.get(id))
+          .filter((placement): placement is Placement => !!placement);
+        if (!selected.length) return;
+        const row = selected[0]!.row;
+        const inRow = doc.index.toArray().filter((placement) => placement.row === row);
+        const minCol = Math.min(...selected.map((placement) => placement.col));
+        const maxCol = Math.max(...selected.map(
+          (placement) => placement.col + doc.index.spanOf(placement) - 1,
+        ));
+        const reverse = e.shiftKey || shiftHeld;
+        const candidate = reverse
+          ? inRow
+            .filter((placement) => placement.col + doc.index.spanOf(placement) - 1 < minCol)
+            .sort((a, b) => b.col - a.col)[0]
+          : inRow
+            .filter((placement) => placement.col > maxCol)
+            .sort((a, b) => a.col - b.col)[0];
+        if (candidate) {
+          ui.setSelectedPlacementIds([candidate.id]);
+          const r = cellToScreenRect(candidate.col, candidate.row, ui.camera, ui.viewport);
+          ui.openPicker({
+            col: candidate.col,
+            row: candidate.row,
+            x: r.x + 8,
+            y: r.y + 8,
+            currentSymbolId: candidate.symbolId,
+            selectionIds: [candidate.id],
+            selectionSpan: doc.index.spanOf(candidate),
+          });
+        }
         return;
       }
 
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "g") {
-        if (!ui.selectedPlacementIds.length) return;
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "c") {
         e.preventDefault();
-        doc.createRepeat(ui.selectedPlacementIds);
+        ui.setClipboardPlacements(ui.selectedPlacementIds
+          .map((id) => doc.index.placements.get(id))
+          .filter((placement): placement is Placement => !!placement)
+          .map((placement) => ({ ...placement })));
+        return;
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "x") {
+        e.preventDefault();
+        ui.setClipboardPlacements(ui.selectedPlacementIds
+          .map((id) => doc.index.placements.get(id))
+          .filter((placement): placement is Placement => !!placement)
+          .map((placement) => ({ ...placement })));
+        if (ui.selectedPlacementIds.length) {
+          doc.erasePlacements(ui.selectedPlacementIds);
+          ui.clearSelection();
+        }
+        return;
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "v") {
+        e.preventDefault();
+        if (!ui.clipboardPlacements.length || !ui.hover) return;
+        const minCol = Math.min(...ui.clipboardPlacements.map((placement) => placement.col));
+        const minRow = Math.min(...ui.clipboardPlacements.map((placement) => placement.row));
+        const deltaCol = ui.hover.col - minCol;
+        const deltaRow = ui.hover.row - minRow;
+        doc.beginStroke();
+        const before = new Set(doc.index.placements.keys());
+        for (const placement of ui.clipboardPlacements) {
+          doc.place(
+            placement.symbolId,
+            placement.col + deltaCol,
+            placement.row + deltaRow,
+          );
+        }
+        doc.endStroke();
+        const ids = doc.index.toArray().filter((placement) => !before.has(placement.id)).map((p) => p.id);
+        if (ids.length) ui.setSelectedPlacementIds(ids, false);
         return;
       }
 
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "d") {
         if (!ui.selectedPlacementIds.length) return;
         e.preventDefault();
-        const ids = doc.duplicatePlacements(ui.selectedPlacementIds);
-        if (ids.length) ui.setSelectedPlacementIds(ids);
+        const ids = doc.duplicatePlacementsInRow(ui.selectedPlacementIds);
+        if (ids.length) {
+          ui.closePicker();
+          ui.setSelectedPlacementIds(ids, false);
+        }
         return;
       }
 
@@ -119,12 +195,16 @@ export function useShortcuts(): void {
     };
 
     const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key === "Shift") shiftHeld = false;
       if (e.key === "Meta" || e.key === "Control") {
         useUiStore.getState().setSelectHeld(false);
       }
     };
 
-    const onBlur = () => useUiStore.getState().setSelectHeld(false);
+    const onBlur = () => {
+      shiftHeld = false;
+      useUiStore.getState().setSelectHeld(false);
+    };
 
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);

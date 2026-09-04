@@ -3,6 +3,7 @@ import { type Cell, screenToCell, screenToInsertCell } from "../canvas/camera";
 import { RULER } from "../canvas/theme";
 import { DocIndex } from "../model/docIndex";
 import { stitchGroups } from "../model/stitchNumbers";
+import { insertTargetCol } from "../model/ops";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
 
@@ -172,10 +173,24 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       if (ui().spaceHeld || e.button !== 0) return; // panning, or not a plain left click
 
       // The selected stitch remains draggable while its edit picker is open.
-      // Other canvas clicks only dismiss the picker, rather than also acting
-      // on whatever happened to be underneath the dismissal click.
+      // Modifier clicks are selection commands and must act on this first
+      // click rather than being consumed merely to dismiss the picker:
+      // Cmd/Ctrl retargets it, while Shift grows or trims the selection.
       if (ui().picker) {
         const pickerCell = cellAt(e);
+        const modifierSelect = e.shiftKey || e.metaKey || e.ctrlKey;
+        const modifierTarget = pickerCell
+          ? doc().index.placementAt(pickerCell.col, pickerCell.row)
+          : undefined;
+
+        if (modifierSelect && modifierTarget) {
+          e.preventDefault();
+          ui().closePicker();
+          const ids = selectExisting(modifierTarget.id, e.shiftKey);
+          if (!e.shiftKey) openPickerForSingleSelection(ids, e, false);
+          return;
+        }
+
         ui().closePicker();
         if (
           pickerCell &&
@@ -250,7 +265,11 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         e.preventDefault();
         const armed = ui().armedSymbolId;
         if (armed) {
+          const insertedCol = insertTargetCol(doc().index, armed, target.col, target.row);
           doc().insertPlacement(armed, target.col, target.row);
+          if (insertedCol !== null) {
+            ui().setInsertAnimation({ col: insertedCol, row: target.row });
+          }
         } else {
           const rect = canvas.getBoundingClientRect();
           ui().openPicker({

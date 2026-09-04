@@ -123,6 +123,20 @@ describe("selection edits", () => {
     expect(useDocStore.getState().index.placements.get("b")).toMatchObject({ col: 1, row: 0 });
   });
 
+  it("duplicates beside a selection and shifts earlier stitches to make room", () => {
+    const ids = useDocStore.getState().duplicatePlacementsInRow(["b"]);
+    const duplicate = useDocStore.getState().index.placements.get(ids[0]!)!;
+
+    expect(duplicate).toMatchObject({ symbolId: "purl", col: 0, row: 0 });
+    expect(useDocStore.getState().index.placements.get("a")).toMatchObject({ col: -1 });
+    expect(useDocStore.getState().index.placements.get("b")).toMatchObject({ col: 1 });
+    expect(useDocStore.getState().undoStack).toHaveLength(1);
+
+    useDocStore.getState().undo();
+    expect(useDocStore.getState().index.placements.get("a")).toMatchObject({ col: 0 });
+    expect(useDocStore.getState().index.placements.get("b")).toMatchObject({ col: 1 });
+  });
+
   it("does not move a selection through an unselected stitch", () => {
     useDocStore.getState().place("knit", 4, 0);
     const blocker = useDocStore.getState().index.placementAt(4, 0)!;

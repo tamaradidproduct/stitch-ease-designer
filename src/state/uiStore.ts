@@ -8,6 +8,7 @@ import {
   panByScreen,
   zoomAt,
 } from "../canvas/camera";
+import type { Placement } from "../model/types";
 
 export type Tool = "select" | "stitch" | "eraser" | "insert";
 
@@ -77,10 +78,13 @@ type UiState = {
    * bar, keep using ordinary per-cell `hover`.
    */
   insertHover: Cell | null;
+  insertAnimation: { cell: Cell; startedAt: number } | null;
   /** True while space is held, which arms drag-to-pan. */
   spaceHeld: boolean;
   /** True while Cmd/Ctrl is held, temporarily enabling Select. */
   selectHeld: boolean;
+  /** Suppresses stale pointer feedback after keyboard-driven selection until the mouse moves. */
+  keyboardSelectionActive: boolean;
   isPanning: boolean;
 
   tool: Tool;
@@ -92,6 +96,8 @@ type UiState = {
   quickSymbolIds: string[];
   picker: PickerTarget | null;
   selectedPlacementIds: string[];
+  /** App clipboard: survives tool/chart resets and changes only on Copy or Cut. */
+  clipboardPlacements: Placement[];
   selectionBox: SelectionBox | null;
   selectionMove: SelectionMove | null;
   /**
@@ -129,7 +135,8 @@ type UiState = {
   openPicker: (target: PickerTarget) => void;
   closePicker: () => void;
   selectPlacement: (id: string, additive: boolean) => void;
-  setSelectedPlacementIds: (ids: string[]) => void;
+  setSelectedPlacementIds: (ids: string[], recordUndo?: boolean) => void;
+  setClipboardPlacements: (placements: Placement[]) => void;
   setSelectionBox: (box: SelectionBox | null) => void;
   setSelectionMove: (move: SelectionMove | null) => void;
   clearSelection: () => void;
@@ -141,12 +148,16 @@ type UiState = {
   setViewport: (vp: Viewport) => void;
   setHover: (cell: Cell | null) => void;
   setInsertHover: (cell: Cell | null) => void;
+  setInsertAnimation: (cell: Cell | null) => void;
   setSpaceHeld: (held: boolean) => void;
   setSelectHeld: (held: boolean) => void;
+  setKeyboardSelectionActive: (active: boolean) => void;
   setPanning: (panning: boolean) => void;
   panByScreen: (dx: number, dy: number) => void;
   zoomAt: (factor: number, sx: number, sy: number) => void;
   resetView: () => void;
+  /** Start an opened chart without carrying transient tools from another chart/session. */
+  resetForChart: () => void;
 };
 
 const sameCell = (a: Cell | null, b: Cell | null) =>
@@ -157,8 +168,10 @@ export const useUiStore = create<UiState>((set, get) => ({
   viewport: { width: 1, height: 1 },
   hover: null,
   insertHover: null,
+  insertAnimation: null,
   spaceHeld: false,
   selectHeld: false,
+  keyboardSelectionActive: false,
   isPanning: false,
   referenceImagePanelOpen: false,
   setReferenceImagePanelOpen: (open) =>
@@ -181,6 +194,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   quickSymbolIds: loadQuickSymbolIds(),
   picker: null,
   selectedPlacementIds: [],
+  clipboardPlacements: [],
   selectionBox: null,
   selectionMove: null,
   lastClearedSelection: null,
@@ -225,8 +239,12 @@ export const useUiStore = create<UiState>((set, get) => ({
       lastClearedSelection: null,
     });
   },
-  setSelectedPlacementIds: (selectedPlacementIds) =>
-    set({ selectedPlacementIds, lastClearedSelection: null }),
+  setSelectedPlacementIds: (selectedPlacementIds, recordUndo = true) =>
+    set((state) => ({
+      selectedPlacementIds,
+      lastClearedSelection: recordUndo ? state.selectedPlacementIds : null,
+    })),
+  setClipboardPlacements: (clipboardPlacements) => set({ clipboardPlacements }),
   setSelectionBox: (selectionBox) => set({ selectionBox }),
   setSelectionMove: (selectionMove) => set({ selectionMove }),
   clearSelection: () => set({
@@ -263,6 +281,9 @@ export const useUiStore = create<UiState>((set, get) => ({
     if (sameCell(get().insertHover, cell)) return;
     set({ insertHover: cell });
   },
+  setInsertAnimation: (cell) => set({
+    insertAnimation: cell ? { cell, startedAt: performance.now() } : null,
+  }),
 
   setSpaceHeld: (spaceHeld) => {
     if (get().spaceHeld === spaceHeld) return;
@@ -272,6 +293,10 @@ export const useUiStore = create<UiState>((set, get) => ({
   setSelectHeld: (selectHeld) => {
     if (get().selectHeld === selectHeld) return;
     set({ selectHeld });
+  },
+  setKeyboardSelectionActive: (keyboardSelectionActive) => {
+    if (get().keyboardSelectionActive === keyboardSelectionActive) return;
+    set({ keyboardSelectionActive });
   },
 
   setPanning: (isPanning) => set({ isPanning }),
@@ -290,4 +315,25 @@ export const useUiStore = create<UiState>((set, get) => ({
   },
 
   resetView: () => set({ camera: defaultCamera(), picker: null }),
+
+  resetForChart: () => set({
+    camera: defaultCamera(),
+    tool: "stitch",
+    armedSymbolId: null,
+    picker: null,
+    selectedPlacementIds: [],
+    selectionBox: null,
+    selectionMove: null,
+    lastClearedSelection: null,
+    hover: null,
+    insertHover: null,
+    insertAnimation: null,
+    spaceHeld: false,
+    selectHeld: false,
+    keyboardSelectionActive: false,
+    isPanning: false,
+    referenceImagePanelOpen: false,
+    referenceImageCalibrating: false,
+    referenceImageCalibrationBox: null,
+  }),
 }));

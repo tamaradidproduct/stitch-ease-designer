@@ -10,12 +10,14 @@ import {
   placeChange,
 } from "../model/ops";
 import { spanOf } from "../symbols/registry";
+import { rowDirectionAt } from "../model/rowDirection";
 import {
   isEmptyChange,
   type Change,
   type DocMeta,
   type ReferenceImage,
   type RepeatDefinition,
+  type Placement,
 } from "../model/types";
 import { newUuid } from "../uuid";
 import type { LoadedChart } from "../storage/DocStore";
@@ -78,6 +80,8 @@ type DocState = {
   /** Returns whether the repeat was actually placed (false on a collision). */
   instantiateRepeat: (repeatId: string, col: number, row: number) => boolean;
   duplicatePlacements: (ids: string[]) => string[];
+  /** Inserts a copy beside the selection in knitting order, shifting the row to make room. */
+  duplicatePlacementsInRow: (ids: string[]) => string[];
   /** Whether `duplicatePlacementsAt` would place a copy, without doing it. */
   canDuplicatePlacements: (ids: string[], deltaCol: number, deltaRow: number) => boolean;
   /** Copies `ids` to `deltaCol`/`deltaRow` away, leaving the originals in place. Returns the copies' ids. */
@@ -338,6 +342,61 @@ export const useDocStore = create<DocState>((set, get) => {
       }
       commit({ added, removed: [] });
       return added.map((p) => p.id);
+    },
+    duplicatePlacementsInRow: (ids) => {
+      const selected = ids
+        .map((id) => get().index.placements.get(id))
+        .filter((placement): placement is Placement => !!placement);
+      if (!selected.length) return [];
+
+      const selectedIds = new Set(selected.map((placement) => placement.id));
+      const rows = new Map<number, Placement[]>();
+      for (const placement of selected) {
+        const row = rows.get(placement.row) ?? [];
+        row.push(placement);
+        rows.set(placement.row, row);
+      }
+
+      const removed: Placement[] = [];
+      const shifted: Placement[] = [];
+      const copies: Placement[] = [];
+      const copiedGroups = new Map<string, string>();
+
+      for (const [row, rowSelection] of rows) {
+        const minCol = Math.min(...rowSelection.map((placement) => placement.col));
+        const maxCol = Math.max(...rowSelection.map(
+          (placement) => placement.col + get().index.spanOf(placement),
+        ));
+        const width = maxCol - minCol;
+        const direction = rowDirectionAt(row) === "rtl" ? -1 : 1;
+
+        const moving = get().index.toArray().filter((placement) =>
+          placement.row === row &&
+          !selectedIds.has(placement.id) &&
+          (direction < 0 ? placement.col < minCol : placement.col >= maxCol));
+        removed.push(...moving);
+        shifted.push(...moving.map((placement) => ({
+          ...placement,
+          col: placement.col + direction * width,
+        })));
+
+        for (const placement of rowSelection) {
+          const { groupId: sourceGroupId, ...rest } = placement;
+          const groupId = sourceGroupId
+            ? (copiedGroups.get(sourceGroupId) ?? newUuid("group_"))
+            : undefined;
+          if (sourceGroupId && groupId) copiedGroups.set(sourceGroupId, groupId);
+          copies.push({
+            ...rest,
+            id: newPlacementId(),
+            col: placement.col + direction * width,
+            ...(groupId ? { groupId } : null),
+          });
+        }
+      }
+
+      commit({ removed, added: [...shifted, ...copies] });
+      return copies.map((placement) => placement.id);
     },
     canDuplicatePlacements: (ids, deltaCol, deltaRow) => {
       if (deltaCol === 0 && deltaRow === 0) return false;
