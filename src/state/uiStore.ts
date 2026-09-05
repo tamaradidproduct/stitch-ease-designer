@@ -83,6 +83,8 @@ type UiState = {
   spaceHeld: boolean;
   /** True while Cmd/Ctrl is held, temporarily enabling Select. */
   selectHeld: boolean;
+  /** True while Shift is held, enabling constrained straight-line drawing. */
+  shiftHeld: boolean;
   /** Suppresses stale pointer feedback after keyboard-driven selection until the mouse moves. */
   keyboardSelectionActive: boolean;
   /** Editor-only tint behind placed stitches, useful when tracing a reference image. */
@@ -186,6 +188,7 @@ type UiState = {
   setInsertAnimation: (cell: Cell | null) => void;
   setSpaceHeld: (held: boolean) => void;
   setSelectHeld: (held: boolean) => void;
+  setShiftHeld: (held: boolean) => void;
   setKeyboardSelectionActive: (active: boolean) => void;
   setStitchHighlight: (color: string, opacity?: number) => void;
   setStitchHighlightOpacity: (opacity: number) => void;
@@ -209,6 +212,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   insertAnimation: null,
   spaceHeld: false,
   selectHeld: false,
+  shiftHeld: false,
   keyboardSelectionActive: false,
   stitchHighlightColor: "#f59e0b",
   stitchHighlightOpacity: 0,
@@ -357,6 +361,10 @@ export const useUiStore = create<UiState>((set, get) => ({
     if (get().selectHeld === selectHeld) return;
     set({ selectHeld });
   },
+  setShiftHeld: (shiftHeld) => {
+    if (get().shiftHeld === shiftHeld) return;
+    set({ shiftHeld });
+  },
   setKeyboardSelectionActive: (keyboardSelectionActive) => {
     if (get().keyboardSelectionActive === keyboardSelectionActive) return;
     set({ keyboardSelectionActive });
@@ -400,6 +408,7 @@ export const useUiStore = create<UiState>((set, get) => ({
     insertAnimation: null,
     spaceHeld: false,
     selectHeld: false,
+    shiftHeld: false,
     keyboardSelectionActive: false,
     isPanning: false,
     referenceImagePanelOpen: false,

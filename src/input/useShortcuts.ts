@@ -35,10 +35,8 @@ const isTyping = (target: EventTarget | null) =>
  */
 export function useShortcuts(): void {
   useEffect(() => {
-    let shiftHeld = false;
-
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Shift") shiftHeld = true;
+      if (e.key === "Shift") useUiStore.getState().setShiftHeld(true);
       if (e.key === "Meta" || e.key === "Control") {
         useUiStore.getState().setSelectHeld(true);
       }
@@ -86,7 +84,7 @@ export function useShortcuts(): void {
         const maxCol = Math.max(...selected.map(
           (placement) => placement.col + doc.index.spanOf(placement) - 1,
         ));
-        const reverse = e.shiftKey || shiftHeld;
+        const reverse = e.shiftKey || ui.shiftHeld;
         const candidate = reverse
           ? inRow
             .filter((placement) => placement.col + doc.index.spanOf(placement) - 1 < minCol)
@@ -258,14 +256,14 @@ export function useShortcuts(): void {
     };
 
     const onKeyUp = (e: KeyboardEvent) => {
-      if (e.key === "Shift") shiftHeld = false;
+      if (e.key === "Shift") useUiStore.getState().setShiftHeld(false);
       if (e.key === "Meta" || e.key === "Control") {
         useUiStore.getState().setSelectHeld(false);
       }
     };
 
     const onBlur = () => {
-      shiftHeld = false;
+      useUiStore.getState().setShiftHeld(false);
       useUiStore.getState().setSelectHeld(false);
     };
 

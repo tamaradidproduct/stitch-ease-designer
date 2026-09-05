@@ -28,6 +28,7 @@ export function RightPanel() {
   const glossaryModuleRef = useRef<HTMLElement | null>(null);
   const [glossaryQuery, setGlossaryQuery] = useState("");
   const [searchSlot, setSearchSlot] = useState<number | null>(null);
+  const [activeGlossaryResult, setActiveGlossaryResult] = useState(0);
   const [addedGlossaryIds, setAddedGlossaryIds] = useState<string[]>(() =>
     loadGlossaryIds(useDocStore.getState().meta?.id),
   );
@@ -62,6 +63,13 @@ export function RightPanel() {
     if (searchSlot !== null) glossarySearchRef.current?.focus();
   }, [searchSlot]);
 
+  // Search queries can remove the currently highlighted result. Start each
+  // new query at its first visible match so Arrow navigation always has a
+  // predictable target.
+  useEffect(() => {
+    setActiveGlossaryResult(0);
+  }, [searchSlot, glossaryQuery]);
+
   useEffect(() => {
     if (!traceMenuOpen) return;
     const closeOutside = (event: PointerEvent) => {
@@ -82,6 +90,11 @@ export function RightPanel() {
     if (searchSlot === null) return;
     const dismissOutside = (event: PointerEvent) => {
       if (!inlineSearchRef.current?.contains(event.target as Node)) {
+        // Dismissal is its own gesture: intercept it before the canvas sees
+        // the pointerdown, so an armed stitch is never placed as the menu
+        // closes.
+        event.preventDefault();
+        event.stopPropagation();
         setSearchSlot(null);
         setGlossaryQuery("");
       }
@@ -91,10 +104,10 @@ export function RightPanel() {
       setSearchSlot(null);
       setGlossaryQuery("");
     };
-    document.addEventListener("pointerdown", dismissOutside);
+    document.addEventListener("pointerdown", dismissOutside, true);
     document.addEventListener("keydown", dismissOnEscape);
     return () => {
-      document.removeEventListener("pointerdown", dismissOutside);
+      document.removeEventListener("pointerdown", dismissOutside, true);
       document.removeEventListener("keydown", dismissOnEscape);
     };
   }, [searchSlot]);
@@ -151,6 +164,28 @@ export function RightPanel() {
   const searchForQuickStitch = (slot: number) => {
     setSearchSlot(slot);
     setGlossaryQuery("");
+  };
+  const closeGlossarySearch = () => {
+    setSearchSlot(null);
+    setGlossaryQuery("");
+  };
+  const navigateGlossarySearch = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeGlossarySearch();
+      return;
+    }
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && event.key !== "Enter") return;
+    if (!glossaryResults.length) return;
+    event.preventDefault();
+    if (event.key === "Enter") {
+      chooseSearchResult(glossaryResults[activeGlossaryResult]!.id);
+      return;
+    }
+    const direction = event.key === "ArrowDown" ? 1 : -1;
+    setActiveGlossaryResult((current) =>
+      (current + direction + glossaryResults.length) % glossaryResults.length,
+    );
   };
 
   const zoomFromCenter = (factor: number) => {
@@ -295,14 +330,32 @@ export function RightPanel() {
                     type="search"
                     value={glossaryQuery}
                     onChange={(event) => setGlossaryQuery(event.target.value)}
+                    onKeyDown={navigateGlossarySearch}
                     placeholder="Search stitches…"
                     aria-label="Search stitches to add"
+                    aria-controls="glossary-search-results"
+                    aria-activedescendant={
+                      glossaryResults[activeGlossaryResult]
+                        ? `glossary-search-result-${glossaryResults[activeGlossaryResult]!.id}`
+                        : undefined
+                    }
                   />
                   {glossaryResults.length > 0 && (
-                    <div className="glossarySearch__results">
-                      {glossaryResults.map((result) => (
-                        <button key={result.id} type="button" onClick={() => chooseSearchResult(result.id)}>
-                          <SymbolGlyph symbol={result} cell={Math.max(7, Math.min(18, 48 / result.span))} />
+                    <div id="glossary-search-results" className="glossarySearch__results" role="listbox">
+                      {glossaryResults.map((result, resultIndex) => (
+                        <button
+                          id={`glossary-search-result-${result.id}`}
+                          key={result.id}
+                          type="button"
+                          role="option"
+                          aria-selected={resultIndex === activeGlossaryResult}
+                          data-active={resultIndex === activeGlossaryResult}
+                          onPointerEnter={() => setActiveGlossaryResult(resultIndex)}
+                          onClick={() => chooseSearchResult(result.id)}
+                        >
+                          <span className="glossarySearch__glyph">
+                            <SymbolGlyph symbol={result} cell={Math.max(7, Math.min(18, 48 / result.span))} />
+                          </span>
                           <span>{result.label}</span><strong>Add</strong>
                         </button>
                       ))}

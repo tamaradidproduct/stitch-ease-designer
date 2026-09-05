@@ -18,6 +18,31 @@ export function shouldOpenPickerForSelection(ids: string[], additive: boolean): 
   return !additive && ids.length === 1;
 }
 
+export type StraightAxis = "row" | "column";
+
+/** Choose the axis a Shift-constrained draw should follow. */
+export function straightAxisFor(start: Cell, target: Cell): StraightAxis {
+  return Math.abs(target.col - start.col) >= Math.abs(target.row - start.row)
+    ? "row"
+    : "column";
+}
+
+/** Project a target cell onto the selected straight axis through `start`. */
+export function constrainToStraightAxis(start: Cell, target: Cell, axis: StraightAxis): Cell {
+  return axis === "row" ? { col: target.col, row: start.row } : { col: start.col, row: target.row };
+}
+
+/** Return every cell, including both endpoints, on an orthogonal line. */
+export function straightLineCells(from: Cell, to: Cell): Cell[] {
+  const colStep = Math.sign(to.col - from.col);
+  const rowStep = Math.sign(to.row - from.row);
+  const steps = Math.max(Math.abs(to.col - from.col), Math.abs(to.row - from.row));
+  return Array.from({ length: steps + 1 }, (_, step) => ({
+    col: from.col + colStep * step,
+    row: from.row + rowStep * step,
+  }));
+}
+
 /**
  * Placing, selecting, moving, and inserting stitches.
  *
@@ -68,6 +93,12 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
     let selectionAdditive = false;
     let selectionMoved = false;
     let movingSelection = false;
+    let constrainedStroke = false;
+    let straightAxis: StraightAxis | null = null;
+    let lastDrawn: { cell: Cell; symbolId: string } | null = null;
+    // A Shift-pointerdown after drawing may be either a gap-fill click or a
+    // new straight stroke. Wait for movement to disambiguate.
+    let pendingShiftFill: { from: Cell; to: Cell } | null = null;
 
     const cellAt = (e: PointerEvent | MouseEvent): Cell | null => {
       const rect = canvas.getBoundingClientRect();
@@ -100,7 +131,14 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         return;
       }
       const armed = ui().armedSymbolId;
-      if (armed) doc().place(armed, cell.col, cell.row);
+      if (armed) {
+        doc().place(armed, cell.col, cell.row);
+        lastDrawn = { cell, symbolId: armed };
+      }
+    };
+
+    const paintStraightSegment = (from: Cell, to: Cell) => {
+      for (const cell of straightLineCells(from, to)) paint(cell);
     };
 
     const insideSelectedArea = (cell: Cell): boolean => {
@@ -210,6 +248,27 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       const cell = cellAt(e);
       if (!cell) return;
 
+      const armed = ui().armedSymbolId;
+      // Shift has to be down before the gesture begins. Reading the store as
+      // well as the pointer event keeps the canvas state and its cursor in
+      // sync even if the browser delivers the key transition just before the
+      // pointer event.
+      const canDrawStraight = ui().tool === "stitch" && !!armed && (e.shiftKey || ui().shiftHeld);
+
+      // Once a stitch has been placed, a pre-held Shift click fills from that
+      // placement to the click. Do not fill yet: if the pointer moves, this
+      // becomes a new constrained stroke beginning at this cell instead.
+      if (canDrawStraight && lastDrawn?.symbolId === armed) {
+        e.preventDefault();
+        pendingShiftFill = { from: lastDrawn.cell, to: cell };
+        last = null;
+        painting = true;
+        constrainedStroke = true;
+        straightAxis = null;
+        canvas.setPointerCapture(e.pointerId);
+        return;
+      }
+
       // An existing multi-select is always draggable from within it, no
       // matter which tool is active - Cmd/Select is only needed to *start* a
       // selection, not to move one that's already made.
@@ -315,6 +374,8 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       e.preventDefault();
       painting = true;
       last = null;
+      constrainedStroke = canDrawStraight;
+      straightAxis = null;
       canvas.setPointerCapture(e.pointerId);
       doc().beginStroke();
       paint(cell);
@@ -371,7 +432,30 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       }
       if (!painting) return;
       const cell = cellAt(e);
-      if (cell) paint(cell);
+      if (!cell) return;
+      if (pendingShiftFill) {
+        // Movement turns the pending click into a fresh straight stroke. Its
+        // anchor is where this pointer gesture started, never the previous
+        // stitch that a Shift-click would have used as its gap-fill anchor.
+        if (cell.col === pendingShiftFill.to.col && cell.row === pendingShiftFill.to.row) return;
+        const start = pendingShiftFill.to;
+        pendingShiftFill = null;
+        last = null;
+        doc().beginStroke();
+        paint(start);
+      }
+      if (constrainedStroke && straightAxis === null) {
+        const start = lastDrawn?.cell;
+        if (start && (start.col !== cell.col || start.row !== cell.row)) {
+          straightAxis = straightAxisFor(start, cell);
+        }
+      }
+      if (straightAxis) {
+        const start = lastDrawn?.cell;
+        if (start) paintStraightSegment(start, constrainToStraightAxis(start, cell, straightAxis));
+        return;
+      }
+      paint(cell);
     };
 
     const endStroke = (e: PointerEvent) => {
@@ -436,9 +520,22 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       if (!painting) return;
       painting = false;
       erasing = false;
+      constrainedStroke = false;
+      straightAxis = null;
       last = null;
       if (canvas.hasPointerCapture(e.pointerId)) {
         canvas.releasePointerCapture(e.pointerId);
+      }
+      if (pendingShiftFill) {
+        const { from, to } = pendingShiftFill;
+        pendingShiftFill = null;
+        // A cancelled pointer gesture never represents an intentional click.
+        if (e.type === "pointercancel") return;
+        const axis = straightAxisFor(from, to);
+        doc().beginStroke();
+        paintStraightSegment(from, constrainToStraightAxis(from, to, axis));
+        doc().endStroke();
+        return;
       }
       doc().endStroke();
     };

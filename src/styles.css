@@ -1106,9 +1106,18 @@ body {
 }
 
 .glossarySearch__results button:hover,
-.glossarySearch__results button:focus-visible {
+.glossarySearch__results button:focus-visible,
+.glossarySearch__results button[data-active="true"] {
   background: #e0f2fe;
   outline: none;
+}
+
+.glossarySearch__glyph {
+  display: grid;
+  width: 48px;
+  height: 30px;
+  place-items: center;
+  flex: none;
 }
 
 .glossarySearch__results button > span:nth-child(2) {

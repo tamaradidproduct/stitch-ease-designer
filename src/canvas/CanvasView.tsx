@@ -15,6 +15,7 @@ import {
   GRABBING_CURSOR,
   INSERT_ADD_CURSOR,
   INSERT_BLOCKED_CURSOR,
+  STRAIGHT_DRAW_CURSOR,
   armedStitchCursor,
   insertStitchCursor,
 } from "./cursors";
@@ -99,6 +100,7 @@ export function CanvasView() {
     }
     // Draw leaves existing stitches as plain-arrow selection targets. Empty
     // cells carry either the add badge or the armed-stitch preview.
+    if (s.armedSymbolId && s.shiftHeld) return STRAIGHT_DRAW_CURSOR;
     if (hovered) return "default";
     return s.armedSymbolId ? armedStitchCursor(s.armedSymbolId) : ADD_CURSOR;
   });

@@ -14,6 +14,15 @@ const cursor = (url: string, x: number, y: number, fallback: string) =>
 
 export const ADD_CURSOR = cursor(addCursor, 0, 0, "default");
 export const ERASE_CURSOR = cursor(eraseCursor, 0, 0, "default");
+export const STRAIGHT_DRAW_CURSOR = cursor(
+  svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28" fill="none">
+    <path d="M2 14h24M14 2v24" stroke="#0284c7" stroke-width="1.5" stroke-linecap="round"/>
+    <circle cx="14" cy="14" r="3" fill="white" stroke="#0284c7" stroke-width="1.5"/>
+  </svg>`),
+  14,
+  14,
+  "crosshair",
+);
 
 export const GRAB_CURSOR = cursor(grabCursor, 12, 8, "grab");
 export const GRABBING_CURSOR = cursor(grabbingCursor, 12, 8, "grabbing");
