@@ -7,3 +7,9 @@ dist/
 .env
 .env.local
 __pycache__/
+
+# gemini-cli settings written by the Gemini CLI action at runtime
+.gemini/
+
+# GitHub App credentials minted by google-github-actions
+gha-creds-*.json
