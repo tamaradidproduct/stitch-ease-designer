@@ -104,7 +104,7 @@ divergence doesn't have to be re-reasoned later.
 `gemini-dispatch.yml` is the only entry point; the other four are
 `workflow_call`-only and run as its jobs:
 
-| | Runs when | Does |
+| Workflow | Runs when | Does |
 | --- | --- | --- |
 | `gemini-review.yml` | a PR is opened, or `@gemini-cli /review` | reviews the diff |
 | `gemini-triage.yml` | an issue is opened or reopened, or `@gemini-cli /triage` | applies labels, only ones that already exist on the repo |
