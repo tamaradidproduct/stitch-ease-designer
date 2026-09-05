@@ -81,7 +81,7 @@ export function ReferenceMarkEditor() {
   // it fills whichever field the designer most recently focused.
   const quickValues = [...new Set([1, ...points.flatMap((candidate) =>
     [candidate.row, candidate.stitch].flatMap((value) => (value === null ? [] : [value])),
-  )])];
+  )])].sort((a, b) => a - b);
 
   const valueShortcuts = (
     <div className="markpop__shortcuts" aria-label={`${activeField} shortcuts`}>
