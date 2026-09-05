@@ -219,7 +219,9 @@ export function ReferenceImagePanel() {
                   ? calibrationRejected
                     ? "That box was too small to read. Zoom in and draw around one whole corner stitch."
                     : "Box a corner stitch to set the image's initial scale. Then add other corners to refine it."
-                  : "Add corner stitches and type their printed stitch and row numbers to refine the scale. Drag a box to move it onto the right stitch."
+                  : calibrationRejected
+                    ? "That box was too small to read. Zoom in and drag across one whole stitch."
+                    : "Add corner stitches and type their printed stitch and row numbers to refine the scale. Drag a box to move it onto the right stitch."
                 : image.stitchPin
                   ? "Dragging it snaps the boxed stitch onto a grid cell (hold Alt to place it freely); arrow keys nudge it a step at a time. Any corner or edge resizes around that stitch \u2014 or drag the green box's own corners to re-fit it to one stitch."
                   : "Drag it on the canvas to move, or nudge it with the arrow keys (Shift for a whole stitch); drag any corner to resize, or an edge to stretch one way (hold Shift to keep its proportions)."}
