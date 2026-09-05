@@ -22,7 +22,6 @@ export function ReferenceImagePanel() {
   const setOpen = useUiStore((s) => s.setReferenceImagePanelOpen);
   const camera = useUiStore((s) => s.camera);
   const viewport = useUiStore((s) => s.viewport);
-  const calibrating = useUiStore((s) => s.referenceImageCalibrating);
   const setCalibrating = useUiStore((s) => s.setReferenceImageCalibrating);
   const setCalibrationBox = useUiStore((s) => s.setReferenceImageCalibrationBox);
   const calibrationRejected = useUiStore((s) => s.referenceImageCalibrationRejected);
@@ -38,7 +37,7 @@ export function ReferenceImagePanel() {
   const updateReferenceImage = useDocStore((s) => s.updateReferenceImage);
   const removeReferenceImage = useDocStore((s) => s.removeReferenceImage);
 
-  // Recomputed as the numbers are typed, so "Apply scale" is only live once
+  // Recomputed as the numbers are typed, so "Refine scale" is only live once
   // the marks actually determine a scale - which is also the clearest way to
   // say that two of them naming the same row pins nothing down.
   const points = image?.calibrationMarks ?? [];
@@ -110,6 +109,9 @@ export function ReferenceImagePanel() {
         visible: true,
         locked: false,
       });
+      // A successful upload immediately enters editing, so the newly placed
+      // image and its controls are visible without an extra click.
+      setOpen(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not upload that image");
     } finally {
@@ -118,88 +120,131 @@ export function ReferenceImagePanel() {
   };
 
   return (
-    <section className="sideModule refpanel">
-      <button
-        type="button"
-        className="sideModule__header sideModule__toggle"
-        onClick={() => setOpen(!open)}
-        aria-expanded={open}
-      >
+    <section className="sideModule refpanel" data-editing={open && !!image}>
+      <div className="sideModule__header refpanel__moduleHeader">
         <div>
           <h2>Reference image</h2>
           <span>{image ? (image.visible ? "Visible on canvas" : "Hidden") : "No image added"}</span>
         </div>
-        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" data-open={open}>
-          <path d="m4 6 4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
-        </svg>
-      </button>
+        {image ? (
+          <button
+            type="button"
+            className="btn btn--quiet refpanel__headerAction"
+            onClick={() => setOpen(!open)}
+            aria-expanded={open}
+          >
+            {open ? "Save changes" : "Edit reference"}
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="btn btn--quiet refpanel__headerAction"
+            disabled={busy || !meta}
+            onClick={() => fileInput.current?.click()}
+          >
+            {busy ? "Uploading…" : "Upload image"}
+          </button>
+        )}
+      </div>
+
+      {image && (!open || !image.visible) && (
+        <div className="refpanel__quickControls" role="group" aria-label="Reference image quick controls">
+          <button
+            type="button"
+            className="btn refpanel__iconButton"
+            aria-label={image.visible ? "Hide reference image" : "Show reference image"}
+            aria-pressed={image.visible}
+            title={image.visible ? "Hide reference image" : "Show reference image"}
+            onClick={() => updateReferenceImage({ visible: !image.visible })}
+          >
+            {image.visible ? (
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M1.5 8s2.1-4 6.5-4 6.5 4 6.5 4-2.1 4-6.5 4S1.5 8 1.5 8Z" />
+                <circle cx="8" cy="8" r="1.8" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M1.5 8s2.1-4 6.5-4c1 0 1.9.2 2.7.5M14.5 8s-2.1 4-6.5 4c-1 0-1.9-.2-2.7-.5" />
+                <path d="m2.5 2.5 11 11" />
+              </svg>
+            )}
+          </button>
+          <button
+            type="button"
+            className="btn refpanel__iconButton refpanel__layerButton"
+            aria-label={image.inFront ? "Send reference image behind stitches" : "Bring reference image in front of stitches"}
+            aria-pressed={!!image.inFront}
+            title={image.inFront ? "Send behind stitches" : "Bring in front of stitches"}
+            onClick={() => updateReferenceImage({ inFront: !image.inFront })}
+          >
+            {image.inFront ? (
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M8 2.5v11m0 0-3-3m3 3 3-3" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M8 13.5v-11m0 0-3 3m3-3 3 3" />
+              </svg>
+            )}
+            <span>{image.inFront ? "Send behind" : "Bring to front"}</span>
+          </button>
+        </div>
+      )}
+
+      <input
+        ref={fileInput}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (file) void onFile(file);
+        }}
+      />
 
       {open && (
       <div className="refpanel__body">
-        <div className="refpanel__header">
-          <span className="refpanel__title">Image controls</span>
-        <button
-          type="button"
-          className="picker__close"
-          onClick={() => setOpen(false)}
-          aria-label="Close"
-          title="Close"
-        >
-          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-            <path
-              d="M3.5 3.5l9 9m0-9l-9 9"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-            />
-          </svg>
-        </button>
-        </div>
-        <input
-          ref={fileInput}
-          type="file"
-          accept="image/png,image/jpeg,image/webp"
-          hidden
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            e.target.value = "";
-            if (file) void onFile(file);
-          }}
-        />
-
-        {!image ? (
-          <>
-            <p className="refpanel__hint">
-              A pattern screenshot, placed behind your chart to trace against.
-            </p>
-            <button
-              type="button"
-              className="btn btn--primary"
-              disabled={busy || !meta}
-              onClick={() => fileInput.current?.click()}
-            >
-              {busy ? "Uploading…" : "Upload image"}
-            </button>
-          </>
-        ) : (
+        {image && (
           <>
             <p
               className={
-                calibrating && calibrationRejected
+                marking && calibrationRejected
                   ? "refpanel__hint refpanel__hint--warn"
                   : "refpanel__hint"
               }
             >
               {marking
-                ? "Box a stitch in each corner of the chart, the same way you set a stitch size, and type the numbers printed beside it. Drag a box to move it onto the right stitch."
-                : calibrating
-                ? calibrationRejected
-                  ? "That box was too small to read. Zoom in and drag across one whole stitch."
-                  : "Draw a box around one stitch in the image."
+                ? points.length === 0
+                  ? calibrationRejected
+                    ? "That box was too small to read. Zoom in and draw around one whole corner stitch."
+                    : "Box a corner stitch to set the image's initial scale. Then add other corners to refine it."
+                  : calibrationRejected
+                    ? "That box was too small to read. Zoom in and drag across one whole stitch."
+                    : "Add corner stitches and type their printed stitch and row numbers to refine the scale. Drag a box to move it onto the right stitch."
                 : image.stitchPin
                   ? "Dragging it snaps the boxed stitch onto a grid cell (hold Alt to place it freely); arrow keys nudge it a step at a time. Any corner or edge resizes around that stitch \u2014 or drag the green box's own corners to re-fit it to one stitch."
                   : "Drag it on the canvas to move, or nudge it with the arrow keys (Shift for a whole stitch); drag any corner to resize, or an edge to stretch one way (hold Shift to keep its proportions)."}
             </p>
+            <button
+              type="button"
+              className={marking ? "btn btn--quiet refpanel__setScale" : "btn btn--primary refpanel__setScale"}
+              data-on={marking}
+              disabled={!image.visible}
+              title="Box a corner stitch to set the initial scale, then add others to refine it from their printed numbers"
+              onClick={() => {
+                // Leaving the mode drops the marks; coming back to a photo
+                // half-marked from some earlier session, with no memory of
+                // which stitch was which, is worse than starting over.
+                if (marking) updateReferenceImage({ calibrationMarks: [] });
+                setActiveMark(null);
+                setCalibrating(false);
+                setCalibrationRejected(false);
+                setMarking(!marking);
+              }}
+            >
+              {marking ? "Cancel scale setup" : "Set reference scale"}
+            </button>
             <label className="refpanel__row">
               <span>Opacity</span>
               <input
@@ -306,9 +351,11 @@ export function ReferenceImagePanel() {
                 )}
                 <p className="refpanel__hint">
                   {fit
-                    ? `${labelled.length} numbered — ready to scale.`
+                    ? `${labelled.length} numbered — ready to refine the scale.`
                     : labelled.length < 2
-                      ? "Number at least two boxes."
+                      ? points.length === 0
+                        ? ""
+                        : "Add and number another corner stitch to refine the scale."
                       : !hasSpread
                         ? "Needs two different stitch numbers and two different row numbers."
                         : "The numbers imply an invalid or unsupported scale."}
@@ -330,7 +377,7 @@ export function ReferenceImagePanel() {
                       setMarking(false);
                     }}
                   >
-                    Apply scale
+                    Refine scale
                   </button>
                   <button
                     type="button"
@@ -345,66 +392,7 @@ export function ReferenceImagePanel() {
                 </div>
               </div>
             )}
-            <button
-              type="button"
-              className="btn btn--quiet"
-              data-on={marking}
-              disabled={!image.visible}
-              title="Box a stitch in each corner, name them by their printed numbers, and scale the image to match"
-              onClick={() => {
-                // Leaving the mode drops the marks; coming back to a photo
-                // half-marked from some earlier session, with no memory of
-                // which stitch was which, is worse than starting over.
-                if (marking) updateReferenceImage({ calibrationMarks: [] });
-                setActiveMark(null);
-                setCalibrating(false);
-                setMarking(!marking);
-              }}
-            >
-              {marking ? "Cancel scaling" : "Set scale from corner stitches"}
-            </button>
-            <button
-              type="button"
-              className="btn btn--quiet"
-              data-on={calibrating}
-              disabled={!image.visible}
-              title={
-                image.stitchPin
-                  ? "Draw a new box around one stitch to re-scale the image and move the pinned corner"
-                  : "Draw a box around one stitch in the image to scale it to match your chart"
-              }
-              onClick={() => {
-                if (calibrating) setCalibrationBox(null);
-                setCalibrationRejected(false);
-                setMarking(false);
-                setCalibrating(!calibrating);
-              }}
-            >
-              {calibrating ? "Cancel" : image.stitchPin ? "Reset stitch size" : "Set stitch size"}
-            </button>
-            <label className="refpanel__row" title="Draw the image over your stitches instead of behind them">
-              <span>In front</span>
-              <input
-                type="checkbox"
-                checked={!!image.inFront}
-                onChange={(e) => updateReferenceImage({ inFront: e.target.checked })}
-              />
-            </label>
             <div className="refpanel__actions">
-              <button
-                type="button"
-                className="btn btn--quiet"
-                onClick={() => updateReferenceImage({ visible: !image.visible })}
-              >
-                {image.visible ? "Hide" : "Show"}
-              </button>
-              <button
-                type="button"
-                className="btn btn--quiet"
-                onClick={() => updateReferenceImage({ locked: !image.locked })}
-              >
-                {image.locked ? "Unlock" : "Lock"}
-              </button>
               <button
                 type="button"
                 className="btn btn--quiet"
@@ -423,6 +411,7 @@ export function ReferenceImagePanel() {
                   void removeReferenceImageFile(image.ref)
                     .then(() => {
                       removeReferenceImage();
+                      setOpen(false);
                       setCalibrating(false);
                       setCalibrationBox(null);
                     })
@@ -438,9 +427,9 @@ export function ReferenceImagePanel() {
           </>
         )}
 
-        {error && <p className="refpanel__error">{error}</p>}
       </div>
       )}
+      {error && <p className="refpanel__error">{error}</p>}
     </section>
   );
 }

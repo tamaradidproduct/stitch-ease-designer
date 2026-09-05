@@ -101,6 +101,10 @@ export type ReferenceImage = {
   naturalHeight: number;
   opacity: number;
   visible: boolean;
+  /**
+   * Retained for compatibility with older saved charts. Reference-image
+   * editing is now controlled solely by whether its panel is open.
+   */
   locked: boolean;
   /**
    * Draw the image over the chart rather than behind it - for checking your

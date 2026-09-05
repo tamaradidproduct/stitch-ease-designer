@@ -55,7 +55,7 @@ export function CanvasView() {
       // An expanded module isn't itself a canvas mode. Only an editable,
       // visible image takes over the cursor; otherwise the chosen stitch
       // tool below (including Erase) remains in control.
-      if (image && image.visible && !image.locked) {
+      if (image && image.visible) {
         // Handles say which way they resize; everywhere else on the image is
         // a move. The edges have no drawn marker of their own, so this cursor
         // is the only thing announcing them - which is how every other design

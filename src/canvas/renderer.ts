@@ -502,17 +502,15 @@ function drawReferenceImageOverlay(ctx: CanvasRenderingContext2D, state: RenderS
     // the far corner is often off-screen at working zoom. The edges are
     // draggable too, with no marker of their own - the resize cursor is
     // their affordance, as in any other design tool.
-    if (!referenceImage.locked) {
-      const handle = 9;
-      for (const corner of CORNERS) {
-        const p = cornerPoint(referenceImage, corner);
-        const s = worldToScreen(p.x, p.y, cam, vp);
-        ctx.fillStyle = theme.hoverStroke;
-        ctx.fillRect(s.x - handle / 2, s.y - handle / 2, handle, handle);
-        ctx.strokeStyle = "#ffffff";
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(s.x - handle / 2, s.y - handle / 2, handle, handle);
-      }
+    const handle = 9;
+    for (const corner of CORNERS) {
+      const p = cornerPoint(referenceImage, corner);
+      const s = worldToScreen(p.x, p.y, cam, vp);
+      ctx.fillStyle = theme.hoverStroke;
+      ctx.fillRect(s.x - handle / 2, s.y - handle / 2, handle, handle);
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(s.x - handle / 2, s.y - handle / 2, handle, handle);
     }
     ctx.restore();
   }

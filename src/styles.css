@@ -1248,8 +1248,8 @@ body {
 
 .glossary__remove {
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   padding: 0;
   place-items: center;
   flex: none;
@@ -1361,18 +1361,85 @@ body {
   width: 100%;
 }
 
-.refpanel__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 6px 8px 12px;
+.refpanel__moduleHeader {
+  border-bottom: 0;
+}
+
+.refpanel[data-editing="true"] .refpanel__moduleHeader {
   border-bottom: 1px solid var(--border);
 }
 
-.refpanel__title {
-  font-size: 12px;
+.refpanel__headerAction {
+  justify-content: center;
+  min-height: 28px;
+  flex: none;
+  padding: 4px 8px;
+  color: var(--accent);
+  font-size: 11px;
+}
+
+.refpanel__quickControls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 0 8px 8px;
+}
+
+.btn.refpanel__iconButton {
+  display: grid;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  padding: 0;
+  color: var(--text-muted);
+}
+
+.refpanel__iconButton svg {
+  width: 28px;
+  height: 28px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.refpanel__iconButton[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: #e0f2fe;
+  color: var(--accent);
+}
+
+.btn.refpanel__iconButton.refpanel__layerButton {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: max-content;
+  min-width: 0;
+  gap: 5px;
+  padding: 0 9px;
+  white-space: nowrap;
+  font-size: 11px;
   font-weight: 600;
-  color: var(--text);
+}
+
+.refpanel__layerButton svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Match the compact tool icons elsewhere in the app while retaining the
+   larger 40px hit target for visibility. */
+.refpanel__iconButton:not(.refpanel__layerButton) svg {
+  width: 17px;
+  height: 17px;
+  stroke-width: 1.6;
+}
+
+.refpanel__setScale {
+  justify-content: center;
+  width: 100%;
 }
 
 .refpanel__body {
@@ -1457,6 +1524,7 @@ body {
 
 .refpanel__error {
   margin: 0;
+  padding: 0 12px 12px;
   color: #dc2626;
   font-size: 12px;
 }
@@ -1815,13 +1883,24 @@ body {
   position: absolute;
   z-index: 6;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
   padding: 6px 8px;
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 8px;
   box-shadow: 0 6px 20px rgb(15 23 42 / 18%);
+}
+
+.markpop__fields {
+  display: grid;
+  grid-template-columns: repeat(2, max-content);
+  gap: 5px 8px;
+}
+
+.markpop__field {
+  display: flex;
+  align-items: center;
 }
 
 .markpop label {
@@ -1839,6 +1918,36 @@ body {
   border-radius: 6px;
   font: inherit;
   font-size: 12px;
+}
+
+.markpop__shortcuts {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.markpop__shortcut {
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.markpop__shortcut:hover,
+.markpop__shortcut[data-active="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.markpop__shortcut[data-active="true"] {
+  background: #e0f2fe;
 }
 
 /* Matches the badge drawn beside the mark on the canvas. */
@@ -1862,6 +1971,7 @@ body {
   font-size: 16px;
   line-height: 1;
   padding: 0 2px;
+  margin-top: 1px;
 }
 
 .markpop__remove:hover {

@@ -113,8 +113,8 @@ type UiState = {
   lastClearedSelection: string[] | null;
 
   /**
-   * Whether the reference-image panel is open. While it is, and the image
-   * is unlocked, dragging it on the canvas moves/resizes it instead of
+   * Whether the reference-image panel is open. While it is, dragging the
+   * reference image on the canvas moves/resizes it instead of
    * whatever the active tool would otherwise do there - closing the panel
    * hands the canvas back entirely, so there's no lingering mode to
    * accidentally leave on.

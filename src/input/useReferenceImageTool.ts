@@ -295,7 +295,7 @@ export function handleAt(
 
 /**
  * Drag-to-move, drag-to-resize, and draw-a-box-to-calibrate for the
- * reference image, active only while its panel is open and it's unlocked -
+ * reference image, active only while its panel is open -
  * closing the panel hands the canvas back to the normal tools entirely,
  * rather than leaving a mode active that has to be separately remembered
  * and exited.
@@ -338,7 +338,7 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
         return;
       }
 
-      if (image.locked || !image.visible) return;
+      if (!image.visible) return;
 
       const zoom = useUiStore.getState().camera.zoom;
 
@@ -437,7 +437,7 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
       const ui = useUiStore.getState();
       const image = useDocStore.getState().referenceImage;
       const next =
-        ui.referenceImagePanelOpen && !ui.referenceImageCalibrating && image?.visible && !image.locked
+        ui.referenceImagePanelOpen && !ui.referenceImageCalibrating && image?.visible
           ? handleAt(image, worldAt(e), ui.camera.zoom)
           : null;
       const prev = ui.referenceImageHandle;
@@ -561,9 +561,26 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
             ? markFromBox(image, box, useUiStore.getState().camera.zoom)
             : null;
         if (mark) {
+          // The first corner stitch is enough to establish a useful starting
+          // scale: the box itself tells us how large one stitch is. Keep it
+          // as the first numbered mark too, so subsequent corners can refine
+          // that estimate from their printed stitch/row numbers.
+          const initialScale =
+            !image!.stitchPin && box
+              ? calibrationTransform(image!, box, useUiStore.getState().camera.zoom)
+              : null;
+          if (!image!.stitchPin && !initialScale) {
+            useUiStore.getState().setReferenceImageCalibrationRejected(true);
+            useUiStore.getState().setReferenceImageCalibrationBox(null);
+            drag = null;
+            if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
+            return;
+          }
           useDocStore.getState().updateReferenceImage({
+            ...initialScale,
             calibrationMarks: addCalibrationMark(image!.calibrationMarks, mark),
           });
+          useUiStore.getState().setReferenceImageCalibrationRejected(false);
           // Opening the popover on the stitch just boxed is the whole point
           // of boxing it: the numbers get read off the chart at that spot,
           // while looking at it.

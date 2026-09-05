@@ -188,8 +188,7 @@ export function useShortcuts(): void {
       // it's the only thing on screen you position rather than draw, and
       // lining a chart photo up with the grid is exactly the job where a
       // mouse drag is too coarse to finish. Same conditions as dragging it
-      // (see `useReferenceImageTool`) - a locked or hidden image doesn't
-      // move either way.
+      // (see `useReferenceImageTool`) - a hidden image doesn't move either.
       if (ARROWS[e.key] && ui.referenceImagePanelOpen && !e.metaKey && !e.ctrlKey) {
         const image = doc.referenceImage;
         // With a mark selected, the arrows belong to it rather than to the
@@ -208,7 +207,7 @@ export function useShortcuts(): void {
           });
           return;
         }
-        if (image && image.visible && !image.locked) {
+        if (image && image.visible) {
           e.preventDefault();
           // A whole cell with shift, otherwise a single world unit - 1/24th
           // of a stitch, which is the scale the last bit of alignment
