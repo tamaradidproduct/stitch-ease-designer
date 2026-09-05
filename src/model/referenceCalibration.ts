@@ -1,5 +1,5 @@
 import { CELL } from "../canvas/camera";
-import type { CalibrationPoint, ReferenceImage } from "./types";
+import { markCentre, type CalibrationMark, type ReferenceImage } from "./types";
 
 /** Smallest the fit is allowed to scale an image to, in world units: one cell. */
 const MIN_SIZE = 24;
@@ -56,16 +56,23 @@ function slope(xs: number[], ys: number[]): number | null {
  * Returns null when the marks don't determine a scale: fewer than two
  * labelled, or no spread in the stitch numbers or the row numbers.
  */
-export function scaleFromCalibrationPoints(
+export function scaleFromCalibrationMarks(
   image: Pick<ReferenceImage, "x" | "y" | "width" | "height" | "naturalWidth" | "naturalHeight">,
-  points: CalibrationPoint[],
+  allMarks: CalibrationMark[],
 ): Partial<ReferenceImage> | null {
-  const marks = points.filter((p) => p.stitch !== null && p.row !== null);
+  const marks = allMarks.filter((m) => m.stitch !== null && m.row !== null);
   if (marks.length < 2) return null;
 
-  // Fraction-of-image per stitch, and per row.
-  const perStitch = slope(marks.map((p) => p.stitch!), marks.map((p) => p.u));
-  const perRow = slope(marks.map((p) => p.row!), marks.map((p) => p.v));
+  // The fit runs on the *centres* of the boxes, not their sizes. A box is
+  // twenty-odd source pixels across, and measuring a stitch from one is
+  // exactly the imprecision this whole flow exists to escape: the distance
+  // between two corners of the chart is the same measurement taken over a
+  // hundred times the span, so its error is a hundredth the size. The boxes
+  // are there to say *which* stitch, and to be adjustable, not to be
+  // measured.
+  const centres = marks.map(markCentre);
+  const perStitch = slope(marks.map((m) => m.stitch!), centres.map((c) => c.u));
+  const perRow = slope(marks.map((m) => m.row!), centres.map((c) => c.v));
   if (perStitch === null || perRow === null) return null;
 
   const width = CELL / Math.abs(perStitch);
@@ -81,21 +88,18 @@ export function scaleFromCalibrationPoints(
   // Scale about the centroid of the marks, so the region actually being
   // matched stays put instead of sliding off while everything around it
   // grows.
-  const meanU = marks.reduce((a, p) => a + p.u, 0) / marks.length;
-  const meanV = marks.reduce((a, p) => a + p.v, 0) / marks.length;
+  const meanU = centres.reduce((a, c) => a + c.u, 0) / centres.length;
+  const meanV = centres.reduce((a, c) => a + c.v, 0) / centres.length;
   const anchorX = image.x + meanU * image.width;
   const anchorY = image.y + meanV * image.height;
   const x = anchorX - meanU * width;
   const y = anchorY - meanV * height;
 
   // Pin the bottom-left mark's own stitch, matching what "Set stitch size"
-  // establishes: marks name the centre of a stitch, and the pin is that
-  // cell's bottom-left corner, so it can be snapped onto a grid line.
-  const anchorMark = marks.reduce((best, p) => (p.u + p.v < best.u + best.v ? p : best));
-  const pin = {
-    u: clamp01(anchorMark.u - CELL / 2 / width),
-    v: clamp01(anchorMark.v - CELL / 2 / height),
-  };
+  // establishes - the boxed stitch's bottom-left corner, so it can be
+  // snapped onto a grid line and hold every later resize.
+  const anchor = marks.reduce((best, m) => (m.u + m.v < best.u + best.v ? m : best));
+  const pin = { u: clamp01(anchor.u), v: clamp01(anchor.v) };
 
   const snapped = snapImageToGrid(x, y, { width, height }, pin);
   return { ...snapped, width, height, stitchPin: pin };
@@ -128,22 +132,22 @@ export function snapImageToGrid(
 }
 
 /** A fresh mark id. Only has to be unique within one image's list. */
-export function newCalibrationPointId(): string {
+export function newCalibrationMarkId(): string {
   return `mark_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
-export const addCalibrationPoint = (
-  points: CalibrationPoint[] | undefined,
-  point: CalibrationPoint,
-): CalibrationPoint[] => [...(points ?? []), point];
+export const addCalibrationMark = (
+  marks: CalibrationMark[] | undefined,
+  mark: CalibrationMark,
+): CalibrationMark[] => [...(marks ?? []), mark];
 
-export const patchCalibrationPoint = (
-  points: CalibrationPoint[] | undefined,
+export const patchCalibrationMark = (
+  marks: CalibrationMark[] | undefined,
   id: string,
-  patch: Partial<CalibrationPoint>,
-): CalibrationPoint[] => (points ?? []).map((p) => (p.id === id ? { ...p, ...patch } : p));
+  patch: Partial<CalibrationMark>,
+): CalibrationMark[] => (marks ?? []).map((m) => (m.id === id ? { ...m, ...patch } : m));
 
-export const withoutCalibrationPoint = (
-  points: CalibrationPoint[] | undefined,
+export const withoutCalibrationMark = (
+  marks: CalibrationMark[] | undefined,
   id: string,
-): CalibrationPoint[] => (points ?? []).filter((p) => p.id !== id);
+): CalibrationMark[] => (marks ?? []).filter((m) => m.id !== id);

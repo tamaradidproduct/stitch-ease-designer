@@ -1,8 +1,8 @@
 import { useRef, useState } from "react";
 import { CELL } from "../canvas/camera";
 import {
-  scaleFromCalibrationPoints,
-  withoutCalibrationPoint,
+  scaleFromCalibrationMarks,
+  withoutCalibrationMark,
 } from "../model/referenceCalibration";
 import { resizeReferenceImageAround, stitchBoxRect } from "../model/types";
 import { useDocStore } from "../state/docStore";
@@ -41,9 +41,9 @@ export function ReferenceImagePanel() {
   // Recomputed as the numbers are typed, so "Apply scale" is only live once
   // the marks actually determine a scale - which is also the clearest way to
   // say that two of them naming the same row pins nothing down.
-  const points = image?.calibrationPoints ?? [];
+  const points = image?.calibrationMarks ?? [];
   const labelled = points.filter((p) => p.stitch !== null && p.row !== null);
-  const fit = image && marking ? scaleFromCalibrationPoints(image, points) : null;
+  const fit = image && marking ? scaleFromCalibrationMarks(image, points) : null;
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -175,7 +175,7 @@ export function ReferenceImagePanel() {
               }
             >
               {marking
-                ? "Click four stitches in the photo \u2014 two along the bottom row, two along the top \u2014 and type the numbers printed on the chart for each. Drag a mark to nudge it."
+                ? "Box a stitch in each corner of the chart, the same way you set a stitch size, and type the numbers printed beside it. Drag a box to move it onto the right stitch."
                 : calibrating
                 ? calibrationRejected
                   ? "That box was too small to read. Zoom in and drag across one whole stitch."
@@ -242,7 +242,7 @@ export function ReferenceImagePanel() {
             {marking && (
               <div className="refpanel__marks">
                 {points.length === 0 ? (
-                  <p className="refpanel__hint">No marks yet.</p>
+                  <p className="refpanel__hint">No stitches boxed yet.</p>
                 ) : (
                   <ul className="refpanel__markList">
                     {points.map((point, i) => {
@@ -270,11 +270,11 @@ export function ReferenceImagePanel() {
                           <button
                             type="button"
                             className="refpanel__markRemove"
-                            title="Remove this mark"
+                            title="Remove this box"
                             onClick={() => {
                               updateReferenceImage({
-                                calibrationPoints: withoutCalibrationPoint(
-                                  image.calibrationPoints,
+                                calibrationMarks: withoutCalibrationMark(
+                                  image.calibrationMarks,
                                   point.id,
                                 ),
                               });
@@ -292,7 +292,7 @@ export function ReferenceImagePanel() {
                   {fit
                     ? `${labelled.length} numbered — ready to scale.`
                     : labelled.length < 2
-                      ? "Number at least two marks."
+                      ? "Number at least two boxes."
                       : "Needs two different stitch numbers and two different row numbers."}
                 </p>
                 <div className="refpanel__markActions">
@@ -302,12 +302,12 @@ export function ReferenceImagePanel() {
                     disabled={!fit}
                     title={
                       fit
-                        ? "Scale the image so the marked stitches are one cell apart"
-                        : "Mark at least two stitches with different stitch numbers and different row numbers"
+                        ? "Scale the image so the boxed stitches land the right distance apart"
+                        : "Box at least two stitches with different stitch numbers and different row numbers"
                     }
                     onClick={() => {
                       if (!fit) return;
-                      updateReferenceImage({ ...fit, calibrationPoints: [] });
+                      updateReferenceImage({ ...fit, calibrationMarks: [] });
                       setActiveMark(null);
                       setMarking(false);
                     }}
@@ -318,11 +318,11 @@ export function ReferenceImagePanel() {
                     type="button"
                     className="btn btn--quiet"
                     onClick={() => {
-                      updateReferenceImage({ calibrationPoints: [] });
+                      updateReferenceImage({ calibrationMarks: [] });
                       setActiveMark(null);
                     }}
                   >
-                    Clear marks
+                    Clear boxes
                   </button>
                 </div>
               </div>
@@ -332,18 +332,18 @@ export function ReferenceImagePanel() {
               className="btn btn--quiet"
               data-on={marking}
               disabled={!image.visible}
-              title="Identify four stitches by their printed numbers and scale the image to match"
+              title="Box a stitch in each corner, name them by their printed numbers, and scale the image to match"
               onClick={() => {
                 // Leaving the mode drops the marks; coming back to a photo
                 // half-marked from some earlier session, with no memory of
                 // which stitch was which, is worse than starting over.
-                if (marking) updateReferenceImage({ calibrationPoints: [] });
+                if (marking) updateReferenceImage({ calibrationMarks: [] });
                 setActiveMark(null);
                 setCalibrating(false);
                 setMarking(!marking);
               }}
             >
-              {marking ? "Cancel scaling" : "Set scale from stitches"}
+              {marking ? "Cancel scaling" : "Set scale from corner stitches"}
             </button>
             <button
               type="button"

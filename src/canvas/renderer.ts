@@ -2,7 +2,7 @@ import type { DocIndex } from "../model/docIndex";
 import { canInsertAt } from "../model/ops";
 import { rowDirectionAt } from "../model/rowDirection";
 import { chartTopology, knittedRowNumbers, roundStitchNumbers } from "../model/stitchNumbers";
-import { CORNERS, cornerPoint, stitchBoxRect, type CalibrationPoint, type ReferenceImage } from "../model/types";
+import { CORNERS, cornerPoint, stitchBoxRect, type CalibrationMark, type ReferenceImage } from "../model/types";
 import { getSymbol } from "../symbols/registry";
 import {
   CELL,
@@ -42,8 +42,9 @@ export type RenderState = {
   referenceImageCalibrating: boolean;
   /** The calibration box's corners in world space, while one's being dragged out. */
   referenceImageCalibrationBox: { start: Point; current: Point } | null;
-  referenceImagePoints: CalibrationPoint[];
+  referenceImageMarks: CalibrationMark[];
   referenceImageActiveMark: string | null;
+  referenceImageMarking: boolean;
   /** Cell whose place, replace, or insert picker is currently open. */
   pickerTarget: PickerTarget | null;
   selectedPlacementIds: string[];
@@ -409,11 +410,8 @@ function drawEditHighlight(
  * stitch with its pinned corner marked, and the calibration box while one's
  * being dragged out.
  */
-/** On-screen size of a calibration mark's reticle, matching its hit-radius. */
-const MARK_RETICLE_PX = 18;
-
 function drawReferenceImageOverlay(ctx: CanvasRenderingContext2D, state: RenderState): void {
-  const { referenceImagePanelOpen, referenceImage, referenceImageCalibrationBox, referenceImagePoints, referenceImageActiveMark, camera: cam, viewport: vp } =
+  const { referenceImagePanelOpen, referenceImage, referenceImageCalibrationBox, referenceImageMarks, referenceImageActiveMark, referenceImageMarking, camera: cam, viewport: vp } =
     state;
   if (!referenceImagePanelOpen) return;
 
@@ -455,8 +453,11 @@ function drawReferenceImageOverlay(ctx: CanvasRenderingContext2D, state: RenderS
   // fixed. Exactly one cell, so it can be read against the chart's own grid
   // at a glance. Suppressed while a new box is being drawn, since the old
   // pin is about to be replaced by it.
+  // Hidden while marking: the corner marks are a *replacement* for the
+  // single boxed stitch, so showing the old one alongside them invites
+  // lining new boxes up against a scale that is about to be discarded.
   const stitch =
-    referenceImage?.visible && !referenceImageCalibrationBox
+    referenceImage?.visible && !referenceImageCalibrationBox && !referenceImageMarking
       ? stitchBoxRect(referenceImage)
       : null;
   if (stitch) {
@@ -492,61 +493,54 @@ function drawReferenceImageOverlay(ctx: CanvasRenderingContext2D, state: RenderS
     ctx.restore();
   }
 
-  // The calibration marks, numbered in the order they were placed so the
-  // popover and the canvas can be paired by eye. Drawn over everything else
-  // in the overlay: they are what's being aimed, and a handle sitting on
-  // top of one would hide exactly the pixel being aimed at.
-  if (referenceImage?.visible && referenceImagePoints.length) {
-    for (const [i, p] of referenceImagePoints.entries()) {
-      const s = worldToScreen(
-        referenceImage.x + p.u * referenceImage.width,
-        referenceImage.y + p.v * referenceImage.height,
+  // The boxed stitches, numbered in the order they were drawn so the panel
+  // and the canvas can be paired by eye. Drawn over everything else in the
+  // overlay: they are what's being aimed, and a resize handle sitting on
+  // top of one would hide exactly the stitch being framed.
+  if (referenceImage?.visible && referenceImageMarks.length) {
+    for (const [i, m] of referenceImageMarks.entries()) {
+      const bottomLeft = worldToScreen(
+        referenceImage.x + m.u * referenceImage.width,
+        referenceImage.y + m.v * referenceImage.height,
         cam,
         vp,
       );
-      const labelled = p.stitch !== null && p.row !== null;
-      const active = p.id === referenceImageActiveMark;
-      const colour = active ? "#0284c7" : labelled ? "#7c3aed" : "#94a3b8";
-      // A fixed screen-size reticle rather than a cell-sized box: the whole
-      // question being answered is how big a stitch is on this photo, so a
-      // box drawn at some assumed stitch size would be asserting the very
-      // thing that isn't known yet. It still gives the mark visible bounds
-      // and shows how big a target it is to grab.
-      const half = MARK_RETICLE_PX / 2;
+      const topRight = worldToScreen(
+        referenceImage.x + (m.u + m.w) * referenceImage.width,
+        referenceImage.y + (m.v + m.h) * referenceImage.height,
+        cam,
+        vp,
+      );
+      const x = bottomLeft.x;
+      const y = topRight.y;
+      const width = topRight.x - bottomLeft.x;
+      const height = bottomLeft.y - topRight.y;
+      const named = m.stitch !== null && m.row !== null;
+      const active = m.id === referenceImageActiveMark;
+      const colour = active ? "#0284c7" : named ? "#7c3aed" : "#94a3b8";
 
       ctx.save();
-      ctx.lineJoin = "round";
-      // White underlay first, so a mark stays legible on dark chart ink.
+      // A wash inside the box as well as an outline: at the zoom where a
+      // whole chart fits, an outline alone on a stitch-sized box is a few
+      // pixels of line over a busy photo and easy to lose.
+      ctx.fillStyle = active ? "rgba(2, 132, 199, 0.18)" : "rgba(124, 58, 237, 0.13)";
+      ctx.fillRect(x, y, width, height);
       ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 4;
-      ctx.strokeRect(s.x - half, s.y - half, MARK_RETICLE_PX, MARK_RETICLE_PX);
-      ctx.beginPath();
-      ctx.moveTo(s.x - half + 3, s.y);
-      ctx.lineTo(s.x + half - 3, s.y);
-      ctx.moveTo(s.x, s.y - half + 3);
-      ctx.lineTo(s.x, s.y + half - 3);
-      ctx.stroke();
-
+      ctx.lineWidth = 3;
+      ctx.strokeRect(x + 0.5, y + 0.5, width - 1, height - 1);
       ctx.strokeStyle = colour;
-      ctx.lineWidth = active ? 2.5 : 1.5;
-      ctx.strokeRect(s.x - half, s.y - half, MARK_RETICLE_PX, MARK_RETICLE_PX);
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(s.x - half + 3, s.y);
-      ctx.lineTo(s.x + half - 3, s.y);
-      ctx.moveTo(s.x, s.y - half + 3);
-      ctx.lineTo(s.x, s.y + half - 3);
-      ctx.stroke();
+      ctx.lineWidth = active ? 2 : 1.5;
+      ctx.strokeRect(x + 0.5, y + 0.5, width - 1, height - 1);
 
       ctx.fillStyle = colour;
       ctx.beginPath();
-      ctx.arc(s.x + half + 2, s.y - half - 2, 8, 0, Math.PI * 2);
+      ctx.arc(x, y, 8, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = "#ffffff";
       ctx.font = "600 11px system-ui, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(String(i + 1), s.x + half + 2, s.y - half - 1);
+      ctx.fillText(String(i + 1), x, y + 1);
       ctx.restore();
     }
   }

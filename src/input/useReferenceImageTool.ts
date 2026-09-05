@@ -9,13 +9,14 @@ import {
   resizeReferenceImageAround,
   stitchBoxRect,
   type BoxHandle,
+  type CalibrationMark,
   type Corner,
   type ReferenceImage,
 } from "../model/types";
 import {
-  addCalibrationPoint,
-  newCalibrationPointId,
-  patchCalibrationPoint,
+  addCalibrationMark,
+  newCalibrationMarkId,
+  patchCalibrationMark,
   snapImageToGrid,
 } from "../model/referenceCalibration";
 import { useDocStore } from "../state/docStore";
@@ -23,15 +24,6 @@ import { useUiStore } from "../state/uiStore";
 
 /** Hit-radius for the resize handle, in screen px (constant regardless of zoom). */
 const HANDLE_PX = 10;
-/**
- * Hit-radius for grabbing a placed calibration mark, in screen px.
- *
- * Deliberately larger than the 18px reticle it grabs. A press that missed
- * used to drop a *second* mark on top of the first rather than picking it
- * up, so aiming slightly off didn't just fail - it silently added a mark
- * and moved that instead, which reads as "the marks won't drag".
- */
-const MARK_PX = 15;
 /** Smallest a reference image can be scaled down to, in world units. */
 const MIN_SIZE = 24;
 /**
@@ -92,12 +84,20 @@ type Drag =
   | { mode: "calibrate"; start: Point }
   | {
       /**
-       * Nudging an already-placed mark. Marks are read off printed numbers
-       * a few source pixels apart, so being able to correct one by a pixel
-       * without re-placing it is what makes four of them worth collecting.
+       * Sliding an already-boxed stitch onto the right one. Boxes are a few
+       * dozen source pixels across, so being able to correct one without
+       * redrawing it is what makes four of them worth collecting.
        */
       mode: "markMove";
       id: string;
+      /** Grab offset within the box, so it doesn't jump to the cursor. */
+      grabU: number;
+      grabV: number;
+    }
+  | {
+      /** Dragging out a new box around a stitch, exactly as calibration does. */
+      mode: "markDraw";
+      start: Point;
     };
 
 /**
@@ -209,17 +209,49 @@ export function stitchResizeTransform(
  * meant for the image underneath it.
  */
 /**
- * The calibration mark under the cursor, if any - so clicking an existing
- * one nudges it instead of dropping a second mark on top of it.
+ * The boxed stitch under the cursor, if any - so pressing inside one slides
+ * it instead of drawing a second box on top of it.
+ *
+ * The whole box is the grab target, which is the point of using boxes:
+ * there is no small handle to miss, so a press that lands on the stitch you
+ * meant always picks up the mark on it.
  */
-function markAt(image: ReferenceImage, w: Point, zoom: number): { id: string } | null {
-  const radius = MARK_PX / zoom;
-  for (const p of image.calibrationPoints ?? []) {
-    const x = image.x + p.u * image.width;
-    const y = image.y + p.v * image.height;
-    if (Math.abs(w.x - x) <= radius && Math.abs(w.y - y) <= radius) return p;
+function markAt(image: ReferenceImage, w: Point): CalibrationMark | null {
+  const u = (w.x - image.x) / image.width;
+  const v = (w.y - image.y) / image.height;
+  // Last first, so the most recently drawn box wins where two overlap.
+  for (const m of [...(image.calibrationMarks ?? [])].reverse()) {
+    if (u >= m.u && u <= m.u + m.w && v >= m.v && v <= m.v + m.h) return m;
   }
   return null;
+}
+
+/**
+ * Turns a dragged-out box into a mark, in image fractions.
+ *
+ * Rejects a box too small to be a deliberate drag, on the same screen-pixel
+ * footing as calibration - a stray click would otherwise leave a
+ * zero-width mark that no fit could use and nothing on screen to grab.
+ */
+export function markFromBox(
+  image: Pick<ReferenceImage, "x" | "y" | "width" | "height">,
+  box: { start: Point; current: Point },
+  zoom: number,
+): CalibrationMark | null {
+  const minWorld = MIN_CALIBRATION_PX / zoom;
+  if (Math.abs(box.current.x - box.start.x) < minWorld) return null;
+  if (Math.abs(box.current.y - box.start.y) < minWorld) return null;
+
+  const left = Math.min(box.start.x, box.current.x);
+  const bottom = Math.min(box.start.y, box.current.y);
+  const u = (left - image.x) / image.width;
+  const v = (bottom - image.y) / image.height;
+  const w = Math.abs(box.current.x - box.start.x) / image.width;
+  const h = Math.abs(box.current.y - box.start.y) / image.height;
+  // A box drawn partly off the photo names no stitch on it.
+  if (u < 0 || v < 0 || u + w > 1 || v + h > 1) return null;
+
+  return { id: newCalibrationMarkId(), u, v, w, h, stitch: null, row: null };
 }
 
 export function handleAt(
@@ -320,30 +352,26 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
         // invisible while the photo is covering it.
         e.preventDefault();
         e.stopImmediatePropagation();
-        const u = (w.x - image.x) / image.width;
-        const v = (w.y - image.y) / image.height;
-        if (u < 0 || u > 1 || v < 0 || v > 1) {
-          useUiStore.getState().setReferenceImageActiveMark(null);
+
+        const existing = markAt(image, w);
+        if (existing) {
+          // Inside a box already drawn: slide it, keeping the grab point
+          // under the cursor.
+          useUiStore.getState().setReferenceImageActiveMark(existing.id);
+          drag = {
+            mode: "markMove",
+            id: existing.id,
+            grabU: (w.x - image.x) / image.width - existing.u,
+            grabV: (w.y - image.y) / image.height - existing.v,
+          };
+          canvas.setPointerCapture(e.pointerId);
           return;
         }
-        const existing = markAt(image, w, zoom);
-        const id = existing?.id ?? newCalibrationPointId();
-        if (!existing) {
-          useDocStore.getState().updateReferenceImage({
-            calibrationPoints: addCalibrationPoint(image.calibrationPoints, {
-              id,
-              u,
-              v,
-              stitch: null,
-              row: null,
-            }),
-          });
-        }
-        // Opening the popover on the mark just placed is the whole point of
-        // placing it: the numbers get read off the photo at that spot,
-        // while looking at it.
-        useUiStore.getState().setReferenceImageActiveMark(id);
-        drag = { mode: "markMove", id };
+
+        // Otherwise draw a new box, the same gesture as "Set stitch size".
+        useUiStore.getState().setReferenceImageActiveMark(null);
+        drag = { mode: "markDraw", start: w };
+        useUiStore.getState().setReferenceImageCalibrationBox({ start: w, current: w });
         canvas.setPointerCapture(e.pointerId);
         return;
       }
@@ -486,14 +514,20 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
         );
         if (next) useDocStore.getState().updateReferenceImage(next);
       } else if (drag.mode === "markMove") {
+        // Bound to a const so the narrowing survives into the callback -
+        // `drag` is reassignable, so TypeScript widens it again inside one.
+        const { id, grabU, grabV } = drag;
         const img = useDocStore.getState().referenceImage;
-        if (!img) return;
+        const mark = img?.calibrationMarks?.find((m) => m.id === id);
+        if (!img || !mark) return;
         useDocStore.getState().updateReferenceImage({
-          calibrationPoints: patchCalibrationPoint(img.calibrationPoints, drag.id, {
-            u: Math.max(0, Math.min(1, (w.x - img.x) / img.width)),
-            v: Math.max(0, Math.min(1, (w.y - img.y) / img.height)),
+          calibrationMarks: patchCalibrationMark(img.calibrationMarks, id, {
+            u: Math.max(0, Math.min(1 - mark.w, (w.x - img.x) / img.width - grabU)),
+            v: Math.max(0, Math.min(1 - mark.h, (w.y - img.y) / img.height - grabV)),
           }),
         });
+      } else if (drag.mode === "markDraw") {
+        useUiStore.getState().setReferenceImageCalibrationBox({ start: drag.start, current: w });
       } else {
         useUiStore.getState().setReferenceImageCalibrationBox({ start: drag.start, current: w });
       }
@@ -516,6 +550,25 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
           // Stay armed and say so, rather than dropping out of the mode with
           // nothing to show for it - a rejected box used to be indis-
           // tinguishable from the feature being broken.
+          useUiStore.getState().setReferenceImageCalibrationRejected(true);
+        }
+        useUiStore.getState().setReferenceImageCalibrationBox(null);
+      } else if (drag.mode === "markDraw") {
+        const box = useUiStore.getState().referenceImageCalibrationBox;
+        const image = useDocStore.getState().referenceImage;
+        const mark =
+          box && image
+            ? markFromBox(image, box, useUiStore.getState().camera.zoom)
+            : null;
+        if (mark) {
+          useDocStore.getState().updateReferenceImage({
+            calibrationMarks: addCalibrationMark(image!.calibrationMarks, mark),
+          });
+          // Opening the popover on the stitch just boxed is the whole point
+          // of boxing it: the numbers get read off the chart at that spot,
+          // while looking at it.
+          useUiStore.getState().setReferenceImageActiveMark(mark.id);
+        } else {
           useUiStore.getState().setReferenceImageCalibrationRejected(true);
         }
         useUiStore.getState().setReferenceImageCalibrationBox(null);

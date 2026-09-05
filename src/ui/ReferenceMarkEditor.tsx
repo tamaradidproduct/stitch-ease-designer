@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { worldToScreen } from "../canvas/camera";
-import { patchCalibrationPoint, withoutCalibrationPoint } from "../model/referenceCalibration";
+import { patchCalibrationMark, withoutCalibrationMark } from "../model/referenceCalibration";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
 
@@ -28,7 +28,7 @@ export function ReferenceMarkEditor() {
   const updateReferenceImage = useDocStore((s) => s.updateReferenceImage);
   const stitchInput = useRef<HTMLInputElement | null>(null);
 
-  const points = image?.calibrationPoints ?? [];
+  const points = image?.calibrationMarks ?? [];
   const index = points.findIndex((p) => p.id === activeId);
   const point = index === -1 ? null : points[index]!;
   const activePointId = point?.id;
@@ -55,12 +55,12 @@ export function ReferenceMarkEditor() {
 
   const set = (patch: { stitch?: number | null; row?: number | null }) =>
     updateReferenceImage({
-      calibrationPoints: patchCalibrationPoint(image.calibrationPoints, point.id, patch),
+      calibrationMarks: patchCalibrationMark(image.calibrationMarks, point.id, patch),
     });
 
   const remove = () => {
     updateReferenceImage({
-      calibrationPoints: withoutCalibrationPoint(image.calibrationPoints, point.id),
+      calibrationMarks: withoutCalibrationMark(image.calibrationMarks, point.id),
     });
     setActive(null);
   };
@@ -106,7 +106,7 @@ export function ReferenceMarkEditor() {
           onChange={(e) => set({ row: parse(e.target.value) })}
         />
       </label>
-      <button type="button" className="markpop__remove" title="Remove this mark" onClick={remove}>
+      <button type="button" className="markpop__remove" title="Remove this box" onClick={remove}>
         &times;
       </button>
     </div>

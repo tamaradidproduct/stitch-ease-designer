@@ -217,27 +217,33 @@ function validate(stored: unknown): StoredChart {
     ) {
       throw new ChartFormatError("referenceImage is invalid");
     }
-    if (img.calibrationPoints !== undefined) {
+    if (img.calibrationMarks !== undefined) {
       // Scaffolding for one calibration, but stored, so it survives a
       // reload - which means it arrives from untrusted storage like
       // everything else here. A mark off the image would anchor a fit to a
       // point that isn't on the photo.
       if (
-        !Array.isArray(img.calibrationPoints) ||
-        img.calibrationPoints.some(
+        !Array.isArray(img.calibrationMarks) ||
+        img.calibrationMarks.some(
           (point) =>
             typeof point !== "object" ||
             point === null ||
             typeof point.id !== "string" ||
             typeof point.u !== "number" ||
             typeof point.v !== "number" ||
+            typeof point.w !== "number" ||
+            typeof point.h !== "number" ||
             !(point.u >= 0 && point.u <= 1) ||
             !(point.v >= 0 && point.v <= 1) ||
+            // A box has to have an extent and has to fit on the photo: a
+            // zero-width one names no stitch and can't be grabbed back.
+            !(point.w > 0 && point.u + point.w <= 1) ||
+            !(point.h > 0 && point.v + point.h <= 1) ||
             (point.stitch !== null && !Number.isFinite(point.stitch)) ||
             (point.row !== null && !Number.isFinite(point.row)),
         )
       ) {
-        throw new ChartFormatError("referenceImage.calibrationPoints is invalid");
+        throw new ChartFormatError("referenceImage.calibrationMarks is invalid");
       }
     }
     if (img.stitchPin !== undefined) {

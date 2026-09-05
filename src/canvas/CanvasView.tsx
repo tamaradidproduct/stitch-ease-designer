@@ -164,7 +164,8 @@ export function CanvasView() {
         state.keyboardSelectionActive !== prev.keyboardSelectionActive ||
         state.referenceImagePanelOpen !== prev.referenceImagePanelOpen ||
         state.referenceImageCalibrationBox !== prev.referenceImageCalibrationBox ||
-        state.referenceImageActiveMark !== prev.referenceImageActiveMark
+        state.referenceImageActiveMark !== prev.referenceImageActiveMark ||
+        state.referenceImageMarking !== prev.referenceImageMarking
       ) {
         markDirty();
       }
@@ -195,6 +196,7 @@ export function CanvasView() {
         referenceImageCalibrating,
         referenceImageCalibrationBox,
         referenceImageActiveMark,
+        referenceImageMarking,
       } = useUiStore.getState();
       const { index, revision, referenceImage } = useDocStore.getState();
       const dpr = window.devicePixelRatio || 1;
@@ -216,8 +218,9 @@ export function CanvasView() {
         referenceImagePanelOpen,
         referenceImageCalibrating,
         referenceImageCalibrationBox,
-        referenceImagePoints: referenceImage?.calibrationPoints ?? [],
+        referenceImageMarks: referenceImage?.calibrationMarks ?? [],
         referenceImageActiveMark,
+        referenceImageMarking,
         pickerTarget: picker,
         selectedPlacementIds,
         tool,

@@ -127,34 +127,48 @@ export type ReferenceImage = {
    */
   stitchPin?: { u: number; v: number };
   /**
-   * Marks placed by "Set scale from stitches", each naming a stitch and row
-   * read off the photo's printed numbering.
+   * Stitches boxed by "Set scale from stitches", each naming the stitch and
+   * row printed on the chart beside it - typically one in each corner.
    *
-   * Stored with the image rather than held in UI state: placing four of
-   * them accurately is real work, and losing it to a refresh - or to
-   * flipping to another chart and back - made the feature feel like it was
-   * eating progress. They also belong to this photo specifically, which is
-   * exactly what the image record is.
+   * Stored with the image rather than held in UI state: boxing four of them
+   * accurately is real work, and losing it to a refresh - or to flipping to
+   * another chart and back - made the feature feel like it was eating
+   * progress. They also belong to this photo specifically, which is exactly
+   * what the image record is.
    */
-  calibrationPoints?: CalibrationPoint[];
+  calibrationMarks?: CalibrationMark[];
 };
 
 /**
- * One place on the reference photo the designer has identified.
+ * One stitch on the reference photo that the designer has boxed and named.
  *
- * Position is a fraction of the image (0..1 from its bottom-left) rather
- * than world units, so a mark travels with the image for free while it is
- * moved or rescaled - including the rescale the calibration itself applies,
- * which is what lets the fit be re-run after nudging one mark.
+ * A box rather than a point, drawn the same way "Set stitch size" is drawn:
+ * framing a stitch is how you say *which* stitch you mean, and a rectangle
+ * you can see the edges of is far easier to put on the right one than a
+ * cross-hair with nothing to line up against.
+ *
+ * `u`/`v` are its bottom-left corner and `w`/`h` its size, all as fractions
+ * of the image (0..1) rather than world units, so a mark travels with the
+ * image for free while it is moved or rescaled - including the rescale the
+ * calibration itself applies, which is what lets the fit be re-run after
+ * adjusting one mark.
  */
-export type CalibrationPoint = {
+export type CalibrationMark = {
   id: string;
   u: number;
   v: number;
+  w: number;
+  h: number;
   /** Numbers as *printed on the chart*, not grid coordinates. Null until typed. */
   stitch: number | null;
   row: number | null;
 };
+
+/** The middle of a boxed stitch, as a fraction of the image. */
+export const markCentre = (mark: CalibrationMark): { u: number; v: number } => ({
+  u: mark.u + mark.w / 2,
+  v: mark.v + mark.h / 2,
+});
 
 /**
  * A rectangle's four corners, named by world-space position - `b`ottom is

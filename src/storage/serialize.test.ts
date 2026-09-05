@@ -161,9 +161,9 @@ describe("referenceImage", () => {
     // away the part of the work that takes the longest.
     const marked = {
       ...image,
-      calibrationPoints: [
-        { id: "m1", u: 0.1, v: 0.1, stitch: 36, row: 2 },
-        { id: "m2", u: 0.4, v: 0.1, stitch: 30, row: null },
+      calibrationMarks: [
+        { id: "m1", u: 0.1, v: 0.1, w: 0.02, h: 0.03, stitch: 36, row: 2 },
+        { id: "m2", u: 0.4, v: 0.1, w: 0.02, h: 0.03, stitch: 30, row: null },
       ],
     };
     const stored = encode([place("knit", 0, 0)], [], marked);
@@ -188,12 +188,23 @@ describe("referenceImage", () => {
       "out-of-range stitchPin": { ...image, stitchPin: { u: 1.5, v: 0.5 } },
       "incomplete stitchPin": { ...image, stitchPin: { u: 0.5 } },
       "non-numeric stitchPin": { ...image, stitchPin: { u: "0.5", v: 0.5 } },
-      "calibrationPoints not an array": { ...image, calibrationPoints: {} },
+      "calibrationMarks not an array": { ...image, calibrationMarks: {} },
       "mark off the image": {
         ...image,
-        calibrationPoints: [{ id: "m", u: 1.4, v: 0.5, stitch: 1, row: 1 }],
+        calibrationMarks: [{ id: "m", u: 1.4, v: 0.5, w: 0.02, h: 0.02, stitch: 1, row: 1 }],
       },
-      "mark with no id": { ...image, calibrationPoints: [{ u: 0.5, v: 0.5, stitch: 1, row: 1 }] },
+      "mark box running off the image": {
+        ...image,
+        calibrationMarks: [{ id: "m", u: 0.99, v: 0.5, w: 0.5, h: 0.02, stitch: 1, row: 1 }],
+      },
+      "mark with zero-size box": {
+        ...image,
+        calibrationMarks: [{ id: "m", u: 0.5, v: 0.5, w: 0, h: 0.02, stitch: 1, row: 1 }],
+      },
+      "mark with no id": {
+        ...image,
+        calibrationMarks: [{ u: 0.5, v: 0.5, w: 0.02, h: 0.02, stitch: 1, row: 1 }],
+      },
     };
     for (const referenceImage of Object.values(bad)) {
       const stored = { ...encode([]), referenceImage };
