@@ -1380,6 +1380,11 @@ body {
   line-height: 1.4;
 }
 
+/* A hint that's reporting a failed attempt, not just describing the mode. */
+.refpanel__hint--warn {
+  color: #dc2626;
+}
+
 .refpanel__row {
   display: flex;
   align-items: center;

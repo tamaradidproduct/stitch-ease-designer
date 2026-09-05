@@ -1,8 +1,16 @@
 import { useEffect } from "react";
-import { cellToScreenRect } from "../canvas/camera";
+import { CELL, cellToScreenRect } from "../canvas/camera";
 import type { Placement } from "../model/types";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
+
+/** Arrow key -> world-space direction. +y is up, matching +row. */
+const ARROWS: Record<string, [number, number] | undefined> = {
+  ArrowLeft: [-1, 0],
+  ArrowRight: [1, 0],
+  ArrowUp: [0, 1],
+  ArrowDown: [0, -1],
+};
 
 const isTyping = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
@@ -18,6 +26,8 @@ const isTyping = (target: EventTarget | null) =>
  *   Tab / Shift+Tab   select the next stitch to the right / left
  *   /                 open the picker at the hovered cell
  *   escape            clear selection, or disarm the current stitch
+ *   arrows            nudge the reference image, while its panel is open
+ *                     (shift for a whole cell at a time)
  *   S / D / E / I     select / draw / erase / insert
  *   1–5               arm the stitch in that quick-access slot
  *   Delete/Backspace  erase the selection
@@ -167,6 +177,26 @@ export function useShortcuts(): void {
         doc.erasePlacements(ui.selectedPlacementIds);
         ui.clearSelection();
         return;
+      }
+
+      // Arrow keys belong to the reference image while its panel is open:
+      // it's the only thing on screen you position rather than draw, and
+      // lining a chart photo up with the grid is exactly the job where a
+      // mouse drag is too coarse to finish. Same conditions as dragging it
+      // (see `useReferenceImageTool`) - a locked or hidden image doesn't
+      // move either way.
+      if (ARROWS[e.key] && ui.referenceImagePanelOpen && !e.metaKey && !e.ctrlKey) {
+        const image = doc.referenceImage;
+        if (image && image.visible && !image.locked) {
+          e.preventDefault();
+          // A whole cell with shift, otherwise a single world unit - 1/24th
+          // of a stitch, which is the scale the last bit of alignment
+          // actually happens at.
+          const step = e.shiftKey ? CELL : 1;
+          const [dx, dy] = ARROWS[e.key]!;
+          doc.updateReferenceImage({ x: image.x + dx * step, y: image.y + dy * step });
+          return;
+        }
       }
 
       if (e.key.toLowerCase() === "s" && !e.metaKey && !e.ctrlKey) {

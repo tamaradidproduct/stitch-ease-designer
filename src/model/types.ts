@@ -1,3 +1,5 @@
+import { CELL } from "../canvas/camera";
+
 /** One stitch placed on the grid. */
 export type Placement = {
   id: string;
@@ -100,16 +102,115 @@ export type ReferenceImage = {
   opacity: number;
   visible: boolean;
   locked: boolean;
+  /**
+   * Draw the image over the chart rather than behind it - for checking your
+   * stitches against the source by eye, where having the original on top
+   * (at partial opacity) is what makes a mismatch obvious. Optional so
+   * charts stored before this existed still load: absent means behind.
+   */
+  inFront?: boolean;
+  /**
+   * The bottom-left corner of the one stitch the designer boxed with "Set
+   * stitch size", kept after calibration rather than discarded - it's what
+   * every later resize is anchored to, so that aligning the first stitch to
+   * the grid is done once and stays done.
+   *
+   * Only the corner is stored, because the box it implies is *always*
+   * exactly one cell (see `stitchBoxRect`). Storing its size too let the
+   * box drift to some other size as the image was rescaled, which defeated
+   * the point: a box that isn't cell-sized can't be compared to a grid cell
+   * by eye, so it stopped being usable as the thing you align against.
+   *
+   * A fraction of the image (0..1 from its bottom-left), never world units,
+   * so it travels with the image for free: moving or resizing the image
+   * carries it along with no separate bookkeeping to keep in sync.
+   */
+  stitchPin?: { u: number; v: number };
 };
+
+/**
+ * A rectangle's four corners, named by world-space position - `b`ottom is
+ * the smaller y, since +y is up here.
+ */
+export type Corner = "bl" | "br" | "tl" | "tr";
+
+export const CORNERS: readonly Corner[] = ["bl", "br", "tl", "tr"];
+
+/** A rectangle's four sides. */
+export type Edge = "l" | "r" | "t" | "b";
+
+export const EDGES: readonly Edge[] = ["l", "r", "t", "b"];
+
+/** Anything on a bounding box you can grab to resize it. */
+export type BoxHandle = Corner | Edge;
+
+/**
+ * Which way each axis moves when `handle` is dragged outward, and which
+ * axes it touches at all: 0 means the handle leaves that axis alone, which
+ * is exactly what makes an edge an edge rather than a corner.
+ */
+export function handleSigns(handle: BoxHandle): { sx: -1 | 0 | 1; sy: -1 | 0 | 1 } {
+  return {
+    sx: handle === "r" || handle === "br" || handle === "tr" ? 1
+      : handle === "l" || handle === "bl" || handle === "tl" ? -1
+      : 0,
+    sy: handle === "t" || handle === "tl" || handle === "tr" ? 1
+      : handle === "b" || handle === "bl" || handle === "br" ? -1
+      : 0,
+  };
+}
+
+/** The corner a drag holds still: the one diagonally across from it. */
+export const OPPOSITE_CORNER: Record<Corner, Corner> = {
+  bl: "tr",
+  br: "tl",
+  tl: "br",
+  tr: "bl",
+};
+
+/** Where `corner` sits on `rect`, in whatever space `rect` is expressed in. */
+export function cornerPoint(
+  rect: { x: number; y: number; width: number; height: number },
+  corner: Corner,
+): { x: number; y: number } {
+  return {
+    x: corner === "br" || corner === "tr" ? rect.x + rect.width : rect.x,
+    y: corner === "tl" || corner === "tr" ? rect.y + rect.height : rect.y,
+  };
+}
+
+/**
+ * The calibrated stitch's box in world space, or null if the image has
+ * never been calibrated. `x`/`y` are its bottom-left corner - the point the
+ * size controls are pinned to.
+ *
+ * Always exactly one cell, so it can be read against the chart's own grid
+ * at a glance: lined up with a grid cell means the photo is calibrated and
+ * positioned, and any mismatch is exactly the correction still to make.
+ * Its size is never stored, so nothing can knock it off that.
+ */
+export function stitchBoxRect(
+  image: Pick<ReferenceImage, "x" | "y" | "width" | "height" | "stitchPin">,
+): { x: number; y: number; width: number; height: number } | null {
+  const pin = image.stitchPin;
+  if (!pin) return null;
+  return {
+    x: image.x + pin.u * image.width,
+    y: image.y + pin.v * image.height,
+    width: CELL,
+    height: CELL,
+  };
+}
 
 /**
  * The transform that resizes `image` to `newWidth`/`newHeight` while keeping
  * `anchor` - a world-space point - visually fixed: everything else in the
- * image scales around it. Used for the drag-a-box calibration (anchored on
- * the box's own centre) and the manual size controls (anchored on the
- * image's current centre) - either way, resizing shouldn't make the image
- * jump somewhere else on screen as a side effect. `newWidth` and `newHeight`
- * are independent, so this covers both uniform and stretched resizing.
+ * image scales around it. Once the image has a `stitchPin`, that stitch box's
+ * bottom-left corner is the anchor for every resize, so the stitch the
+ * designer lined up with the grid stays lined up; before then it's the
+ * image's own centre, so a resize doesn't fling it off-screen. `newWidth`
+ * and `newHeight` are independent, so this covers both uniform and
+ * stretched resizing.
  */
 export function resizeReferenceImageAround(
   image: Pick<ReferenceImage, "x" | "y" | "width" | "height">,

@@ -8,7 +8,7 @@ import {
   panByScreen,
   zoomAt,
 } from "../canvas/camera";
-import type { Placement } from "../model/types";
+import type { BoxHandle, Placement } from "../model/types";
 
 export type Tool = "select" | "stitch" | "eraser" | "insert";
 
@@ -127,6 +127,20 @@ type UiState = {
    */
   referenceImageCalibrating: boolean;
   setReferenceImageCalibrating: (calibrating: boolean) => void;
+  /**
+   * Which reference-image corner handle the pointer is over, so the cursor
+   * can show the resize direction. Only meaningful while the panel is open.
+   */
+  referenceImageHandle: { target: "image" | "stitch"; handle: BoxHandle } | null;
+  setReferenceImageHandle: (handle: { target: "image" | "stitch"; handle: BoxHandle } | null) => void;
+  /**
+   * Set when a calibration box was thrown away for being too small to be a
+   * deliberate drag, so the panel can say so. Calibration stays armed - the
+   * alternative, dropping out of the mode silently, is indistinguishable
+   * from the feature not working.
+   */
+  referenceImageCalibrationRejected: boolean;
+  setReferenceImageCalibrationRejected: (rejected: boolean) => void;
   /** The calibration box's two corners in world space, while it's being dragged out. */
   referenceImageCalibrationBox: { start: Point; current: Point } | null;
   setReferenceImageCalibrationBox: (box: { start: Point; current: Point } | null) => void;
@@ -192,12 +206,19 @@ export const useUiStore = create<UiState>((set, get) => ({
       referenceImagePanelOpen: false,
       referenceImageCalibrating: false,
       referenceImageCalibrationBox: null,
+      referenceImageCalibrationRejected: false,
+      referenceImageHandle: null,
     }),
   referenceImageCalibrating: false,
   setReferenceImageCalibrating: (referenceImageCalibrating) => set({ referenceImageCalibrating }),
   referenceImageCalibrationBox: null,
   setReferenceImageCalibrationBox: (referenceImageCalibrationBox) =>
     set({ referenceImageCalibrationBox }),
+  referenceImageCalibrationRejected: false,
+  setReferenceImageCalibrationRejected: (referenceImageCalibrationRejected) =>
+    set({ referenceImageCalibrationRejected }),
+  referenceImageHandle: null,
+  setReferenceImageHandle: (referenceImageHandle) => set({ referenceImageHandle }),
 
   tool: "stitch",
   armedSymbolId: null,
@@ -208,7 +229,6 @@ export const useUiStore = create<UiState>((set, get) => ({
   selectionBox: null,
   selectionMove: null,
   lastClearedSelection: null,
-
   setTool: (tool) =>
     set({
       tool,

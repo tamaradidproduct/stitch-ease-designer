@@ -2,7 +2,7 @@ import type { DocIndex } from "../model/docIndex";
 import { canInsertAt } from "../model/ops";
 import { rowDirectionAt } from "../model/rowDirection";
 import { chartTopology, knittedRowNumbers, roundStitchNumbers } from "../model/stitchNumbers";
-import type { ReferenceImage } from "../model/types";
+import { CORNERS, cornerPoint, stitchBoxRect, type ReferenceImage } from "../model/types";
 import { getSymbol } from "../symbols/registry";
 import {
   CELL,
@@ -471,8 +471,9 @@ function drawEditHighlight(
 /**
  * The reference-image panel's own on-canvas affordances, replacing every
  * normal hover hint while it's open: an outline around the image with a
- * resize handle at its corner (when it's draggable), and the calibration
- * box while one's being dragged out.
+ * resize handles at its corners (when it's draggable), the calibrated
+ * stitch with its pinned corner marked, and the calibration box while one's
+ * being dragged out.
  */
 function drawReferenceImageOverlay(ctx: CanvasRenderingContext2D, state: RenderState): void {
   const { referenceImagePanelOpen, referenceImage, referenceImageCalibrationBox, camera: cam, viewport: vp } =
@@ -493,13 +494,63 @@ function drawReferenceImageOverlay(ctx: CanvasRenderingContext2D, state: RenderS
       bottomRight.y - topLeft.y - 1,
     );
 
+    // A handle on every corner, not just one: whichever corner is nearest
+    // the part of the chart being lined up is the one worth grabbing, and
+    // the far corner is often off-screen at working zoom. The edges are
+    // draggable too, with no marker of their own - the resize cursor is
+    // their affordance, as in any other design tool.
     if (!referenceImage.locked) {
       const handle = 9;
-      ctx.fillStyle = theme.hoverStroke;
-      ctx.fillRect(bottomRight.x - handle / 2, bottomRight.y - handle / 2, handle, handle);
+      for (const corner of CORNERS) {
+        const p = cornerPoint(referenceImage, corner);
+        const s = worldToScreen(p.x, p.y, cam, vp);
+        ctx.fillStyle = theme.hoverStroke;
+        ctx.fillRect(s.x - handle / 2, s.y - handle / 2, handle, handle);
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(s.x - handle / 2, s.y - handle / 2, handle, handle);
+      }
+    }
+    ctx.restore();
+  }
+
+  // The calibrated stitch, and the one corner of it that resizes hold
+  // fixed. Exactly one cell, so it can be read against the chart's own grid
+  // at a glance. Suppressed while a new box is being drawn, since the old
+  // pin is about to be replaced by it.
+  const stitch =
+    referenceImage?.visible && !referenceImageCalibrationBox
+      ? stitchBoxRect(referenceImage)
+      : null;
+  if (stitch) {
+    const bottomLeft = worldToScreen(stitch.x, stitch.y, cam, vp);
+    const topRight = worldToScreen(stitch.x + stitch.width, stitch.y + stitch.height, cam, vp);
+
+    ctx.save();
+    ctx.strokeStyle = "#16a34a";
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(
+      bottomLeft.x + 0.5,
+      topRight.y + 0.5,
+      topRight.x - bottomLeft.x - 1,
+      bottomLeft.y - topRight.y - 1,
+    );
+    // Corner handles here too - dragging one re-scales the image so this
+    // box is one cell again, which is how you correct an alignment without
+    // starting the calibration over. Bottom-left stays a disc rather than a
+    // square because it's also the pin the size controls resize around.
+    const handle = 8;
+    for (const corner of CORNERS) {
+      const p = cornerPoint(stitch, corner);
+      const s = worldToScreen(p.x, p.y, cam, vp);
+      ctx.beginPath();
+      if (corner === "bl") ctx.arc(s.x, s.y, 4.5, 0, Math.PI * 2);
+      else ctx.rect(s.x - handle / 2, s.y - handle / 2, handle, handle);
+      ctx.fillStyle = "#16a34a";
+      ctx.fill();
       ctx.strokeStyle = "#ffffff";
       ctx.lineWidth = 1.5;
-      ctx.strokeRect(bottomRight.x - handle / 2, bottomRight.y - handle / 2, handle, handle);
+      ctx.stroke();
     }
     ctx.restore();
   }
@@ -624,9 +675,13 @@ export function render(ctx: CanvasRenderingContext2D, state: RenderState): void 
   ctx.fillStyle = theme.background;
   ctx.fillRect(0, 0, vp.width, vp.height);
 
-  drawReferenceImage(ctx, state);
+  // Behind the chart by default; in front when the designer wants to check
+  // their stitches against the source by eye (then it's a statement about
+  // the photo rather than about the chart).
+  if (!state.referenceImage?.inFront) drawReferenceImage(ctx, state);
   drawGrid(ctx, state.camera, vp, theme);
   drawPlacements(ctx, state);
+  if (state.referenceImage?.inFront) drawReferenceImage(ctx, state);
   drawGroupNumbering(ctx, state);
   drawInsertAnimation(ctx, state);
   drawSelection(ctx, state);

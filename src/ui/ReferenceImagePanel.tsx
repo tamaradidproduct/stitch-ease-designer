@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { CELL } from "../canvas/camera";
-import { resizeReferenceImageAround } from "../model/types";
+import { resizeReferenceImageAround, stitchBoxRect } from "../model/types";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
 import { removeReferenceImageFile, uploadReferenceImage } from "../storage/referenceImages";
@@ -21,6 +21,8 @@ export function ReferenceImagePanel() {
   const calibrating = useUiStore((s) => s.referenceImageCalibrating);
   const setCalibrating = useUiStore((s) => s.setReferenceImageCalibrating);
   const setCalibrationBox = useUiStore((s) => s.setReferenceImageCalibrationBox);
+  const calibrationRejected = useUiStore((s) => s.referenceImageCalibrationRejected);
+  const setCalibrationRejected = useUiStore((s) => s.setReferenceImageCalibrationRejected);
 
   const meta = useDocStore((s) => s.meta);
   const image = useDocStore((s) => s.referenceImage);
@@ -47,14 +49,20 @@ export function ReferenceImagePanel() {
     if (!image) return;
     const currentPercent = axis === "width" ? widthPercent : heightPercent;
     const nextPercent = Math.max(1, currentPercent + direction);
-    // Anchored on the image's own current centre, so nudging the size
-    // doesn't also shove the image off in some direction.
-    const center = { x: image.x + image.width / 2, y: image.y + image.height / 2 };
+    // Anchored on the calibrated stitch's bottom-left corner once there is
+    // one, so nudging the size never undoes the alignment that "Set stitch
+    // size" established. Before calibration there's no such reference
+    // point, so it falls back to the image's own centre - which at least
+    // keeps a resize from shoving the image off in some direction.
+    const stitch = stitchBoxRect(image);
+    const anchor = stitch
+      ? { x: stitch.x, y: stitch.y }
+      : { x: image.x + image.width / 2, y: image.y + image.height / 2 };
     const width =
       axis === "width" ? Math.max(CELL, image.naturalWidth * (nextPercent / 100)) : image.width;
     const height =
       axis === "height" ? Math.max(CELL, image.naturalHeight * (nextPercent / 100)) : image.height;
-    updateReferenceImage(resizeReferenceImageAround(image, width, height, center));
+    updateReferenceImage(resizeReferenceImageAround(image, width, height, anchor));
   };
 
   const onFile = async (file: File) => {
@@ -157,10 +165,20 @@ export function ReferenceImagePanel() {
           </>
         ) : (
           <>
-            <p className="refpanel__hint">
+            <p
+              className={
+                calibrating && calibrationRejected
+                  ? "refpanel__hint refpanel__hint--warn"
+                  : "refpanel__hint"
+              }
+            >
               {calibrating
-                ? "Draw a box around one stitch in the image."
-                : "Drag it on the canvas to move; drag its bottom-right corner to resize (hold Shift to keep its proportions)."}
+                ? calibrationRejected
+                  ? "That box was too small to read. Zoom in and drag across one whole stitch."
+                  : "Draw a box around one stitch in the image."
+                : image.stitchPin
+                  ? "Dragging it snaps the boxed stitch onto a grid cell (hold Alt to place it freely); arrow keys nudge it a step at a time. Any corner or edge resizes around that stitch \u2014 or drag the green box's own corners to re-fit it to one stitch."
+                  : "Drag it on the canvas to move, or nudge it with the arrow keys (Shift for a whole stitch); drag any corner to resize, or an edge to stretch one way (hold Shift to keep its proportions)."}
             </p>
             <label className="refpanel__row">
               <span>Opacity</span>
@@ -173,7 +191,7 @@ export function ReferenceImagePanel() {
                 onChange={(e) => updateReferenceImage({ opacity: Number(e.target.value) })}
               />
             </label>
-            <label className="refpanel__row" title="Stretch the image horizontally, around its own centre">
+            <label className="refpanel__row" title="Stretch the image horizontally. Once a stitch is boxed, it stretches around that stitch's bottom-left corner.">
               <span>Width</span>
               <div className="refpanel__stepper">
                 <button
@@ -195,7 +213,7 @@ export function ReferenceImagePanel() {
                 </button>
               </div>
             </label>
-            <label className="refpanel__row" title="Stretch the image vertically, around its own centre">
+            <label className="refpanel__row" title="Stretch the image vertically. Once a stitch is boxed, it stretches around that stitch's bottom-left corner.">
               <span>Height</span>
               <div className="refpanel__stepper">
                 <button
@@ -222,14 +240,27 @@ export function ReferenceImagePanel() {
               className="btn btn--quiet"
               data-on={calibrating}
               disabled={!image.visible}
-              title="Draw a box around one stitch in the image to scale it to match your chart"
+              title={
+                image.stitchPin
+                  ? "Draw a new box around one stitch to re-scale the image and move the pinned corner"
+                  : "Draw a box around one stitch in the image to scale it to match your chart"
+              }
               onClick={() => {
                 if (calibrating) setCalibrationBox(null);
+                setCalibrationRejected(false);
                 setCalibrating(!calibrating);
               }}
             >
-              {calibrating ? "Cancel" : "Set stitch size"}
+              {calibrating ? "Cancel" : image.stitchPin ? "Reset stitch size" : "Set stitch size"}
             </button>
+            <label className="refpanel__row" title="Draw the image over your stitches instead of behind them">
+              <span>In front</span>
+              <input
+                type="checkbox"
+                checked={!!image.inFront}
+                onChange={(e) => updateReferenceImage({ inFront: e.target.checked })}
+              />
+            </label>
             <div className="refpanel__actions">
               <button
                 type="button"
