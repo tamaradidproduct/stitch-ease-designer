@@ -44,6 +44,9 @@ export function ReferenceImagePanel() {
   const points = image?.calibrationMarks ?? [];
   const labelled = points.filter((p) => p.stitch !== null && p.row !== null);
   const fit = image && marking ? scaleFromCalibrationMarks(image, points) : null;
+  const hasSpread =
+    new Set(labelled.map((point) => point.stitch)).size >= 2 &&
+    new Set(labelled.map((point) => point.row)).size >= 2;
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -293,7 +296,9 @@ export function ReferenceImagePanel() {
                     ? `${labelled.length} numbered — ready to scale.`
                     : labelled.length < 2
                       ? "Number at least two boxes."
-                      : "Needs two different stitch numbers and two different row numbers."}
+                      : !hasSpread
+                        ? "Needs two different stitch numbers and two different row numbers."
+                        : "The numbers imply an invalid or unsupported scale."}
                 </p>
                 <div className="refpanel__markActions">
                   <button

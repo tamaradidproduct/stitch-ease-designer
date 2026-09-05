@@ -65,7 +65,11 @@ export function ReferenceMarkEditor() {
     setActive(null);
   };
 
-  const parse = (value: string) => (value === "" ? null : Number(value));
+  const parse = (value: string) => {
+    if (value === "") return null;
+    const parsed = Number(value);
+    return Number.isSafeInteger(parsed) && parsed >= 1 ? parsed : null;
+  };
 
   return (
     <div
@@ -94,6 +98,8 @@ export function ReferenceMarkEditor() {
         <input
           ref={stitchInput}
           type="number"
+          min="1"
+          step="1"
           value={point.stitch ?? ""}
           onChange={(e) => set({ stitch: parse(e.target.value) })}
         />
@@ -102,6 +108,8 @@ export function ReferenceMarkEditor() {
         <span>row</span>
         <input
           type="number"
+          min="1"
+          step="1"
           value={point.row ?? ""}
           onChange={(e) => set({ row: parse(e.target.value) })}
         />
