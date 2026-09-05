@@ -8,13 +8,29 @@ import { ReferenceImagePanel } from "./ReferenceImagePanel";
 import { SymbolGlyph } from "./SymbolGlyph";
 import { searchSymbols } from "./symbolSearch";
 
+const loadGlossaryIds = (chartId?: string): string[] => {
+  if (!chartId || typeof localStorage === "undefined") return [];
+  try {
+    const stored: unknown = JSON.parse(
+      localStorage.getItem(`stitch-ease:glossary:${chartId}`) ?? "[]",
+    );
+    return Array.isArray(stored)
+      ? stored.filter((id): id is string => typeof id === "string")
+      : [];
+  } catch {
+    return [];
+  }
+};
+
 export function RightPanel() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [traceMenuOpen, setTraceMenuOpen] = useState(false);
   const glossaryModuleRef = useRef<HTMLElement | null>(null);
   const [glossaryQuery, setGlossaryQuery] = useState("");
   const [searchSlot, setSearchSlot] = useState<number | null>(null);
-  const [addedGlossaryIds, setAddedGlossaryIds] = useState<string[]>([]);
+  const [addedGlossaryIds, setAddedGlossaryIds] = useState<string[]>(() =>
+    loadGlossaryIds(useDocStore.getState().meta?.id),
+  );
   const glossarySearchRef = useRef<HTMLInputElement | null>(null);
   const inlineSearchRef = useRef<HTMLDivElement | null>(null);
   const meta = useDocStore((state) => state.meta);
@@ -39,17 +55,12 @@ export function RightPanel() {
   const chartId = meta?.id;
 
   useEffect(() => {
-    if (!chartId) {
-      setAddedGlossaryIds([]);
-      return;
-    }
-    try {
-      const stored: unknown = JSON.parse(localStorage.getItem(`stitch-ease:glossary:${chartId}`) ?? "[]");
-      setAddedGlossaryIds(Array.isArray(stored) ? stored.filter((id): id is string => typeof id === "string") : []);
-    } catch {
-      setAddedGlossaryIds([]);
-    }
+    setAddedGlossaryIds(loadGlossaryIds(chartId));
   }, [chartId]);
+
+  useEffect(() => {
+    if (searchSlot !== null) glossarySearchRef.current?.focus();
+  }, [searchSlot]);
 
   useEffect(() => {
     if (!traceMenuOpen) return;
@@ -88,15 +99,16 @@ export function RightPanel() {
     };
   }, [searchSlot]);
 
+  const placements = index.toArray();
   const seen = new Set<string>();
-  const glossary = [...addedGlossaryIds, ...index.toArray().map((placement) => placement.symbolId)].flatMap((id) => {
+  const glossary = [...addedGlossaryIds, ...placements.map((placement) => placement.symbolId)].flatMap((id) => {
     if (seen.has(id)) return [];
     seen.add(id);
     const symbol = getSymbol(id);
     return symbol ? [symbol] : [];
   });
   const glossaryIds = new Set(glossary.map((symbol) => symbol.id));
-  const stitchCounts = index.toArray().reduce((counts, placement) => {
+  const stitchCounts = placements.reduce((counts, placement) => {
     counts.set(placement.symbolId, (counts.get(placement.symbolId) ?? 0) + 1);
     return counts;
   }, new Map<string, number>());
@@ -139,9 +151,7 @@ export function RightPanel() {
   const searchForQuickStitch = (slot: number) => {
     setSearchSlot(slot);
     setGlossaryQuery("");
-    requestAnimationFrame(() => glossarySearchRef.current?.focus());
   };
-  const placements = index.toArray();
 
   const zoomFromCenter = (factor: number) => {
     zoomAt(factor, viewport.width / 2, viewport.height / 2);
@@ -152,12 +162,16 @@ export function RightPanel() {
       centerViewAt100(0, 0);
       return;
     }
-    const minCol = Math.min(...placements.map((placement) => placement.col));
-    const maxCol = Math.max(...placements.map(
-      (placement) => placement.col + index.spanOf(placement),
-    ));
-    const minRow = Math.min(...placements.map((placement) => placement.row));
-    const maxRow = Math.max(...placements.map((placement) => placement.row + 1));
+    let minCol = Infinity;
+    let maxCol = -Infinity;
+    let minRow = Infinity;
+    let maxRow = -Infinity;
+    for (const placement of placements) {
+      minCol = Math.min(minCol, placement.col);
+      maxCol = Math.max(maxCol, placement.col + index.spanOf(placement));
+      minRow = Math.min(minRow, placement.row);
+      maxRow = Math.max(maxRow, placement.row + 1);
+    }
     centerViewAt100(((minCol + maxCol) / 2) * CELL, ((minRow + maxRow) / 2) * CELL);
   };
 
