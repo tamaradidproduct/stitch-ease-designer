@@ -51,6 +51,11 @@ export function useShortcuts(): void {
       // next field.
       if (isTyping(e.target) && !(e.key === "Tab" && ui.picker)) return;
 
+      // The contextual picker intentionally starts a search from any typed
+      // character. While it is open, that direct-search behavior takes
+      // precedence over canvas tool keys and glossary shortcut numbers.
+      if (ui.picker && !e.metaKey && !e.ctrlKey && !e.altKey && e.key.length === 1) return;
+
       const doc = useDocStore.getState();
 
       if (/^[1-5]$/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {

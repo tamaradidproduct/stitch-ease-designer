@@ -3,6 +3,12 @@ import { screenToCell, screenToInsertCell } from "../canvas/camera";
 import { RULER } from "../canvas/theme";
 import { useUiStore } from "../state/uiStore";
 
+const isTyping = (target: EventTarget | null) =>
+  target instanceof HTMLElement &&
+  (target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA" ||
+    target.isContentEditable);
+
 /**
  * Pan and zoom, wired directly to the canvas element.
  *
@@ -20,6 +26,9 @@ export function usePanZoom(ref: RefObject<HTMLCanvasElement | null>): void {
     if (!canvas) return;
 
     const ui = useUiStore.getState;
+    // A picker or reference-image editor is a focused contextual task. Keep
+    // panning out of its way so space still works in search and number fields.
+    const canPan = () => !ui().picker && !ui().referenceImagePanelOpen;
 
     // Cached instead of read on every wheel/pointermove, since
     // getBoundingClientRect forces a layout read. Refreshed whenever the
@@ -50,7 +59,7 @@ export function usePanZoom(ref: RefObject<HTMLCanvasElement | null>): void {
         // stays smooth.
         const delta = Math.max(-60, Math.min(60, e.deltaY));
         ui().zoomAt(Math.exp(-delta * 0.0035), sx, sy);
-      } else {
+      } else if (canPan()) {
         ui().panByScreen(-e.deltaX, -e.deltaY);
       }
     };
@@ -63,7 +72,7 @@ export function usePanZoom(ref: RefObject<HTMLCanvasElement | null>): void {
 
     const onPointerDown = (e: PointerEvent) => {
       const wantsPan = e.button === 1 || (e.button === 0 && ui().spaceHeld);
-      if (!wantsPan || pan) return;
+      if (!wantsPan || pan || !canPan()) return;
       e.preventDefault();
       pan = { pointerId: e.pointerId, button: e.button, lastX: e.clientX, lastY: e.clientY };
       canvas.setPointerCapture(e.pointerId);
@@ -121,6 +130,7 @@ export function usePanZoom(ref: RefObject<HTMLCanvasElement | null>): void {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.code === "Space" && !e.repeat) {
         // Otherwise space scrolls the page / activates a focused control.
+        if (isTyping(e.target) || !canPan()) return;
         e.preventDefault();
         ui().setSpaceHeld(true);
       }

@@ -518,7 +518,7 @@ export function RightPanel() {
               <dt><kbd>1–5</kbd></dt><dd>Choose a quick stitch</dd>
               <dt><kbd>Tab</kbd> / <kbd>Shift Tab</kbd></dt><dd>Next stitch right / left</dd>
               <dt><kbd>Shift click</kbd></dt><dd>Add or remove from selection</dd>
-              <dt><kbd>⌘/Ctrl C</kbd> <kbd>X</kbd> <kbd>V</kbd></dt><dd>Copy, cut, paste</dd>
+              <dt><kbd>⌘/Ctrl C</kbd> <kbd>X</kbd> <kbd>V</kbd></dt><dd>Copy or cut selection · paste at hovered cell</dd>
               <dt><kbd>⌘/Ctrl D</kbd></dt><dd>Duplicate selection</dd>
               <dt><kbd>⌘/Ctrl G</kbd></dt><dd>Create repeat</dd>
               <dt><kbd>⌘/Ctrl Z</kbd></dt><dd>Undo</dd>
