@@ -839,6 +839,7 @@ body {
 
 .rightPanel__bottom {
   margin-top: auto;
+  flex: none;
 }
 
 .rightPanel__bottom .sideModule:last-child {
@@ -846,6 +847,7 @@ body {
 }
 
 .sideModule {
+  flex: none;
   margin-bottom: 10px;
   border: 1px solid var(--border);
   border-radius: 9px;
@@ -1236,9 +1238,11 @@ body {
 }
 
 .glossary__remove {
-  width: 50px;
+  display: grid;
+  width: 34px;
   height: 34px;
-  padding: 0 7px 0 3px;
+  padding: 0;
+  place-items: center;
   flex: none;
   border: 0;
   background: transparent;
@@ -1247,6 +1251,21 @@ body {
   opacity: 0;
   cursor: pointer;
   transition: opacity 120ms ease;
+}
+
+.glossary__removeSlot {
+  width: 34px;
+  height: 34px;
+  flex: none;
+}
+
+.glossary__remove svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
 }
 
 .glossary__item:hover .glossary__remove,
