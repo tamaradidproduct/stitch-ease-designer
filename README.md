@@ -93,6 +93,37 @@ than a late one.
 Pages is configured with **Build type: GitHub Actions** (not the legacy
 branch mode, which would publish the raw repository instead of `dist/`).
 
+## Gemini CLI in CI
+
+`.github/workflows/gemini-*.yml` are Google's
+[run-gemini-cli](https://github.com/google-github-actions/run-gemini-cli)
+example workflows, copied unmodified from `v0.1.22`. Keep them that way —
+upgrade by re-copying from a newer tag rather than hand-editing, so
+divergence doesn't have to be re-reasoned later.
+
+`gemini-dispatch.yml` is the only entry point; the other four are
+`workflow_call`-only and run as its jobs:
+
+| | Runs when | Does |
+| --- | --- | --- |
+| `gemini-review.yml` | a PR is opened, or `@gemini-cli /review` | reviews the diff |
+| `gemini-triage.yml` | an issue is opened or reopened, or `@gemini-cli /triage` | applies labels, only ones that already exist on the repo |
+| `gemini-invoke.yml` | `@gemini-cli <anything else>` | answers free-form |
+| `gemini-plan-execute.yml` | `@gemini-cli /approve` | pushes commits — the one job with `contents: write` |
+
+Comments only dispatch from an OWNER, MEMBER, or COLLABORATOR, and PRs from
+forks are skipped, so a drive-by comment can't spend the quota or reach the
+write-capable job.
+
+Needs a `GEMINI_API_KEY` repository secret
+([AI Studio](https://aistudio.google.com/apikey) issues one with a free
+tier). Without it every Gemini job fails at the CLI step, which is loud but
+harmless — nothing else in CI depends on these. The workflows also read a
+pile of optional `vars` (`GEMINI_MODEL`, `GOOGLE_CLOUD_PROJECT`, `APP_ID`,
+…) for Vertex AI, Code Assist, and posting as a GitHub App instead of
+`github-actions[bot]`; unset, they fall back to the API key and the default
+token.
+
 ## Database
 
 Supabase project `stitch-ease-designer` (ref `pfoxdauroxzkwrcmgoym`), **not**
