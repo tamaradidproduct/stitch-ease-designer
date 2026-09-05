@@ -1139,6 +1139,8 @@ body {
   width: 100%;
   align-items: center;
   min-height: 36px;
+  gap: 9px;
+  padding: 5px 7px;
   border: 1px solid transparent;
   border-radius: 7px;
   background: transparent;
@@ -1147,7 +1149,8 @@ body {
 
 .glossary__item:hover,
 .glossary__item:focus-within,
-.glossary__item[data-on="true"] {
+.glossary__item[data-on="true"],
+.glossary__item[data-drag-over="true"] {
   border-color: #bae6fd;
   background: #e0f2fe;
   outline: none;
@@ -1160,7 +1163,7 @@ body {
   flex: 1;
   align-items: center;
   gap: 9px;
-  padding: 5px 7px;
+  padding: 0;
   border: 0;
   background: transparent;
   color: inherit;
@@ -1170,14 +1173,13 @@ body {
 }
 
 .glossary__arm:focus-visible,
-.glossary__remove:focus-visible {
+.glossary__remove:focus-visible,
+.glossary__dragHandle:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
 
 .glossary__item--empty {
-  gap: 9px;
-  padding: 5px 7px;
   border-color: #dbe3ec;
   border-style: dashed;
   color: var(--text-muted);
@@ -1268,6 +1270,42 @@ body {
   flex: none;
 }
 
+.glossary__dragHandle {
+  display: grid;
+  width: 21px;
+  height: 30px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: grab;
+  flex: none;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.glossary__dragHandle:hover {
+  background: var(--bg);
+  color: var(--accent);
+}
+
+.glossary__dragHandle:active {
+  cursor: grabbing;
+}
+
+.glossary__dragHandle--empty {
+  cursor: default;
+  pointer-events: none;
+}
+
+.glossary__dragHandle svg {
+  width: 13px;
+  height: 13px;
+  fill: currentColor;
+}
+
 .glossary__remove svg {
   width: 15px;
   height: 15px;
@@ -1278,7 +1316,9 @@ body {
 }
 
 .glossary__item:hover .glossary__remove,
-.glossary__item:focus-within .glossary__remove {
+.glossary__item:focus-within .glossary__remove,
+.glossary__item:hover .glossary__dragHandle,
+.glossary__item:focus-within .glossary__dragHandle {
   opacity: 1;
 }
 
