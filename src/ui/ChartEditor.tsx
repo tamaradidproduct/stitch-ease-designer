@@ -2,14 +2,14 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { CanvasView } from "../canvas/CanvasView";
 import { ChartNotFoundError } from "../storage/DocStore";
-import { exportChart } from "../storage/exportImport";
 import { chartStore } from "../storage/store";
 import { useAutosave } from "../storage/useAutosave";
 import { isChartOpen, selectIsDirty, useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
-import { ReferenceImagePanel } from "./ReferenceImagePanel";
+import { RightPanel } from "./RightPanel";
 import { StatusBar } from "./StatusBar";
 import { StitchPicker } from "./StitchPicker";
+import { SelectionActions } from "./SelectionActions";
 import { Toolbar } from "./Toolbar";
 
 function SaveIndicator() {
@@ -37,9 +37,10 @@ export function ChartEditor() {
   const unknownSymbolIds = useDocStore((s) => s.unknownSymbolIds);
   const statusDetail = useDocStore((s) => s.statusDetail);
   const status = useDocStore((s) => s.status);
-  const repeats = useDocStore((s) => s.repeats);
-  const referenceImagePanelOpen = useUiStore((s) => s.referenceImagePanelOpen);
-  const setReferenceImagePanelOpen = useUiStore((s) => s.setReferenceImagePanelOpen);
+  const undo = useDocStore((s) => s.undo);
+  const redo = useDocStore((s) => s.redo);
+  const canUndo = useDocStore((s) => s.undoStack.length > 0);
+  const canRedo = useDocStore((s) => s.redoStack.length > 0);
 
   useAutosave(chartStore);
 
@@ -149,28 +150,31 @@ export function ChartEditor() {
         <span className="topbar__spacer" />
         <button
           type="button"
-          className="btn btn--quiet"
-          disabled={!openMeta}
-          data-on={referenceImagePanelOpen}
-          onClick={() => setReferenceImagePanelOpen(!referenceImagePanelOpen)}
-          title="Trace a pattern screenshot behind your chart"
+          className="topbar__historyButton"
+          onClick={undo}
+          disabled={!canUndo}
+          title="Undo (⌘Z)"
+          aria-label="Undo"
         >
-          Reference
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <path d="m8 5-4 4 4 4M4 9h7a5 5 0 0 1 5 5" />
+          </svg>
+          <span>Undo</span>
         </button>
         <button
           type="button"
-          className="btn btn--quiet"
-          disabled={!openMeta}
-          onClick={() => {
-            const { index, meta: current, referenceImage } = useDocStore.getState();
-            if (current) void exportChart(current.name, index.toArray(), repeats, referenceImage ?? undefined);
-          }}
+          className="topbar__historyButton"
+          onClick={redo}
+          disabled={!canRedo}
+          title="Redo (⇧⌘Z)"
+          aria-label="Redo"
         >
-          Export
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <path d="m12 5 4 4-4 4m4-4H9a5 5 0 0 0-5 5" />
+          </svg>
+          <span>Redo</span>
         </button>
       </header>
-      <ReferenceImagePanel />
-
       {(status === "conflict" || status === "error") && statusDetail && (
         <div className="banner banner--bad">
           <span>{statusDetail}</span>
@@ -194,7 +198,9 @@ export function ChartEditor() {
       <Toolbar />
       <main className="stage">
         <CanvasView />
+        <RightPanel />
         <StitchPicker />
+        <SelectionActions />
       </main>
       <StatusBar />
     </div>
