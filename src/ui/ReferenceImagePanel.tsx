@@ -351,7 +351,9 @@ export function ReferenceImagePanel() {
                   {fit
                     ? `${labelled.length} numbered — ready to refine the scale.`
                     : labelled.length < 2
-                      ? "Add and number another corner stitch to refine the scale."
+                      ? points.length === 0
+                        ? ""
+                        : "Add and number another corner stitch to refine the scale."
                       : !hasSpread
                         ? "Needs two different stitch numbers and two different row numbers."
                         : "The numbers imply an invalid or unsupported scale."}
