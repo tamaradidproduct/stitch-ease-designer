@@ -51,6 +51,8 @@ export type RenderState = {
   tool: Tool;
   selectHeld: boolean;
   keyboardSelectionActive: boolean;
+  stitchHighlightColor: string;
+  stitchHighlightOpacity: number;
   selectionBox: SelectionBox | null;
   selectionMove: SelectionMove | null;
 };
@@ -165,7 +167,7 @@ function drawRulers(ctx: CanvasRenderingContext2D, state: RenderState): void {
  * and the glyph is then blitted across the whole span.
  */
 function drawPlacements(ctx: CanvasRenderingContext2D, state: RenderState): void {
-  const { camera: cam, viewport: vp, index, sprites } = state;
+  const { camera: cam, viewport: vp, index, sprites, stitchHighlightColor, stitchHighlightOpacity } = state;
   const size = cellPx(cam);
   const bounds = visibleCellBounds(cam, vp, 1);
   const drawChrome = size >= 3;
@@ -178,6 +180,13 @@ function drawPlacements(ctx: CanvasRenderingContext2D, state: RenderState): void
 
     ctx.fillStyle = theme.cellFill;
     ctx.fillRect(r.x, r.y, width, size);
+    if (stitchHighlightOpacity > 0) {
+      ctx.save();
+      ctx.globalAlpha = stitchHighlightOpacity;
+      ctx.fillStyle = stitchHighlightColor;
+      ctx.fillRect(r.x, r.y, width, size);
+      ctx.restore();
+    }
 
     // Overpaint only the cells the library tints. "No stitch" is grey and
     // otherwise indistinguishable from knit, so this is meaning, not styling.
@@ -210,6 +219,65 @@ function drawPlacements(ctx: CanvasRenderingContext2D, state: RenderState): void
     const sprite = sprites.get(symbol, size, theme.symbol);
     if (sprite) ctx.drawImage(sprite, r.x, r.y, width, size);
   }
+}
+
+/**
+ * Knitter-facing numbering attached to each disconnected pattern block.
+ * Persistent axes follow the outer bounds of each disconnected block: rows
+ * count bottom-to-top and columns count right-to-left, edge to edge. Hover
+ * numbering remains row-specific and continues to count only real stitches.
+ */
+function drawGroupNumbering(ctx: CanvasRenderingContext2D, state: RenderState): void {
+  const { camera: cam, viewport: vp, index, revision } = state;
+  const size = cellPx(cam);
+  if (size < 10) return;
+
+  ctx.save();
+  ctx.font = '10px ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace';
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  for (const group of chartTopology(index, revision).groups) {
+    const rows = [...group.stitchColsByRow.entries()];
+    if (!rows.length) continue;
+    const rowNumbers = knittedRowNumbers(group);
+    const allCols = rows.flatMap(([, cols]) => cols);
+    const minRow = Math.min(...rows.map(([row]) => row));
+    const minCol = Math.min(...allCols);
+    const maxCol = Math.max(...allCols);
+
+    for (const [row] of rows) {
+      const rowNumber = rowNumbers.get(row)!;
+      const r = cellToScreenRect(minCol, row, cam, vp);
+      const x = r.x - 9;
+      const y = r.y + r.size / 2;
+      if (x <= RULER || y <= RULER || y >= vp.height) continue;
+      const label = String(rowNumber);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.88)";
+      ctx.fillRect(x - 7, y - 7, 14, 14);
+      ctx.fillStyle = theme.rulerText;
+      ctx.fillText(label, x, y);
+    }
+
+    const stitchLabels: [number, string][] = Array.from(
+      { length: maxCol - minCol + 1 },
+      (_, offset) => [minCol + offset, String(maxCol - minCol - offset + 1)],
+    );
+
+    for (const [col, label] of stitchLabels) {
+      const r = cellToScreenRect(col, minRow, cam, vp);
+      const x = r.x + r.size / 2;
+      const y = r.y + r.size + 12;
+      if (x <= RULER || x >= vp.width || y <= RULER || y >= vp.height) continue;
+      const width = Math.max(14, ctx.measureText(label).width + 6);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.88)";
+      ctx.fillRect(x - width / 2, y - 7, width, 14);
+      ctx.fillStyle = theme.rulerText;
+      ctx.fillText(label, x, y);
+    }
+  }
+
+  ctx.restore();
 }
 
 function drawSelectionAt(
@@ -672,6 +740,7 @@ export function render(ctx: CanvasRenderingContext2D, state: RenderState): void 
   drawGrid(ctx, state.camera, vp, theme);
   drawPlacements(ctx, state);
   if (state.referenceImage?.inFront) drawReferenceImage(ctx, state);
+  drawGroupNumbering(ctx, state);
   drawInsertAnimation(ctx, state);
   drawSelection(ctx, state);
   drawSelectionBox(ctx, state);

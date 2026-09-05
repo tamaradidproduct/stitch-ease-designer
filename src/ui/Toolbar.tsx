@@ -1,183 +1,70 @@
-import { getSymbol } from "../symbols/registry";
-import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
-import { SymbolGlyph } from "./SymbolGlyph";
 
 export function Toolbar() {
-  const armedId = useUiStore((s) => s.armedSymbolId);
   const tool = useUiStore((s) => s.tool);
   const selectHeld = useUiStore((s) => s.selectHeld);
-  const quickIds = useUiStore((s) => s.quickSymbolIds);
   const setTool = useUiStore((s) => s.setTool);
-  const setArmed = useUiStore((s) => s.setArmedSymbolId);
-  const openPicker = useUiStore((s) => s.openPicker);
-  const closePicker = useUiStore((s) => s.closePicker);
-  const selectedIds = useUiStore((s) => s.selectedPlacementIds);
-  const clearSelection = useUiStore((s) => s.clearSelection);
-
-  const undo = useDocStore((s) => s.undo);
-  const redo = useDocStore((s) => s.redo);
-  const canUndo = useDocStore((s) => s.undoStack.length > 0);
-  const canRedo = useDocStore((s) => s.redoStack.length > 0);
-  const index = useDocStore((s) => s.index);
-  useDocStore((s) => s.revision);
-  const erasePlacements = useDocStore((s) => s.erasePlacements);
-  const createRepeat = useDocStore((s) => s.createRepeat);
-  const duplicatePlacements = useDocStore((s) => s.duplicatePlacementsInRow);
-  const setSelectedPlacementIds = useUiStore((s) => s.setSelectedPlacementIds);
-
-  const selected = selectedIds.flatMap((id) => {
-    const placement = index.placements.get(id);
-    return placement ? [placement] : [];
-  });
-  const selectedSpan = selected[0] ? index.spanOf(selected[0]) : null;
-  const sameSpan =
-    selectedSpan !== null && selected.every((placement) => index.spanOf(placement) === selectedSpan);
 
   return (
-    <div className="toolbar">
+    <>
+    <div className="toolDock" aria-label="Canvas tools">
       <button
         type="button"
-        className="toolbar__btn"
+        className="toolDock__button"
         data-on={tool === "select" || selectHeld}
         aria-pressed={tool === "select" || selectHeld}
         onClick={() => setTool("select")}
         title="Select (S) — hold Cmd/Ctrl for temporary selection"
       >
-        Select
+        <svg viewBox="0 0 20 20" aria-hidden="true">
+          <path d="m5 3 9 7-4.2 1.2L8 16 5 3Z" />
+        </svg>
+        <span>Select</span>
       </button>
       <button
         type="button"
-        className="toolbar__btn"
+        className="toolDock__button"
         data-on={tool === "stitch"}
         aria-pressed={tool === "stitch"}
         onClick={() => setTool("stitch")}
         title="Draw (D)"
       >
-        Draw
+        <svg viewBox="0 0 20 20" aria-hidden="true">
+          <path d="m4 14-.7 3 3-.7L15.5 7 13 4.5 4 14Z" />
+          <path d="m11.5 6 2.5 2.5" />
+        </svg>
+        <span>Draw</span>
       </button>
       <button
         type="button"
-        className="toolbar__btn"
-        data-on={tool === "eraser"}
-        aria-pressed={tool === "eraser"}
-        onClick={() => setTool("eraser")}
-        title="Eraser (E)"
-      >
-        Eraser
-      </button>
-      <button
-        type="button"
-        className="toolbar__btn"
+        className="toolDock__button"
         data-on={tool === "insert"}
         aria-pressed={tool === "insert"}
         onClick={() => setTool("insert")}
         title="Insert (I) — add a stitch and shift the rest of the row over"
       >
-        Insert
+        <svg viewBox="0 0 20 20" aria-hidden="true">
+          <path d="M10 3v14M4 10h4m4 0h4" />
+          <path d="m6 7 3 3-3 3m8-6-3 3 3 3" />
+        </svg>
+        <span>Insert</span>
       </button>
-      {selected.length > 0 && (
-        <div className="toolbar__selection">
-          <span>{selected.length} selected</span>
-          <button
-            type="button"
-            className="toolbar__btn"
-            onClick={() => createRepeat(selected.map((placement) => placement.id))}
-            title="Group these stitches as a chart-local repeat"
-          >
-            Create repeat
-          </button>
-          <button
-            type="button"
-            className="toolbar__btn"
-            onClick={() => {
-              const ids = duplicatePlacements(selected.map((placement) => placement.id));
-              if (ids.length) {
-                closePicker();
-                setSelectedPlacementIds(ids, false);
-              }
-            }}
-            title="Duplicate selected stitches (⌘D)"
-          >
-            Duplicate
-          </button>
-          <button
-            type="button"
-            className="toolbar__btn"
-            disabled={!sameSpan}
-            title={sameSpan ? "Replace selected stitches" : "Select stitches of the same width to replace"}
-            onClick={() => {
-              const first = selected[0]!;
-              openPicker({
-                col: first.col,
-                row: first.row,
-                x: 16,
-                y: 92,
-                selectionIds: selected.map((placement) => placement.id),
-                selectionSpan: selectedSpan!,
-              });
-            }}
-          >
-            Replace…
-          </button>
-          <button
-            type="button"
-            className="toolbar__btn"
-            onClick={() => {
-              erasePlacements(selected.map((placement) => placement.id));
-              clearSelection();
-            }}
-            title="Delete selected stitches (Delete)"
-          >
-            Delete
-          </button>
-        </div>
-      )}
-
-      {quickIds.length > 1 && (
-        <div className="toolbar__recents">
-          {quickIds.map((id) => {
-            const symbol = getSymbol(id);
-            if (!symbol) return null;
-            return (
-              <button
-                key={id}
-                type="button"
-                className="toolbar__recent"
-                data-on={id === armedId && tool === "stitch"}
-                onClick={() => setArmed(id)}
-                title={symbol.label}
-              >
-                <SymbolGlyph
-                  symbol={symbol}
-                  cell={Math.max(6, Math.min(18, 54 / symbol.span))}
-                />
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      <span className="toolbar__spacer" />
-
+      <span className="toolDock__separator" aria-hidden="true" />
       <button
         type="button"
-        className="toolbar__btn"
-        onClick={undo}
-        disabled={!canUndo}
-        title="Undo (⌘Z)"
+        className="toolDock__button toolDock__eraser"
+        data-on={tool === "eraser"}
+        aria-pressed={tool === "eraser"}
+        onClick={() => setTool("eraser")}
+        title="Erase (E)"
       >
-        Undo
-      </button>
-      <button
-        type="button"
-        className="toolbar__btn"
-        onClick={redo}
-        disabled={!canRedo}
-        title="Redo (⇧⌘Z)"
-      >
-        Redo
+        <svg viewBox="0 0 20 20" aria-hidden="true">
+          <path d="m5 13 6.8-8a2 2 0 0 1 2.8-.2l.6.5a2 2 0 0 1 .2 2.8L8.7 16H5.8L4 14.5 5 13Z" />
+          <path d="m8.5 9 4 3.4M9 16h7" />
+        </svg>
+        <span>Erase</span>
       </button>
     </div>
+    </>
   );
 }
