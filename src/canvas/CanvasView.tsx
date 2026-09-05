@@ -47,7 +47,9 @@ export function CanvasView() {
     // this is about a tool it has already overridden the hover/selection
     // feedback for.
     if (s.referenceImagePanelOpen) {
-      if (s.referenceImageCalibrating) return "crosshair";
+      // Both calibration modes aim at a specific point, which is exactly
+      // what a crosshair is for.
+      if (s.referenceImageCalibrating || s.referenceImageMarking) return "crosshair";
       const image = useDocStore.getState().referenceImage;
       // An expanded module isn't itself a canvas mode. Only an editable,
       // visible image takes over the cursor; otherwise the chosen stitch
@@ -172,7 +174,9 @@ export function CanvasView() {
         state.stitchHighlightColor !== prev.stitchHighlightColor ||
         state.stitchHighlightOpacity !== prev.stitchHighlightOpacity ||
         state.referenceImagePanelOpen !== prev.referenceImagePanelOpen ||
-        state.referenceImageCalibrationBox !== prev.referenceImageCalibrationBox
+        state.referenceImageCalibrationBox !== prev.referenceImageCalibrationBox ||
+        state.referenceImageActiveMark !== prev.referenceImageActiveMark ||
+        state.referenceImageMarking !== prev.referenceImageMarking
       ) {
         markDirty();
       }
@@ -204,6 +208,8 @@ export function CanvasView() {
         referenceImagePanelOpen,
         referenceImageCalibrating,
         referenceImageCalibrationBox,
+        referenceImageActiveMark,
+        referenceImageMarking,
       } = useUiStore.getState();
       const { index, revision, referenceImage } = useDocStore.getState();
       const dpr = window.devicePixelRatio || 1;
@@ -225,6 +231,9 @@ export function CanvasView() {
         referenceImagePanelOpen,
         referenceImageCalibrating,
         referenceImageCalibrationBox,
+        referenceImageMarks: referenceImage?.calibrationMarks ?? [],
+        referenceImageActiveMark,
+        referenceImageMarking,
         pickerTarget: picker,
         selectedPlacementIds,
         tool,

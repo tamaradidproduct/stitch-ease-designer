@@ -1,5 +1,9 @@
 import { useRef, useState } from "react";
 import { CELL } from "../canvas/camera";
+import {
+  scaleFromCalibrationMarks,
+  withoutCalibrationMark,
+} from "../model/referenceCalibration";
 import { resizeReferenceImageAround, stitchBoxRect } from "../model/types";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
@@ -22,6 +26,10 @@ export function ReferenceImagePanel() {
   const setCalibrating = useUiStore((s) => s.setReferenceImageCalibrating);
   const setCalibrationBox = useUiStore((s) => s.setReferenceImageCalibrationBox);
   const calibrationRejected = useUiStore((s) => s.referenceImageCalibrationRejected);
+  const marking = useUiStore((s) => s.referenceImageMarking);
+  const setMarking = useUiStore((s) => s.setReferenceImageMarking);
+  const setActiveMark = useUiStore((s) => s.setReferenceImageActiveMark);
+  const activeMark = useUiStore((s) => s.referenceImageActiveMark);
   const setCalibrationRejected = useUiStore((s) => s.setReferenceImageCalibrationRejected);
 
   const meta = useDocStore((s) => s.meta);
@@ -29,6 +37,16 @@ export function ReferenceImagePanel() {
   const setReferenceImage = useDocStore((s) => s.setReferenceImage);
   const updateReferenceImage = useDocStore((s) => s.updateReferenceImage);
   const removeReferenceImage = useDocStore((s) => s.removeReferenceImage);
+
+  // Recomputed as the numbers are typed, so "Apply scale" is only live once
+  // the marks actually determine a scale - which is also the clearest way to
+  // say that two of them naming the same row pins nothing down.
+  const points = image?.calibrationMarks ?? [];
+  const labelled = points.filter((p) => p.stitch !== null && p.row !== null);
+  const fit = image && marking ? scaleFromCalibrationMarks(image, points) : null;
+  const hasSpread =
+    new Set(labelled.map((point) => point.stitch)).size >= 2 &&
+    new Set(labelled.map((point) => point.row)).size >= 2;
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -172,7 +190,9 @@ export function ReferenceImagePanel() {
                   : "refpanel__hint"
               }
             >
-              {calibrating
+              {marking
+                ? "Box a stitch in each corner of the chart, the same way you set a stitch size, and type the numbers printed beside it. Drag a box to move it onto the right stitch."
+                : calibrating
                 ? calibrationRejected
                   ? "That box was too small to read. Zoom in and drag across one whole stitch."
                   : "Draw a box around one stitch in the image."
@@ -235,6 +255,114 @@ export function ReferenceImagePanel() {
                 </button>
               </div>
             </label>
+            {marking && (
+              <div className="refpanel__marks">
+                {points.length === 0 ? (
+                  <p className="refpanel__hint">No stitches boxed yet.</p>
+                ) : (
+                  <ul className="refpanel__markList">
+                    {points.map((point, i) => {
+                      const named = point.stitch !== null && point.row !== null;
+                      return (
+                        <li key={point.id}>
+                          {/* Selecting here opens that mark's popover on the
+                              canvas, so the panel stays a summary and there
+                              is only ever one place to type. */}
+                          <button
+                            type="button"
+                            className="refpanel__markRow"
+                            data-active={point.id === activeMark}
+                            onClick={() => setActiveMark(point.id)}
+                          >
+                            <span className="refpanel__markIndex" data-labelled={named}>
+                              {i + 1}
+                            </span>
+                            <span className="refpanel__markNumbers" data-unset={!named}>
+                              {point.stitch === null && point.row === null
+                                ? "not numbered"
+                                : `st ${point.stitch ?? "?"} · row ${point.row ?? "?"}`}
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            className="refpanel__markRemove"
+                            title="Remove this box"
+                            onClick={() => {
+                              updateReferenceImage({
+                                calibrationMarks: withoutCalibrationMark(
+                                  image.calibrationMarks,
+                                  point.id,
+                                ),
+                              });
+                              if (point.id === activeMark) setActiveMark(null);
+                            }}
+                          >
+                            &times;
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                <p className="refpanel__hint">
+                  {fit
+                    ? `${labelled.length} numbered — ready to scale.`
+                    : labelled.length < 2
+                      ? "Number at least two boxes."
+                      : !hasSpread
+                        ? "Needs two different stitch numbers and two different row numbers."
+                        : "The numbers imply an invalid or unsupported scale."}
+                </p>
+                <div className="refpanel__markActions">
+                  <button
+                    type="button"
+                    className="btn btn--primary"
+                    disabled={!fit}
+                    title={
+                      fit
+                        ? "Scale the image so the boxed stitches land the right distance apart"
+                        : "Box at least two stitches with different stitch numbers and different row numbers"
+                    }
+                    onClick={() => {
+                      if (!fit) return;
+                      updateReferenceImage({ ...fit, calibrationMarks: [] });
+                      setActiveMark(null);
+                      setMarking(false);
+                    }}
+                  >
+                    Apply scale
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn--quiet"
+                    onClick={() => {
+                      updateReferenceImage({ calibrationMarks: [] });
+                      setActiveMark(null);
+                    }}
+                  >
+                    Clear boxes
+                  </button>
+                </div>
+              </div>
+            )}
+            <button
+              type="button"
+              className="btn btn--quiet"
+              data-on={marking}
+              disabled={!image.visible}
+              title="Box a stitch in each corner, name them by their printed numbers, and scale the image to match"
+              onClick={() => {
+                // Leaving the mode drops the marks; coming back to a photo
+                // half-marked from some earlier session, with no memory of
+                // which stitch was which, is worse than starting over.
+                if (marking) updateReferenceImage({ calibrationMarks: [] });
+                setActiveMark(null);
+                setCalibrating(false);
+                setMarking(!marking);
+              }}
+            >
+              {marking ? "Cancel scaling" : "Set scale from corner stitches"}
+            </button>
             <button
               type="button"
               className="btn btn--quiet"
@@ -248,6 +376,7 @@ export function ReferenceImagePanel() {
               onClick={() => {
                 if (calibrating) setCalibrationBox(null);
                 setCalibrationRejected(false);
+                setMarking(false);
                 setCalibrating(!calibrating);
               }}
             >

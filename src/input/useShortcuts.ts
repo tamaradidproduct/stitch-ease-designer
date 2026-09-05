@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { CELL, cellToScreenRect } from "../canvas/camera";
 import type { Placement } from "../model/types";
+import { patchCalibrationMark } from "../model/referenceCalibration";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
 
@@ -42,10 +43,16 @@ export function useShortcuts(): void {
         useUiStore.getState().setSelectHeld(true);
       }
 
-      // The picker owns its own keys while its search field has focus.
-      if (isTyping(e.target) && e.key !== "Tab") return;
-
       const ui = useUiStore.getState();
+
+      // The picker owns its own keys while its search field has focus, and
+      // Tab there steps to the next stitch in the row. Everywhere else Tab
+      // has to stay Tab: swallowing it inside a form field means focus
+      // can't move between inputs, which broke typing a mark's stitch and
+      // row numbers - the Tab opened the picker instead of reaching the
+      // next field.
+      if (isTyping(e.target) && !(e.key === "Tab" && ui.picker)) return;
+
       const doc = useDocStore.getState();
 
       if (/^[1-5]$/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
@@ -187,6 +194,22 @@ export function useShortcuts(): void {
       // move either way.
       if (ARROWS[e.key] && ui.referenceImagePanelOpen && !e.metaKey && !e.ctrlKey) {
         const image = doc.referenceImage;
+        // With a mark selected, the arrows belong to it rather than to the
+        // photo: a mark names one stitch out of hundreds, and lining it up
+        // is finer work than a mouse drag can finish.
+        const active = image?.calibrationMarks?.find((m) => m.id === ui.referenceImageActiveMark);
+        if (ui.referenceImageMarking && active && image) {
+          e.preventDefault();
+          const step = e.shiftKey ? CELL : 1;
+          const [dx, dy] = ARROWS[e.key]!;
+          doc.updateReferenceImage({
+            calibrationMarks: patchCalibrationMark(image.calibrationMarks, active.id, {
+              u: Math.max(0, Math.min(1 - active.w, active.u + (dx * step) / image.width)),
+              v: Math.max(0, Math.min(1 - active.h, active.v + (dy * step) / image.height)),
+            }),
+          });
+          return;
+        }
         if (image && image.visible && !image.locked) {
           e.preventDefault();
           // A whole cell with shift, otherwise a single world unit - 1/24th

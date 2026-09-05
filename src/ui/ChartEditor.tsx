@@ -6,6 +6,7 @@ import { chartStore } from "../storage/store";
 import { useAutosave } from "../storage/useAutosave";
 import { isChartOpen, selectIsDirty, useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
+import { ReferenceMarkEditor } from "./ReferenceMarkEditor";
 import { RightPanel } from "./RightPanel";
 import { StatusBar } from "./StatusBar";
 import { StitchPicker } from "./StitchPicker";
@@ -198,6 +199,7 @@ export function ChartEditor() {
       <Toolbar />
       <main className="stage">
         <CanvasView />
+        <ReferenceMarkEditor />
         <RightPanel />
         <StitchPicker />
         <SelectionActions />

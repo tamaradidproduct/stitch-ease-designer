@@ -144,6 +144,22 @@ type UiState = {
   /** The calibration box's two corners in world space, while it's being dragged out. */
   referenceImageCalibrationBox: { start: Point; current: Point } | null;
   setReferenceImageCalibrationBox: (box: { start: Point; current: Point } | null) => void;
+  /**
+   * Armed by "Set scale from stitches": clicks on the canvas drop marks on
+   * the photo instead of moving it. Unlike the one-shot box calibration
+   * this is a mode you stay in, because it takes four marks and typing
+   * their numbers in between.
+   */
+  referenceImageMarking: boolean;
+  setReferenceImageMarking: (marking: boolean) => void;
+  /**
+   * The mark whose stitch/row popover is open, anchored to it on the
+   * canvas. Set the moment a mark is placed, so the numbers are typed while
+   * looking at the stitch they describe rather than matched up afterwards
+   * against a list.
+   */
+  referenceImageActiveMark: string | null;
+  setReferenceImageActiveMark: (id: string | null) => void;
 
   setTool: (tool: Tool) => void;
   setArmedSymbolId: (id: string | null) => void;
@@ -206,11 +222,17 @@ export const useUiStore = create<UiState>((set, get) => ({
       referenceImagePanelOpen: false,
       referenceImageCalibrating: false,
       referenceImageCalibrationBox: null,
+      referenceImageMarking: false,
+      referenceImageActiveMark: null,
       referenceImageCalibrationRejected: false,
       referenceImageHandle: null,
     }),
   referenceImageCalibrating: false,
   setReferenceImageCalibrating: (referenceImageCalibrating) => set({ referenceImageCalibrating }),
+  referenceImageMarking: false,
+  setReferenceImageMarking: (referenceImageMarking) => set({ referenceImageMarking }),
+  referenceImageActiveMark: null,
+  setReferenceImageActiveMark: (referenceImageActiveMark) => set({ referenceImageActiveMark }),
   referenceImageCalibrationBox: null,
   setReferenceImageCalibrationBox: (referenceImageCalibrationBox) =>
     set({ referenceImageCalibrationBox }),
