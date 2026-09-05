@@ -147,7 +147,7 @@ export function ReferenceImagePanel() {
         )}
       </div>
 
-      {image && !open && (
+      {image && (!open || !image.visible) && (
         <div className="refpanel__quickControls" role="group" aria-label="Reference image quick controls">
           <button
             type="button"
