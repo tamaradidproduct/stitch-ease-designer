@@ -177,9 +177,17 @@ export function useShortcuts(): void {
       }
 
       if (e.key === "Escape") {
-        if (ui.picker) ui.closePicker();
-        else if (ui.selectedPlacementIds.length) ui.clearSelectionWithUndo();
-        else ui.setArmedSymbolId(null);
+        // A selection and its picker are the same moment, not two things to
+        // back out of separately - the first Escape clears both together and
+        // leaves an armed stitch armed; only once there's truly nothing
+        // selected does a second Escape disarm it.
+        if (ui.picker || ui.selectedPlacementIds.length || ui.selectedEmptyCells.length) {
+          if (ui.picker) ui.closePicker();
+          if (ui.selectedPlacementIds.length || ui.selectedEmptyCells.length) ui.clearSelectionWithUndo();
+        } else {
+          ui.setArmedSymbolId(null);
+        }
+        ui.setSelectionAnchor(null);
         return;
       }
 

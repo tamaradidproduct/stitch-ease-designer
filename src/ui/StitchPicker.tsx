@@ -33,7 +33,7 @@ export function StitchPicker() {
   const chooseSymbol = useUiStore((s) => s.chooseSymbol);
   const clearSelection = useUiStore((s) => s.clearSelection);
   const setSelectedPlacementIds = useUiStore((s) => s.setSelectedPlacementIds);
-  const tool = useUiStore((s) => s.tool);
+  const setSelectedEmptyCells = useUiStore((s) => s.setSelectedEmptyCells);
   const setInsertAnimation = useUiStore((s) => s.setInsertAnimation);
   const quickIds = useUiStore((s) => s.quickSymbolIds);
   const camera = useUiStore((s) => s.camera);
@@ -45,6 +45,8 @@ export function StitchPicker() {
   const duplicateSelection = useDocStore((s) => s.duplicatePlacementsInRow);
   const insertPlacement = useDocStore((s) => s.insertPlacement);
   const replacePlacements = useDocStore((s) => s.replacePlacements);
+  const beginStroke = useDocStore((s) => s.beginStroke);
+  const endStroke = useDocStore((s) => s.endStroke);
   const repeats = useDocStore((s) => s.repeats);
   const instantiateRepeat = useDocStore((s) => s.instantiateRepeat);
   const index = useDocStore((s) => s.index);
@@ -205,11 +207,55 @@ export function StitchPicker() {
       chooseSymbol(symbol.id);
       return;
     }
-    const replacingSelection = !!target.selectionIds;
+    // Choosing a symbol from a multi-cell selection fills it but keeps it
+    // selected - the picker stays open, re-targeted at the new placements -
+    // and arms the symbol, so the next click elsewhere continues stamping
+    // with it instead of leaving the designer to re-pick from scratch.
     if (target.selectionIds) {
-      replacePlacements(target.selectionIds, symbol.id);
-      clearSelection();
-    } else if (target.insert) {
+      const newIds = replacePlacements(target.selectionIds, symbol.id);
+      setSelectedPlacementIds(newIds, false);
+      openPicker({
+        col: target.col,
+        row: target.row,
+        x: target.x,
+        y: target.y,
+        currentSymbolId: symbol.id,
+        selectionIds: newIds,
+        ...(target.selectionSpan !== undefined ? { selectionSpan: target.selectionSpan } : null),
+      });
+      chooseSymbol(symbol.id, "stitch", true);
+      return;
+    }
+    if (target.selectionEmptyCells?.length) {
+      const cells = target.selectionEmptyCells;
+      beginStroke();
+      for (const cell of cells) {
+        if (useDocStore.getState().index.placementAt(cell.col, cell.row)) continue;
+        place(symbol.id, cell.col, cell.row);
+      }
+      endStroke();
+      const newIds = [...new Set(cells
+        .map((cell) => useDocStore.getState().index.placementAt(cell.col, cell.row)?.id)
+        .filter((id): id is string => !!id))];
+      setSelectedEmptyCells([]);
+      setSelectedPlacementIds(newIds, false);
+      if (newIds.length) {
+        openPicker({
+          col: target.col,
+          row: target.row,
+          x: target.x,
+          y: target.y,
+          currentSymbolId: symbol.id,
+          selectionIds: newIds,
+          selectionSpan: symbol.span,
+        });
+        chooseSymbol(symbol.id, "stitch", true);
+      } else {
+        closePicker();
+      }
+      return;
+    }
+    if (target.insert) {
       const insertedCol = insertTargetCol(index, symbol.id, target.col, target.row);
       insertPlacement(symbol.id, target.col, target.row);
       if (insertedCol !== null) {
@@ -226,12 +272,15 @@ export function StitchPicker() {
       closePicker();
       return;
     }
-    chooseSymbol(symbol.id, target.insert ? "insert" : replacingSelection ? tool : "stitch");
+    chooseSymbol(symbol.id, target.insert ? "insert" : "stitch");
   };
 
   const clear = () => {
     if (target.selectionIds?.length) {
       erasePlacements(target.selectionIds);
+      clearSelection();
+    } else if (target.selectionEmptyCells?.length) {
+      // Nothing's been placed yet - there's nothing to erase, just drop the selection.
       clearSelection();
     } else {
       erase(target.col, target.row);

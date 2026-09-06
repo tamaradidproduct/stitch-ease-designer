@@ -9,7 +9,7 @@ import {
   strokeKey,
 } from "./usePaintTool";
 
-const noMods = { metaKey: false, ctrlKey: false, altKey: false };
+const noMods = { shiftKey: false, altKey: false };
 
 describe("shouldOpenPickerForSelection", () => {
   it("opens the picker for a plain click that selects exactly one stitch", () => {
@@ -59,43 +59,42 @@ describe("straight drawing", () => {
 
 describe("modeFor", () => {
   it("draws with the armed stitch when nothing is held", () => {
-    expect(modeFor(noMods, "purl")).toEqual({ kind: "place", symbolId: "purl" });
+    expect(modeFor(noMods, "purl", false)).toEqual({ kind: "place", symbolId: "purl" });
   });
 
   it("is null when nothing is armed and no modifier is held", () => {
-    expect(modeFor(noMods, null)).toBeNull();
+    expect(modeFor(noMods, null, false)).toBeNull();
   });
 
   it("matches with Suggest when it's the armed stitch", () => {
-    expect(modeFor(noMods, SUGGEST_SYMBOL_ID)).toEqual({ kind: "suggest" });
+    expect(modeFor(noMods, SUGGEST_SYMBOL_ID, false)).toEqual({ kind: "suggest" });
   });
 
-  it("confirms as originally guessed on Cmd or Ctrl when Suggest or nothing is armed", () => {
-    expect(modeFor({ ...noMods, ctrlKey: true }, SUGGEST_SYMBOL_ID)).toEqual({ kind: "confirm" });
-    expect(modeFor({ ...noMods, metaKey: true }, null)).toEqual({ kind: "confirm" });
+  it("confirms as originally guessed on Shift over a suggestion, when Suggest or nothing is armed", () => {
+    expect(modeFor({ ...noMods, shiftKey: true }, SUGGEST_SYMBOL_ID, true)).toEqual({ kind: "confirm" });
+    expect(modeFor({ ...noMods, shiftKey: true }, null, true)).toEqual({ kind: "confirm" });
   });
 
-  it("confirms as the armed stitch on Cmd or Ctrl when a real stitch is armed", () => {
-    expect(modeFor({ ...noMods, metaKey: true }, "purl")).toEqual({
+  it("confirms as the armed stitch on Shift over a suggestion when a real stitch is armed", () => {
+    expect(modeFor({ ...noMods, shiftKey: true }, "purl", true)).toEqual({
       kind: "confirm",
       overrideSymbolId: "purl",
     });
-    expect(modeFor({ ...noMods, ctrlKey: true }, "knit")).toEqual({
-      kind: "confirm",
-      overrideSymbolId: "knit",
+  });
+
+  it("falls through to the armed stitch on Shift when the target isn't actually suggested", () => {
+    // Preserves straight-line draw while armed: Shift shouldn't shadow the
+    // armed stitch just because it's held, only when there's something to review.
+    expect(modeFor({ ...noMods, shiftKey: true }, "purl", false)).toEqual({
+      kind: "place",
+      symbolId: "purl",
     });
   });
 
-  it("dismisses on Alt, regardless of what's armed", () => {
-    expect(modeFor({ ...noMods, altKey: true }, "purl")).toEqual({ kind: "dismiss" });
-    expect(modeFor({ ...noMods, altKey: true }, null)).toEqual({ kind: "dismiss" });
-  });
-
-  it("prefers confirm over dismiss if somehow both are held", () => {
-    expect(modeFor({ metaKey: true, ctrlKey: false, altKey: true }, "purl")).toEqual({
-      kind: "confirm",
-      overrideSymbolId: "purl",
-    });
+  it("erases on Shift+Opt, regardless of what's armed", () => {
+    expect(modeFor({ shiftKey: true, altKey: true }, "purl", false)).toEqual({ kind: "erase" });
+    expect(modeFor({ shiftKey: true, altKey: true }, null, false)).toEqual({ kind: "erase" });
+    expect(modeFor({ shiftKey: true, altKey: true }, null, true)).toEqual({ kind: "erase" });
   });
 });
 
@@ -106,11 +105,11 @@ describe("strokeKey", () => {
     );
   });
 
-  it("gives suggest, confirm, and dismiss each their own stable key", () => {
+  it("gives suggest, confirm, and erase each their own stable key", () => {
     const keys = [
       strokeKey({ kind: "suggest" }),
       strokeKey({ kind: "confirm" }),
-      strokeKey({ kind: "dismiss" }),
+      strokeKey({ kind: "erase" }),
     ];
     expect(new Set(keys).size).toBe(3);
   });

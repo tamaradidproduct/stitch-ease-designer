@@ -5,7 +5,7 @@ import { usePanZoom } from "../input/usePanZoom";
 import { useReferenceImageTool } from "../input/useReferenceImageTool";
 import { useShortcuts } from "../input/useShortcuts";
 import { useDocStore } from "../state/docStore";
-import { useUiStore } from "../state/uiStore";
+import { cellKey, useUiStore } from "../state/uiStore";
 import {
   ADD_CURSOR,
   BLOCKED_MOVE_CURSOR,
@@ -90,19 +90,26 @@ export function CanvasView() {
     const hovered = s.hover
       ? useDocStore.getState().index.placementAt(s.hover.col, s.hover.row)
       : undefined;
-    // Cmd/Ctrl or Alt over a pending suggestion confirms or dismisses it
-    // instead of whatever that modifier means everywhere else (temporary
-    // Select, duplicate-drag) - its own cursor, checked ahead of those
-    // generic cases, so the one cell where the click does something
-    // different looks different too. Confirm wins if, somehow, both are
-    // held, matching `modeFor`'s own precedence.
-    if (hovered?.suggested) {
-      if (s.selectHeld) return CONFIRM_SUGGESTION_CURSOR;
-      if (s.altHeld) return DISMISS_SUGGESTION_CURSOR;
+    // Shift+Opt is the destructive brush over anything there's actually
+    // something to erase - a placement, or an unrecognized-cell marker -
+    // checked ahead of the generic cases it's standing in for (straight-line
+    // draw, duplicate-drag), matching `modeFor`'s own precedence. Empty space
+    // has nothing to erase, so it keeps its normal cursor instead of implying
+    // a destructive action that would actually be a no-op.
+    if (s.shiftHeld && s.altHeld && (hovered || (s.hover && s.referenceImageUnrecognized.has(cellKey(s.hover.col, s.hover.row))))) {
+      return DISMISS_SUGGESTION_CURSOR;
     }
+    // Shift alone only does something over an actual pending suggestion
+    // (confirm) - elsewhere it's the straight-line-draw modifier instead,
+    // handled further down.
+    if (hovered?.suggested && s.shiftHeld) return CONFIRM_SUGGESTION_CURSOR;
     if (s.tool === "select" || s.selectHeld) {
-      if (s.tool === "select" && !hovered) return "crosshair";
-      return "default";
+      if (s.tool === "select") return hovered ? "default" : "crosshair";
+      // Cmd's temporary selection clutch: the same unarmed "+" badge as a
+      // baseline empty-cell hover, so it reads as "this click will select
+      // and open the picker here" - a plain arrow over an existing stitch,
+      // which already looks selectable on its own.
+      return hovered ? "default" : ADD_CURSOR;
     }
     if (s.tool === "eraser") return ERASE_CURSOR;
     if (s.tool === "insert") {
@@ -183,6 +190,7 @@ export function CanvasView() {
         state.insertAnimation !== prev.insertAnimation ||
         state.picker !== prev.picker ||
         state.selectedPlacementIds !== prev.selectedPlacementIds ||
+        state.selectedEmptyCells !== prev.selectedEmptyCells ||
         state.selectionBox !== prev.selectionBox ||
         state.selectionMove !== prev.selectionMove ||
         state.tool !== prev.tool ||
@@ -217,6 +225,7 @@ export function CanvasView() {
         insertAnimation,
         picker,
         selectedPlacementIds,
+        selectedEmptyCells,
         tool,
         selectHeld,
         keyboardSelectionActive,
@@ -257,6 +266,7 @@ export function CanvasView() {
         referenceImageUnrecognized,
         pickerTarget: picker,
         selectedPlacementIds,
+        selectedEmptyCells,
         tool,
         selectHeld,
         keyboardSelectionActive,

@@ -30,6 +30,9 @@ export function usePanZoom(ref: RefObject<HTMLCanvasElement | null>): void {
     // editor remains a canvas workspace where panning is essential for lining
     // up a large image. Keep only the picker out of the pan gesture.
     const canPan = () => !ui().picker;
+    // Wheel and trackpad gestures do not compete with text entry, so they can
+    // keep the canvas navigable while either contextual UI is open.
+    const canScrollPan = () => true;
 
     // Cached instead of read on every wheel/pointermove, since
     // getBoundingClientRect forces a layout read. Refreshed whenever the
@@ -60,7 +63,7 @@ export function usePanZoom(ref: RefObject<HTMLCanvasElement | null>): void {
         // stays smooth.
         const delta = Math.max(-60, Math.min(60, e.deltaY));
         ui().zoomAt(Math.exp(-delta * 0.0035), sx, sy);
-      } else if (canPan()) {
+      } else if (canScrollPan()) {
         ui().panByScreen(-e.deltaX, -e.deltaY);
       }
     };

@@ -78,7 +78,8 @@ type DocState = {
    * single guess doesn't need to wait for a full review pass).
    */
   acceptSuggestions: (ids?: string[]) => void;
-  replacePlacements: (ids: string[], symbolId: string) => void;
+  /** Returns the replaced placements' new ids, or the original `ids` unchanged if nothing was replaced. */
+  replacePlacements: (ids: string[], symbolId: string) => string[];
   erasePlacements: (ids: string[]) => void;
   movePlacements: (ids: string[], deltaCol: number, deltaRow: number) => void;
   /** Whether `movePlacements` would actually move anything, without doing it. */
@@ -225,21 +226,20 @@ export const useDocStore = create<DocState>((set, get) => {
       const selected = ids
         .map((id) => get().index.placements.get(id))
         .filter((p): p is NonNullable<typeof p> => !!p);
-      if (!selected.length || selected.some((p) => get().index.spanOf(p) !== spanOf(symbolId))) return;
-      if (selected.every((p) => p.symbolId === symbolId)) return;
-      commit({
-        removed: selected,
-        // Spread first: a replaced stitch keeps whatever group it belonged
-        // to (a repeat instance, a duplicated cluster) rather than silently
-        // dropping out of it. Choosing a replacement is a deliberate,
-        // resolved answer, so it also drops any suggested/confidence
-        // flags - the same as accepting a suggestion outright.
-        added: selected.map(({ suggested: _dropped, confidence: _score, ...rest }) => ({
-          ...rest,
-          id: newPlacementId(),
-          symbolId,
-        })),
-      });
+      if (!selected.length || selected.some((p) => get().index.spanOf(p) !== spanOf(symbolId))) return ids;
+      if (selected.every((p) => p.symbolId === symbolId)) return ids;
+      // Spread first: a replaced stitch keeps whatever group it belonged
+      // to (a repeat instance, a duplicated cluster) rather than silently
+      // dropping out of it. Choosing a replacement is a deliberate,
+      // resolved answer, so it also drops any suggested/confidence
+      // flags - the same as accepting a suggestion outright.
+      const added = selected.map(({ suggested: _dropped, confidence: _score, ...rest }) => ({
+        ...rest,
+        id: newPlacementId(),
+        symbolId,
+      }));
+      commit({ removed: selected, added });
+      return added.map((p) => p.id);
     },
     erasePlacements: (ids) => {
       const removed = ids
