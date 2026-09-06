@@ -9,6 +9,9 @@ export function StatusBar() {
   const tool = useUiStore((s) => s.tool);
   const selectHeld = useUiStore((s) => s.selectHeld);
   const selectedCount = useUiStore((s) => s.selectedPlacementIds.length);
+  const referenceEditing = useUiStore((s) => s.referenceImagePanelOpen);
+  const referenceMarking = useUiStore((s) => s.referenceImageMarking);
+  const activeReferenceMark = useUiStore((s) => s.referenceImageActiveMark);
   const index = useDocStore((s) => s.index);
   const revision = useDocStore((s) => s.revision);
   const stitch = hover ? roundStitchNumberAt(index, hover.col, hover.row, revision) : null;
@@ -25,7 +28,13 @@ export function StatusBar() {
       </span>
       <span className="statusbar__spacer" />
       <span className="statusbar__hint">
-        {tool === "select" || selectHeld
+        {referenceEditing
+          ? referenceMarking
+            ? activeReferenceMark
+              ? "Editing reference · arrow keys nudge the active mark"
+              : "Editing reference · box a stitch to add a mark"
+            : "Editing reference · arrow keys nudge image · Shift = one stitch"
+          : tool === "select" || selectHeld
           ? selectedCount
             ? `${selectedCount} selected · Shift-click to add or remove · Delete to clear`
             : "Click to select · Shift-click to select multiple"

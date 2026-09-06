@@ -50,7 +50,9 @@ export function useShortcuts(): void {
       // can't move between inputs, which broke typing a mark's stitch and
       // row numbers - the Tab opened the picker instead of reaching the
       // next field.
-      if (isTyping(e.target) && !(e.key === "Tab" && ui.picker)) return;
+      const pickerSearchFocused =
+        e.target instanceof HTMLElement && e.target.classList.contains("picker__search");
+      if (isTyping(e.target) && !(e.key === "Tab" && ui.picker && pickerSearchFocused)) return;
 
       // The contextual picker intentionally starts a search from any typed
       // character. While it is open, that direct-search behavior takes
@@ -138,11 +140,15 @@ export function useShortcuts(): void {
 
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "v") {
         e.preventDefault();
-        if (!ui.clipboardPlacements.length || !ui.hover) return;
+        const selectedTarget = ui.selectedPlacementIds.length === 1
+          ? doc.index.placements.get(ui.selectedPlacementIds[0]!)
+          : undefined;
+        const target = ui.hover ?? selectedTarget;
+        if (!ui.clipboardPlacements.length || !target) return;
         const minCol = Math.min(...ui.clipboardPlacements.map((placement) => placement.col));
         const minRow = Math.min(...ui.clipboardPlacements.map((placement) => placement.row));
-        const deltaCol = ui.hover.col - minCol;
-        const deltaRow = ui.hover.row - minRow;
+        const deltaCol = target.col - minCol;
+        const deltaRow = target.row - minRow;
         doc.beginStroke();
         const before = new Set(doc.index.placements.keys());
         for (const placement of ui.clipboardPlacements) {
@@ -177,9 +183,17 @@ export function useShortcuts(): void {
       }
 
       if (e.key === "Escape") {
-        if (ui.picker) ui.closePicker();
-        else if (ui.selectedPlacementIds.length) ui.clearSelectionWithUndo();
-        else ui.setArmedSymbolId(null);
+        // A selection and its picker are the same moment, not two things to
+        // back out of separately - closing one without the other would leave
+        // a still-selected stitch on screen with nothing left open to explain
+        // why. The first Escape clears both together; only once there's
+        // truly nothing selected does a second Escape disarm.
+        if (ui.picker || ui.selectedPlacementIds.length) {
+          if (ui.picker) ui.closePicker();
+          if (ui.selectedPlacementIds.length) ui.clearSelectionWithUndo();
+        } else {
+          ui.setArmedSymbolId(null);
+        }
         return;
       }
 
@@ -245,7 +259,7 @@ export function useShortcuts(): void {
         return;
       }
 
-      if (e.key.toLowerCase() === "g" && !e.metaKey && !e.ctrlKey) {
+      if (e.key.toLowerCase() === "q" && !e.metaKey && !e.ctrlKey) {
         ui.setTool("stitch");
         ui.setArmedSymbolId(ui.armedSymbolId === SUGGEST_SYMBOL_ID ? null : SUGGEST_SYMBOL_ID);
         return;

@@ -26,9 +26,11 @@ export function usePanZoom(ref: RefObject<HTMLCanvasElement | null>): void {
     if (!canvas) return;
 
     const ui = useUiStore.getState;
-    // A picker or reference-image editor is a focused contextual task. Keep
-    // panning out of its way so space still works in search and number fields.
-    const canPan = () => !ui().picker && !ui().referenceImagePanelOpen;
+    // Space remains dedicated to typing while a contextual picker is open,
+    // but middle-button and trackpad panning are still useful navigation
+    // tools there. Any camera move closes the picker via the store so it
+    // cannot become detached from its target cell.
+    const canPan = () => true;
 
     // Cached instead of read on every wheel/pointermove, since
     // getBoundingClientRect forces a layout read. Refreshed whenever the
@@ -130,7 +132,7 @@ export function usePanZoom(ref: RefObject<HTMLCanvasElement | null>): void {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.code === "Space" && !e.repeat) {
         // Otherwise space scrolls the page / activates a focused control.
-        if (isTyping(e.target) || !canPan()) return;
+        if (isTyping(e.target) || ui().picker || !canPan()) return;
         e.preventDefault();
         ui().setSpaceHeld(true);
       }

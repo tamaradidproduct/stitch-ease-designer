@@ -312,9 +312,9 @@ export function RightPanel() {
                 type="button"
                 className="glossary__arm"
                 onClick={() => setArmedSymbolId(SUGGEST_SYMBOL_ID)}
-                title="Draw with Suggest (G) - matches each cell against stitches you've already confirmed over the reference image. Cmd/Ctrl-click a suggestion to confirm it, or Cmd/Ctrl-click with a stitch armed to confirm it as that stitch instead. Alt-click dismisses it - all of this drags and Shift straight-lines/gap-fills the same way Draw does."
+                title="Draw with Suggest (Q) - matches each cell against stitches you've already confirmed over the reference image. Cmd/Ctrl-click a suggestion to confirm it, or Cmd/Ctrl-click with a stitch armed to confirm it as that stitch instead. Alt-click dismisses it - all of this drags and Shift straight-lines/gap-fills the same way Draw does."
               >
-                <kbd className="glossary__shortcut" aria-label="Shortcut G">G</kbd>
+                <kbd className="glossary__shortcut" aria-label="Shortcut Q">Q</kbd>
                 <span className="glossary__glyph" aria-hidden="true">
                   <svg viewBox="0 0 20 20" width="16" height="16">
                     <path
@@ -612,7 +612,7 @@ export function RightPanel() {
         {helpOpen && (
           <div className="sideModule__body">
             <dl className="shortcutList">
-              <dt><kbd>S</kbd> <kbd>D</kbd> <kbd>I</kbd> <kbd>E</kbd></dt><dd>Select, Draw, Insert, Erase</dd>
+              <dt><kbd>S</kbd> <kbd>D</kbd> <kbd>I</kbd> <kbd>E</kbd> <kbd>Q</kbd></dt><dd>Select, Draw, Insert, Erase, Suggest</dd>
               <dt><kbd>1–5</kbd></dt><dd>Choose a quick stitch</dd>
               <dt><kbd>Tab</kbd> / <kbd>Shift Tab</kbd></dt><dd>Next stitch right / left</dd>
               <dt><kbd>Shift click</kbd></dt><dd>Add or remove from selection</dd>

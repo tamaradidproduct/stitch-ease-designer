@@ -46,6 +46,16 @@ export function CanvasView() {
   useDocStore((s) => s.revision);
   const cursor = useUiStore((s) => {
     if (s.picker) return "default";
+    const hovered = s.hover
+      ? useDocStore.getState().index.placementAt(s.hover.col, s.hover.row)
+      : undefined;
+    // Suggestions are review targets even while the reference image is in
+    // edit mode. Check them before the image's move/resize cursor so Cmd/Ctrl
+    // accurately advertises that it will confirm or override the guess.
+    if (hovered?.suggested) {
+      if (s.selectHeld) return CONFIRM_SUGGESTION_CURSOR;
+      if (s.altHeld) return DISMISS_SUGGESTION_CURSOR;
+    }
     // The panel owns the canvas entirely while it's open - every state below
     // this is about a tool it has already overridden the hover/selection
     // feedback for.
@@ -79,24 +89,14 @@ export function CanvasView() {
     // An existing selection is draggable from any tool, so its own cells
     // always get the "grab" cursor - checked before the tool-specific cases.
     if (s.selectedPlacementIds.length) {
-      const hovered = s.hover
-        ? useDocStore.getState().index.placementAt(s.hover.col, s.hover.row)
-        : undefined;
       if (hovered && s.selectedPlacementIds.includes(hovered.id)) return GRAB_CURSOR;
     }
-    const hovered = s.hover
-      ? useDocStore.getState().index.placementAt(s.hover.col, s.hover.row)
-      : undefined;
     // Cmd/Ctrl or Alt over a pending suggestion confirms or dismisses it
     // instead of whatever that modifier means everywhere else (temporary
     // Select, duplicate-drag) - its own cursor, checked ahead of those
     // generic cases, so the one cell where the click does something
     // different looks different too. Confirm wins if, somehow, both are
     // held, matching `modeFor`'s own precedence.
-    if (hovered?.suggested) {
-      if (s.selectHeld) return CONFIRM_SUGGESTION_CURSOR;
-      if (s.altHeld) return DISMISS_SUGGESTION_CURSOR;
-    }
     if (s.tool === "select" || s.selectHeld) {
       if (s.tool === "select" && !hovered) return "crosshair";
       return "default";

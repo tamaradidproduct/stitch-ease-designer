@@ -376,25 +376,21 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
         return;
       }
 
-      const handle = handleAt(image, w, zoom);
       const inside =
         w.x >= image.x &&
         w.x <= image.x + image.width &&
         w.y >= image.y &&
         w.y <= image.y + image.height;
-      if (!handle && !inside) return; // outside the image entirely - let the active tool handle it
+      const col = Math.floor(w.x / CELL);
+      const row = Math.floor(w.y / CELL);
+      const suggested = useDocStore.getState().index.placementAt(col, row)?.suggested;
+      // Pending suggestions are review targets, even when they happen to sit
+      // under an image resize handle. In particular, Cmd/Ctrl with a real
+      // stitch armed must reach the paint tool so it can replace the guess.
+      if (suggested) return;
 
-      // A click squarely on a stitch Suggest is still guessing at wins over
-      // moving the photo. Reviewing a suggestion means comparing it against
-      // this very image, so the panel has to stay open for that - but its
-      // blanket claim on every click inside the image would otherwise make
-      // an unreviewed guess unclickable for as long as the panel is open,
-      // which is most of the time Suggest is in use.
-      if (!handle) {
-        const col = Math.floor(w.x / CELL);
-        const row = Math.floor(w.y / CELL);
-        if (useDocStore.getState().index.placementAt(col, row)?.suggested) return;
-      }
+      const handle = handleAt(image, w, zoom);
+      if (!handle && !inside) return; // outside the image entirely - let the active tool handle it
 
       e.preventDefault();
       e.stopImmediatePropagation();

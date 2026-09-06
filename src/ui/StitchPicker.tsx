@@ -33,7 +33,6 @@ export function StitchPicker() {
   const chooseSymbol = useUiStore((s) => s.chooseSymbol);
   const clearSelection = useUiStore((s) => s.clearSelection);
   const setSelectedPlacementIds = useUiStore((s) => s.setSelectedPlacementIds);
-  const tool = useUiStore((s) => s.tool);
   const setInsertAnimation = useUiStore((s) => s.setInsertAnimation);
   const quickIds = useUiStore((s) => s.quickSymbolIds);
   const camera = useUiStore((s) => s.camera);
@@ -205,11 +204,20 @@ export function StitchPicker() {
       chooseSymbol(symbol.id);
       return;
     }
-    const replacingSelection = !!target.selectionIds;
     if (target.selectionIds) {
-      replacePlacements(target.selectionIds, symbol.id);
-      clearSelection();
-    } else if (target.insert) {
+      // Choosing a stitch for the current selection fills it in without
+      // dropping the selection - the picker is how you keep reviewing or
+      // adjusting the same stitch(es), not a one-shot action that dismisses
+      // them. Re-anchoring the picker to the replacement's new ids (rather
+      // than closing it, which the fallthrough below would do via
+      // `chooseSymbol`) is what keeps both in sync with what's now on the
+      // canvas.
+      const newIds = replacePlacements(target.selectionIds, symbol.id);
+      setSelectedPlacementIds(newIds, false);
+      openPicker({ ...target, currentSymbolId: symbol.id, selectionIds: newIds });
+      return;
+    }
+    if (target.insert) {
       const insertedCol = insertTargetCol(index, symbol.id, target.col, target.row);
       insertPlacement(symbol.id, target.col, target.row);
       if (insertedCol !== null) {
@@ -226,7 +234,7 @@ export function StitchPicker() {
       closePicker();
       return;
     }
-    chooseSymbol(symbol.id, target.insert ? "insert" : replacingSelection ? tool : "stitch");
+    chooseSymbol(symbol.id, target.insert ? "insert" : "stitch");
   };
 
   const clear = () => {

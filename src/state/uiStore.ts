@@ -32,6 +32,8 @@ export type PickerTarget = {
   /** When present, choosing a symbol replaces this whole selection. */
   selectionIds?: string[];
   selectionSpan?: number;
+  /** Empty cells selected alongside (or instead of) `selectionIds` - choosing a symbol places it into each one. */
+  selectionEmptyCells?: Cell[];
   /** When true, choosing a symbol inserts and shifts rather than placing/replacing. */
   insert?: boolean;
   /** When true, choosing a symbol only arms Draw instead of editing the canvas. */
@@ -160,6 +162,14 @@ type UiState = {
   quickSymbolIds: string[];
   picker: PickerTarget | null;
   selectedPlacementIds: string[];
+  /**
+   * Empty cells selected alongside (or instead of) `selectedPlacementIds` -
+   * a marquee or modifier-click can land on bare grid positions with no
+   * placement to reference by id, so they're tracked by coordinate instead.
+   * Selecting one, like selecting a placement, opens the picker; choosing a
+   * symbol there fills every selected empty cell with it.
+   */
+  selectedEmptyCells: Cell[];
   /** App clipboard: survives tool/chart resets and changes only on Copy or Cut. */
   clipboardPlacements: Placement[];
   selectionBox: SelectionBox | null;
@@ -170,6 +180,8 @@ type UiState = {
    * and invalidated by any other selection change in between.
    */
   lastClearedSelection: string[] | null;
+  /** The empty-cell half of `lastClearedSelection` - restored together with it. */
+  lastClearedEmptyCells: Cell[] | null;
 
   /**
    * Whether the reference-image panel is open. While it is, dragging the
@@ -244,6 +256,7 @@ type UiState = {
   closePicker: () => void;
   selectPlacement: (id: string, additive: boolean) => void;
   setSelectedPlacementIds: (ids: string[], recordUndo?: boolean) => void;
+  setSelectedEmptyCells: (cells: Cell[], recordUndo?: boolean) => void;
   setClipboardPlacements: (placements: Placement[]) => void;
   setSelectionBox: (box: SelectionBox | null) => void;
   setSelectionMove: (move: SelectionMove | null) => void;
@@ -334,19 +347,29 @@ export const useUiStore = create<UiState>((set, get) => ({
   quickSymbolIds: loadQuickSymbolIds(),
   picker: null,
   selectedPlacementIds: [],
+  selectedEmptyCells: [],
   clipboardPlacements: [],
   selectionBox: null,
   selectionMove: null,
   lastClearedSelection: null,
+  lastClearedEmptyCells: null,
   setTool: (tool) =>
     set({
       tool,
       picker: null,
       lastClearedSelection: null,
-      ...(tool === "select" ? {} : { selectedPlacementIds: [] }),
+      lastClearedEmptyCells: null,
+      ...(tool === "select" ? {} : { selectedPlacementIds: [], selectedEmptyCells: [] }),
     }),
   setArmedSymbolId: (armedSymbolId) =>
-    set({ armedSymbolId, tool: "stitch", selectedPlacementIds: [], lastClearedSelection: null }),
+    set({
+      armedSymbolId,
+      tool: "stitch",
+      selectedPlacementIds: [],
+      selectedEmptyCells: [],
+      lastClearedSelection: null,
+      lastClearedEmptyCells: null,
+    }),
 
   /** Arm a symbol and assign it to the next free quick slot, without reordering. */
   chooseSymbol: (id, tool = "stitch") => {
@@ -359,7 +382,9 @@ export const useUiStore = create<UiState>((set, get) => ({
       quickSymbolIds,
       picker: null,
       selectedPlacementIds: [],
+      selectedEmptyCells: [],
       lastClearedSelection: null,
+      lastClearedEmptyCells: null,
     });
   },
 
@@ -390,7 +415,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   selectPlacement: (id, additive) => {
     const selected = get().selectedPlacementIds;
     if (!additive) {
-      set({ selectedPlacementIds: [id], lastClearedSelection: null });
+      set({ selectedPlacementIds: [id], selectedEmptyCells: [], lastClearedSelection: null, lastClearedEmptyCells: null });
       return;
     }
     set({
@@ -405,29 +430,43 @@ export const useUiStore = create<UiState>((set, get) => ({
       selectedPlacementIds,
       lastClearedSelection: recordUndo ? state.selectedPlacementIds : null,
     })),
+  setSelectedEmptyCells: (selectedEmptyCells, recordUndo = true) =>
+    set((state) => ({
+      selectedEmptyCells,
+      lastClearedEmptyCells: recordUndo ? state.selectedEmptyCells : null,
+    })),
   setClipboardPlacements: (clipboardPlacements) => set({ clipboardPlacements }),
   setSelectionBox: (selectionBox) => set({ selectionBox }),
   setSelectionMove: (selectionMove) => set({ selectionMove }),
   clearSelection: () => set({
     selectedPlacementIds: [],
+    selectedEmptyCells: [],
     lastClearedSelection: null,
+    lastClearedEmptyCells: null,
     selectionBox: null,
     selectionMove: null,
   }),
   clearSelectionWithUndo: () => {
-    const current = get().selectedPlacementIds;
-    if (!current.length) return;
+    const { selectedPlacementIds: current, selectedEmptyCells: currentEmpty } = get();
+    if (!current.length && !currentEmpty.length) return;
     set({
       selectedPlacementIds: [],
+      selectedEmptyCells: [],
       lastClearedSelection: current,
+      lastClearedEmptyCells: currentEmpty,
       selectionBox: null,
       selectionMove: null,
     });
   },
   restoreLastClearedSelection: () => {
-    const stash = get().lastClearedSelection;
-    if (!stash) return false;
-    set({ selectedPlacementIds: stash, lastClearedSelection: null });
+    const { lastClearedSelection: stash, lastClearedEmptyCells: stashEmpty } = get();
+    if (!stash && !stashEmpty) return false;
+    set({
+      selectedPlacementIds: stash ?? [],
+      selectedEmptyCells: stashEmpty ?? [],
+      lastClearedSelection: null,
+      lastClearedEmptyCells: null,
+    });
     return true;
   },
 
@@ -498,9 +537,11 @@ export const useUiStore = create<UiState>((set, get) => ({
     armedSymbolId: null,
     picker: null,
     selectedPlacementIds: [],
+    selectedEmptyCells: [],
     selectionBox: null,
     selectionMove: null,
     lastClearedSelection: null,
+    lastClearedEmptyCells: null,
     hover: null,
     insertHover: null,
     insertAnimation: null,

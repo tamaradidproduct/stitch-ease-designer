@@ -78,7 +78,8 @@ type DocState = {
    * single guess doesn't need to wait for a full review pass).
    */
   acceptSuggestions: (ids?: string[]) => void;
-  replacePlacements: (ids: string[], symbolId: string) => void;
+  /** Returns the replaced placements' new ids (unchanged if nothing was actually replaced). */
+  replacePlacements: (ids: string[], symbolId: string) => string[];
   erasePlacements: (ids: string[]) => void;
   movePlacements: (ids: string[], deltaCol: number, deltaRow: number) => void;
   /** Whether `movePlacements` would actually move anything, without doing it. */
@@ -225,8 +226,17 @@ export const useDocStore = create<DocState>((set, get) => {
       const selected = ids
         .map((id) => get().index.placements.get(id))
         .filter((p): p is NonNullable<typeof p> => !!p);
-      if (!selected.length || selected.some((p) => get().index.spanOf(p) !== spanOf(symbolId))) return;
-      if (selected.every((p) => p.symbolId === symbolId)) return;
+      // Nothing to replace, a span mismatch, or already this symbol - the
+      // original ids are still exactly what's selected either way, so a
+      // caller that wants to keep the selection following the replacement
+      // (see `StitchPicker`) can treat this the same as a successful one.
+      if (!selected.length || selected.some((p) => get().index.spanOf(p) !== spanOf(symbolId))) return ids;
+      if (selected.every((p) => p.symbolId === symbolId)) return ids;
+      const replacements = selected.map(({ suggested: _dropped, confidence: _score, ...rest }) => ({
+        ...rest,
+        id: newPlacementId(),
+        symbolId,
+      }));
       commit({
         removed: selected,
         // Spread first: a replaced stitch keeps whatever group it belonged
@@ -234,12 +244,9 @@ export const useDocStore = create<DocState>((set, get) => {
         // dropping out of it. Choosing a replacement is a deliberate,
         // resolved answer, so it also drops any suggested/confidence
         // flags - the same as accepting a suggestion outright.
-        added: selected.map(({ suggested: _dropped, confidence: _score, ...rest }) => ({
-          ...rest,
-          id: newPlacementId(),
-          symbolId,
-        })),
+        added: replacements,
       });
+      return replacements.map((p) => p.id);
     },
     erasePlacements: (ids) => {
       const removed = ids

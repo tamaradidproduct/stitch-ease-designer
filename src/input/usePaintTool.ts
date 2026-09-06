@@ -331,6 +331,35 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
     const onPointerDown = (e: PointerEvent) => {
       if (ui().spaceHeld || e.button !== 0) return; // panning, or not a plain left click
 
+      // This is intentionally the first canvas action after panning. A
+      // modifier-held click on a pending suggestion means "replace this with
+      // my armed stitch"—not temporary Select, image manipulation, or a
+      // stale picker interaction. Keeping it here makes that promise true
+      // even when another canvas interaction is otherwise active.
+      const pointerCell = cellAt(e);
+      const armedForOverride = ui().armedSymbolId;
+      const canOverrideSuggestion = pointerCell && (e.metaKey || e.ctrlKey) &&
+        armedForOverride && armedForOverride !== SUGGEST_SYMBOL_ID;
+      const overrideTarget = canOverrideSuggestion
+        ? doc().index.placementAt(pointerCell.col, pointerCell.row)
+        : undefined;
+      if (pointerCell && overrideTarget?.suggested) {
+        e.preventDefault();
+        ui().closePicker();
+        confirmAt(pointerCell, armedForOverride ?? undefined);
+        return;
+      }
+      // A failed Suggest match has no placement to confirm, but is still a
+      // pending review target. Cmd/Ctrl with a real stitch armed supplies
+      // that answer directly rather than falling through to temporary Select.
+      if (pointerCell && canOverrideSuggestion && ui().referenceImageUnrecognized.has(cellKey(pointerCell.col, pointerCell.row))) {
+        e.preventDefault();
+        ui().closePicker();
+        doc().place(armedForOverride, pointerCell.col, pointerCell.row);
+        ui().setReferenceImageUnrecognized(cellKey(pointerCell.col, pointerCell.row), false);
+        return;
+      }
+
       // The selected stitch remains draggable while its edit picker is open.
       // Modifier clicks are selection commands and must act on this first
       // click rather than being consumed merely to dismiss the picker:
@@ -676,21 +705,6 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
             openPickerForSingleSelection(ids, e, selectionAdditive);
           } else if (!selectionAdditive) {
             ui().clearSelectionWithUndo();
-            if (!ui().selectHeld && ui().tool === "select") {
-              ui().setTool("stitch");
-              const armed = ui().armedSymbolId;
-              if (armed === SUGGEST_SYMBOL_ID) applyMode({ kind: "suggest" }, start);
-              else if (armed) doc().place(armed, start.col, start.row);
-              else {
-                const rect = canvas.getBoundingClientRect();
-                ui().openPicker({
-                  col: start.col,
-                  row: start.row,
-                  x: e.clientX - rect.left + 8,
-                  y: e.clientY - rect.top + 8,
-                });
-              }
-            }
           }
         }
         selecting = false;
