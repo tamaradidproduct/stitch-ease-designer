@@ -122,10 +122,11 @@ export async function exportChartImage(
 
   const cols = maxCol - minCol + 1;
   const rows = maxRow - minRow + 1;
-  const chartWidth = cols * EXPORT_CELL_PX + CHART_MARGIN * 2;
+  const symbols = usedSymbols(list);
+  const minWidthForLegend = symbols.length ? LEGEND_PADDING * 2 + LEGEND_COL_WIDTH : 0;
+  const chartWidth = Math.max(cols * EXPORT_CELL_PX + CHART_MARGIN * 2, minWidthForLegend);
   const chartHeight = rows * EXPORT_CELL_PX + CHART_MARGIN * 2;
 
-  const symbols = usedSymbols(list);
   const legendCols = Math.max(1, Math.floor((chartWidth - LEGEND_PADDING * 2) / LEGEND_COL_WIDTH));
   const totalHeight = chartHeight + legendHeight(symbols.length, legendCols);
 
@@ -141,19 +142,27 @@ export async function exportChartImage(
   // whatever happened to be cached already. The hard cap guards against a
   // decode that never settles (SpriteCache gives up after a few failures,
   // but only stops calling back - it never rejects).
+  let done = false;
+  let settleTimer: ReturnType<typeof setTimeout> | undefined;
+  let hardCap: ReturnType<typeof setTimeout> | undefined;
   let resolveReady: () => void = () => {};
   const ready = new Promise<void>((resolve) => {
-    resolveReady = resolve;
+    resolveReady = () => {
+      if (done) return;
+      done = true;
+      if (settleTimer) clearTimeout(settleTimer);
+      if (hardCap) clearTimeout(hardCap);
+      resolve();
+    };
   });
-  let settleTimer: ReturnType<typeof setTimeout>;
   const settle = () => {
-    clearTimeout(settleTimer);
+    if (done) return;
+    if (settleTimer) clearTimeout(settleTimer);
     settleTimer = setTimeout(resolveReady, 100);
   };
-  const hardCap = setTimeout(resolveReady, 5000);
+  hardCap = setTimeout(resolveReady, 5000);
 
   const sprites = new SpriteCache(settle);
-  const legendSprites = new SpriteCache(settle);
 
   const camera: Camera = {
     x: ((minCol + maxCol + 1) / 2) * CELL,
@@ -196,14 +205,13 @@ export async function exportChartImage(
   settle(); // baseline timer, in case nothing below ever misses the cache
   render(ctx, state); // triggers chart glyph loads
   for (const symbol of symbols) {
-    if (symbol.hasGlyph) legendSprites.get(symbol, LEGEND_SWATCH, theme.symbol); // triggers legend glyph loads
+    if (symbol.hasGlyph) sprites.get(symbol, LEGEND_SWATCH, theme.symbol); // triggers legend glyph loads
   }
 
   await ready;
-  clearTimeout(hardCap);
 
   render(ctx, state); // final draw, now that every glyph miss above has had a chance to load
-  if (symbols.length) drawLegend(ctx, symbols, legendSprites, chartHeight, chartWidth, legendCols);
+  if (symbols.length) drawLegend(ctx, symbols, sprites, chartHeight, chartWidth, legendCols);
 
   const mimeType = format === "png" ? "image/png" : "image/jpeg";
   const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, mimeType, 0.92));
