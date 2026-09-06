@@ -27,8 +27,14 @@ export function usePanZoom(ref: RefObject<HTMLCanvasElement | null>): void {
 
     const ui = useUiStore.getState;
     // A picker or reference-image editor is a focused contextual task. Keep
-    // panning out of its way so space still works in search and number fields.
+    // drag-to-pan (space+drag, middle-drag) and the Space key itself out of
+    // its way, so space still works in search and number fields.
     const canPan = () => !ui().picker && !ui().referenceImagePanelOpen;
+    // Wheel/trackpad scroll isn't a keyboard gesture and can't collide with
+    // typing in the picker's search field, so a picker being open shouldn't
+    // trap the view in place - only the reference-image editor (its own,
+    // different focused task) still blocks it.
+    const canScrollPan = () => !ui().referenceImagePanelOpen;
 
     // Cached instead of read on every wheel/pointermove, since
     // getBoundingClientRect forces a layout read. Refreshed whenever the
@@ -59,7 +65,7 @@ export function usePanZoom(ref: RefObject<HTMLCanvasElement | null>): void {
         // stays smooth.
         const delta = Math.max(-60, Math.min(60, e.deltaY));
         ui().zoomAt(Math.exp(-delta * 0.0035), sx, sy);
-      } else if (canPan()) {
+      } else if (canScrollPan()) {
         ui().panByScreen(-e.deltaX, -e.deltaY);
       }
     };

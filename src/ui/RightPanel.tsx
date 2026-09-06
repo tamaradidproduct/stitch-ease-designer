@@ -313,13 +313,14 @@ export function RightPanel() {
         <div className="sideModule__body">
           <div className="glossary">
             <div className="glossary__item" data-on={armedSymbolId === SUGGEST_SYMBOL_ID && tool === "stitch"}>
+              <span className="glossary__dragHandle glossary__dragHandle--empty" aria-hidden="true" />
+              <kbd className="glossary__shortcut" aria-label="Shortcut G">G</kbd>
               <button
                 type="button"
                 className="glossary__arm"
                 onClick={() => setArmedSymbolId(SUGGEST_SYMBOL_ID)}
                 title="Draw with Suggest (G) - matches each cell against stitches you've already confirmed over the reference image. Cmd/Ctrl-click a suggestion to confirm it, or Cmd/Ctrl-click with a stitch armed to confirm it as that stitch instead. Alt-click dismisses it - all of this drags and Shift straight-lines/gap-fills the same way Draw does."
               >
-                <kbd className="glossary__shortcut" aria-label="Shortcut G">G</kbd>
                 <span className="glossary__glyph" aria-hidden="true">
                   <svg viewBox="0 0 20 20" width="16" height="16">
                     <path
@@ -344,6 +345,7 @@ export function RightPanel() {
                   {suggestTaughtCount}
                 </span>
               </button>
+              <span className="glossary__removeSlot" aria-hidden="true" />
             </div>
             {(suggestedCount > 0 || unrecognizedCount > 0) && (
               <div className="glossary__suggestReview">

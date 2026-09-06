@@ -190,6 +190,7 @@ export async function exportChartImage(
     referenceImageMarking: false,
     pickerTarget: null,
     selectedPlacementIds: [],
+    selectedEmptyCells: [],
     tool: "stitch",
     selectHeld: false,
     keyboardSelectionActive: false,

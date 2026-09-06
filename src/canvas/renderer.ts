@@ -50,6 +50,8 @@ export type RenderState = {
   /** Cell whose place, replace, or insert picker is currently open. */
   pickerTarget: PickerTarget | null;
   selectedPlacementIds: string[];
+  /** Empty cells selected the same way placed stitches are - see `selectedPlacementIds`. */
+  selectedEmptyCells: Cell[];
   tool: Tool;
   selectHeld: boolean;
   keyboardSelectionActive: boolean;
@@ -394,9 +396,35 @@ function drawInsertAnimation(ctx: CanvasRenderingContext2D, state: RenderState):
   ctx.restore();
 }
 
+/**
+ * Selected empty cells, drawn the same blue as a placement selection - see
+ * `drawSelectionAt`. Dashed rather than solid so an empty selection still
+ * reads as "nothing here yet" at a glance, and skipped if a stitch landed on
+ * the cell since it was selected (e.g. from another view of the same doc).
+ */
+function drawSelectedEmptyCells(ctx: CanvasRenderingContext2D, state: RenderState): void {
+  const { selectedEmptyCells, index, camera: cam, viewport: vp } = state;
+  if (!selectedEmptyCells.length) return;
+
+  ctx.save();
+  ctx.fillStyle = "rgba(2, 132, 199, 0.14)";
+  ctx.strokeStyle = theme.hoverStroke;
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([4, 3]);
+  for (const cell of selectedEmptyCells) {
+    if (index.placementAt(cell.col, cell.row)) continue;
+    const r = cellToScreenRect(cell.col, cell.row, cam, vp);
+    ctx.fillRect(r.x, r.y, r.size, r.size);
+    ctx.strokeRect(r.x + 0.75, r.y + 0.75, r.size - 1.5, r.size - 1.5);
+  }
+  ctx.restore();
+}
+
 function drawSelection(ctx: CanvasRenderingContext2D, state: RenderState): void {
   const { selectionMove } = state;
   if (cellPx(state.camera) < 3) return;
+
+  drawSelectedEmptyCells(ctx, state);
 
   ctx.save();
   ctx.lineWidth = 2;
@@ -478,7 +506,12 @@ export function pickerTargetFootprint(
 
 function drawPickerTarget(ctx: CanvasRenderingContext2D, state: RenderState): void {
   const { pickerTarget, camera: cam, viewport: vp, index } = state;
-  if (!pickerTarget || pickerTarget.selectionIds?.length || cellPx(cam) < 3) return;
+  if (
+    !pickerTarget ||
+    pickerTarget.selectionIds?.length ||
+    pickerTarget.selectionEmptyCells?.length ||
+    cellPx(cam) < 3
+  ) return;
 
   if (pickerTarget.insert) {
     const r = cellToScreenRect(pickerTarget.col, pickerTarget.row, cam, vp);

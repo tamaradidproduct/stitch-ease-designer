@@ -32,6 +32,8 @@ export type PickerTarget = {
   /** When present, choosing a symbol replaces this whole selection. */
   selectionIds?: string[];
   selectionSpan?: number;
+  /** When present (and `selectionIds` isn't), choosing a symbol fills these empty cells. */
+  selectionEmptyCells?: Cell[];
   /** When true, choosing a symbol inserts and shifts rather than placing/replacing. */
   insert?: boolean;
   /** When true, choosing a symbol only arms Draw instead of editing the canvas. */
@@ -142,7 +144,7 @@ type UiState = {
   selectHeld: boolean;
   /** True while Shift is held, enabling constrained straight-line drawing. */
   shiftHeld: boolean;
-  /** True while Alt/Opt is held - dismisses a suggestion under the cursor; see `CONFIRM_SUGGESTION_CURSOR`'s sibling. */
+  /** True while Alt/Opt is held - duplicates the selection when dragging it, instead of moving it. */
   altHeld: boolean;
   /** Suppresses stale pointer feedback after keyboard-driven selection until the mouse moves. */
   keyboardSelectionActive: boolean;
@@ -160,6 +162,8 @@ type UiState = {
   quickSymbolIds: string[];
   picker: PickerTarget | null;
   selectedPlacementIds: string[];
+  /** Empty cells selected the same way placed stitches are - see `selectedPlacementIds`. */
+  selectedEmptyCells: Cell[];
   /** App clipboard: survives tool/chart resets and changes only on Copy or Cut. */
   clipboardPlacements: Placement[];
   selectionBox: SelectionBox | null;
@@ -170,6 +174,16 @@ type UiState = {
    * and invalidated by any other selection change in between.
    */
   lastClearedSelection: string[] | null;
+  /** The empty-cell counterpart of `lastClearedSelection`. */
+  lastClearedEmptyCells: Cell[] | null;
+  /**
+   * The first cell of a Cmd+Shift click-then-click range select, waiting for
+   * a second Cmd+Shift click to complete the bounding box. Cleared by any
+   * other selection change - see `useShortcuts`'s Escape handler and the
+   * various resets below.
+   */
+  selectionAnchor: Cell | null;
+  setSelectionAnchor: (cell: Cell | null) => void;
 
   /**
    * Whether the reference-image panel is open. While it is, dragging the
@@ -234,8 +248,14 @@ type UiState = {
 
   setTool: (tool: Tool) => void;
   setArmedSymbolId: (id: string | null) => void;
-  /** Arms `id`; lands back on `tool` (Draw by default - Insert stays Insert). */
-  chooseSymbol: (id: string, tool?: Tool) => void;
+  /**
+   * Arms `id`; lands back on `tool` (Draw by default - Insert stays Insert).
+   * Normally starts fresh (clears the selection and closes the picker) -
+   * pass `preserveSelection` when the symbol was just chosen to fill the
+   * current selection, which stays selected with its picker open so it can
+   * be tweaked again immediately, armed for wherever the next click goes.
+   */
+  chooseSymbol: (id: string, tool?: Tool, preserveSelection?: boolean) => void;
   /** Clears a stitch's quick-access assignment without moving other slots. */
   removeQuickSymbol: (id: string) => void;
   /** Reorders a quick stitch, updating the number-key shortcuts. */
@@ -244,6 +264,7 @@ type UiState = {
   closePicker: () => void;
   selectPlacement: (id: string, additive: boolean) => void;
   setSelectedPlacementIds: (ids: string[], recordUndo?: boolean) => void;
+  setSelectedEmptyCells: (cells: Cell[], recordUndo?: boolean) => void;
   setClipboardPlacements: (placements: Placement[]) => void;
   setSelectionBox: (box: SelectionBox | null) => void;
   setSelectionMove: (move: SelectionMove | null) => void;
@@ -334,22 +355,36 @@ export const useUiStore = create<UiState>((set, get) => ({
   quickSymbolIds: loadQuickSymbolIds(),
   picker: null,
   selectedPlacementIds: [],
+  selectedEmptyCells: [],
   clipboardPlacements: [],
   selectionBox: null,
   selectionMove: null,
   lastClearedSelection: null,
+  lastClearedEmptyCells: null,
+  selectionAnchor: null,
+  setSelectionAnchor: (selectionAnchor) => set({ selectionAnchor }),
   setTool: (tool) =>
     set({
       tool,
       picker: null,
       lastClearedSelection: null,
-      ...(tool === "select" ? {} : { selectedPlacementIds: [] }),
+      lastClearedEmptyCells: null,
+      selectionAnchor: null,
+      ...(tool === "select" ? {} : { selectedPlacementIds: [], selectedEmptyCells: [] }),
     }),
   setArmedSymbolId: (armedSymbolId) =>
-    set({ armedSymbolId, tool: "stitch", selectedPlacementIds: [], lastClearedSelection: null }),
+    set({
+      armedSymbolId,
+      tool: "stitch",
+      selectedPlacementIds: [],
+      selectedEmptyCells: [],
+      lastClearedSelection: null,
+      lastClearedEmptyCells: null,
+      selectionAnchor: null,
+    }),
 
   /** Arm a symbol and assign it to the next free quick slot, without reordering. */
-  chooseSymbol: (id, tool = "stitch") => {
+  chooseSymbol: (id, tool = "stitch", preserveSelection = false) => {
     const current = get().quickSymbolIds;
     const quickSymbolIds = assignQuickSymbol(current, id);
     if (quickSymbolIds !== current) saveQuickSymbolIds(quickSymbolIds);
@@ -357,9 +392,14 @@ export const useUiStore = create<UiState>((set, get) => ({
       armedSymbolId: id,
       tool,
       quickSymbolIds,
-      picker: null,
-      selectedPlacementIds: [],
-      lastClearedSelection: null,
+      ...(preserveSelection ? null : {
+        picker: null,
+        selectedPlacementIds: [],
+        selectedEmptyCells: [],
+        lastClearedSelection: null,
+        lastClearedEmptyCells: null,
+        selectionAnchor: null,
+      }),
     });
   },
 
@@ -390,7 +430,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   selectPlacement: (id, additive) => {
     const selected = get().selectedPlacementIds;
     if (!additive) {
-      set({ selectedPlacementIds: [id], lastClearedSelection: null });
+      set({ selectedPlacementIds: [id], selectedEmptyCells: [], lastClearedSelection: null });
       return;
     }
     set({
@@ -405,29 +445,43 @@ export const useUiStore = create<UiState>((set, get) => ({
       selectedPlacementIds,
       lastClearedSelection: recordUndo ? state.selectedPlacementIds : null,
     })),
+  setSelectedEmptyCells: (selectedEmptyCells, recordUndo = true) =>
+    set((state) => ({
+      selectedEmptyCells,
+      lastClearedEmptyCells: recordUndo ? state.selectedEmptyCells : null,
+    })),
   setClipboardPlacements: (clipboardPlacements) => set({ clipboardPlacements }),
   setSelectionBox: (selectionBox) => set({ selectionBox }),
   setSelectionMove: (selectionMove) => set({ selectionMove }),
   clearSelection: () => set({
     selectedPlacementIds: [],
+    selectedEmptyCells: [],
     lastClearedSelection: null,
+    lastClearedEmptyCells: null,
     selectionBox: null,
     selectionMove: null,
   }),
   clearSelectionWithUndo: () => {
-    const current = get().selectedPlacementIds;
-    if (!current.length) return;
+    const { selectedPlacementIds: current, selectedEmptyCells: currentEmpty } = get();
+    if (!current.length && !currentEmpty.length) return;
     set({
       selectedPlacementIds: [],
-      lastClearedSelection: current,
+      selectedEmptyCells: [],
+      lastClearedSelection: current.length ? current : null,
+      lastClearedEmptyCells: currentEmpty.length ? currentEmpty : null,
       selectionBox: null,
       selectionMove: null,
     });
   },
   restoreLastClearedSelection: () => {
-    const stash = get().lastClearedSelection;
-    if (!stash) return false;
-    set({ selectedPlacementIds: stash, lastClearedSelection: null });
+    const { lastClearedSelection: stash, lastClearedEmptyCells: emptyStash } = get();
+    if (!stash && !emptyStash) return false;
+    set({
+      selectedPlacementIds: stash ?? [],
+      selectedEmptyCells: emptyStash ?? [],
+      lastClearedSelection: null,
+      lastClearedEmptyCells: null,
+    });
     return true;
   },
 
@@ -475,17 +529,20 @@ export const useUiStore = create<UiState>((set, get) => ({
 
   setPanning: (isPanning) => set({ isPanning }),
 
-  // Any camera move detaches the picker from the cell it was anchored to, so
-  // it closes rather than floating over an unrelated part of the grid.
+  // The picker's on-screen position is derived from its target cell plus the
+  // live camera/viewport (see StitchPicker's layout effect), so it already
+  // tracks along correctly through an incremental pan or zoom - no need to
+  // close it here. `centerViewAt100`/`resetView` are the deliberate "jump to
+  // a very different part of the chart" actions that still should.
   panByScreen: (dx, dy) => {
     if (dx === 0 && dy === 0) return;
-    set({ camera: panByScreen(get().camera, dx, dy), picker: null });
+    set({ camera: panByScreen(get().camera, dx, dy) });
   },
 
   zoomAt: (factor, sx, sy) => {
     const { camera, viewport } = get();
     const next = zoomAt(camera, factor, sx, sy, viewport);
-    if (next !== camera) set({ camera: next, picker: null });
+    if (next !== camera) set({ camera: next });
   },
 
   centerViewAt100: (x, y) => set({ camera: { x, y, zoom: 1 }, picker: null }),
@@ -498,9 +555,12 @@ export const useUiStore = create<UiState>((set, get) => ({
     armedSymbolId: null,
     picker: null,
     selectedPlacementIds: [],
+    selectedEmptyCells: [],
     selectionBox: null,
     selectionMove: null,
     lastClearedSelection: null,
+    lastClearedEmptyCells: null,
+    selectionAnchor: null,
     hover: null,
     insertHover: null,
     insertAnimation: null,
