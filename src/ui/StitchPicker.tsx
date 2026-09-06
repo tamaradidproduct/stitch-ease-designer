@@ -229,11 +229,14 @@ export function StitchPicker() {
     if (target.selectionEmptyCells?.length) {
       const cells = target.selectionEmptyCells;
       beginStroke();
-      for (const cell of cells) place(symbol.id, cell.col, cell.row);
+      for (const cell of cells) {
+        if (useDocStore.getState().index.placementAt(cell.col, cell.row)) continue;
+        place(symbol.id, cell.col, cell.row);
+      }
       endStroke();
-      const newIds = cells
+      const newIds = [...new Set(cells
         .map((cell) => useDocStore.getState().index.placementAt(cell.col, cell.row)?.id)
-        .filter((id): id is string => !!id);
+        .filter((id): id is string => !!id))];
       setSelectedEmptyCells([]);
       setSelectedPlacementIds(newIds, false);
       if (newIds.length) {

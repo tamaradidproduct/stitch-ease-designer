@@ -790,7 +790,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         const start = selectionStart!;
         const existing = doc().index.placementAt(start.col, start.row);
         if (!selectionMoved) {
-          if (existing && selectionAdditive) {
+          if (selectionAdditive) {
             // Cmd+Shift: the first click on a cell toggles it into the pool
             // and becomes a range anchor; a second Cmd+Shift click on
             // another cell completes a bounding-box select instead of just
@@ -801,9 +801,18 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
               ui().setSelectedPlacementIds(ids);
               ui().setSelectedEmptyCells(emptyCells);
               ui().setSelectionAnchor(null);
-            } else {
+            } else if (existing) {
               const ids = selectExisting(existing.id, true);
               ui().setSelectionAnchor(ids.includes(existing.id) ? start : null);
+            } else {
+              const emptyCells = ui().selectedEmptyCells;
+              const key = cellKey(start.col, start.row);
+              const exists = emptyCells.some((cell) => cellKey(cell.col, cell.row) === key);
+              const nextEmpty = exists
+                ? emptyCells.filter((cell) => cellKey(cell.col, cell.row) !== key)
+                : [...emptyCells, start];
+              ui().setSelectedEmptyCells(nextEmpty);
+              ui().setSelectionAnchor(exists ? null : start);
             }
           } else if (existing) {
             const ids = selectExisting(existing.id, false);
