@@ -144,7 +144,6 @@ export async function exportChartImage(
   // but only stops calling back - it never rejects).
   let done = false;
   let settleTimer: ReturnType<typeof setTimeout> | undefined;
-  let hardCap: ReturnType<typeof setTimeout> | undefined;
   let resolveReady: () => void = () => {};
   const ready = new Promise<void>((resolve) => {
     resolveReady = () => {
@@ -160,7 +159,7 @@ export async function exportChartImage(
     if (settleTimer) clearTimeout(settleTimer);
     settleTimer = setTimeout(resolveReady, 100);
   };
-  hardCap = setTimeout(resolveReady, 5000);
+  const hardCap = setTimeout(resolveReady, 5000);
 
   const sprites = new SpriteCache(settle);
 
