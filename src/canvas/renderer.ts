@@ -240,7 +240,7 @@ function drawPlacements(ctx: CanvasRenderingContext2D, state: RenderState): void
       if (marginal) ctx.setLineDash([3, 2]);
       ctx.strokeRect(r.x + 0.5, r.y + 0.5, width - 1, size - 1);
 
-      if (marginal) {
+      if (marginal && size >= 20) {
         // The exact number, not just "flagged" - a designer deciding
         // whether to trust a guess needs to see how close it actually came.
         const pct = Math.round(confidence * 100);
