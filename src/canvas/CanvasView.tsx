@@ -180,6 +180,7 @@ export function CanvasView() {
         state.insertAnimation !== prev.insertAnimation ||
         state.picker !== prev.picker ||
         state.selectedPlacementIds !== prev.selectedPlacementIds ||
+        state.selectedEmptyCells !== prev.selectedEmptyCells ||
         state.selectionBox !== prev.selectionBox ||
         state.selectionMove !== prev.selectionMove ||
         state.tool !== prev.tool ||
@@ -214,6 +215,7 @@ export function CanvasView() {
         insertAnimation,
         picker,
         selectedPlacementIds,
+        selectedEmptyCells,
         tool,
         selectHeld,
         keyboardSelectionActive,
@@ -254,6 +256,7 @@ export function CanvasView() {
         referenceImageUnrecognized,
         pickerTarget: picker,
         selectedPlacementIds,
+        selectedEmptyCells,
         tool,
         selectHeld,
         keyboardSelectionActive,

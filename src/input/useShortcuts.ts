@@ -188,9 +188,9 @@ export function useShortcuts(): void {
         // a still-selected stitch on screen with nothing left open to explain
         // why. The first Escape clears both together; only once there's
         // truly nothing selected does a second Escape disarm.
-        if (ui.picker || ui.selectedPlacementIds.length) {
+        if (ui.picker || ui.selectedPlacementIds.length || ui.selectedEmptyCells.length) {
           if (ui.picker) ui.closePicker();
-          if (ui.selectedPlacementIds.length) ui.clearSelectionWithUndo();
+          if (ui.selectedPlacementIds.length || ui.selectedEmptyCells.length) ui.clearSelectionWithUndo();
         } else {
           ui.setArmedSymbolId(null);
         }

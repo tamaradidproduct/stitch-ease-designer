@@ -33,11 +33,14 @@ export function StitchPicker() {
   const chooseSymbol = useUiStore((s) => s.chooseSymbol);
   const clearSelection = useUiStore((s) => s.clearSelection);
   const setSelectedPlacementIds = useUiStore((s) => s.setSelectedPlacementIds);
+  const setSelectedEmptyCells = useUiStore((s) => s.setSelectedEmptyCells);
   const setInsertAnimation = useUiStore((s) => s.setInsertAnimation);
   const quickIds = useUiStore((s) => s.quickSymbolIds);
   const camera = useUiStore((s) => s.camera);
   const viewport = useUiStore((s) => s.viewport);
   const place = useDocStore((s) => s.place);
+  const beginStroke = useDocStore((s) => s.beginStroke);
+  const endStroke = useDocStore((s) => s.endStroke);
   const erase = useDocStore((s) => s.erase);
   const erasePlacements = useDocStore((s) => s.erasePlacements);
   const createRepeat = useDocStore((s) => s.createRepeat);
@@ -215,6 +218,31 @@ export function StitchPicker() {
       const newIds = replacePlacements(target.selectionIds, symbol.id);
       setSelectedPlacementIds(newIds, false);
       openPicker({ ...target, currentSymbolId: symbol.id, selectionIds: newIds });
+      return;
+    }
+    if (target.selectionEmptyCells?.length) {
+      // Same as the filled case above: filling in a selected empty cell (or
+      // several) hands it straight to the "now it's a selected placement"
+      // state instead of dropping the selection - one commit either way, so
+      // a multi-cell fill undoes in one step too.
+      beginStroke();
+      for (const cell of target.selectionEmptyCells) place(symbol.id, cell.col, cell.row);
+      endStroke();
+      const newIds = target.selectionEmptyCells.flatMap((cell) => {
+        const placed = useDocStore.getState().index.placementAt(cell.col, cell.row);
+        return placed ? [placed.id] : [];
+      });
+      setSelectedEmptyCells([]);
+      setSelectedPlacementIds(newIds, false);
+      openPicker({
+        col: target.col,
+        row: target.row,
+        x: target.x,
+        y: target.y,
+        currentSymbolId: symbol.id,
+        selectionIds: newIds,
+        selectionSpan: 1,
+      });
       return;
     }
     if (target.insert) {

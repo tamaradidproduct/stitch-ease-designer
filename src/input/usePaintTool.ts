@@ -143,6 +143,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
     let last: Cell | null = null;
     let selectionStart: Cell | null = null;
     let selectionBaseline: string[] = [];
+    let selectionEmptyBaseline: Cell[] = [];
     let selectionAdditive = false;
     let selectionMoved = false;
     let movingSelection = false;
@@ -328,6 +329,18 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       });
     };
 
+    /** Selecting a single empty cell (Cmd/Shift-click, or a one-cell Cmd/Shift-drag) opens its picker too. */
+    const openPickerForEmptyCell = (cell: Cell, e: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      ui().openPicker({
+        col: cell.col,
+        row: cell.row,
+        x: e.clientX - rect.left + 8,
+        y: e.clientY - rect.top + 8,
+        selectionEmptyCells: [cell],
+      });
+    };
+
     const onPointerDown = (e: PointerEvent) => {
       if (ui().spaceHeld || e.button !== 0) return; // panning, or not a plain left click
 
@@ -481,12 +494,17 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         return;
       }
 
-      const temporarySelect = ui().selectHeld || e.metaKey || e.ctrlKey;
+      // Shift only means "start (or add to) a selection" when nothing is
+      // armed - with a real stitch armed it already means "draw a straight
+      // line" (see `canDrawStraight` above), and that meaning wins.
+      const temporarySelect =
+        ui().selectHeld || e.metaKey || e.ctrlKey || (e.shiftKey && !ui().armedSymbolId);
       if (ui().tool === "select" || temporarySelect) {
         e.preventDefault();
         selecting = true;
         selectionStart = cell;
         selectionBaseline = e.shiftKey ? [...ui().selectedPlacementIds] : [];
+        selectionEmptyBaseline = e.shiftKey ? [...ui().selectedEmptyCells] : [];
         selectionAdditive = e.shiftKey;
         selectionMoved = false;
         last = cell;
@@ -499,7 +517,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       // Clicking empty space away from an active selection just dismisses
       // it - the same click doesn't also place or erase, so an accidental
       // deselect doesn't also cost you a stitch.
-      if (!e.shiftKey && !existing && ui().selectedPlacementIds.length) {
+      if (!e.shiftKey && !existing && (ui().selectedPlacementIds.length || ui().selectedEmptyCells.length)) {
         ui().clearSelectionWithUndo();
         return;
       }
@@ -636,6 +654,19 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
             return members;
           });
         ui().setSelectedPlacementIds([...new Set([...selectionBaseline, ...ids])]);
+
+        // Same marquee, for the cells it crosses that aren't occupied - a
+        // drag over blank grid selects them exactly the way it already
+        // selects the stitches it crosses.
+        const emptyCells = new Map<string, Cell>(
+          selectionEmptyBaseline.map((c) => [`${c.col},${c.row}`, c]),
+        );
+        for (let row = minRow; row <= maxRow; row++) {
+          for (let col = minCol; col <= maxCol; col++) {
+            if (!doc().index.placementAt(col, row)) emptyCells.set(`${col},${row}`, { col, row });
+          }
+        }
+        ui().setSelectedEmptyCells([...emptyCells.values()]);
         return;
       }
       if (!painting) return;
@@ -703,13 +734,25 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
           if (existing) {
             const ids = selectExisting(existing.id, selectionAdditive);
             openPickerForSingleSelection(ids, e, selectionAdditive);
-          } else if (!selectionAdditive) {
-            ui().clearSelectionWithUndo();
+          } else if (selectionAdditive) {
+            // Toggle this one empty cell into or out of the selection, same
+            // as a Shift-click does for an existing stitch.
+            const current = ui().selectedEmptyCells;
+            const already = current.some((c) => c.col === start.col && c.row === start.row);
+            ui().setSelectedEmptyCells(
+              already
+                ? current.filter((c) => !(c.col === start.col && c.row === start.row))
+                : [...current, start],
+            );
+          } else {
+            ui().setSelectedEmptyCells([start]);
+            openPickerForEmptyCell(start, e);
           }
         }
         selecting = false;
         selectionStart = null;
         selectionBaseline = [];
+        selectionEmptyBaseline = [];
         selectionAdditive = false;
         selectionMoved = false;
         ui().setSelectionBox(null);

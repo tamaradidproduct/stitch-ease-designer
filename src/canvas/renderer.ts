@@ -50,6 +50,8 @@ export type RenderState = {
   /** Cell whose place, replace, or insert picker is currently open. */
   pickerTarget: PickerTarget | null;
   selectedPlacementIds: string[];
+  /** Empty cells selected alongside (or instead of) `selectedPlacementIds` - see `uiStore`. */
+  selectedEmptyCells: Cell[];
   tool: Tool;
   selectHeld: boolean;
   keyboardSelectionActive: boolean;
@@ -355,6 +357,20 @@ function drawSelectionAt(
   }
 }
 
+/**
+ * Selected empty cells, always at their own position - unlike a placement
+ * selection, this one never has anything to preview moving or duplicating.
+ */
+function drawSelectedEmptyCells(ctx: CanvasRenderingContext2D, state: RenderState): void {
+  const { camera: cam, viewport: vp, selectedEmptyCells } = state;
+  const size = cellPx(cam);
+  for (const cell of selectedEmptyCells) {
+    const r = cellToScreenRect(cell.col, cell.row, cam, vp);
+    ctx.fillRect(r.x, r.y, size, size);
+    ctx.strokeRect(r.x + 1, r.y + 1, size - 2, size - 2);
+  }
+}
+
 function drawInsertAnimation(ctx: CanvasRenderingContext2D, state: RenderState): void {
   const animation = state.insertAnimation;
   if (!animation) return;
@@ -405,6 +421,9 @@ function drawSelection(ctx: CanvasRenderingContext2D, state: RenderState): void 
     ctx.strokeStyle = theme.hoverStroke;
   }
   drawSelectionAt(ctx, state, selectionMove?.col ?? 0, selectionMove?.row ?? 0);
+  ctx.fillStyle = "rgba(2, 132, 199, 0.14)";
+  ctx.strokeStyle = theme.hoverStroke;
+  drawSelectedEmptyCells(ctx, state);
   ctx.restore();
 }
 
@@ -456,7 +475,14 @@ export function pickerTargetFootprint(
 
 function drawPickerTarget(ctx: CanvasRenderingContext2D, state: RenderState): void {
   const { pickerTarget, camera: cam, viewport: vp, index } = state;
-  if (!pickerTarget || pickerTarget.selectionIds?.length || cellPx(cam) < 3) return;
+  if (
+    !pickerTarget ||
+    pickerTarget.selectionIds?.length ||
+    pickerTarget.selectionEmptyCells?.length ||
+    cellPx(cam) < 3
+  ) {
+    return;
+  }
 
   if (pickerTarget.insert) {
     const r = cellToScreenRect(pickerTarget.col, pickerTarget.row, cam, vp);
