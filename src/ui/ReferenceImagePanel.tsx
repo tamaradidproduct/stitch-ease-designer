@@ -424,6 +424,7 @@ export function ReferenceImagePanel() {
                 Remove
               </button>
             </div>
+
           </>
         )}
 

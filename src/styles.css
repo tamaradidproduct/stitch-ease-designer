@@ -1918,6 +1918,48 @@ body {
   color: var(--text);
 }
 
+/* The "Suggest" glossary row's review area: suggested placements awaiting
+   Accept/Discard, and cells auto-suggest couldn't read. */
+.glossary__suggestReview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 2px 6px;
+}
+
+.glossary__reviewBox {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 6px;
+  background: #faf5ff;
+  border: 1px solid #d8b4fe;
+}
+
+.glossary__reviewHeader {
+  font-size: 11px;
+  font-weight: 600;
+  color: #7e22ce;
+}
+
+.glossary__reviewActions {
+  display: flex;
+  gap: 6px;
+}
+
+/* Matches the dashed red marker drawn on unrecognized cells - a distinct
+   colour from the purple suggested-review box, since this one is asking
+   for a person, not a confirmation. */
+.glossary__reviewBox--unread {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.glossary__reviewBox--unread .glossary__reviewHeader {
+  color: #b91c1c;
+}
+
 /* The stitch/row prompt anchored to the mark just placed on the canvas. */
 .markpop {
   position: absolute;

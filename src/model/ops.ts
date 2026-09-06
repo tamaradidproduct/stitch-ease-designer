@@ -43,6 +43,8 @@ export function placeChange(
   symbolId: string,
   col: number,
   row: number,
+  suggested?: boolean,
+  confidence?: number,
 ): Change {
   const span = spanOf(symbolId);
   const evicted = new Map<string, Placement>();
@@ -52,13 +54,25 @@ export function placeChange(
     if (hit) evicted.set(hit.id, hit);
   }
 
-  const placement: Placement = { id: newId(), symbolId, col, row };
+  const placement: Placement = {
+    id: newId(),
+    symbolId,
+    col,
+    row,
+    ...(suggested ? { suggested } : {}),
+    ...(suggested && confidence !== undefined ? { confidence } : {}),
+  };
 
   // Replacing a stitch with the same symbol in the same spot is a no-op, so
   // drag-painting across a cell repeatedly doesn't pile up history entries.
   if (evicted.size === 1) {
     const only = [...evicted.values()][0]!;
-    if (only.symbolId === symbolId && only.col === col && only.row === row) {
+    if (
+      only.symbolId === symbolId &&
+      only.col === col &&
+      only.row === row &&
+      Boolean(only.suggested) === Boolean(suggested)
+    ) {
       return EMPTY_CHANGE;
     }
   }

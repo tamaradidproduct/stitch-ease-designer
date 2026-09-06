@@ -9,6 +9,8 @@ import { useUiStore } from "../state/uiStore";
 import {
   ADD_CURSOR,
   BLOCKED_MOVE_CURSOR,
+  CONFIRM_SUGGESTION_CURSOR,
+  DISMISS_SUGGESTION_CURSOR,
   DUPLICATE_CURSOR,
   ERASE_CURSOR,
   GRAB_CURSOR,
@@ -85,6 +87,16 @@ export function CanvasView() {
     const hovered = s.hover
       ? useDocStore.getState().index.placementAt(s.hover.col, s.hover.row)
       : undefined;
+    // Cmd/Ctrl or Alt over a pending suggestion confirms or dismisses it
+    // instead of whatever that modifier means everywhere else (temporary
+    // Select, duplicate-drag) - its own cursor, checked ahead of those
+    // generic cases, so the one cell where the click does something
+    // different looks different too. Confirm wins if, somehow, both are
+    // held, matching `modeFor`'s own precedence.
+    if (hovered?.suggested) {
+      if (s.selectHeld) return CONFIRM_SUGGESTION_CURSOR;
+      if (s.altHeld) return DISMISS_SUGGESTION_CURSOR;
+    }
     if (s.tool === "select" || s.selectHeld) {
       if (s.tool === "select" && !hovered) return "crosshair";
       return "default";
@@ -178,7 +190,9 @@ export function CanvasView() {
         state.referenceImagePanelOpen !== prev.referenceImagePanelOpen ||
         state.referenceImageCalibrationBox !== prev.referenceImageCalibrationBox ||
         state.referenceImageActiveMark !== prev.referenceImageActiveMark ||
-        state.referenceImageMarking !== prev.referenceImageMarking
+        state.referenceImageMarking !== prev.referenceImageMarking ||
+        state.referenceImageUnrecognized !== prev.referenceImageUnrecognized ||
+        state.altHeld !== prev.altHeld
       ) {
         markDirty();
       }
@@ -212,6 +226,7 @@ export function CanvasView() {
         referenceImageCalibrationBox,
         referenceImageActiveMark,
         referenceImageMarking,
+        referenceImageUnrecognized,
       } = useUiStore.getState();
       const { index, revision, referenceImage } = useDocStore.getState();
       const dpr = window.devicePixelRatio || 1;
@@ -236,6 +251,7 @@ export function CanvasView() {
         referenceImageMarks: referenceImage?.calibrationMarks ?? [],
         referenceImageActiveMark,
         referenceImageMarking,
+        referenceImageUnrecognized,
         pickerTarget: picker,
         selectedPlacementIds,
         tool,

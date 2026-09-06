@@ -94,6 +94,19 @@ describe("selection edits", () => {
     ]);
   });
 
+  it("clears suggested/confidence flags on replace, resolving the review", () => {
+    useDocStore.getState().openChart({
+      meta: meta("selection"),
+      placements: [{ id: "a", symbolId: "knit", col: 0, row: 0, suggested: true, confidence: 0.4 }],
+      unknownSymbolIds: [],
+    });
+    useDocStore.getState().replacePlacements(["a"], "purl");
+    const placement = useDocStore.getState().index.toArray()[0]!;
+    expect(placement.symbolId).toBe("purl");
+    expect(placement.suggested).toBeUndefined();
+    expect(placement.confidence).toBeUndefined();
+  });
+
   it("deletes several placements as one undoable edit", () => {
     useDocStore.getState().erasePlacements(["a", "b"]);
     expect(useDocStore.getState().index.size).toBe(0);

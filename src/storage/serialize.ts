@@ -22,6 +22,7 @@ export type StoredChart = {
   /** [col, row, paletteIndex] per stitch. */
   stitches: ([number, number, number] | [number, number, number, number])[];
   groups?: string[];
+  suggested?: [number, number][];
   repeats?: RepeatDefinition[];
   referenceImage?: ReferenceImage;
 };
@@ -68,8 +69,10 @@ export function encode(
   const stitches: StoredChart["stitches"] = [];
   const groups: string[] = [];
   const groupIndex = new Map<string, number>();
+  const suggested: [number, number][] = [];
 
   for (const p of sorted) {
+    if (p.suggested) suggested.push([p.col, p.row]);
     let paletteIndex = indexOf.get(p.symbolId);
     if (paletteIndex === undefined) {
       paletteIndex = palette.length;
@@ -95,6 +98,7 @@ export function encode(
     stitches,
     groups,
     repeats,
+    ...(suggested.length ? { suggested } : null),
     ...(referenceImage ? { referenceImage } : null),
   };
 }
@@ -139,6 +143,13 @@ function validate(stored: unknown): StoredChart {
     throw new ChartFormatError("groups must be an array of ids");
   }
   if (!Array.isArray(chart.repeats)) throw new ChartFormatError("repeats must be an array");
+  if (
+    chart.suggested !== undefined &&
+    (!Array.isArray(chart.suggested) ||
+      chart.suggested.some((cell) => !Array.isArray(cell) || cell.length !== 2 || !cell.every(isInteger)))
+  ) {
+    throw new ChartFormatError("suggested must be an array of [col, row] pairs");
+  }
   chart.stitches.forEach((stitch, i) => {
     if (stitch.length === 4 && (stitch[3] < 0 || stitch[3] >= chart.groups!.length)) {
       throw new ChartFormatError(`stitch ${i} references an invalid group`);
@@ -306,12 +317,14 @@ export function decode(stored: unknown, knownSymbol: (id: string) => boolean): D
     }
   }
 
+  const suggestedCells = new Set((chart.suggested ?? []).map(([col, row]) => `${col},${row}`));
   const placements = chart.stitches.map(([col, row, paletteIndex, groupIndex]) => ({
     id: newPlacementId(),
     symbolId: chart.palette[paletteIndex]!,
     col,
     row,
     ...(groupIndex === undefined ? {} : { groupId: chart.groups![groupIndex] }),
+    ...(suggestedCells.has(`${col},${row}`) ? { suggested: true } : {}),
   }));
 
   return {

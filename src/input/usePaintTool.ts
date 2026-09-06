@@ -4,8 +4,11 @@ import { RULER } from "../canvas/theme";
 import { DocIndex } from "../model/docIndex";
 import { stitchGroups } from "../model/stitchNumbers";
 import { insertTargetCol } from "../model/ops";
+import { getSharedReferenceImageCache } from "../canvas/referenceImageCache";
+import { cellWithinReferenceImage, cropReferenceImageCell } from "../canvas/referenceImageCrop";
+import { binarizeCrop, extractExemplars, matchCandidateStitch } from "../model/templateMatch";
 import { useDocStore } from "../state/docStore";
-import { useUiStore } from "../state/uiStore";
+import { SUGGEST_SYMBOL_ID, cellKey, useUiStore } from "../state/uiStore";
 
 /**
  * Whether a click/pointerdown that just produced `ids` (via `selectExisting`)
@@ -41,6 +44,56 @@ export function straightLineCells(from: Cell, to: Cell): Cell[] {
     col: from.col + colStep * step,
     row: from.row + rowStep * step,
   }));
+}
+
+/**
+ * What one cell of a stroke does. Suggest, confirm, and dismiss are exactly
+ * as "drawable" as placing a real stitch is - the same drag, the same Shift
+ * straight-line and gap-fill continuation - just a different per-cell
+ * action, which is what lets all four share the one stroke engine below
+ * instead of each needing its own copy of it.
+ */
+export type StrokeMode =
+  | { kind: "place"; symbolId: string }
+  | { kind: "suggest" }
+  | { kind: "confirm"; overrideSymbolId?: string }
+  | { kind: "dismiss" };
+
+/** Identifies a mode for the "is this a continuation of the same stroke" check - see `lastDrawn`. */
+export function strokeKey(mode: StrokeMode): string {
+  if (mode.kind === "place") return `place:${mode.symbolId}`;
+  if (mode.kind === "confirm") return `confirm:${mode.overrideSymbolId ?? ""}`;
+  return mode.kind;
+}
+
+/**
+ * The mode a pointer event's modifiers and the currently armed stitch imply.
+ * Read live on every move rather than captured once at the start of a drag,
+ * so toggling Cmd/Ctrl or Alt mid-stroke switches what the rest of it does -
+ * the same way Alt already flips an in-progress selection-drag between
+ * moving and duplicating.
+ *
+ * Confirm and dismiss win over an armed stitch when their modifier is held:
+ * reviewing a suggestion is a deliberate, narrow action gated on a key
+ * being down, and it needs to pre-empt Draw *and* Suggest painting alike,
+ * not sit behind whichever one happens to be armed. A real armed stitch
+ * (not Suggest itself) rides along as `overrideSymbolId`, though - Cmd/Ctrl
+ * with a specific stitch armed means "confirm this suggestion as that
+ * stitch," not just "confirm it as whatever was guessed."
+ */
+export function modeFor(
+  e: { metaKey: boolean; ctrlKey: boolean; altKey: boolean },
+  armedSymbolId: string | null,
+): StrokeMode | null {
+  if (e.metaKey || e.ctrlKey) {
+    return armedSymbolId && armedSymbolId !== SUGGEST_SYMBOL_ID
+      ? { kind: "confirm", overrideSymbolId: armedSymbolId }
+      : { kind: "confirm" };
+  }
+  if (e.altKey) return { kind: "dismiss" };
+  if (armedSymbolId === SUGGEST_SYMBOL_ID) return { kind: "suggest" };
+  if (armedSymbolId) return { kind: "place", symbolId: armedSymbolId };
+  return null;
 }
 
 /**
@@ -95,10 +148,13 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
     let movingSelection = false;
     let constrainedStroke = false;
     let straightAxis: StraightAxis | null = null;
-    let lastDrawn: { cell: Cell; symbolId: string } | null = null;
+    let lastDrawn: { cell: Cell; key: string } | null = null;
     // A Shift-pointerdown after drawing may be either a gap-fill click or a
     // new straight stroke. Wait for movement to disambiguate.
     let pendingShiftFill: { from: Cell; to: Cell } | null = null;
+    // The mode the current drag is painting with - re-derived from live
+    // modifiers on every move (see `modeFor`), not fixed at pointerdown.
+    let currentMode: StrokeMode | null = null;
 
     const cellAt = (e: PointerEvent | MouseEvent): Cell | null => {
       const rect = canvas.getBoundingClientRect();
@@ -123,6 +179,72 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       return screenToInsertCell(sx, sy, camera, viewport);
     };
 
+    // Runs one cell through the matcher and either places a suggestion or
+    // flags the cell as unread - never leaves a scanned cell with no visible
+    // outcome, which is what made a low-confidence miss indistinguishable
+    // from the feature silently doing nothing.
+    const matchAndPlace = (cell: Cell) => {
+      const refImage = doc().referenceImage;
+      if (!refImage || !cellWithinReferenceImage(refImage, cell.col, cell.row)) return;
+      const cachedImg = getSharedReferenceImageCache().get(refImage.ref);
+      if (!cachedImg) return;
+
+      const exemplars = extractExemplars(doc().index, refImage, cachedImg, doc().revision);
+      const crop = cropReferenceImageCell(refImage, cachedImg, cell.col, cell.row, 32);
+      const grid = binarizeCrop(crop);
+      const match = matchCandidateStitch(grid, exemplars);
+      const key = cellKey(cell.col, cell.row);
+
+      if (match.symbolId) {
+        doc().place(match.symbolId, cell.col, cell.row, true, match.confidence);
+        ui().setReferenceImageUnrecognized(key, false);
+      } else {
+        ui().setReferenceImageUnrecognized(key, true);
+      }
+    };
+
+    /**
+     * Confirms the suggestion at `cell`, if there is one - a no-op
+     * elsewhere, so dragging loosely across a row only ever touches the
+     * cells that were actually pending review. With `overrideSymbolId` (a
+     * real stitch armed alongside Cmd/Ctrl), the suggestion is replaced with
+     * that stitch and confirmed in the same step, rather than accepted as
+     * whatever it was originally guessed to be.
+     */
+    const confirmAt = (cell: Cell, overrideSymbolId?: string) => {
+      const target = doc().index.placementAt(cell.col, cell.row);
+      if (!target?.suggested) return;
+      if (overrideSymbolId && overrideSymbolId !== target.symbolId) {
+        doc().replacePlacements([target.id], overrideSymbolId);
+      } else {
+        doc().acceptSuggestions([target.id]);
+      }
+    };
+
+    /** Discards the suggestion at `cell`, if there is one - see `confirmAt`. */
+    const dismissAt = (cell: Cell) => {
+      const target = doc().index.placementAt(cell.col, cell.row);
+      if (target?.suggested) doc().erasePlacements([target.id]);
+    };
+
+    /** Applies `mode` to one cell - the shared body Draw, Suggest, confirm, and dismiss all paint through. */
+    const applyMode = (mode: StrokeMode, cell: Cell) => {
+      switch (mode.kind) {
+        case "place":
+          doc().place(mode.symbolId, cell.col, cell.row);
+          return;
+        case "suggest":
+          matchAndPlace(cell);
+          return;
+        case "confirm":
+          confirmAt(cell, mode.overrideSymbolId);
+          return;
+        case "dismiss":
+          dismissAt(cell);
+          return;
+      }
+    };
+
     const paint = (cell: Cell) => {
       if (last && last.col === cell.col && last.row === cell.row) return;
       last = cell;
@@ -130,11 +252,9 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         doc().erase(cell.col, cell.row);
         return;
       }
-      const armed = ui().armedSymbolId;
-      if (armed) {
-        doc().place(armed, cell.col, cell.row);
-        lastDrawn = { cell, symbolId: armed };
-      }
+      if (!currentMode) return;
+      applyMode(currentMode, cell);
+      lastDrawn = { cell, key: strokeKey(currentMode) };
     };
 
     const paintStraightSegment = (from: Cell, to: Cell) => {
@@ -204,6 +324,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         currentSymbolId: placement.symbolId,
         selectionIds: ids,
         selectionSpan: doc().index.spanOf(placement),
+        reviewingSuggestion: !!placement.suggested,
       });
     };
 
@@ -216,6 +337,24 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       // Cmd/Ctrl retargets it, while Shift grows or trims the selection.
       if (ui().picker) {
         const pickerCell = cellAt(e);
+        const modeHere = pickerCell ? modeFor(e, ui().armedSymbolId) : null;
+        const reviewTarget =
+          pickerCell && (modeHere?.kind === "confirm" || modeHere?.kind === "dismiss")
+            ? doc().index.placementAt(pickerCell.col, pickerCell.row)
+            : undefined;
+
+        // Reviewing a suggestion elsewhere on the canvas wins over Cmd/Ctrl's
+        // usual meaning here (retarget the open picker) - the same
+        // precedence confirm/dismiss already have everywhere else. Without
+        // this, confirming-with-an-override was silently swallowed by
+        // whatever picker happened to still be open from the click before.
+        if (reviewTarget?.suggested && (modeHere!.kind === "confirm" || modeHere!.kind === "dismiss")) {
+          e.preventDefault();
+          ui().closePicker();
+          applyMode(modeHere!, pickerCell!);
+          return;
+        }
+
         const modifierSelect = e.shiftKey || e.metaKey || e.ctrlKey;
         const modifierTarget = pickerCell
           ? doc().index.placementAt(pickerCell.col, pickerCell.row)
@@ -248,24 +387,56 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       const cell = cellAt(e);
       if (!cell) return;
 
-      const armed = ui().armedSymbolId;
+      // Confirm/dismiss claim the gesture only when it actually starts on a
+      // pending suggestion - elsewhere, Cmd/Ctrl and Alt keep their existing
+      // meanings (temporary Select, duplicate-drag) undisturbed. This
+      // intentionally runs ahead of `temporarySelect` and the multi-select
+      // drag check further down: reviewing a suggestion is a narrow,
+      // deliberate action gated on both a modifier *and* the cell under the
+      // cursor, and it wins over whatever else that modifier or an active
+      // selection would otherwise mean here.
+      const modeHere = modeFor(e, ui().armedSymbolId);
+      const reviewTarget =
+        modeHere?.kind === "confirm" || modeHere?.kind === "dismiss"
+          ? doc().index.placementAt(cell.col, cell.row)
+          : undefined;
+      const modeUsable = modeHere !== null && (
+        modeHere.kind === "confirm" || modeHere.kind === "dismiss" ? !!reviewTarget?.suggested : true
+      );
+
       // Shift has to be down before the gesture begins. Reading the store as
       // well as the pointer event keeps the canvas state and its cursor in
       // sync even if the browser delivers the key transition just before the
-      // pointer event.
-      const canDrawStraight = ui().tool === "stitch" && !!armed && (e.shiftKey || ui().shiftHeld);
+      // pointer event. Draw and Suggest only draw in the Draw tool; confirm
+      // and dismiss are review actions and work regardless of tool.
+      const toolAllowsDrawing = modeHere?.kind === "confirm" || modeHere?.kind === "dismiss" || ui().tool === "stitch";
+      const canDrawStraight = modeUsable && toolAllowsDrawing && (e.shiftKey || ui().shiftHeld);
 
-      // Once a stitch has been placed, a pre-held Shift click fills from that
-      // placement to the click. Do not fill yet: if the pointer moves, this
+      // Once a cell has been painted, a pre-held Shift click fills from that
+      // cell to the click. Do not fill yet: if the pointer moves, this
       // becomes a new constrained stroke beginning at this cell instead.
-      if (canDrawStraight && lastDrawn?.symbolId === armed) {
+      if (canDrawStraight && lastDrawn?.key === strokeKey(modeHere!)) {
         e.preventDefault();
         pendingShiftFill = { from: lastDrawn.cell, to: cell };
         last = null;
         painting = true;
         constrainedStroke = true;
         straightAxis = null;
+        currentMode = modeHere;
         canvas.setPointerCapture(e.pointerId);
+        return;
+      }
+
+      if (modeUsable && (modeHere!.kind === "confirm" || modeHere!.kind === "dismiss")) {
+        e.preventDefault();
+        painting = true;
+        last = null;
+        constrainedStroke = canDrawStraight;
+        straightAxis = null;
+        currentMode = modeHere;
+        canvas.setPointerCapture(e.pointerId);
+        doc().beginStroke();
+        paint(cell);
         return;
       }
 
@@ -360,13 +531,20 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         return;
       }
 
-      if (!ui().armedSymbolId) {
+      // A cell Suggest scanned but couldn't read has no placement to click
+      // on - without this, an armed tool would just fall through to painting
+      // over it below, silently re-running the same failed match instead of
+      // ever giving the designer a way to say what it actually is.
+      const unreadable = !e.shiftKey && ui().referenceImageUnrecognized.has(cellKey(cell.col, cell.row));
+
+      if (!ui().armedSymbolId || unreadable) {
         const rect = canvas.getBoundingClientRect();
         ui().openPicker({
           col: cell.col,
           row: cell.row,
           x: e.clientX - rect.left + 8,
           y: e.clientY - rect.top + 8,
+          ...(unreadable ? { reviewingSuggestion: true } : null),
         });
         return;
       }
@@ -376,6 +554,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       last = null;
       constrainedStroke = canDrawStraight;
       straightAxis = null;
+      currentMode = modeHere;
       canvas.setPointerCapture(e.pointerId);
       doc().beginStroke();
       paint(cell);
@@ -433,6 +612,12 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       if (!painting) return;
       const cell = cellAt(e);
       if (!cell) return;
+      // Read live, same as the armed stitch always was - toggling Cmd/Ctrl
+      // or Alt mid-drag switches what the rest of the stroke does, the same
+      // way Alt already flips a selection-drag between moving and
+      // duplicating. Erasing has its own dedicated flag and stays out of
+      // this entirely.
+      if (!erasing) currentMode = modeFor(e, ui().armedSymbolId);
       if (pendingShiftFill) {
         // Movement turns the pending click into a fresh straight stroke. Its
         // anchor is where this pointer gesture started, never the previous
@@ -494,7 +679,8 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
             if (!ui().selectHeld && ui().tool === "select") {
               ui().setTool("stitch");
               const armed = ui().armedSymbolId;
-              if (armed) doc().place(armed, start.col, start.row);
+              if (armed === SUGGEST_SYMBOL_ID) applyMode({ kind: "suggest" }, start);
+              else if (armed) doc().place(armed, start.col, start.row);
               else {
                 const rect = canvas.getBoundingClientRect();
                 ui().openPicker({
@@ -530,14 +716,19 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         const { from, to } = pendingShiftFill;
         pendingShiftFill = null;
         // A cancelled pointer gesture never represents an intentional click.
-        if (e.type === "pointercancel") return;
+        if (e.type === "pointercancel") {
+          currentMode = null;
+          return;
+        }
         const axis = straightAxisFor(from, to);
         doc().beginStroke();
         paintStraightSegment(from, constrainToStraightAxis(from, to, axis));
         doc().endStroke();
+        currentMode = null;
         return;
       }
       doc().endStroke();
+      currentMode = null;
     };
 
     const onDoubleClick = (e: MouseEvent) => {

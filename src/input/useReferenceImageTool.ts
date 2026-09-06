@@ -384,6 +384,18 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
         w.y <= image.y + image.height;
       if (!handle && !inside) return; // outside the image entirely - let the active tool handle it
 
+      // A click squarely on a stitch Suggest is still guessing at wins over
+      // moving the photo. Reviewing a suggestion means comparing it against
+      // this very image, so the panel has to stay open for that - but its
+      // blanket claim on every click inside the image would otherwise make
+      // an unreviewed guess unclickable for as long as the panel is open,
+      // which is most of the time Suggest is in use.
+      if (!handle) {
+        const col = Math.floor(w.x / CELL);
+        const row = Math.floor(w.y / CELL);
+        if (useDocStore.getState().index.placementAt(col, row)?.suggested) return;
+      }
+
       e.preventDefault();
       e.stopImmediatePropagation();
 

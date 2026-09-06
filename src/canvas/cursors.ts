@@ -32,6 +32,45 @@ export const DUPLICATE_CURSOR = cursor(duplicateCursor, 12, 8, "copy");
 export const INSERT_BLOCKED_CURSOR = cursor(insertBlockedCursor, 3, 0, "not-allowed");
 export const INSERT_ADD_CURSOR = cursor(insertAddCursor, 3, 0, "default");
 
+/**
+ * Shown while Cmd/Ctrl hovers a pending suggestion - confirming it is what
+ * that click will do here, which is not what Cmd/Ctrl does anywhere else on
+ * the canvas (temporary Select). Reuses the app's own arrow rather than the
+ * OS pointer so it still reads as "this is a Stitch Ease cursor," with a
+ * green check badge - a colour and mark used nowhere else in this cursor
+ * set - so it can't be mistaken for the plain arrow Cmd/Ctrl shows on
+ * everything that isn't a suggestion.
+ */
+export const CONFIRM_SUGGESTION_CURSOR = cursor(
+  svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M0 16V0L11.6 11.6081H4.55353L4.40242 11.732L0 16Z" fill="#fff"/>
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M1 2.3V13.5L3.969 10.6309L4.129 10.4918L9.165 10.5L1 2.3Z" fill="#000"/>
+    <circle cx="17.5" cy="15.5" r="6.5" fill="#16a34a" stroke="#fff" stroke-width="1.5"/>
+    <path d="M14.6 15.6l1.8 1.8 3.4-3.8" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  </svg>`),
+  0,
+  0,
+  "default",
+);
+
+/**
+ * Shown while Alt hovers a pending suggestion - dismissing it is what that
+ * click will do. Same arrow and badge position as the confirm cursor, so
+ * the two read as a matched pair, with a red badge and a cross rather than
+ * a green one and a check.
+ */
+export const DISMISS_SUGGESTION_CURSOR = cursor(
+  svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M0 16V0L11.6 11.6081H4.55353L4.40242 11.732L0 16Z" fill="#fff"/>
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M1 2.3V13.5L3.969 10.6309L4.129 10.4918L9.165 10.5L1 2.3Z" fill="#000"/>
+    <circle cx="17.5" cy="15.5" r="6.5" fill="#dc2626" stroke="#fff" stroke-width="1.5"/>
+    <path d="M15.2 13.2l4.6 4.6m0-4.6-4.6 4.6" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>
+  </svg>`),
+  0,
+  0,
+  "default",
+);
+
 const armedCursorCache = new Map<string, string>();
 
 function svgDataUrl(svg: string): string {

@@ -69,8 +69,15 @@ type DocState = {
   /** Changes accumulated during the current drag, merged into one entry. */
   stroke: Change[] | null;
 
-  place: (symbolId: string, col: number, row: number) => void;
+  /** `suggested`/`confidence` mark it as an unaccepted guess from auto-suggest - see `Placement`. */
+  place: (symbolId: string, col: number, row: number, suggested?: boolean, confidence?: number) => void;
   erase: (col: number, row: number) => void;
+  /**
+   * Clears the suggested flag on suggested placements in one undoable step -
+   * every one of them by default, or just `ids` (Alt-click confirming a
+   * single guess doesn't need to wait for a full review pass).
+   */
+  acceptSuggestions: (ids?: string[]) => void;
   replacePlacements: (ids: string[], symbolId: string) => void;
   erasePlacements: (ids: string[]) => void;
   movePlacements: (ids: string[], deltaCol: number, deltaRow: number) => void;
@@ -184,8 +191,20 @@ export const useDocStore = create<DocState>((set, get) => {
     repeats: [],
     referenceImage: null,
 
-    place: (symbolId, col, row) => commit(placeChange(get().index, symbolId, col, row)),
+    place: (symbolId, col, row, suggested, confidence) =>
+      commit(placeChange(get().index, symbolId, col, row, suggested, confidence)),
     erase: (col, row) => commit(eraseChange(get().index, col, row)),
+    acceptSuggestions: (ids) => {
+      const idSet = ids ? new Set(ids) : null;
+      const suggested = [...get().index.placements.values()].filter(
+        (p) => p.suggested && (!idSet || idSet.has(p.id)),
+      );
+      if (!suggested.length) return;
+      commit({
+        removed: suggested,
+        added: suggested.map(({ suggested: _dropped, confidence: _score, ...rest }) => rest),
+      });
+    },
     canInsertAt: (col, row) => canInsertAtIndex(get().index, col, row),
     insertPlacement: (symbolId, col, row) =>
       commit(insertChange(get().index, symbolId, col, row)),
@@ -212,8 +231,14 @@ export const useDocStore = create<DocState>((set, get) => {
         removed: selected,
         // Spread first: a replaced stitch keeps whatever group it belonged
         // to (a repeat instance, a duplicated cluster) rather than silently
-        // dropping out of it.
-        added: selected.map((p) => ({ ...p, id: newPlacementId(), symbolId })),
+        // dropping out of it. Choosing a replacement is a deliberate,
+        // resolved answer, so it also drops any suggested/confidence
+        // flags - the same as accepting a suggestion outright.
+        added: selected.map(({ suggested: _dropped, confidence: _score, ...rest }) => ({
+          ...rest,
+          id: newPlacementId(),
+          symbolId,
+        })),
       });
     },
     erasePlacements: (ids) => {

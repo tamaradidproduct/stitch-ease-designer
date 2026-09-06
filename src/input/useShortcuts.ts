@@ -3,7 +3,7 @@ import { CELL, cellToScreenRect } from "../canvas/camera";
 import type { Placement } from "../model/types";
 import { patchCalibrationMark } from "../model/referenceCalibration";
 import { useDocStore } from "../state/docStore";
-import { useUiStore } from "../state/uiStore";
+import { SUGGEST_SYMBOL_ID, useUiStore } from "../state/uiStore";
 
 /** Arrow key -> world-space direction. +y is up, matching +row. */
 const ARROWS: Record<string, [number, number] | undefined> = {
@@ -40,6 +40,7 @@ export function useShortcuts(): void {
       if (e.key === "Meta" || e.key === "Control") {
         useUiStore.getState().setSelectHeld(true);
       }
+      if (e.key === "Alt") useUiStore.getState().setAltHeld(true);
 
       const ui = useUiStore.getState();
 
@@ -244,6 +245,12 @@ export function useShortcuts(): void {
         return;
       }
 
+      if (e.key.toLowerCase() === "g" && !e.metaKey && !e.ctrlKey) {
+        ui.setTool("stitch");
+        ui.setArmedSymbolId(ui.armedSymbolId === SUGGEST_SYMBOL_ID ? null : SUGGEST_SYMBOL_ID);
+        return;
+      }
+
       if (e.key === "/" && ui.hover) {
         e.preventDefault();
         const r = cellToScreenRect(ui.hover.col, ui.hover.row, ui.camera, ui.viewport);
@@ -264,11 +271,13 @@ export function useShortcuts(): void {
       if (e.key === "Meta" || e.key === "Control") {
         useUiStore.getState().setSelectHeld(false);
       }
+      if (e.key === "Alt") useUiStore.getState().setAltHeld(false);
     };
 
     const onBlur = () => {
       useUiStore.getState().setShiftHeld(false);
       useUiStore.getState().setSelectHeld(false);
+      useUiStore.getState().setAltHeld(false);
     };
 
     window.addEventListener("keydown", onKeyDown);
