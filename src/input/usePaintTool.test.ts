@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
+import { SUGGEST_SYMBOL_ID } from "../state/uiStore";
 import {
   constrainToStraightAxis,
+  modeFor,
   shouldOpenPickerForSelection,
   straightAxisFor,
   straightLineCells,
+  strokeKey,
 } from "./usePaintTool";
+
+const noMods = { metaKey: false, ctrlKey: false, altKey: false };
 
 describe("shouldOpenPickerForSelection", () => {
   it("opens the picker for a plain click that selects exactly one stitch", () => {
@@ -49,5 +54,79 @@ describe("straight drawing", () => {
       ]);
     expect(straightLineCells({ col: 2, row: 1 }, { col: 2, row: 3 }))
       .toEqual([{ col: 2, row: 1 }, { col: 2, row: 2 }, { col: 2, row: 3 }]);
+  });
+});
+
+describe("modeFor", () => {
+  it("draws with the armed stitch when nothing is held", () => {
+    expect(modeFor(noMods, "purl")).toEqual({ kind: "place", symbolId: "purl" });
+  });
+
+  it("is null when nothing is armed and no modifier is held", () => {
+    expect(modeFor(noMods, null)).toBeNull();
+  });
+
+  it("matches with Suggest when it's the armed stitch", () => {
+    expect(modeFor(noMods, SUGGEST_SYMBOL_ID)).toEqual({ kind: "suggest" });
+  });
+
+  it("confirms as originally guessed on Cmd or Ctrl when Suggest or nothing is armed", () => {
+    expect(modeFor({ ...noMods, ctrlKey: true }, SUGGEST_SYMBOL_ID)).toEqual({ kind: "confirm" });
+    expect(modeFor({ ...noMods, metaKey: true }, null)).toEqual({ kind: "confirm" });
+  });
+
+  it("confirms as the armed stitch on Cmd or Ctrl when a real stitch is armed", () => {
+    expect(modeFor({ ...noMods, metaKey: true }, "purl")).toEqual({
+      kind: "confirm",
+      overrideSymbolId: "purl",
+    });
+    expect(modeFor({ ...noMods, ctrlKey: true }, "knit")).toEqual({
+      kind: "confirm",
+      overrideSymbolId: "knit",
+    });
+  });
+
+  it("dismisses on Alt, regardless of what's armed", () => {
+    expect(modeFor({ ...noMods, altKey: true }, "purl")).toEqual({ kind: "dismiss" });
+    expect(modeFor({ ...noMods, altKey: true }, null)).toEqual({ kind: "dismiss" });
+  });
+
+  it("prefers confirm over dismiss if somehow both are held", () => {
+    expect(modeFor({ metaKey: true, ctrlKey: false, altKey: true }, "purl")).toEqual({
+      kind: "confirm",
+      overrideSymbolId: "purl",
+    });
+  });
+});
+
+describe("strokeKey", () => {
+  it("distinguishes different armed symbols from each other", () => {
+    expect(strokeKey({ kind: "place", symbolId: "purl" })).not.toBe(
+      strokeKey({ kind: "place", symbolId: "knit" }),
+    );
+  });
+
+  it("gives suggest, confirm, and dismiss each their own stable key", () => {
+    const keys = [
+      strokeKey({ kind: "suggest" }),
+      strokeKey({ kind: "confirm" }),
+      strokeKey({ kind: "dismiss" }),
+    ];
+    expect(new Set(keys).size).toBe(3);
+  });
+
+  it("distinguishes a plain confirm from an overriding one, and different overrides from each other", () => {
+    const keys = [
+      strokeKey({ kind: "confirm" }),
+      strokeKey({ kind: "confirm", overrideSymbolId: "purl" }),
+      strokeKey({ kind: "confirm", overrideSymbolId: "knit" }),
+    ];
+    expect(new Set(keys).size).toBe(3);
+  });
+
+  it("never collides with a placed symbol's own key", () => {
+    // "place:confirm" would be a real (if odd) symbol id; the actual
+    // confirm mode's key must still be distinguishable from it.
+    expect(strokeKey({ kind: "confirm" })).not.toBe(strokeKey({ kind: "place", symbolId: "confirm" }));
   });
 });

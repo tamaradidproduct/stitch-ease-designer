@@ -12,6 +12,15 @@ import type { BoxHandle, Placement } from "../model/types";
 
 export type Tool = "select" | "stitch" | "eraser" | "insert";
 
+/**
+ * Armed like any other stitch, but painting with it runs template matching
+ * against user exemplars from the reference image instead of placing a fixed symbol.
+ */
+export const SUGGEST_SYMBOL_ID = "__suggest__";
+
+/** Cell key for the unrecognized set - one placement per cell, so coordinates identify it. */
+export const cellKey = (col: number, row: number): string => `${col},${row}`;
+
 /** Where the picker is anchored: which cell it will fill, and where to draw it. */
 export type PickerTarget = {
   col: number;
@@ -27,6 +36,12 @@ export type PickerTarget = {
   insert?: boolean;
   /** When true, choosing a symbol only arms Draw instead of editing the canvas. */
   armOnly?: boolean;
+  /**
+   * When true, this picker is reviewing a pending suggestion (confirmed or
+   * unrecognized) rather than a plain edit - choosing a symbol resolves it
+   * without re-arming, so Suggest stays armed through a whole review pass.
+   */
+  reviewingSuggestion?: boolean;
 };
 
 export type SelectionBox = { start: Cell; current: Cell };
@@ -85,6 +100,8 @@ type UiState = {
   selectHeld: boolean;
   /** True while Shift is held, enabling constrained straight-line drawing. */
   shiftHeld: boolean;
+  /** True while Alt/Opt is held - dismisses a suggestion under the cursor; see `CONFIRM_SUGGESTION_CURSOR`'s sibling. */
+  altHeld: boolean;
   /** Suppresses stale pointer feedback after keyboard-driven selection until the mouse moves. */
   keyboardSelectionActive: boolean;
   /** Editor-only tint behind placed stitches, useful when tracing a reference image. */
@@ -162,6 +179,16 @@ type UiState = {
    */
   referenceImageActiveMark: string | null;
   setReferenceImageActiveMark: (id: string | null) => void;
+  /**
+   * Cells auto-suggest scanned but couldn't match against any exemplar
+   * (keyed by `cellKey`) - a distinct outcome from a low-confidence guess,
+   * so a miss is visible instead of indistinguishable from the feature
+   * silently doing nothing. Cleared the moment that cell gets a real match,
+   * on a later scan or a hand-placed stitch.
+   */
+  referenceImageUnrecognized: ReadonlySet<string>;
+  setReferenceImageUnrecognized: (key: string, unrecognized: boolean) => void;
+  clearReferenceImageUnrecognized: () => void;
 
   setTool: (tool: Tool) => void;
   setArmedSymbolId: (id: string | null) => void;
@@ -189,6 +216,7 @@ type UiState = {
   setSpaceHeld: (held: boolean) => void;
   setSelectHeld: (held: boolean) => void;
   setShiftHeld: (held: boolean) => void;
+  setAltHeld: (held: boolean) => void;
   setKeyboardSelectionActive: (active: boolean) => void;
   setStitchHighlight: (color: string, opacity?: number) => void;
   setStitchHighlightOpacity: (opacity: number) => void;
@@ -213,6 +241,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   spaceHeld: false,
   selectHeld: false,
   shiftHeld: false,
+  altHeld: false,
   keyboardSelectionActive: false,
   stitchHighlightColor: "#f59e0b",
   stitchHighlightOpacity: 0,
@@ -228,6 +257,7 @@ export const useUiStore = create<UiState>((set, get) => ({
       referenceImageCalibrationBox: null,
       referenceImageMarking: false,
       referenceImageActiveMark: null,
+      referenceImageUnrecognized: new Set<string>(),
       referenceImageCalibrationRejected: false,
       referenceImageHandle: null,
     }),
@@ -237,6 +267,15 @@ export const useUiStore = create<UiState>((set, get) => ({
   setReferenceImageMarking: (referenceImageMarking) => set({ referenceImageMarking }),
   referenceImageActiveMark: null,
   setReferenceImageActiveMark: (referenceImageActiveMark) => set({ referenceImageActiveMark }),
+  referenceImageUnrecognized: new Set<string>(),
+  setReferenceImageUnrecognized: (key, unrecognized) =>
+    set((s) => {
+      const next = new Set(s.referenceImageUnrecognized);
+      if (unrecognized) next.add(key);
+      else next.delete(key);
+      return { referenceImageUnrecognized: next };
+    }),
+  clearReferenceImageUnrecognized: () => set({ referenceImageUnrecognized: new Set<string>() }),
   referenceImageCalibrationBox: null,
   setReferenceImageCalibrationBox: (referenceImageCalibrationBox) =>
     set({ referenceImageCalibrationBox }),
@@ -365,6 +404,10 @@ export const useUiStore = create<UiState>((set, get) => ({
     if (get().shiftHeld === shiftHeld) return;
     set({ shiftHeld });
   },
+  setAltHeld: (altHeld) => {
+    if (get().altHeld === altHeld) return;
+    set({ altHeld });
+  },
   setKeyboardSelectionActive: (keyboardSelectionActive) => {
     if (get().keyboardSelectionActive === keyboardSelectionActive) return;
     set({ keyboardSelectionActive });
@@ -409,10 +452,14 @@ export const useUiStore = create<UiState>((set, get) => ({
     spaceHeld: false,
     selectHeld: false,
     shiftHeld: false,
+    altHeld: false,
     keyboardSelectionActive: false,
     isPanning: false,
     referenceImagePanelOpen: false,
     referenceImageCalibrating: false,
     referenceImageCalibrationBox: null,
+    referenceImageMarking: false,
+    referenceImageActiveMark: null,
+    referenceImageUnrecognized: new Set<string>(),
   }),
 }));

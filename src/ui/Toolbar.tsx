@@ -6,7 +6,6 @@ export function Toolbar() {
   const setTool = useUiStore((s) => s.setTool);
 
   return (
-    <>
     <div className="toolDock" aria-label="Canvas tools">
       <button
         type="button"
@@ -65,6 +64,5 @@ export function Toolbar() {
         <span>Erase</span>
       </button>
     </div>
-    </>
   );
 }

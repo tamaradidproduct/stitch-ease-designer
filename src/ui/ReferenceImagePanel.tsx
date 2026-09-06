@@ -38,6 +38,7 @@ export function ReferenceImagePanel() {
   const updateReferenceImage = useDocStore((s) => s.updateReferenceImage);
   const removeReferenceImage = useDocStore((s) => s.removeReferenceImage);
 
+
   // Recomputed as the numbers are typed, so "Apply scale" is only live once
   // the marks actually determine a scale - which is also the clearest way to
   // say that two of them naming the same row pins nothing down.
@@ -435,10 +436,12 @@ export function ReferenceImagePanel() {
                 Remove
               </button>
             </div>
+
           </>
         )}
 
         {error && <p className="refpanel__error">{error}</p>}
+
       </div>
       )}
     </section>

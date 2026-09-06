@@ -11,6 +11,16 @@ export type Placement = {
   row: number;
   /** Independent repeat/group instance this placement belongs to. */
   groupId?: string;
+  /** Marked true if placed by auto-suggest template matching and awaiting confirmation. */
+  suggested?: boolean;
+  /**
+   * The match score (0..1) auto-suggest reported for this cell - only ever
+   * set alongside `suggested`. Kept so a barely-cleared guess can look
+   * different from a confident one instead of both rendering identically;
+   * without it the only two outcomes a person could see were "guessed" and
+   * "gave up", with no way to tell a shaky guess from a solid one.
+   */
+  confidence?: number;
 };
 
 export type RepeatStitch = { symbolId: string; col: number; row: number };

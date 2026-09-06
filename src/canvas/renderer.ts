@@ -45,6 +45,8 @@ export type RenderState = {
   referenceImageMarks: CalibrationMark[];
   referenceImageActiveMark: string | null;
   referenceImageMarking: boolean;
+  /** Cells auto-suggest scanned but couldn't match against any exemplar (keyed by `cellKey`). */
+  referenceImageUnrecognized: ReadonlySet<string>;
   /** Cell whose place, replace, or insert picker is currently open. */
   pickerTarget: PickerTarget | null;
   selectedPlacementIds: string[];
@@ -214,10 +216,47 @@ function drawPlacements(ctx: CanvasRenderingContext2D, state: RenderState): void
 
     // knit and empty are pure cell chrome in the library, so they have no
     // glyph to draw — the bordered cell above is the whole symbol.
-    if (!symbol?.hasGlyph) continue;
+    if (symbol) {
+      const sprite = sprites.get(symbol, size, theme.symbol);
+      if (sprite) ctx.drawImage(sprite, r.x, r.y, width, size);
+    }
 
-    const sprite = sprites.get(symbol, size, theme.symbol);
-    if (sprite) ctx.drawImage(sprite, r.x, r.y, width, size);
+    if (p.suggested) {
+      // Auto-suggest only ever places a guess that cleared its confidence
+      // floor (0.55) and beat the runner-up by its ambiguity margin - so
+      // everything here already "passed", but passing at 0.56 and passing
+      // at 0.98 are not the same claim, and rendering them identically was
+      // exactly what made a shaky guess indistinguishable from a solid one.
+      // Below this line it's flagged instead of just trusted the same way.
+      const CONFIDENT = 0.75;
+      const confidence = p.confidence ?? 1;
+      const marginal = confidence < CONFIDENT;
+
+      ctx.save();
+      ctx.fillStyle = marginal ? "rgba(147, 51, 234, 0.09)" : "rgba(147, 51, 234, 0.15)";
+      ctx.fillRect(r.x, r.y, width, size);
+      ctx.strokeStyle = "#9333ea";
+      ctx.lineWidth = 1.5;
+      if (marginal) ctx.setLineDash([3, 2]);
+      ctx.strokeRect(r.x + 0.5, r.y + 0.5, width - 1, size - 1);
+
+      if (marginal) {
+        // The exact number, not just "flagged" - a designer deciding
+        // whether to trust a guess needs to see how close it actually came.
+        const pct = Math.round(confidence * 100);
+        ctx.setLineDash([]);
+        ctx.fillStyle = "#9333ea";
+        ctx.beginPath();
+        ctx.arc(r.x + width - 7, r.y + 7, 8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "600 8px system-ui, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(String(pct), r.x + width - 7, r.y + 8);
+      }
+      ctx.restore();
+    }
   }
 }
 
@@ -227,8 +266,24 @@ function drawPlacements(ctx: CanvasRenderingContext2D, state: RenderState): void
  * count bottom-to-top and columns count right-to-left, edge to edge. Hover
  * numbering remains row-specific and continues to count only real stitches.
  */
+/**
+ * Whether a chart-numbering label at `col`/`row` should stay hidden - it
+ * sits just outside its group's own bounds, in a neighbouring cell that can
+ * hold an unrelated stitch (a different group, or a stray placement) that
+ * the label's white background would otherwise sit on top of, or under
+ * whatever cell the pointer is currently over.
+ */
+export function numberingHiddenAt(
+  index: DocIndex,
+  hover: Cell | null,
+  col: number,
+  row: number,
+): boolean {
+  return !!index.placementAt(col, row) || (hover !== null && hover.col === col && hover.row === row);
+}
+
 function drawGroupNumbering(ctx: CanvasRenderingContext2D, state: RenderState): void {
-  const { camera: cam, viewport: vp, index, revision } = state;
+  const { camera: cam, viewport: vp, index, revision, hover } = state;
   const size = cellPx(cam);
   if (size < 10) return;
 
@@ -247,6 +302,7 @@ function drawGroupNumbering(ctx: CanvasRenderingContext2D, state: RenderState): 
     const maxCol = Math.max(...allCols);
 
     for (const [row] of rows) {
+      if (numberingHiddenAt(index, hover, minCol - 1, row)) continue;
       const rowNumber = rowNumbers.get(row)!;
       const r = cellToScreenRect(minCol, row, cam, vp);
       const x = r.x - 9;
@@ -265,6 +321,7 @@ function drawGroupNumbering(ctx: CanvasRenderingContext2D, state: RenderState): 
     );
 
     for (const [col, label] of stitchLabels) {
+      if (numberingHiddenAt(index, hover, col, minRow - 1)) continue;
       const r = cellToScreenRect(col, minRow, cam, vp);
       const x = r.x + r.size / 2;
       const y = r.y + r.size + 12;
@@ -478,6 +535,40 @@ function drawEditHighlight(
  * stitch with its pinned corner marked, and the calibration box while one's
  * being dragged out.
  */
+/**
+ * Cells auto-suggest scanned and couldn't place a stitch on - a dashed
+ * marker distinct from both a placed suggestion (filled purple) and an
+ * empty cell (nothing at all), so a miss is visible rather than reading as
+ * the feature having quietly done nothing.
+ *
+ * Suppressed wherever a placement already exists: the marker means "needs a
+ * person", and once a person (or a later, successful scan) has put
+ * something there, the cell no longer needs it - cheaper than hunting down
+ * every path that can place a stitch over a flagged cell.
+ */
+function drawUnrecognizedCells(ctx: CanvasRenderingContext2D, state: RenderState): void {
+  const { referenceImageUnrecognized, index, camera: cam, viewport: vp } = state;
+  if (!referenceImageUnrecognized.size) return;
+
+  ctx.save();
+  ctx.strokeStyle = "#dc2626";
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([3, 3]);
+  ctx.fillStyle = "rgba(220, 38, 38, 0.08)";
+
+  for (const key of referenceImageUnrecognized) {
+    const [colStr, rowStr] = key.split(",");
+    const col = Number(colStr);
+    const row = Number(rowStr);
+    if (index.placementAt(col, row)) continue;
+
+    const r = cellToScreenRect(col, row, cam, vp);
+    ctx.fillRect(r.x, r.y, r.size, r.size);
+    ctx.strokeRect(r.x + 0.75, r.y + 0.75, r.size - 1.5, r.size - 1.5);
+  }
+  ctx.restore();
+}
+
 function drawReferenceImageOverlay(ctx: CanvasRenderingContext2D, state: RenderState): void {
   const { referenceImagePanelOpen, referenceImage, referenceImageCalibrationBox, referenceImageMarks, referenceImageActiveMark, referenceImageMarking, camera: cam, viewport: vp } =
     state;
@@ -746,6 +837,7 @@ export function render(ctx: CanvasRenderingContext2D, state: RenderState): void 
   drawSelectionBox(ctx, state);
   drawHover(ctx, state);
   drawPickerTarget(ctx, state);
+  drawUnrecognizedCells(ctx, state);
   drawReferenceImageOverlay(ctx, state);
   drawRulers(ctx, state);
 }

@@ -65,3 +65,12 @@ export class ReferenceImageCache {
     }
   }
 }
+
+let sharedCache: ReferenceImageCache | null = null;
+
+export function getSharedReferenceImageCache(): ReferenceImageCache {
+  if (!sharedCache) {
+    sharedCache = new ReferenceImageCache(() => {});
+  }
+  return sharedCache;
+}

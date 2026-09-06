@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { allSymbols, getSymbol } from "../symbols/registry";
 import { CELL } from "../canvas/camera";
 import { exportChart } from "../storage/exportImport";
+import { cellWithinReferenceImage } from "../canvas/referenceImageCrop";
 import { useDocStore } from "../state/docStore";
-import { useUiStore } from "../state/uiStore";
+import { SUGGEST_SYMBOL_ID, useUiStore } from "../state/uiStore";
 import { ReferenceImagePanel } from "./ReferenceImagePanel";
 import { SymbolGlyph } from "./SymbolGlyph";
 import { searchSymbols } from "./symbolSearch";
@@ -39,6 +40,8 @@ export function RightPanel() {
   const repeats = useDocStore((state) => state.repeats);
   const referenceImage = useDocStore((state) => state.referenceImage);
   useDocStore((state) => state.revision);
+  const acceptSuggestions = useDocStore((state) => state.acceptSuggestions);
+  const erasePlacements = useDocStore((state) => state.erasePlacements);
   const chooseSymbol = useUiStore((state) => state.chooseSymbol);
   const armedSymbolId = useUiStore((state) => state.armedSymbolId);
   const tool = useUiStore((state) => state.tool);
@@ -53,6 +56,8 @@ export function RightPanel() {
   const stitchHighlightOpacity = useUiStore((state) => state.stitchHighlightOpacity);
   const setStitchHighlight = useUiStore((state) => state.setStitchHighlight);
   const setStitchHighlightOpacity = useUiStore((state) => state.setStitchHighlightOpacity);
+  const referenceImageUnrecognized = useUiStore((state) => state.referenceImageUnrecognized);
+  const clearReferenceImageUnrecognized = useUiStore((state) => state.clearReferenceImageUnrecognized);
   const chartId = meta?.id;
 
   useEffect(() => {
@@ -133,6 +138,23 @@ export function RightPanel() {
   const slottedIds = new Set(quickSymbolIds);
   const remainingGlossary = glossary.filter((symbol) => !slottedIds.has(symbol.id));
   const slotCount = Math.max(5, quickSymbolIds.length + 1);
+
+  // How many distinct stitches Suggest currently has an exemplar for -
+  // a confirmed (non-suggested) placement sitting inside the reference
+  // image counts as one. Shown on the Suggest row so it's clear at a
+  // glance whether there's anything to match against yet.
+  const suggestTaughtCount = referenceImage
+    ? new Set(
+        placements
+          .filter((p) => !p.suggested && cellWithinReferenceImage(referenceImage, p.col, p.row))
+          .map((p) => p.symbolId),
+      ).size
+    : 0;
+  const suggestedCount = placements.filter((p) => p.suggested).length;
+  const unrecognizedCount = [...referenceImageUnrecognized].filter((key) => {
+    const [colStr, rowStr] = key.split(",");
+    return !index.placementAt(Number(colStr), Number(rowStr));
+  }).length;
 
   const addToGlossary = (id: string) => {
     if (!meta || glossaryIds.has(id)) return;
@@ -276,6 +298,82 @@ export function RightPanel() {
         )}
         <div className="sideModule__body">
           <div className="glossary">
+            <div className="glossary__item" data-on={armedSymbolId === SUGGEST_SYMBOL_ID && tool === "stitch"}>
+              <button
+                type="button"
+                className="glossary__arm"
+                onClick={() => setArmedSymbolId(SUGGEST_SYMBOL_ID)}
+                title="Draw with Suggest (G) - matches each cell against stitches you've already confirmed over the reference image. Cmd/Ctrl-click a suggestion to confirm it, or Cmd/Ctrl-click with a stitch armed to confirm it as that stitch instead. Alt-click dismisses it - all of this drags and Shift straight-lines/gap-fills the same way Draw does."
+              >
+                <kbd className="glossary__shortcut" aria-label="Shortcut G">G</kbd>
+                <span className="glossary__glyph" aria-hidden="true">
+                  <svg viewBox="0 0 20 20" width="16" height="16">
+                    <path
+                      d="M4 16 13 7m2.5-2.5L17 3M6 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1Z"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </span>
+                <span className="glossary__label">Suggest</span>
+                <span
+                  className="glossary__count"
+                  title={
+                    suggestTaughtCount > 0
+                      ? `Recognizes ${suggestTaughtCount} stitch type${suggestTaughtCount === 1 ? "" : "s"} you've confirmed over the reference image`
+                      : "Confirm at least one stitch over the reference image first"
+                  }
+                >
+                  {suggestTaughtCount}
+                </span>
+              </button>
+            </div>
+            {(suggestedCount > 0 || unrecognizedCount > 0) && (
+              <div className="glossary__suggestReview">
+                {suggestedCount > 0 && (
+                  <div className="glossary__reviewBox">
+                    <p className="glossary__reviewHeader">
+                      {suggestedCount} suggested stitch{suggestedCount === 1 ? "" : "es"} awaiting review
+                    </p>
+                    <div className="glossary__reviewActions">
+                      <button type="button" className="btn btn--primary" onClick={() => acceptSuggestions()}>
+                        Accept all
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn--quiet btn--danger"
+                        onClick={() => {
+                          const toRemove = placements.filter((p) => p.suggested).map((p) => p.id);
+                          if (toRemove.length > 0) erasePlacements(toRemove);
+                        }}
+                      >
+                        Discard all
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {unrecognizedCount > 0 && (
+                  <div className="glossary__reviewBox glossary__reviewBox--unread">
+                    <p className="glossary__reviewHeader">
+                      {unrecognizedCount} stitch{unrecognizedCount === 1 ? "" : "es"} couldn't be read
+                      (dashed red on the chart) - place those by hand.
+                    </p>
+                    <div className="glossary__reviewActions">
+                      <button
+                        type="button"
+                        className="btn btn--quiet"
+                        onClick={clearReferenceImageUnrecognized}
+                      >
+                        Dismiss markers
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             {Array.from({ length: slotCount }, (_, slot) => {
               const id = quickSymbolIds[slot];
               const symbol = id ? getSymbol(id) : undefined;

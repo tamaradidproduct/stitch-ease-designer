@@ -1,6 +1,6 @@
 .DS_Store
 *.log
-node_modules/
+node_modules
 dist/
 .vite/
 *.tsbuildinfo
@@ -13,3 +13,6 @@ __pycache__/
 
 # GitHub App credentials minted by google-github-actions
 gha-creds-*.json
+
+.worktrees/
+exported-crops/

@@ -218,6 +218,13 @@ export function StitchPicker() {
     } else {
       place(symbol.id, target.col, target.row);
     }
+    // Resolving a suggestion review (confirmed or unrecognized) shouldn't
+    // arm whatever the designer just picked - Suggest stays armed so a
+    // review pass can keep going cell by cell.
+    if (target.reviewingSuggestion) {
+      closePicker();
+      return;
+    }
     chooseSymbol(symbol.id, target.insert ? "insert" : replacingSelection ? tool : "stitch");
   };
 
