@@ -32,12 +32,15 @@ export function binarizeCrop(
   canvas: HTMLCanvasElement,
   options?: { insetRatio?: number },
 ): BinaryGrid {
+  const { width, height } = canvas;
+  if (width === 0 || height === 0) {
+    return { width: 0, height: 0, data: new Uint8Array(0), inkCount: 0, inkRatio: 0 };
+  }
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   if (!ctx) {
     return { width: 0, height: 0, data: new Uint8Array(0), inkCount: 0, inkRatio: 0 };
   }
 
-  const { width, height } = canvas;
   const imageData = ctx.getImageData(0, 0, width, height);
   const px = imageData.data;
 
@@ -276,14 +279,11 @@ export function selectDiverseExemplars<T extends { col: number; row: number }>(
 }
 
 /**
- * Cached by document revision and the reference image's own `ref` - both
- * change whenever anything this depends on does (a new placement, an
- * accepted suggestion, moving or replacing the photo), and neither changes
- * on the vast majority of calls, which is every cell scanned during one
- * drag. Without this, painting a row re-cropped and re-binarized every
- * confirmed exemplar on every single cell it passed over.
+ * Cached by the confirmed placements and the image geometry they sample.
+ * Suggested placements deliberately do not affect this key, so adding a
+ * suggestion during a drag does not re-crop every confirmed exemplar.
  */
-let cachedFor: { revision: number; ref: string } | null = null;
+let cachedFor: { fingerprint: string; ref: string; imageGeometry: string } | null = null;
 let cachedExemplars: Map<string, BinaryGrid[]> | null = null;
 
 export function extractExemplars(
@@ -292,17 +292,31 @@ export function extractExemplars(
   imageElement: CanvasImageSource,
   revision: number,
 ): Map<string, BinaryGrid[]> {
+  // Suggested-only changes deliberately do not invalidate this cache.
+  void revision;
+  const confirmedPlacements = index.toArray().filter((p) => !p.suggested);
+  const fingerprint = confirmedPlacements
+    .map((p) => `${p.id}:${p.symbolId}:${p.col}:${p.row}`)
+    .join("|");
+  const imageGeometry = [
+    referenceImage.x,
+    referenceImage.y,
+    referenceImage.width,
+    referenceImage.height,
+    referenceImage.naturalWidth,
+    referenceImage.naturalHeight,
+  ].join(":");
   if (
     cachedExemplars &&
-    cachedFor?.revision === revision &&
-    cachedFor?.ref === referenceImage.ref
+    cachedFor?.fingerprint === fingerprint &&
+    cachedFor.ref === referenceImage.ref &&
+    cachedFor.imageGeometry === imageGeometry
   ) {
     return cachedExemplars;
   }
 
   const bySymbol = new Map<string, Array<{ col: number; row: number }>>();
-  for (const p of index.toArray()) {
-    if (p.suggested) continue;
+  for (const p of confirmedPlacements) {
     if (!cellWithinReferenceImage(referenceImage, p.col, p.row)) continue;
     const list = bySymbol.get(p.symbolId) ?? [];
     list.push({ col: p.col, row: p.row });
@@ -325,8 +339,14 @@ export function extractExemplars(
     if (grids.length) map.set(symbolId, grids);
   }
 
-  cachedFor = { revision, ref: referenceImage.ref };
-  cachedExemplars = map;
+  const imageLoaded =
+    typeof HTMLImageElement === "undefined" ||
+    !(imageElement instanceof HTMLImageElement) ||
+    (imageElement.complete && imageElement.naturalWidth > 0);
+  if (imageLoaded) {
+    cachedFor = { fingerprint, ref: referenceImage.ref, imageGeometry };
+    cachedExemplars = map;
+  }
   return map;
 }
 
