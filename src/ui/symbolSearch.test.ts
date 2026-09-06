@@ -40,6 +40,12 @@ describe("searchSymbols", () => {
     expect(ids("no stitch")).toEqual(["empty"]);
   });
 
+  it("matches common abbreviations and their expanded knitting names", () => {
+    expect(ids("knit two together")).toEqual(expect.arrayContaining(["k2tog", "k2tog_alt"]));
+    expect(ids("make one left")).toContain("m1l");
+    expect(ids("slip slip knit")).toEqual(expect.arrayContaining(["skpo", "ssk_alt"]));
+  });
+
   it("matches the prose descriptions that became labels", () => {
     expect(ids("back loop")).toEqual(expect.arrayContaining(["ktbl", "ptbl"]));
   });

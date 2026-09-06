@@ -58,7 +58,40 @@ const QUICK_SLOT_STORAGE_KEY = "stitch-ease:quick-symbols";
 
 export function assignQuickSymbol(slots: string[], id: string): string[] {
   if (slots.includes(id)) return slots;
+  const openSlot = slots.indexOf("");
+  if (openSlot !== -1) {
+    return slots.map((slot, index) => (index === openSlot ? id : slot));
+  }
   return [...slots, id];
+}
+
+/**
+ * Swaps a quick stitch with its neighbouring slot. Empty slots deliberately
+ * participate in the swap: moving into one changes the number-key shortcut
+ * without renumbering the other stitches.
+ */
+export function moveQuickSymbol(slots: string[], id: string, direction: -1 | 1): string[] {
+  const from = slots.indexOf(id);
+  const to = from + direction;
+  if (from === -1 || to < 0) return slots;
+
+  const next = [...slots];
+  while (next.length <= to) next.push("");
+  [next[from], next[to]] = [next[to]!, next[from]!];
+  return next;
+}
+
+/** Moves a stitch to a slot by walking it through its adjacent neighbours. */
+export function moveQuickSymbolTo(slots: string[], id: string, targetSlot: number): string[] {
+  const start = slots.indexOf(id);
+  if (start === -1 || start === targetSlot || targetSlot < 0) return slots;
+
+  let next = slots;
+  const direction: -1 | 1 = targetSlot < start ? -1 : 1;
+  for (let slot = start; slot !== targetSlot; slot += direction) {
+    next = moveQuickSymbol(next, id, direction);
+  }
+  return next;
 }
 
 function loadQuickSymbolIds(): string[] {
@@ -66,7 +99,16 @@ function loadQuickSymbolIds(): string[] {
   try {
     const stored: unknown = JSON.parse(localStorage.getItem(QUICK_SLOT_STORAGE_KEY) ?? "[]");
     if (!Array.isArray(stored)) return [];
-    return [...new Set(stored.filter((id): id is string => typeof id === "string"))];
+    const seen = new Set<string>();
+    return stored.flatMap((id) => {
+      // Empty strings are deliberate vacant slots. Keep every one so a
+      // removed shortcut never causes its neighbours to slide into a new
+      // number after a reload.
+      if (id === "") return [id];
+      if (typeof id !== "string" || seen.has(id)) return [];
+      seen.add(id);
+      return [id];
+    });
   } catch {
     return [];
   }
@@ -130,8 +172,8 @@ type UiState = {
   lastClearedSelection: string[] | null;
 
   /**
-   * Whether the reference-image panel is open. While it is, and the image
-   * is unlocked, dragging it on the canvas moves/resizes it instead of
+   * Whether the reference-image panel is open. While it is, dragging the
+   * reference image on the canvas moves/resizes it instead of
    * whatever the active tool would otherwise do there - closing the panel
    * hands the canvas back entirely, so there's no lingering mode to
    * accidentally leave on.
@@ -194,8 +236,10 @@ type UiState = {
   setArmedSymbolId: (id: string | null) => void;
   /** Arms `id`; lands back on `tool` (Draw by default - Insert stays Insert). */
   chooseSymbol: (id: string, tool?: Tool) => void;
-  /** Removes a stitch from its quick-access assignment. */
+  /** Clears a stitch's quick-access assignment without moving other slots. */
   removeQuickSymbol: (id: string) => void;
+  /** Reorders a quick stitch, updating the number-key shortcuts. */
+  moveQuickSymbolTo: (id: string, targetSlot: number) => void;
   openPicker: (target: PickerTarget) => void;
   closePicker: () => void;
   selectPlacement: (id: string, additive: boolean) => void;
@@ -321,13 +365,24 @@ export const useUiStore = create<UiState>((set, get) => ({
 
   removeQuickSymbol: (id) => {
     const state = get();
-    const quickSymbolIds = state.quickSymbolIds.filter((symbolId) => symbolId !== id);
-    if (quickSymbolIds.length === state.quickSymbolIds.length) return;
+    const slot = state.quickSymbolIds.indexOf(id);
+    if (slot === -1) return;
+    const quickSymbolIds = state.quickSymbolIds.map((symbolId, index) =>
+      index === slot ? "" : symbolId,
+    );
     saveQuickSymbolIds(quickSymbolIds);
     set({
       quickSymbolIds,
       ...(state.armedSymbolId === id ? { armedSymbolId: null } : {}),
     });
+  },
+
+  moveQuickSymbolTo: (id, targetSlot) => {
+    const current = get().quickSymbolIds;
+    const quickSymbolIds = moveQuickSymbolTo(current, id, targetSlot);
+    if (quickSymbolIds === current) return;
+    saveQuickSymbolIds(quickSymbolIds);
+    set({ quickSymbolIds });
   },
 
   openPicker: (picker) => set({ picker }),

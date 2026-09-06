@@ -9,17 +9,23 @@ import { ReferenceImagePanel } from "./ReferenceImagePanel";
 import { SymbolGlyph } from "./SymbolGlyph";
 import { searchSymbols } from "./symbolSearch";
 
+/** Every fresh pattern starts with the two foundational knit stitches. */
+const DEFAULT_GLOSSARY_IDS = ["knit", "purl"];
+
 const loadGlossaryIds = (chartId?: string): string[] => {
   if (!chartId || typeof localStorage === "undefined") return [];
   try {
-    const stored: unknown = JSON.parse(
-      localStorage.getItem(`stitch-ease:glossary:${chartId}`) ?? "[]",
-    );
+    const raw = localStorage.getItem(`stitch-ease:glossary:${chartId}`);
+    // No chart-specific glossary has been saved yet: start with the two
+    // stitches every pattern is likely to need. Once a designer removes one,
+    // their explicit stored list (including an empty one) takes precedence.
+    if (raw === null) return [...DEFAULT_GLOSSARY_IDS];
+    const stored: unknown = JSON.parse(raw);
     return Array.isArray(stored)
       ? stored.filter((id): id is string => typeof id === "string")
-      : [];
+      : [...DEFAULT_GLOSSARY_IDS];
   } catch {
-    return [];
+    return [...DEFAULT_GLOSSARY_IDS];
   }
 };
 
@@ -30,6 +36,8 @@ export function RightPanel() {
   const [glossaryQuery, setGlossaryQuery] = useState("");
   const [searchSlot, setSearchSlot] = useState<number | null>(null);
   const [activeGlossaryResult, setActiveGlossaryResult] = useState(0);
+  const [draggingQuickId, setDraggingQuickId] = useState<string | null>(null);
+  const [dragOverQuickId, setDragOverQuickId] = useState<string | null>(null);
   const [addedGlossaryIds, setAddedGlossaryIds] = useState<string[]>(() =>
     loadGlossaryIds(useDocStore.getState().meta?.id),
   );
@@ -47,6 +55,7 @@ export function RightPanel() {
   const tool = useUiStore((state) => state.tool);
   const quickSymbolIds = useUiStore((state) => state.quickSymbolIds);
   const removeQuickSymbol = useUiStore((state) => state.removeQuickSymbol);
+  const moveQuickSymbolTo = useUiStore((state) => state.moveQuickSymbolTo);
   const setArmedSymbolId = useUiStore((state) => state.setArmedSymbolId);
   const zoom = useUiStore((state) => state.camera.zoom);
   const viewport = useUiStore((state) => state.viewport);
@@ -382,16 +391,54 @@ export function RightPanel() {
                   key={id}
                   className="glossary__item"
                   data-on={id === armedSymbolId && tool === "stitch"}
+                  data-drag-over={dragOverQuickId === id}
+                  onDragOver={(event) => {
+                    if (draggingQuickId && draggingQuickId !== id) {
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = "move";
+                      setDragOverQuickId(id);
+                    }
+                  }}
+                  onDragLeave={() => setDragOverQuickId((current) => current === id ? null : current)}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    const draggedId = draggingQuickId;
+                    if (draggedId && draggedId !== id) moveQuickSymbolTo(draggedId, slot);
+                    setDraggingQuickId(null);
+                    setDragOverQuickId(null);
+                  }}
                 >
+                  <button
+                    type="button"
+                    draggable
+                    className="glossary__dragHandle"
+                    onDragStart={(event) => {
+                      event.dataTransfer.effectAllowed = "move";
+                      event.dataTransfer.setData("text/plain", symbol.id);
+                      setDraggingQuickId(symbol.id);
+                    }}
+                    onDragEnd={() => {
+                      setDraggingQuickId(null);
+                      setDragOverQuickId(null);
+                    }}
+                    aria-label={`Drag to reorder ${symbol.label}`}
+                    title="Drag to reorder"
+                  >
+                    <svg viewBox="0 0 16 16" aria-hidden="true">
+                      <circle cx="5" cy="3.5" r="1" /><circle cx="11" cy="3.5" r="1" />
+                      <circle cx="5" cy="8" r="1" /><circle cx="11" cy="8" r="1" />
+                      <circle cx="5" cy="12.5" r="1" /><circle cx="11" cy="12.5" r="1" />
+                    </svg>
+                  </button>
+                  {slot < 5 ? (
+                    <kbd className="glossary__shortcut" aria-label={`Shortcut ${slot + 1}`}>{slot + 1}</kbd>
+                  ) : <span className="glossary__shortcutSpacer" />}
                   <button
                     type="button"
                     className="glossary__arm"
                     onClick={() => setArmedSymbolId(id)}
                     title={`Draw with ${symbol.label} (${slot + 1})`}
                   >
-                    {slot < 5 ? (
-                      <kbd className="glossary__shortcut" aria-label={`Shortcut ${slot + 1}`}>{slot + 1}</kbd>
-                    ) : <span className="glossary__shortcutSpacer" />}
                     <span className="glossary__glyph">
                       <SymbolGlyph symbol={symbol} cell={Math.max(7, Math.min(20, 54 / symbol.span))} />
                     </span>
@@ -468,6 +515,13 @@ export function RightPanel() {
                   onClick={() => searchForQuickStitch(slot)}
                   title={slot < 5 ? `Choose a stitch for shortcut ${slot + 1}` : "Add another stitch"}
                 >
+                  <span className="glossary__dragHandle glossary__dragHandle--empty" aria-hidden="true">
+                    <svg viewBox="0 0 16 16">
+                      <circle cx="5" cy="3.5" r="1" /><circle cx="11" cy="3.5" r="1" />
+                      <circle cx="5" cy="8" r="1" /><circle cx="11" cy="8" r="1" />
+                      <circle cx="5" cy="12.5" r="1" /><circle cx="11" cy="12.5" r="1" />
+                    </svg>
+                  </span>
                   {slot < 5 ? <kbd className="glossary__shortcut">{slot + 1}</kbd> : <span className="glossary__shortcutSpacer" />}
                   <span className="glossary__emptyGlyph" aria-hidden="true">+</span>
                   <span className="glossary__label">Add stitch</span>
@@ -562,7 +616,7 @@ export function RightPanel() {
               <dt><kbd>1–5</kbd></dt><dd>Choose a quick stitch</dd>
               <dt><kbd>Tab</kbd> / <kbd>Shift Tab</kbd></dt><dd>Next stitch right / left</dd>
               <dt><kbd>Shift click</kbd></dt><dd>Add or remove from selection</dd>
-              <dt><kbd>⌘/Ctrl C</kbd> <kbd>X</kbd> <kbd>V</kbd></dt><dd>Copy, cut, paste</dd>
+              <dt><kbd>⌘/Ctrl C</kbd> <kbd>X</kbd> <kbd>V</kbd></dt><dd>Copy or cut selection · paste at hovered cell</dd>
               <dt><kbd>⌘/Ctrl D</kbd></dt><dd>Duplicate selection</dd>
               <dt><kbd>⌘/Ctrl G</kbd></dt><dd>Create repeat</dd>
               <dt><kbd>⌘/Ctrl Z</kbd></dt><dd>Undo</dd>

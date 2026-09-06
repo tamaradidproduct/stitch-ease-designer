@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { worldToScreen } from "../canvas/camera";
 import { patchCalibrationMark, withoutCalibrationMark } from "../model/referenceCalibration";
 import { useDocStore } from "../state/docStore";
@@ -15,7 +15,7 @@ import { useUiStore } from "../state/uiStore";
  * rows to check you matched the right one.
  */
 /** Roughly the popover's rendered width, for deciding which side to open on. */
-const POPOVER_WIDTH = 210;
+const POPOVER_WIDTH = 300;
 const GAP = 26;
 
 export function ReferenceMarkEditor() {
@@ -26,7 +26,9 @@ export function ReferenceMarkEditor() {
   const viewport = useUiStore((s) => s.viewport);
   const image = useDocStore((s) => s.referenceImage);
   const updateReferenceImage = useDocStore((s) => s.updateReferenceImage);
+  const rowInput = useRef<HTMLInputElement | null>(null);
   const stitchInput = useRef<HTMLInputElement | null>(null);
+  const [activeField, setActiveField] = useState<"row" | "stitch">("row");
 
   const points = image?.calibrationMarks ?? [];
   const index = points.findIndex((p) => p.id === activeId);
@@ -36,7 +38,10 @@ export function ReferenceMarkEditor() {
   // Keyed on the id alone, not the point: re-focusing whenever its numbers
   // change would fight the caret while they are being typed.
   useEffect(() => {
-    if (activePointId) stitchInput.current?.focus();
+    if (activePointId) {
+      setActiveField("row");
+      rowInput.current?.focus();
+    }
   }, [activePointId]);
 
   if (!marking || !image || !point) return null;
@@ -71,6 +76,33 @@ export function ReferenceMarkEditor() {
     return Number.isSafeInteger(parsed) && parsed >= 1 ? parsed : null;
   };
 
+  // Start with 1 — the most common edge label — then offer every number
+  // already entered for this photo. One shared row keeps the prompt compact;
+  // it fills whichever field the designer most recently focused.
+  const quickValues = [...new Set([1, ...points.flatMap((candidate) =>
+    [candidate.row, candidate.stitch].flatMap((value) => (value === null ? [] : [value])),
+  )])].sort((a, b) => a - b);
+
+  const valueShortcuts = (
+    <div className="markpop__shortcuts" aria-label={`${activeField} shortcuts`}>
+      {quickValues.map((value) => (
+        <button
+          key={value}
+          type="button"
+          className="markpop__shortcut"
+          data-active={point[activeField] === value}
+          title={`Use ${activeField === "row" ? "row" : "stitch"} ${value}`}
+          onClick={() => {
+            set(activeField === "row" ? { row: value } : { stitch: value });
+            (activeField === "row" ? rowInput : stitchInput).current?.focus();
+          }}
+        >
+          {value}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
     <div
       className="markpop"
@@ -93,27 +125,37 @@ export function ReferenceMarkEditor() {
       }}
     >
       <span className="markpop__index">{index + 1}</span>
-      <label>
-        <span>st</span>
-        <input
-          ref={stitchInput}
-          type="number"
-          min="1"
-          step="1"
-          value={point.stitch ?? ""}
-          onChange={(e) => set({ stitch: parse(e.target.value) })}
-        />
-      </label>
-      <label>
-        <span>row</span>
-        <input
-          type="number"
-          min="1"
-          step="1"
-          value={point.row ?? ""}
-          onChange={(e) => set({ row: parse(e.target.value) })}
-        />
-      </label>
+      <div className="markpop__fields">
+        <div className="markpop__field">
+          <label>
+            <span>row</span>
+            <input
+              ref={rowInput}
+              type="number"
+              min="1"
+              step="1"
+              value={point.row ?? ""}
+              onFocus={() => setActiveField("row")}
+              onChange={(e) => set({ row: parse(e.target.value) })}
+            />
+          </label>
+        </div>
+        <div className="markpop__field">
+          <label>
+            <span>st</span>
+            <input
+              ref={stitchInput}
+              type="number"
+              min="1"
+              step="1"
+              value={point.stitch ?? ""}
+              onFocus={() => setActiveField("stitch")}
+              onChange={(e) => set({ stitch: parse(e.target.value) })}
+            />
+          </label>
+        </div>
+        {valueShortcuts}
+      </div>
       <button type="button" className="markpop__remove" title="Remove this box" onClick={remove}>
         &times;
       </button>
