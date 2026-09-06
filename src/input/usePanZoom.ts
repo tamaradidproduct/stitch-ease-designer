@@ -26,15 +26,13 @@ export function usePanZoom(ref: RefObject<HTMLCanvasElement | null>): void {
     if (!canvas) return;
 
     const ui = useUiStore.getState;
-    // A picker or reference-image editor is a focused contextual task. Keep
-    // drag-to-pan (space+drag, middle-drag) and the Space key itself out of
-    // its way, so space still works in search and number fields.
-    const canPan = () => !ui().picker && !ui().referenceImagePanelOpen;
-    // Wheel/trackpad scroll isn't a keyboard gesture and can't collide with
-    // typing in the picker's search field, so a picker being open shouldn't
-    // trap the view in place - only the reference-image editor (its own,
-    // different focused task) still blocks it.
-    const canScrollPan = () => !ui().referenceImagePanelOpen;
+    // The stitch picker is a focused text-entry task, but the reference-image
+    // editor remains a canvas workspace where panning is essential for lining
+    // up a large image. Keep only the picker out of the pan gesture.
+    const canPan = () => !ui().picker;
+    // Wheel and trackpad gestures do not compete with text entry, so they can
+    // keep the canvas navigable while either contextual UI is open.
+    const canScrollPan = () => true;
 
     // Cached instead of read on every wheel/pointermove, since
     // getBoundingClientRect forces a layout read. Refreshed whenever the

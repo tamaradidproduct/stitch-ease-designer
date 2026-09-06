@@ -46,6 +46,11 @@ export function CanvasView() {
   useDocStore((s) => s.revision);
   const cursor = useUiStore((s) => {
     if (s.picker) return "default";
+    // Space is a canvas-level pan modifier. It deliberately wins even while
+    // editing a reference image, otherwise the image's move/resize cursor
+    // implies the next drag will edit the image rather than pan the view.
+    if (s.isPanning) return GRABBING_CURSOR;
+    if (s.spaceHeld) return GRAB_CURSOR;
     // The panel owns the canvas entirely while it's open - every state below
     // this is about a tool it has already overridden the hover/selection
     // feedback for.
@@ -73,8 +78,6 @@ export function CanvasView() {
       if (s.selectionMove.blocked) return BLOCKED_MOVE_CURSOR;
       return s.selectionMove.duplicating ? DUPLICATE_CURSOR : GRABBING_CURSOR;
     }
-    if (s.isPanning) return GRABBING_CURSOR;
-    if (s.spaceHeld) return GRAB_CURSOR;
     if (s.keyboardSelectionActive) return "default";
     // An existing selection is draggable from any tool, so its own cells
     // always get the "grab" cursor - checked before the tool-specific cases.
