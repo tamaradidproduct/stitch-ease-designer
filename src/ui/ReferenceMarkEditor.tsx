@@ -94,7 +94,16 @@ export function ReferenceMarkEditor() {
           title={`Use ${activeField === "row" ? "row" : "stitch"} ${value}`}
           onClick={() => {
             set(activeField === "row" ? { row: value } : { stitch: value });
-            (activeField === "row" ? rowInput : stitchInput).current?.focus();
+            // A quick value completes the field the designer was reading.
+            // Move straight to the next field in the transcription order so
+            // they can continue without an extra click. Stitch is the last
+            // field, so its shortcuts deliberately keep focus there.
+            if (activeField === "row") {
+              setActiveField("stitch");
+              requestAnimationFrame(() => stitchInput.current?.focus());
+            } else {
+              requestAnimationFrame(() => stitchInput.current?.focus());
+            }
           }}
         >
           {value}

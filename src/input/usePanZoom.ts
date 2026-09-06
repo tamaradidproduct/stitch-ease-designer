@@ -26,9 +26,10 @@ export function usePanZoom(ref: RefObject<HTMLCanvasElement | null>): void {
     if (!canvas) return;
 
     const ui = useUiStore.getState;
-    // A picker or reference-image editor is a focused contextual task. Keep
-    // panning out of its way so space still works in search and number fields.
-    const canPan = () => !ui().picker && !ui().referenceImagePanelOpen;
+    // The stitch picker is a focused text-entry task, but the reference-image
+    // editor remains a canvas workspace where panning is essential for lining
+    // up a large image. Keep only the picker out of the pan gesture.
+    const canPan = () => !ui().picker;
 
     // Cached instead of read on every wheel/pointermove, since
     // getBoundingClientRect forces a layout read. Refreshed whenever the
