@@ -222,6 +222,7 @@ export function StitchPicker() {
     // arm whatever the designer just picked - Suggest stays armed so a
     // review pass can keep going cell by cell.
     if (target.reviewingSuggestion) {
+      useUiStore.getState().setReferenceImageUnrecognized(`${target.col},${target.row}`, false);
       closePicker();
       return;
     }
