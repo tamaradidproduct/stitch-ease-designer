@@ -172,6 +172,7 @@ export async function exportChartImage(
     revision: 0,
     sprites,
     referenceImage: null,
+    referenceImageUnrecognized: new Set(),
     referenceImageCache: new ReferenceImageCache(() => {}),
     referenceImagePanelOpen: false,
     referenceImageCalibrating: false,
