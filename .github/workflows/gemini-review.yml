@@ -72,7 +72,7 @@ jobs:
           settings: |-
             {
               "model": {
-                "maxSessionTurns": 5
+                "maxSessionTurns": 15
               },
               "telemetry": {
                 "enabled": true,
@@ -106,7 +106,11 @@ jobs:
                   "run_shell_command(echo)",
                   "run_shell_command(grep)",
                   "run_shell_command(head)",
-                  "run_shell_command(tail)"
+                  "run_shell_command(tail)",
+                  "run_shell_command(git diff)",
+                  "run_shell_command(git log)",
+                  "run_shell_command(git show)",
+                  "run_shell_command(git status)"
                 ]
               }
             }
