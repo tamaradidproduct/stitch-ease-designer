@@ -320,6 +320,10 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
 
     const onPointerDown = (e: PointerEvent) => {
       if (e.button !== 0 || !useUiStore.getState().referenceImagePanelOpen) return;
+      // Space is the app-wide pan modifier. Do not claim an image drag while
+      // it is held: returning here lets the subsequently registered pan
+      // handler take the same pointerdown and move the canvas instead.
+      if (useUiStore.getState().spaceHeld) return;
       const image = useDocStore.getState().referenceImage;
       if (!image) return;
 
