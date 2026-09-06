@@ -191,7 +191,8 @@ export function CanvasView() {
         state.referenceImageCalibrationBox !== prev.referenceImageCalibrationBox ||
         state.referenceImageActiveMark !== prev.referenceImageActiveMark ||
         state.referenceImageMarking !== prev.referenceImageMarking ||
-        state.referenceImageUnrecognized !== prev.referenceImageUnrecognized
+        state.referenceImageUnrecognized !== prev.referenceImageUnrecognized ||
+        state.altHeld !== prev.altHeld
       ) {
         markDirty();
       }
