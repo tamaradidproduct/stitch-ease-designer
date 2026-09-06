@@ -57,6 +57,21 @@ export type RenderState = {
   stitchHighlightOpacity: number;
   selectionBox: SelectionBox | null;
   selectionMove: SelectionMove | null;
+  /**
+   * True for a static, non-interactive render (image export) - suppresses
+   * the ruler band, which otherwise always paints its background/border
+   * chrome even with nothing hovered and would show up as a stray strip in
+   * an exported image.
+   */
+  staticExport?: boolean;
+  /**
+   * Scales the knitter-facing row/stitch number labels (font and badge size)
+   * drawn by `drawGroupNumbering`. Undefined/1 for the live canvas, where
+   * that labelling is deliberately a constant on-screen size regardless of
+   * zoom; an image export instead wants those labels to grow with the cells
+   * like the rest of the chart, since there's no live zoom to compensate.
+   */
+  numberScale?: number;
 };
 
 /**
@@ -287,8 +302,15 @@ function drawGroupNumbering(ctx: CanvasRenderingContext2D, state: RenderState): 
   const size = cellPx(cam);
   if (size < 10) return;
 
+  const scale = state.numberScale ?? 1;
+  const rowOffset = 9 * scale;
+  const badge = 14 * scale;
+  const halfBadge = badge / 2;
+  const stitchOffset = 12 * scale;
+  const widthPad = 6 * scale;
+
   ctx.save();
-  ctx.font = '10px ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace';
+  ctx.font = `${10 * scale}px ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
@@ -305,12 +327,12 @@ function drawGroupNumbering(ctx: CanvasRenderingContext2D, state: RenderState): 
       if (numberingHiddenAt(index, hover, minCol - 1, row)) continue;
       const rowNumber = rowNumbers.get(row)!;
       const r = cellToScreenRect(minCol, row, cam, vp);
-      const x = r.x - 9;
+      const x = r.x - rowOffset;
       const y = r.y + r.size / 2;
       if (x <= RULER || y <= RULER || y >= vp.height) continue;
       const label = String(rowNumber);
       ctx.fillStyle = "rgba(255, 255, 255, 0.88)";
-      ctx.fillRect(x - 7, y - 7, 14, 14);
+      ctx.fillRect(x - halfBadge, y - halfBadge, badge, badge);
       ctx.fillStyle = theme.rulerText;
       ctx.fillText(label, x, y);
     }
@@ -324,11 +346,11 @@ function drawGroupNumbering(ctx: CanvasRenderingContext2D, state: RenderState): 
       if (numberingHiddenAt(index, hover, col, minRow - 1)) continue;
       const r = cellToScreenRect(col, minRow, cam, vp);
       const x = r.x + r.size / 2;
-      const y = r.y + r.size + 12;
+      const y = r.y + r.size + stitchOffset;
       if (x <= RULER || x >= vp.width || y <= RULER || y >= vp.height) continue;
-      const width = Math.max(14, ctx.measureText(label).width + 6);
+      const width = Math.max(badge, ctx.measureText(label).width + widthPad);
       ctx.fillStyle = "rgba(255, 255, 255, 0.88)";
-      ctx.fillRect(x - width / 2, y - 7, width, 14);
+      ctx.fillRect(x - width / 2, y - halfBadge, width, badge);
       ctx.fillStyle = theme.rulerText;
       ctx.fillText(label, x, y);
     }
@@ -837,7 +859,7 @@ export function render(ctx: CanvasRenderingContext2D, state: RenderState): void 
   drawPickerTarget(ctx, state);
   drawUnrecognizedCells(ctx, state);
   drawReferenceImageOverlay(ctx, state);
-  drawRulers(ctx, state);
+  if (!state.staticExport) drawRulers(ctx, state);
 }
 
 /** World-space size of one cell, re-exported for callers that need it. */

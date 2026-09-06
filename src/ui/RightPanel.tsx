@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { allSymbols, getSymbol } from "../symbols/registry";
 import { CELL } from "../canvas/camera";
+import { exportChartCsv } from "../storage/exportCsv";
+import { type ImageFormat, exportChartImage } from "../storage/exportImage";
 import { exportChart } from "../storage/exportImport";
 import { cellWithinReferenceImage } from "../canvas/referenceImageCrop";
 import { useDocStore } from "../state/docStore";
@@ -38,6 +40,9 @@ export function RightPanel() {
   const [activeGlossaryResult, setActiveGlossaryResult] = useState(0);
   const [draggingQuickId, setDraggingQuickId] = useState<string | null>(null);
   const [dragOverQuickId, setDragOverQuickId] = useState<string | null>(null);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportBusy, setExportBusy] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [addedGlossaryIds, setAddedGlossaryIds] = useState<string[]>(() =>
     loadGlossaryIds(useDocStore.getState().meta?.id),
   );
@@ -572,28 +577,71 @@ export function RightPanel() {
 
       <ReferenceImagePanel />
 
+      <div className="rightPanel__bottom">
       <section className="sideModule">
-        <div className="sideModule__header">
+        <button
+          type="button"
+          className="sideModule__header sideModule__toggle"
+          onClick={() => setExportOpen((open) => !open)}
+          aria-expanded={exportOpen}
+        >
           <div>
             <h2>Export</h2>
             <span>Share or save this pattern</span>
           </div>
-        </div>
-        <div className="sideModule__body">
-          <button
-            type="button"
-            className="btn"
-            disabled={!meta}
-            onClick={() => {
-              if (meta) void exportChart(meta.name, index.toArray(), repeats, referenceImage ?? undefined);
-            }}
-          >
-            Export chart
-          </button>
-        </div>
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" data-open={exportOpen}>
+            <path d="m4 6 4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+          </svg>
+        </button>
+        {exportOpen && (
+          <div className="sideModule__body">
+            <div className="refpanel__actions">
+              <button
+                type="button"
+                className="btn"
+                disabled={!meta}
+                onClick={() => {
+                  if (meta) void exportChart(meta.name, index.toArray(), repeats, referenceImage ?? undefined);
+                }}
+              >
+                Stitch Ease file
+              </button>
+              <button
+                type="button"
+                className="btn"
+                disabled={!meta}
+                onClick={() => {
+                  if (meta) exportChartCsv(meta.name, index.toArray());
+                }}
+              >
+                CSV
+              </button>
+              {(["png", "jpg"] as ImageFormat[]).map((format) => (
+                <button
+                  key={format}
+                  type="button"
+                  className="btn"
+                  disabled={!meta || !!exportBusy}
+                  onClick={() => {
+                    if (!meta) return;
+                    setExportError(null);
+                    setExportBusy(format);
+                    exportChartImage(meta.name, index.toArray(), format)
+                      .catch((error: unknown) =>
+                        setExportError(error instanceof Error ? error.message : "Could not export the image"),
+                      )
+                      .finally(() => setExportBusy(null));
+                  }}
+                >
+                  {exportBusy === format ? "Exporting…" : format.toUpperCase()}
+                </button>
+              ))}
+            </div>
+            {exportError && <p className="refpanel__error">{exportError}</p>}
+          </div>
+        )}
       </section>
 
-      <div className="rightPanel__bottom">
       <section className="sideModule">
         <button
           type="button"

@@ -2,6 +2,7 @@ import type { DocMeta, Placement, ReferenceImage, RepeatDefinition } from "../mo
 import { getSymbol } from "../symbols/registry";
 import { DEFAULT_CHART_NAME, type DocStore } from "./DocStore";
 import { decode, encode, type StoredChart } from "./serialize";
+import { downloadBlob, safeFilename } from "./download";
 import { resolveReferenceImageUrl, uploadReferenceImage } from "./referenceImages";
 
 /**
@@ -15,9 +16,6 @@ import { resolveReferenceImageUrl, uploadReferenceImage } from "./referenceImage
 
 /** The file format: the stored chart, plus enough context to be self-describing. */
 export type ChartFile = StoredChart & { name: string; exportedAt: string };
-
-const safeFilename = (name: string) =>
-  `${name.trim().replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "") || "chart"}.stitchchart.json`;
 
 const dataUrlFor = (blob: Blob): Promise<string> =>
   new Promise((resolve, reject) => {
@@ -46,20 +44,10 @@ export async function exportChart(
     exportedAt: new Date().toISOString(),
   };
 
-  const url = URL.createObjectURL(
+  downloadBlob(
     new Blob([JSON.stringify(file, null, 2)], { type: "application/json" }),
+    safeFilename(name, "stitchchart.json"),
   );
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = safeFilename(name);
-  // Some browsers only honour a click on an anchor that's actually in the
-  // document.
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  // Revoking immediately can cancel the download in some browsers; a tick is
-  // enough for the click to have been handled.
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 export type ImportedChart = {
