@@ -55,6 +55,7 @@ export function RightPanel() {
   useDocStore((state) => state.revision);
   const acceptSuggestions = useDocStore((state) => state.acceptSuggestions);
   const erasePlacements = useDocStore((state) => state.erasePlacements);
+  const isAdmin = useUiStore((state) => state.role === "admin");
   const chooseSymbol = useUiStore((state) => state.chooseSymbol);
   const armedSymbolId = useUiStore((state) => state.armedSymbolId);
   const tool = useUiStore((state) => state.tool);
@@ -312,42 +313,44 @@ export function RightPanel() {
         )}
         <div className="sideModule__body">
           <div className="glossary">
-            <div className="glossary__item" data-on={armedSymbolId === SUGGEST_SYMBOL_ID && tool === "stitch"}>
-              <span className="glossary__dragHandle glossary__dragHandle--empty" aria-hidden="true" />
-              <kbd className="glossary__shortcut" aria-label="Shortcut G">G</kbd>
-              <button
-                type="button"
-                className="glossary__arm"
-                onClick={() => setArmedSymbolId(SUGGEST_SYMBOL_ID)}
-                title="Draw with Suggest (G) - matches each cell against stitches you've already confirmed over the reference image. Cmd/Ctrl-click a suggestion to confirm it, or Cmd/Ctrl-click with a stitch armed to confirm it as that stitch instead. Alt-click dismisses it - all of this drags and Shift straight-lines/gap-fills the same way Draw does."
-              >
-                <span className="glossary__glyph" aria-hidden="true">
-                  <svg viewBox="0 0 20 20" width="16" height="16">
-                    <path
-                      d="M4 16 13 7m2.5-2.5L17 3M6 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1Z"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.4"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </span>
-                <span className="glossary__label">Suggest</span>
-                <span
-                  className="glossary__count"
-                  title={
-                    suggestTaughtCount > 0
-                      ? `Recognizes ${suggestTaughtCount} stitch type${suggestTaughtCount === 1 ? "" : "s"} you've confirmed over the reference image`
-                      : "Confirm at least one stitch over the reference image first"
-                  }
+            {isAdmin && (
+              <div className="glossary__item" data-on={armedSymbolId === SUGGEST_SYMBOL_ID && tool === "stitch"}>
+                <span className="glossary__dragHandle glossary__dragHandle--empty" aria-hidden="true" />
+                <kbd className="glossary__shortcut" aria-label="Shortcut G">G</kbd>
+                <button
+                  type="button"
+                  className="glossary__arm"
+                  onClick={() => setArmedSymbolId(SUGGEST_SYMBOL_ID)}
+                  title="Draw with Suggest (G) - matches each cell against stitches you've already confirmed over the reference image. Cmd/Ctrl-click a suggestion to confirm it, or Cmd/Ctrl-click with a stitch armed to confirm it as that stitch instead. Alt-click dismisses it - all of this drags and Shift straight-lines/gap-fills the same way Draw does."
                 >
-                  {suggestTaughtCount}
-                </span>
-              </button>
-              <span className="glossary__removeSlot" aria-hidden="true" />
-            </div>
-            {(suggestedCount > 0 || unrecognizedCount > 0) && (
+                  <span className="glossary__glyph" aria-hidden="true">
+                    <svg viewBox="0 0 20 20" width="16" height="16">
+                      <path
+                        d="M4 16 13 7m2.5-2.5L17 3M6 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1Z"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.4"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </span>
+                  <span className="glossary__label">Suggest</span>
+                  <span
+                    className="glossary__count"
+                    title={
+                      suggestTaughtCount > 0
+                        ? `Recognizes ${suggestTaughtCount} stitch type${suggestTaughtCount === 1 ? "" : "s"} you've confirmed over the reference image`
+                        : "Confirm at least one stitch over the reference image first"
+                    }
+                  >
+                    {suggestTaughtCount}
+                  </span>
+                </button>
+                <span className="glossary__removeSlot" aria-hidden="true" />
+              </div>
+            )}
+            {isAdmin && (suggestedCount > 0 || unrecognizedCount > 0) && (
               <div className="glossary__suggestReview">
                 {suggestedCount > 0 && (
                   <div className="glossary__reviewBox">
@@ -577,7 +580,7 @@ export function RightPanel() {
         </div>
       </section>
 
-      <ReferenceImagePanel />
+      {isAdmin && <ReferenceImagePanel />}
 
       <div className="rightPanel__bottom">
       <section className="sideModule">

@@ -18,6 +18,7 @@ import { removeReferenceImageFile, uploadReferenceImage } from "../storage/refer
  * ever relevant.
  */
 export function ReferenceImagePanel() {
+  const isAdmin = useUiStore((s) => s.role === "admin");
   const open = useUiStore((s) => s.referenceImagePanelOpen);
   const setOpen = useUiStore((s) => s.setReferenceImagePanelOpen);
   const camera = useUiStore((s) => s.camera);
@@ -118,6 +119,11 @@ export function ReferenceImagePanel() {
       setBusy(false);
     }
   };
+
+  // Defensive re-check: RightPanel already doesn't render this component for
+  // a non-admin, but this keeps it inert on its own too, in case something
+  // else ever mounts it directly.
+  if (!isAdmin) return null;
 
   return (
     <section className="sideModule refpanel" data-editing={open && !!image}>

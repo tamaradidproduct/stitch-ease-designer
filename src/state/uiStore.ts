@@ -13,6 +13,18 @@ import type { BoxHandle, Placement } from "../model/types";
 export type Tool = "select" | "stitch" | "eraser" | "insert";
 
 /**
+ * Admin has full access, including the still-experimental reference-image
+ * tracer and Suggest. Designer is everyone else invited so far - unlimited
+ * charts, but those two features stay hidden until they're ready for wider
+ * use. Set once per session in App.tsx from the signed-in user's
+ * `app_metadata.role` (or "admin" outright for the DEV_SKIP_AUTH bypass),
+ * and read from here rather than threaded through props because the riskiest
+ * consumers (usePaintTool, useShortcuts) are plain hooks with no React tree
+ * back to App.tsx.
+ */
+export type Role = "admin" | "designer";
+
+/**
  * Armed like any other stitch, but painting with it runs template matching
  * against user exemplars from the reference image instead of placing a fixed symbol.
  */
@@ -152,6 +164,10 @@ type UiState = {
   stitchHighlightColor: string;
   stitchHighlightOpacity: number;
   isPanning: boolean;
+
+  /** See the `Role` type - defaults to the least-privileged designer until App.tsx sets it. */
+  role: Role;
+  setRole: (role: Role) => void;
 
   tool: Tool;
   /**
@@ -311,6 +327,10 @@ export const useUiStore = create<UiState>((set, get) => ({
   stitchHighlightColor: "#f59e0b",
   stitchHighlightOpacity: 0,
   isPanning: false,
+
+  role: "designer",
+  setRole: (role) => set({ role }),
+
   referenceImagePanelOpen: false,
   setReferenceImagePanelOpen: (open) =>
     // Closing the panel drops any in-progress calibration along with it -

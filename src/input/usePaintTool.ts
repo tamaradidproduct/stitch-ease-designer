@@ -198,6 +198,11 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
     // outcome, which is what made a low-confidence miss indistinguishable
     // from the feature silently doing nothing.
     const matchAndPlace = (cell: Cell) => {
+      // Suggest is still experimental - a single choke point for both the
+      // normal drag path and the Select-tool quick-action shortcut below,
+      // so a designer session can never trigger a match even if something
+      // upstream still manages to arm Suggest or reach this call.
+      if (ui().role !== "admin") return;
       const refImage = doc().referenceImage;
       if (!refImage || !cellWithinReferenceImage(refImage, cell.col, cell.row)) return;
       const cachedImg = getSharedReferenceImageCache().get(refImage.ref);
