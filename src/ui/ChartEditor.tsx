@@ -64,12 +64,9 @@ export function ChartEditor() {
           if (useUiStore.getState().role === "admin") {
             useDocStore.getState().openChart(loaded);
           } else {
-            useDocStore.getState().openChart({
-              meta: loaded.meta,
-              placements: loaded.placements,
-              unknownSymbolIds: loaded.unknownSymbolIds,
-              ...(loaded.repeats !== undefined ? { repeats: loaded.repeats } : null),
-            });
+            const { referenceImage, ...chartWithoutReferenceImage } = loaded;
+            void referenceImage;
+            useDocStore.getState().openChart(chartWithoutReferenceImage);
           }
           // Tools and quick slots describe the editing session, not the
           // document. A newly opened chart always starts without inheriting
