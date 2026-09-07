@@ -55,7 +55,19 @@ export function ChartEditor() {
         // The route can change while a load is in flight; applying a stale
         // result would put the wrong chart on screen under the right URL.
         if (!cancelled) {
-          useDocStore.getState().openChart(loaded);
+          // Reference-image tracing is still admin-only. A chart can carry
+          // one anyway - saved by an admin earlier, or from an imported file
+          // - so it's stripped here, at the one place charts enter the live
+          // editor, rather than trusting every downstream consumer (the
+          // canvas renderer draws it regardless of which panel is open) to
+          // each re-check the role themselves.
+          if (useUiStore.getState().role === "admin") {
+            useDocStore.getState().openChart(loaded);
+          } else {
+            const { referenceImage, ...chartWithoutReferenceImage } = loaded;
+            void referenceImage;
+            useDocStore.getState().openChart(chartWithoutReferenceImage);
+          }
           // Tools and quick slots describe the editing session, not the
           // document. A newly opened chart always starts without inheriting
           // an armed stitch, picker history, or selection from another one.

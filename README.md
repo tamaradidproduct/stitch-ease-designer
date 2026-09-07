@@ -162,6 +162,41 @@ a bucket path is how the app (and this bucket) tell the two cases apart.
 Inviting someone: Supabase dashboard → Authentication → Users → Invite user.
 Public signup is off, so this is the only way an account gets created.
 
+**Roles.** Every account is `admin` or `designer` (`src/state/uiStore.ts`'s
+`Role` type), stored in `auth.users.raw_app_meta_data.role` — no separate
+table, since `app_metadata` is already only writable by an admin/service
+role, never the signed-in user themselves, and it rides along on the session
+`useSession()` already fetches instead of costing a second round-trip.
+Anything other than exactly `"admin"` (including the field being absent,
+which is every fresh invite) is treated as `designer`. `App.tsx` reads it
+off the session once at sign-in and pushes it into `uiStore.role`, since the
+riskiest consumers (`usePaintTool.ts`, `useShortcuts.ts`) are plain hooks
+with no React tree back to where the session lives. `DEV_SKIP_AUTH` is
+always `admin` — it exists for developing the app itself.
+
+Designer is the unrestricted, invite-only tier — unlimited charts, just
+without whichever features are still marked experimental (today: the
+reference-image tracer and Suggest, gated everywhere they can be reached:
+the glossary panel UI, the bare `G` shortcut, and `usePaintTool.ts`'s
+`matchAndPlace` as a last-resort backstop). `ChartEditor.tsx` also strips a
+chart's `referenceImage` at load time for a non-admin, regardless of who
+saved it or how it got there (an admin's earlier session, an imported
+file) — the canvas renderer draws whatever `referenceImage` from `docStore`
+without checking who's looking, so hiding the panel alone isn't enough.
+
+To promote someone to admin:
+```sql
+update auth.users
+set raw_app_meta_data = raw_app_meta_data || jsonb_build_object('role', 'admin')
+where email = 'someone@example.com';
+```
+Takes effect on that person's next sign-in or automatic token refresh, not
+immediately — it's a claim baked into the JWT, not read fresh on every
+request.
+
+There's no in-app invite or role-management UI yet — both are handled by
+hand via the dashboard/SQL editor for now.
+
 ## Terminology
 
 Terms used consistently across the code and this doc.

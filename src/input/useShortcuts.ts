@@ -253,7 +253,9 @@ export function useShortcuts(): void {
         return;
       }
 
-      if (e.key.toLowerCase() === "g" && !e.metaKey && !e.ctrlKey) {
+      // Suggest is still experimental - not available to a designer even via
+      // the bare shortcut, independent of whether its glossary row is shown.
+      if (e.key.toLowerCase() === "g" && !e.metaKey && !e.ctrlKey && ui.role === "admin") {
         ui.setTool("stitch");
         ui.setArmedSymbolId(ui.armedSymbolId === SUGGEST_SYMBOL_ID ? null : SUGGEST_SYMBOL_ID);
         return;

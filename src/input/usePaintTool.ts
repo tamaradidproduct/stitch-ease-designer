@@ -198,6 +198,11 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
     // outcome, which is what made a low-confidence miss indistinguishable
     // from the feature silently doing nothing.
     const matchAndPlace = (cell: Cell) => {
+      // Suggest is still experimental - a single choke point for both the
+      // normal drag path and the Select-tool quick-action shortcut below,
+      // so a designer session can never trigger a match even if something
+      // upstream still manages to arm Suggest or reach this call.
+      if (ui().role !== "admin") return;
       const refImage = doc().referenceImage;
       if (!refImage || !cellWithinReferenceImage(refImage, cell.col, cell.row)) return;
       const cachedImg = getSharedReferenceImageCache().get(refImage.ref);
@@ -444,6 +449,14 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
           selectionStart = pickerCell;
           last = pickerCell;
           canvas.setPointerCapture(e.pointerId);
+          return;
+        }
+        // An armed click on empty space while a picker was open dismisses
+        // it (and the selection under it) rather than also painting there -
+        // this first click's job is closing the picker, full stop. A second
+        // click, with the picker now gone, paints normally.
+        if (!e.shiftKey && ui().armedSymbolId && !doc().index.placementAt(pickerCell.col, pickerCell.row)) {
+          ui().clearSelection();
           return;
         }
         // Neither a modifier command nor a drag on the current selection:

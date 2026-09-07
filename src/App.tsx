@@ -4,6 +4,7 @@ import { useSession } from "./auth/useSession";
 import { getSupabase } from "./supabase/client";
 import { createSupabaseDocStore } from "./storage/supabaseDocStore";
 import { setActiveChartStore } from "./storage/store";
+import { type Role, useUiStore } from "./state/uiStore";
 import { ChartEditor } from "./ui/ChartEditor";
 import { ChartList } from "./ui/ChartList";
 import { MigrateLocalCharts } from "./ui/MigrateLocalCharts";
@@ -30,10 +31,13 @@ export default function App() {
   }
 
   if (session.backend === "devLocal") {
-    return <DevLocal />;
+    // The bypass exists for developing the app itself - it always gets full
+    // access, experimental features included.
+    return <DevLocal role="admin" />;
   }
 
-  return <SignedIn userId={session.session.user.id} />;
+  const role: Role = session.session.user.app_metadata?.role === "admin" ? "admin" : "designer";
+  return <SignedIn userId={session.session.user.id} role={role} />;
 }
 
 function ChartRoutes() {
@@ -55,7 +59,7 @@ function ChartRoutes() {
  * than leaving the previous account's store or a stale "already asked" state
  * in place.
  */
-function SignedIn({ userId }: { userId: string }) {
+function SignedIn({ userId, role }: { userId: string; role: Role }) {
   const [migrationDone, setMigrationDone] = useState(false);
   const supabaseStore = useState(() => createSupabaseDocStore(getSupabase()))[0];
 
@@ -63,6 +67,12 @@ function SignedIn({ userId }: { userId: string }) {
     setActiveChartStore(supabaseStore);
     setMigrationDone(false);
   }, [userId, supabaseStore]);
+
+  // Kept in uiStore, not just this component's props, because usePaintTool
+  // and useShortcuts read it via getState() with no React tree back here.
+  useEffect(() => {
+    useUiStore.getState().setRole(role);
+  }, [role]);
 
   if (!migrationDone) {
     return (
@@ -92,6 +102,10 @@ function SignedIn({ userId }: { userId: string }) {
  * would render this component, so it's unreachable dead code there, just not
  * physically stripped.
  */
-function DevLocal() {
+function DevLocal({ role }: { role: Role }) {
+  useEffect(() => {
+    useUiStore.getState().setRole(role);
+  }, [role]);
+
   return <ChartRoutes />;
 }
