@@ -446,6 +446,14 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
           canvas.setPointerCapture(e.pointerId);
           return;
         }
+        // An armed click on empty space while a picker was open dismisses
+        // it (and the selection under it) rather than also painting there -
+        // this first click's job is closing the picker, full stop. A second
+        // click, with the picker now gone, paints normally.
+        if (!e.shiftKey && ui().armedSymbolId && !doc().index.placementAt(pickerCell.col, pickerCell.row)) {
+          ui().clearSelection();
+          return;
+        }
         // Neither a modifier command nor a drag on the current selection:
         // the picker is now closed, and this click is handled exactly like
         // any other click on the canvas below - most importantly, a plain
