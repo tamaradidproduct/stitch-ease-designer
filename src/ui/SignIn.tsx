@@ -51,7 +51,7 @@ export function SignIn() {
               type="button"
               className="signIn__google"
               onClick={onGoogleClick}
-              disabled={googleBusy}
+              disabled={googleBusy || status === "sending"}
             >
               <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
                 <path
@@ -88,9 +88,9 @@ export function SignIn() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
-                disabled={status === "sending"}
+                disabled={status === "sending" || googleBusy}
               />
-              <button type="submit" disabled={status === "sending" || !email.trim()}>
+              <button type="submit" disabled={status === "sending" || googleBusy || !email.trim()}>
                 {status === "sending" ? "Sending…" : "Send sign-in link"}
               </button>
             </form>
