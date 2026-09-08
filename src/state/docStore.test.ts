@@ -294,6 +294,39 @@ describe("reference image", () => {
     expect(useDocStore.getState().undoStack).toHaveLength(before);
   });
 
+  it("undoes and redoes reference-point patches", () => {
+    useDocStore.getState().setReferenceImage({
+      ...image,
+      calibrationMarks: [{ id: "point-1", u: 0.1, v: 0.2, w: 0.05, h: 0.05, row: null, stitch: null }],
+    });
+
+    useDocStore.getState().updateReferenceImage({
+      calibrationMarks: [{ id: "point-1", u: 0.1, v: 0.2, w: 0.05, h: 0.05, row: 12, stitch: 8 }],
+    });
+    expect(useDocStore.getState().referenceImage?.calibrationMarks?.[0]).toMatchObject({ row: 12, stitch: 8 });
+
+    useDocStore.getState().undo();
+    expect(useDocStore.getState().referenceImage?.calibrationMarks?.[0]).toMatchObject({ row: null, stitch: null });
+
+    useDocStore.getState().redo();
+    expect(useDocStore.getState().referenceImage?.calibrationMarks?.[0]).toMatchObject({ row: 12, stitch: 8 });
+  });
+
+  it("banks a continuous reference-image edit as one undo step", () => {
+    useDocStore.getState().setReferenceImage(image);
+    useDocStore.getState().beginReferenceImageEdit();
+    useDocStore.getState().updateReferenceImage({ width: 101 });
+    useDocStore.getState().updateReferenceImage({ width: 104 });
+    useDocStore.getState().updateReferenceImage({ width: 108 });
+    useDocStore.getState().endReferenceImageEdit();
+
+    expect(useDocStore.getState().referenceImage?.width).toBe(108);
+    expect(useDocStore.getState().undoStack).toHaveLength(1);
+
+    useDocStore.getState().undo();
+    expect(useDocStore.getState().referenceImage?.width).toBe(100);
+  });
+
   it("updateReferenceImage without one set is a harmless no-op", () => {
     const r0 = useDocStore.getState().revision;
     useDocStore.getState().updateReferenceImage({ opacity: 0.2 });

@@ -421,6 +421,7 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
             grabU: (w.x - image.x) / image.width - existing.u,
             grabV: (w.y - image.y) / image.height - existing.v,
           };
+          useDocStore.getState().beginReferenceImageEdit();
           canvas.setPointerCapture(e.pointerId);
           return;
         }
@@ -494,6 +495,9 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
         };
       }
       canvas.setPointerCapture(e.pointerId);
+      if (drag.mode === "move" || drag.mode === "scale" || drag.mode === "stitchResize") {
+        useDocStore.getState().beginReferenceImageEdit();
+      }
     };
 
     /**
@@ -666,6 +670,11 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
 
     const endDrag = (e: PointerEvent) => {
       if (!drag) return;
+      const endsReferenceEdit =
+        drag.mode === "move" ||
+        drag.mode === "scale" ||
+        drag.mode === "stitchResize" ||
+        drag.mode === "markMove";
       e.stopImmediatePropagation();
       if (drag.mode === "calibrate") {
         const box = useUiStore.getState().referenceImageCalibrationBox;
@@ -693,6 +702,7 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
         }
       }
       drag = null;
+      if (endsReferenceEdit) useDocStore.getState().endReferenceImageEdit();
       if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
     };
 

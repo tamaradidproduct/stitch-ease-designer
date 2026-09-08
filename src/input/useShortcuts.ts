@@ -59,6 +59,20 @@ export function useShortcuts(): void {
 
       const doc = useDocStore.getState();
 
+      // The reference panel owns canvas input. Suppress the drawing-tool
+      // shortcuts while it is engaged instead of quietly arming Draw behind
+      // the contextual reference controls.
+      if (
+        ui.referenceImagePanelOpen &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        ["s", "d", "e", "i"].includes(e.key.toLowerCase())
+      ) {
+        e.preventDefault();
+        return;
+      }
+
       if (/^[1-5]$/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
         const symbolId = ui.quickSymbolIds[Number(e.key) - 1];
         if (symbolId) {

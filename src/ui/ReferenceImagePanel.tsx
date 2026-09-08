@@ -29,10 +29,8 @@ export function ReferenceImagePanel() {
   const setCalibrationBox = useUiStore((s) => s.setReferenceImageCalibrationBox);
   const calibrationRejected = useUiStore((s) => s.referenceImageCalibrationRejected);
   const marking = useUiStore((s) => s.referenceImageMarking);
-  const setMarking = useUiStore((s) => s.setReferenceImageMarking);
   const setActiveMark = useUiStore((s) => s.setReferenceImageActiveMark);
   const activeMark = useUiStore((s) => s.referenceImageActiveMark);
-  const setCalibrationRejected = useUiStore((s) => s.setReferenceImageCalibrationRejected);
 
   const meta = useDocStore((s) => s.meta);
   const image = useDocStore((s) => s.referenceImage);
@@ -238,26 +236,9 @@ export function ReferenceImagePanel() {
                   ? "Dragging it snaps the boxed stitch onto a grid cell (hold Alt to place it freely); arrow keys nudge it a step at a time. Any corner or edge resizes around that stitch \u2014 or drag the green box's own corners to re-fit it to one stitch."
                   : "Drag it on the canvas to move, or nudge it with the arrow keys (Shift for a whole stitch); drag any corner to resize, or an edge to stretch one way (hold Shift to keep its proportions)."}
             </p>
-            <button
-              type="button"
-              className={marking ? "btn btn--quiet refpanel__setScale" : "btn btn--primary refpanel__setScale"}
-              data-on={marking}
-              disabled={!image.visible}
-              title="Box a corner stitch to set the initial scale, then add others to refine it from their printed numbers"
-              onClick={() => {
-                // Leaving the mode drops the marks; coming back to a photo
-                // half-marked from some earlier session, with no memory of
-                // which stitch was which, is worse than starting over.
-                if (marking) updateReferenceImage({ calibrationMarks: [] });
-                setActiveMark(null);
-                setCalibrating(false);
-                setGridAlignmentStatus("idle");
-                setCalibrationRejected(false);
-                setMarking(!marking);
-              }}
-            >
-              {marking ? "Cancel scale setup" : "Set reference scale"}
-            </button>
+            <p className="refpanel__dockHint">
+              Use the reference tools at the bottom of the canvas to set and refine scale points.
+            </p>
             <label className="refpanel__row">
               <span>Opacity</span>
               <input
@@ -373,36 +354,6 @@ export function ReferenceImagePanel() {
                         ? "Needs two different stitch numbers and two different row numbers."
                         : "The numbers imply an invalid or unsupported scale."}
                 </p>
-                <div className="refpanel__markActions">
-                  <button
-                    type="button"
-                    className="btn btn--primary"
-                    disabled={!fit}
-                    title={
-                      fit
-                        ? "Scale the image so the boxed stitches land the right distance apart"
-                        : "Box at least two stitches with different stitch numbers and different row numbers"
-                    }
-                    onClick={() => {
-                      if (!fit) return;
-                      updateReferenceImage({ ...fit, calibrationMarks: [] });
-                      setActiveMark(null);
-                      setMarking(false);
-                    }}
-                  >
-                    Refine scale
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn--quiet"
-                    onClick={() => {
-                      updateReferenceImage({ calibrationMarks: [] });
-                      setActiveMark(null);
-                    }}
-                  >
-                    Clear boxes
-                  </button>
-                </div>
               </div>
             )}
             <div className="refpanel__actions">

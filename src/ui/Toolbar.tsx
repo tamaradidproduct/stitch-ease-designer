@@ -1,9 +1,12 @@
 import { getSymbol } from "../symbols/registry";
+import { useDocStore } from "../state/docStore";
 import { SUGGEST_SYMBOL_ID, useUiStore } from "../state/uiStore";
 import { SymbolGlyph } from "./SymbolGlyph";
 import { tapActivate } from "./tapActivate";
 
 export function Toolbar() {
+  const referenceImagePanelOpen = useUiStore((s) => s.referenceImagePanelOpen);
+  const hasReferenceImage = useDocStore((s) => !!s.referenceImage);
   const tool = useUiStore((s) => s.tool);
   const panEnabled = useUiStore((s) => s.panEnabled);
   const selectHeld = useUiStore((s) => s.selectHeld);
@@ -13,6 +16,11 @@ export function Toolbar() {
   const armedSymbol = armedSymbolId && armedSymbolId !== SUGGEST_SYMBOL_ID
     ? getSymbol(armedSymbolId)
     : undefined;
+
+  // While editing a reference image, drawing tools cannot act on the photo
+  // and compete visually with the image workflow. Pan remains available in
+  // its dedicated dock as the one canvas action still needed here.
+  if (referenceImagePanelOpen && hasReferenceImage) return null;
 
   return (
     <div className="toolDock" aria-label="Canvas tools">

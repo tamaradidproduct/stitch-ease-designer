@@ -41,7 +41,13 @@ export type SaveStatus = "idle" | "saving" | "conflict" | "error";
  * keeps this local to docStore rather than teaching the shared Change/apply
  * model (ops.ts) about a second kind of state to reverse.
  */
-type HistoryEntry = { change: Change; repeats?: RepeatDefinition[] };
+type HistoryEntry = {
+  /** Placement/repeat history uses reversible operations. */
+  change?: Change;
+  repeats?: RepeatDefinition[];
+  /** Reference-image changes are small immutable snapshots. */
+  referenceImage?: ReferenceImage | null;
+};
 
 type DocState = {
   index: DocIndex;
@@ -106,6 +112,9 @@ type DocState = {
   setReferenceImage: (image: ReferenceImage) => void;
   /** Patches the existing reference image's transform/visibility/lock - a no-op if none is set. */
   updateReferenceImage: (patch: Partial<Omit<ReferenceImage, "ref">>) => void;
+  /** Coalesce a continuous reference-image gesture into one undo step. */
+  beginReferenceImageEdit: () => void;
+  endReferenceImageEdit: () => void;
   removeReferenceImage: () => void;
   beginStroke: () => void;
   endStroke: () => void;
@@ -136,6 +145,10 @@ export const selectIsDirty = (s: DocState): boolean => s.revision !== s.savedRev
 export const isChartOpen = (id: string): boolean => useDocStore.getState().meta?.id === id;
 
 export const useDocStore = create<DocState>((set, get) => {
+  // Kept in the store closure rather than rendered state: it is only a
+  // history bookkeeping boundary for a live drag, not UI data.
+  let referenceImageEditStart: ReferenceImage | null | undefined;
+  let referenceImageEditChanged = false;
   /**
    * Run a change, then either bank it as history or fold it into the stroke.
    *
@@ -210,15 +223,48 @@ export const useDocStore = create<DocState>((set, get) => {
     insertPlacement: (symbolId, col, row) =>
       commit(insertChange(get().index, symbolId, col, row)),
 
-    // Not routed through `commit`: that's specifically for placement
-    // Changes, which the reference image isn't - it doesn't touch undo/redo
-    // history, same as panning or zooming the camera doesn't.
+    // Reference-point edits are document changes, unlike camera movement, so
+    // keep a compact before-image snapshot for Cmd/Ctrl+Z. This deliberately
+    // covers image transforms too: a dragged mark is still an editable
+    // reference point, even though it updates continuously while dragging.
     setReferenceImage: (referenceImage) =>
       set((s) => ({ referenceImage, revision: s.revision + 1 })),
     updateReferenceImage: (patch) =>
-      set((s) => (s.referenceImage
-        ? { referenceImage: { ...s.referenceImage, ...patch }, revision: s.revision + 1 }
-        : {})),
+      set((s) => {
+        if (!s.referenceImage) return {};
+        const next = { ...s.referenceImage, ...patch };
+        if (referenceImageEditStart !== undefined) {
+          referenceImageEditChanged = true;
+          return {
+            referenceImage: next,
+            revision: s.revision + 1,
+            redoStack: [],
+          };
+        }
+        return {
+          referenceImage: next,
+          revision: s.revision + 1,
+          undoStack: [...s.undoStack, { referenceImage: s.referenceImage }],
+          redoStack: [],
+        };
+      }),
+    beginReferenceImageEdit: () => {
+      if (referenceImageEditStart !== undefined) return;
+      referenceImageEditStart = get().referenceImage;
+      referenceImageEditChanged = false;
+    },
+    endReferenceImageEdit: () => {
+      if (referenceImageEditStart === undefined) return;
+      const before = referenceImageEditStart;
+      const changed = referenceImageEditChanged;
+      referenceImageEditStart = undefined;
+      referenceImageEditChanged = false;
+      if (!changed || !before) return;
+      set((s) => ({
+        undoStack: [...s.undoStack, { referenceImage: before }],
+        redoStack: [],
+      }));
+    },
     removeReferenceImage: () =>
       set((s) => (s.referenceImage ? { referenceImage: null, revision: s.revision + 1 } : {})),
 
@@ -491,16 +537,18 @@ export const useDocStore = create<DocState>((set, get) => {
       const { undoStack, redoStack, index, revision, repeats } = get();
       const entry = undoStack[undoStack.length - 1];
       if (!entry) return;
-      const inverse = apply(index, entry.change);
+      const inverse = entry.change ? apply(index, entry.change) : undefined;
       const redoEntry: HistoryEntry = {
-        change: inverse,
+        ...(inverse ? { change: inverse } : {}),
         ...(entry.repeats !== undefined ? { repeats } : {}),
+        ...(entry.referenceImage !== undefined ? { referenceImage: get().referenceImage } : {}),
       };
       set({
         undoStack: undoStack.slice(0, -1),
         redoStack: [...redoStack, redoEntry],
         revision: revision + 1,
         ...(entry.repeats !== undefined ? { repeats: entry.repeats } : {}),
+        ...(entry.referenceImage !== undefined ? { referenceImage: entry.referenceImage } : {}),
       });
     },
 
@@ -508,16 +556,18 @@ export const useDocStore = create<DocState>((set, get) => {
       const { undoStack, redoStack, index, revision, repeats } = get();
       const entry = redoStack[redoStack.length - 1];
       if (!entry) return;
-      const inverse = apply(index, entry.change);
+      const inverse = entry.change ? apply(index, entry.change) : undefined;
       const undoEntry: HistoryEntry = {
-        change: inverse,
+        ...(inverse ? { change: inverse } : {}),
         ...(entry.repeats !== undefined ? { repeats } : {}),
+        ...(entry.referenceImage !== undefined ? { referenceImage: get().referenceImage } : {}),
       };
       set({
         redoStack: redoStack.slice(0, -1),
         undoStack: [...undoStack, undoEntry],
         revision: revision + 1,
         ...(entry.repeats !== undefined ? { repeats: entry.repeats } : {}),
+        ...(entry.referenceImage !== undefined ? { referenceImage: entry.referenceImage } : {}),
       });
     },
 

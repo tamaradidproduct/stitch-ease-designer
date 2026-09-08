@@ -318,6 +318,8 @@ type UiState = {
   setPanning: (panning: boolean) => void;
   panByScreen: (dx: number, dy: number) => void;
   zoomAt: (factor: number, sx: number, sy: number) => void;
+  /** Pan the current view so a world-space point sits at its centre, preserving zoom. */
+  centerCameraAt: (x: number, y: number) => void;
   centerViewAt100: (x: number, y: number) => void;
   resetView: () => void;
   /** Start an opened chart without carrying transient tools from another chart/session. */
@@ -351,8 +353,15 @@ export const useUiStore = create<UiState>((set, get) => ({
     // Closing the panel drops any in-progress calibration along with it -
     // there's no reason to leave that armed once the canvas goes back to
     // the normal tools.
-    set(open ? { referenceImagePanelOpen: true } : {
+    set(open ? {
+      referenceImagePanelOpen: true,
+      // Reference editing owns the canvas. Keep Draw out of the active
+      // state as well as out of sight, so it cannot reappear underneath the
+      // image workflow through a keyboard shortcut or panel transition.
+      tool: "select",
+    } : {
       referenceImagePanelOpen: false,
+      tool: "stitch",
       referenceImageCalibrating: false,
       referenceImageGridAlignmentStatus: "idle",
       referenceImageCalibrationBox: null,
@@ -595,6 +604,8 @@ export const useUiStore = create<UiState>((set, get) => ({
     const next = zoomAt(camera, factor, sx, sy, viewport);
     if (next !== camera) set({ camera: next });
   },
+
+  centerCameraAt: (x, y) => set((s) => ({ camera: { ...s.camera, x, y } })),
 
   centerViewAt100: (x, y) => set({ camera: { x, y, zoom: 1 }, picker: null }),
 
