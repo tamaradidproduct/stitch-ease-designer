@@ -6,6 +6,8 @@ import { chartStore } from "../storage/store";
 import { useAutosave } from "../storage/useAutosave";
 import { isChartOpen, selectIsDirty, useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
+import { KeyboardHintBanner } from "./KeyboardHintBanner";
+import { PanButton } from "./PanButton";
 import { ReferenceMarkEditor } from "./ReferenceMarkEditor";
 import { RightPanel } from "./RightPanel";
 import { StatusBar } from "./StatusBar";
@@ -208,7 +210,10 @@ export function ChartEditor() {
         </div>
       )}
 
+      <KeyboardHintBanner />
+
       <Toolbar />
+      <PanButton />
       <main className="stage">
         <CanvasView />
         <ReferenceMarkEditor />

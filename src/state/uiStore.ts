@@ -152,6 +152,16 @@ type UiState = {
   insertAnimation: { cell: Cell; startedAt: number } | null;
   /** True while space is held, which arms drag-to-pan. */
   spaceHeld: boolean;
+  /**
+   * Tap-toggled equivalent of spaceHeld for touch/Pencil, where there's no
+   * key to hold - deliberately a separate flag rather than a `Tool` value:
+   * Pan needs to work alongside whatever tool is already selected (Select,
+   * Draw, Insert, Erase), not replace it, the same way holding Space always
+   * has. Every place that already checks `spaceHeld` to arm drag-to-pan or
+   * to stand down (usePanZoom, usePaintTool, useReferenceImageTool, the
+   * cursor) checks this too.
+   */
+  panEnabled: boolean;
   /** True while Cmd/Ctrl is held, temporarily enabling Select. */
   selectHeld: boolean;
   /** True while Shift is held, enabling constrained straight-line drawing. */
@@ -295,6 +305,7 @@ type UiState = {
   setInsertHover: (cell: Cell | null) => void;
   setInsertAnimation: (cell: Cell | null) => void;
   setSpaceHeld: (held: boolean) => void;
+  setPanEnabled: (enabled: boolean) => void;
   setSelectHeld: (held: boolean) => void;
   setShiftHeld: (held: boolean) => void;
   setAltHeld: (held: boolean) => void;
@@ -320,6 +331,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   insertHover: null,
   insertAnimation: null,
   spaceHeld: false,
+  panEnabled: false,
   selectHeld: false,
   shiftHeld: false,
   altHeld: false,
@@ -401,6 +413,11 @@ export const useUiStore = create<UiState>((set, get) => ({
       lastClearedSelection: null,
       lastClearedEmptyCells: null,
       selectionAnchor: null,
+      // Arming something (Suggest or a real stitch) is a clear signal the
+      // designer wants to draw now, not pan - but disarming (armedSymbolId
+      // null, e.g. the "stop drawing" buttons) has nothing to do with Pan
+      // and shouldn't touch it.
+      ...(armedSymbolId ? { panEnabled: false } : null),
     }),
 
   /** Arm a symbol and assign it to the next free quick slot, without reordering. */
@@ -412,6 +429,8 @@ export const useUiStore = create<UiState>((set, get) => ({
       armedSymbolId: id,
       tool,
       quickSymbolIds,
+      // Always an arm, never a disarm - see setArmedSymbolId above.
+      panEnabled: false,
       ...(preserveSelection ? null : {
         picker: null,
         selectedPlacementIds: [],
@@ -525,6 +544,11 @@ export const useUiStore = create<UiState>((set, get) => ({
     set({ spaceHeld });
   },
 
+  setPanEnabled: (panEnabled) => {
+    if (get().panEnabled === panEnabled) return;
+    set({ panEnabled });
+  },
+
   setSelectHeld: (selectHeld) => {
     if (get().selectHeld === selectHeld) return;
     set({ selectHeld });
@@ -585,6 +609,7 @@ export const useUiStore = create<UiState>((set, get) => ({
     insertHover: null,
     insertAnimation: null,
     spaceHeld: false,
+    panEnabled: false,
     selectHeld: false,
     shiftHeld: false,
     altHeld: false,

@@ -17,7 +17,7 @@ import { defineConfig } from "vite";
 export default defineConfig(({ command, isPreview }) => ({
   base: command === "build" || isPreview ? "/stitch-ease-designer/" : "/",
   plugins: [react()],
-  server: { port: 5173 },
+  server: { port: 5173, host: true },
   test: {
     globals: true,
     environment: "node",

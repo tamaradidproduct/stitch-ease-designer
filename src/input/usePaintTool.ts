@@ -79,9 +79,16 @@ export function strokeKey(mode: StrokeMode): string {
  * armed stitch's straight-line draw (also Shift) still works everywhere
  * else; without that gate Shift would shadow the armed stitch the same way
  * Cmd/Ctrl used to. A real armed stitch (not Suggest itself) rides along as
- * `overrideSymbolId` - Shift with a specific stitch armed means "confirm
- * this suggestion as that stitch," not just "confirm it as whatever was
- * guessed."
+ * `overrideSymbolId` - confirming a suggestion as that specific stitch
+ * instead of whatever it was guessed as.
+ *
+ * That override no longer needs Shift held at all: with a real stitch
+ * armed, landing on a suggestion - by click or by dragging across it -
+ * confirms it as that stitch outright. Shift is still how a suggestion gets
+ * confirmed as its own guess (nothing armed but Suggest itself), and still
+ * how the confirm gesture straight-lines/gap-fills; it's just no longer the
+ * only way to override one with a stitch you already know you want, which
+ * has no keyboard-free equivalent on a touch device anyway.
  */
 export function modeFor(
   e: { shiftKey: boolean; altKey: boolean },
@@ -89,10 +96,10 @@ export function modeFor(
   targetIsSuggested: boolean,
 ): StrokeMode | null {
   if (e.shiftKey && e.altKey) return { kind: "erase" };
-  if (e.shiftKey && targetIsSuggested) {
-    return armedSymbolId && armedSymbolId !== SUGGEST_SYMBOL_ID
-      ? { kind: "confirm", overrideSymbolId: armedSymbolId }
-      : { kind: "confirm" };
+  const overrideSymbolId =
+    armedSymbolId && armedSymbolId !== SUGGEST_SYMBOL_ID ? armedSymbolId : null;
+  if (targetIsSuggested && (e.shiftKey || overrideSymbolId)) {
+    return overrideSymbolId ? { kind: "confirm", overrideSymbolId } : { kind: "confirm" };
   }
   if (armedSymbolId === SUGGEST_SYMBOL_ID) return { kind: "suggest" };
   if (armedSymbolId) return { kind: "place", symbolId: armedSymbolId };
@@ -108,8 +115,10 @@ export function modeFor(
  *   click a cell (Insert)       insert the armed stitch there, shifting the rest of the row -
  *                                open the picker first if nothing's armed; no-op inside a
  *                                multi-cell symbol, which can't be split
- *   drag over a filled/suggested cell (Draw)  ignored - the Overwrite Safety Block never
- *                                overwrites an existing placement, it just skips that cell
+ *   drag over a filled cell (Draw)  ignored - the Overwrite Safety Block never overwrites an
+ *                                existing placement, it just skips that cell - except a
+ *                                suggested one with a real stitch armed, which it confirms as
+ *                                that stitch (see the click/drag entry over a suggestion below)
  *   click away from a selection      clear it, without also placing/erasing on that same click -
  *                                only while a stitch is armed; unarmed, a click on empty space
  *                                always lands a new selection there instead
@@ -118,9 +127,11 @@ export function modeFor(
  *   drag in Select               marquee-select every symbol in the rectangle; also every
  *                                empty cell, but only while Opt is additionally held
  *   cmd/ctrl + click/drag        temporarily use Select
- *   shift + click                confirm a suggestion under the cursor, else add to/remove from
- *                                the selection (any tool); shift + drag while armed draws a
- *                                straight line instead
+ *   click/drag over a suggestion  with a real stitch armed, confirms it as that stitch outright -
+ *                                no modifier needed, since there's no keyboard-free equivalent
+ *                                of one on a touch device
+ *   shift + click over a suggestion  confirms it as its own guess (no override); shift + drag
+ *                                while armed elsewhere draws a straight line instead
  *   shift + opt (+ drag)         erase whatever's at the cell - suggested or confirmed
  *   cmd/ctrl + shift + click     toggle one cell into/out of the selection pool; a second such
  *                                click on another cell selects the bounding box between them
@@ -269,6 +280,13 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
           // it's skipped, and the rest of the drag keeps going.
           if (doc().index.placementAt(cell.col, cell.row)) return;
           doc().place(mode.symbolId, cell.col, cell.row);
+          // An unreadable cell has no placement to trip the block above, so
+          // a drag can land here too - clear the stale mark rather than
+          // leaving it flagged as unread under a stitch that's now there.
+          {
+            const key = cellKey(cell.col, cell.row);
+            if (ui().referenceImageUnrecognized.has(key)) ui().setReferenceImageUnrecognized(key, false);
+          }
           return;
         case "suggest":
           matchAndPlace(cell);
@@ -397,7 +415,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
     };
 
     const onPointerDown = (e: PointerEvent) => {
-      if (ui().spaceHeld || e.button !== 0) return; // panning, or not a plain left click
+      if (ui().spaceHeld || ui().panEnabled || e.button !== 0) return; // panning, or not a plain left click
 
       // The selected stitch remains draggable while its edit picker is open.
       // Modifier clicks are selection commands and must act on this first
@@ -640,6 +658,27 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       // over it below, silently re-running the same failed match instead of
       // ever giving the designer a way to say what it actually is.
       const unreadable = !e.shiftKey && ui().referenceImageUnrecognized.has(cellKey(cell.col, cell.row));
+
+      // A real stitch armed (not Suggest itself) is exactly as explicit a
+      // choice here as it is for overriding an actual suggestion (see
+      // modeFor) - land on an unreadable cell with one armed and it's placed
+      // outright, same override, just for the "couldn't even guess" case
+      // instead of the "guessed wrong" one. Without this, an unreadable cell
+      // could only ever be fixed via the picker, with no tap-to-place
+      // shortcut - no keyboard-free equivalent of the old Shift-click either.
+      const unreadableOverride =
+        unreadable && ui().armedSymbolId && ui().armedSymbolId !== SUGGEST_SYMBOL_ID
+          ? ui().armedSymbolId
+          : null;
+
+      if (unreadableOverride) {
+        e.preventDefault();
+        doc().beginStroke();
+        doc().place(unreadableOverride, cell.col, cell.row);
+        doc().endStroke();
+        ui().setReferenceImageUnrecognized(cellKey(cell.col, cell.row), false);
+        return;
+      }
 
       if (!ui().armedSymbolId || unreadable) {
         const rect = canvas.getBoundingClientRect();
@@ -909,7 +948,14 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       // Insert's own click already opens the (differently-worded) picker
       // when nothing's armed - a "replace in place" picker here would
       // contradict what a single click just did.
-      if (ui().tool === "select" || ui().tool === "insert" || ui().selectHeld || e.metaKey || e.ctrlKey)
+      if (
+        ui().tool === "select" ||
+        ui().tool === "insert" ||
+        ui().panEnabled ||
+        ui().selectHeld ||
+        e.metaKey ||
+        e.ctrlKey
+      )
         return;
       const cell = cellAt(e);
       if (!cell) return;

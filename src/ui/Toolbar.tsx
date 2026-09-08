@@ -1,18 +1,27 @@
-import { useUiStore } from "../state/uiStore";
+import { getSymbol } from "../symbols/registry";
+import { SUGGEST_SYMBOL_ID, useUiStore } from "../state/uiStore";
+import { SymbolGlyph } from "./SymbolGlyph";
+import { tapActivate } from "./tapActivate";
 
 export function Toolbar() {
   const tool = useUiStore((s) => s.tool);
+  const panEnabled = useUiStore((s) => s.panEnabled);
   const selectHeld = useUiStore((s) => s.selectHeld);
   const setTool = useUiStore((s) => s.setTool);
+  const armedSymbolId = useUiStore((s) => s.armedSymbolId);
+  const setArmedSymbolId = useUiStore((s) => s.setArmedSymbolId);
+  const armedSymbol = armedSymbolId && armedSymbolId !== SUGGEST_SYMBOL_ID
+    ? getSymbol(armedSymbolId)
+    : undefined;
 
   return (
     <div className="toolDock" aria-label="Canvas tools">
       <button
         type="button"
         className="toolDock__button"
-        data-on={tool === "select" || selectHeld}
-        aria-pressed={tool === "select" || selectHeld}
-        onClick={() => setTool("select")}
+        data-on={!panEnabled && (tool === "select" || selectHeld)}
+        aria-pressed={!panEnabled && (tool === "select" || selectHeld)}
+        {...tapActivate(() => setTool("select"))}
         title="Select (S) — hold Cmd/Ctrl for temporary selection"
       >
         <svg viewBox="0 0 20 20" aria-hidden="true">
@@ -20,26 +29,45 @@ export function Toolbar() {
         </svg>
         <span>Select</span>
       </button>
+      <div className="toolDock__button toolDock__drawGroup" data-on={!panEnabled && tool === "stitch"}>
+        <button
+          type="button"
+          className="toolDock__drawMain"
+          aria-pressed={!panEnabled && tool === "stitch"}
+          {...tapActivate(() => setTool("stitch"))}
+          title="Draw (D)"
+        >
+          {armedSymbol ? (
+            <SymbolGlyph symbol={armedSymbol} cell={Math.max(7, Math.min(17, 40 / armedSymbol.span))} />
+          ) : (
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="m4 14-.7 3 3-.7L15.5 7 13 4.5 4 14Z" />
+              <path d="m11.5 6 2.5 2.5" />
+            </svg>
+          )}
+          <span>Draw</span>
+        </button>
+        {armedSymbolId && (
+          <button
+            type="button"
+            className="toolDock__drawStop"
+            {...tapActivate(() => setArmedSymbolId(null))}
+            aria-label="Stop drawing"
+            title="Stop drawing (Esc)"
+          >
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <circle cx="10" cy="10" r="7" />
+              <path d="m5 15 10-10" />
+            </svg>
+          </button>
+        )}
+      </div>
       <button
         type="button"
         className="toolDock__button"
-        data-on={tool === "stitch"}
-        aria-pressed={tool === "stitch"}
-        onClick={() => setTool("stitch")}
-        title="Draw (D)"
-      >
-        <svg viewBox="0 0 20 20" aria-hidden="true">
-          <path d="m4 14-.7 3 3-.7L15.5 7 13 4.5 4 14Z" />
-          <path d="m11.5 6 2.5 2.5" />
-        </svg>
-        <span>Draw</span>
-      </button>
-      <button
-        type="button"
-        className="toolDock__button"
-        data-on={tool === "insert"}
-        aria-pressed={tool === "insert"}
-        onClick={() => setTool("insert")}
+        data-on={!panEnabled && tool === "insert"}
+        aria-pressed={!panEnabled && tool === "insert"}
+        {...tapActivate(() => setTool("insert"))}
         title="Insert (I) — add a stitch and shift the rest of the row over"
       >
         <svg viewBox="0 0 20 20" aria-hidden="true">
@@ -52,9 +80,9 @@ export function Toolbar() {
       <button
         type="button"
         className="toolDock__button toolDock__eraser"
-        data-on={tool === "eraser"}
-        aria-pressed={tool === "eraser"}
-        onClick={() => setTool("eraser")}
+        data-on={!panEnabled && tool === "eraser"}
+        aria-pressed={!panEnabled && tool === "eraser"}
+        {...tapActivate(() => setTool("eraser"))}
         title="Erase (E)"
       >
         <svg viewBox="0 0 20 20" aria-hidden="true">

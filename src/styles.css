@@ -18,7 +18,15 @@
 html,
 body,
 #root {
+  /* dvh tracks the browser's actual visible viewport, shrinking and growing
+     with a mobile browser's address bar - plain % here inherits from the
+     layout viewport instead, which can stay taller than what's genuinely
+     on screen. With body's overflow hidden below, anything that overflowed
+     the real screen this way wasn't just clipped, it was unreachable -
+     nothing to scroll to reach it. Kept as a fallback for browsers that
+     don't know dvh; unsupported values are ignored, not applied as 0. */
   height: 100%;
+  height: 100dvh;
   margin: 0;
 }
 
@@ -164,6 +172,16 @@ body {
   color: #7f1d1d;
 }
 
+.banner--info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #eff6ff;
+  border-bottom-color: #bfdbfe;
+  color: #1e3a8a;
+}
+
 .stage {
   position: relative;
   flex: 1;
@@ -294,7 +312,10 @@ body {
 .toolDock {
   position: fixed;
   z-index: 18;
-  bottom: 42px;
+  /* env() falls back to the plain value when unsupported (or on a device
+     with no home-indicator gesture area to clear), so this is additive,
+     not risky. */
+  bottom: calc(42px + env(safe-area-inset-bottom, 0px));
   left: calc(50% - 152px);
   display: flex;
   align-items: center;
@@ -308,6 +329,43 @@ body {
     0 2px 6px rgb(15 23 42 / 8%);
   transform: translateX(-50%);
   backdrop-filter: blur(8px);
+}
+
+.panDock {
+  position: fixed;
+  z-index: 18;
+  bottom: calc(42px + env(safe-area-inset-bottom, 0px));
+  left: 24px;
+  padding: 7px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgb(255 255 255 / 96%);
+  box-shadow:
+    0 8px 24px rgb(15 23 42 / 14%),
+    0 2px 6px rgb(15 23 42 / 8%);
+  backdrop-filter: blur(8px);
+}
+
+/* Deliberately shown on every platform, not just touch: (hover: hover) and
+   (pointer: fine) - tried here once to hide this on a mouse-and-keyboard
+   desktop, since Space+drag already covers it there - unreliably reports
+   true on iPadOS itself (a known quirk, worse still with a trackpad
+   connected), which made the button invisible on the exact device it was
+   built for. A persistent Pan tool button is a normal, unobjectionable
+   thing for a desktop app to have anyway. */
+
+/* This button's whole job is being held down - without opting out, iOS
+   reads a sustained touch as a request for its own callout/selection menu
+   instead of ever delivering it to us as a plain, held pointerdown.
+   touch-action deliberately stays at its default here, not "none" - that
+   implicitly makes this element capture the touch for its entire duration,
+   which stopped pointerleave/pointerup from ever firing once the finger
+   moved (read: stuck "always on", no way to release it). -webkit-touch-
+   callout alone is the correct, narrower fix for the system long-press menu. */
+.panDock button {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .toolDock__button {
@@ -337,12 +395,93 @@ body {
   stroke-linejoin: round;
 }
 
-.toolDock__button:hover,
 .toolDock__button:focus-visible {
   border-color: #bae6fd;
   background: #e0f2fe;
   color: var(--accent);
   outline: none;
+}
+
+/* Hover only where hover is real - a touch tap has no exit event, so this
+   would otherwise stick "hovered" on whatever was tapped last (some of what
+   read as the Pan button's inconsistent state). */
+@media (hover: hover) {
+  .toolDock__button:hover {
+    border-color: #bae6fd;
+    background: #e0f2fe;
+    color: var(--accent);
+    outline: none;
+  }
+}
+
+.toolDock__drawGroup {
+  position: relative;
+  padding: 0;
+}
+
+.toolDock__drawMain {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.toolDock__drawMain svg {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Overlaid on the Draw button's corner rather than living as its own dock
+   entry - the same "disengage the stitch" action the right panel's armed
+   row carries inline, kept next to the tool it actually affects. */
+.toolDock__drawStop {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  display: grid;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: #fff;
+  color: var(--accent);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgb(15 23 42 / 15%);
+}
+
+.toolDock__drawStop svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+.toolDock__drawStop:focus-visible {
+  background: #e0f2fe;
+  outline: none;
+}
+
+@media (hover: hover) {
+  .toolDock__drawStop:hover {
+    background: #e0f2fe;
+    outline: none;
+  }
 }
 
 .toolDock__button[data-on="true"] {
@@ -358,11 +497,18 @@ body {
   background: var(--border);
 }
 
-.toolDock__eraser:hover,
 .toolDock__eraser:focus-visible {
   border-color: #fecaca;
   background: #fef2f2;
   color: #dc2626;
+}
+
+@media (hover: hover) {
+  .toolDock__eraser:hover {
+    border-color: #fecaca;
+    background: #fef2f2;
+    color: #dc2626;
+  }
 }
 
 .toolbar__selection {
@@ -724,6 +870,7 @@ body {
 
 .picker__list {
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 4px;
 }
 
@@ -1087,6 +1234,12 @@ body {
   border-radius: 7px;
   background: var(--bg);
   box-shadow: 0 6px 16px rgb(15 23 42 / 10%);
+  /* Without its own bounded, scrollable box, touch scrolling here walks
+     straight up the DOM to .rightPanel (the nearest ancestor that actually
+     scrolls) instead - reads as "the whole panel scrolls". */
+  max-height: 280px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .glossarySearch__results button {
@@ -1145,6 +1298,10 @@ body {
   border-radius: 7px;
   background: transparent;
   color: var(--text);
+  /* iOS Safari treats a hover-styled, non-form element with no cursor as
+     "needs a first tap just to settle :hover" - the real tap-to-arm button
+     is a child of this div, so without this, every tap here needs two. */
+  cursor: default;
 }
 
 .glossary__item:hover,
@@ -1259,15 +1416,42 @@ body {
   background: transparent;
   color: #dc2626;
   font: 600 10px/1 system-ui, sans-serif;
-  opacity: 0;
   cursor: pointer;
-  transition: opacity 120ms ease;
 }
 
 .glossary__removeSlot {
   width: 34px;
   height: 34px;
   flex: none;
+}
+
+.glossary__disarm {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  place-items: center;
+  flex: none;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.glossary__disarm:hover,
+.glossary__disarm:focus-visible {
+  background: rgb(255 255 255 / 60%);
+  outline: none;
+}
+
+.glossary__disarm svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
 }
 
 .glossary__dragHandle {
@@ -1282,8 +1466,6 @@ body {
   color: var(--text-muted);
   cursor: grab;
   flex: none;
-  opacity: 0;
-  transition: opacity 120ms ease;
 }
 
 .glossary__dragHandle:hover {
@@ -1313,13 +1495,6 @@ body {
   stroke: currentColor;
   stroke-width: 1.7;
   stroke-linecap: round;
-}
-
-.glossary__item:hover .glossary__remove,
-.glossary__item:focus-within .glossary__remove,
-.glossary__item:hover .glossary__dragHandle,
-.glossary__item:focus-within .glossary__dragHandle {
-  opacity: 1;
 }
 
 .navigator {
