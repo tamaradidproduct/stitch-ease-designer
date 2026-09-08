@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, useState } from "react";
 import { scaleFromCalibrationMarks } from "../model/referenceCalibration";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
@@ -21,6 +22,46 @@ export function ReferenceImageDock() {
   const setCalibrating = useUiStore((s) => s.setReferenceImageCalibrating);
   const setGridAlignmentStatus = useUiStore((s) => s.setReferenceImageGridAlignmentStatus);
   const setCalibrationRejected = useUiStore((s) => s.setReferenceImageCalibrationRejected);
+  const quickDockRef = useRef<HTMLDivElement>(null);
+  const [availableLane, setAvailableLane] = useState<{ left: number; width: number } | null>(null);
+  const hasImage = image !== null;
+
+  // The reference scale controls share the bottom edge with the persistent
+  // Pan button and the image quick actions. Measure those two neighbours so
+  // the scale dock is centered in the *actual* clear space between them,
+  // instead of merely centered in the whole canvas.
+  useLayoutEffect(() => {
+    if (!hasImage || typeof document === "undefined") return;
+
+    const stage = document.querySelector<HTMLElement>(".stage");
+    const panDock = document.querySelector<HTMLElement>(".panDock");
+    const quickDock = quickDockRef.current;
+    if (!stage || !quickDock) return;
+
+    const updateLane = () => {
+      const stageRect = stage.getBoundingClientRect();
+      const panRect = panDock?.getBoundingClientRect();
+      const quickRect = quickDock.getBoundingClientRect();
+      const panelBoundary = stageRect.width - 304;
+      const left = Math.max(16, (panRect?.right ?? stageRect.left) - stageRect.left + 16);
+      const right = Math.min(panelBoundary - 16, quickRect.left - stageRect.left - 16);
+      const next = { left: Math.round(left), width: Math.max(0, Math.round(right - left)) };
+      setAvailableLane((current) =>
+        current?.left === next.left && current.width === next.width ? current : next,
+      );
+    };
+
+    updateLane();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateLane);
+    observer?.observe(stage);
+    observer?.observe(quickDock);
+    if (panDock) observer?.observe(panDock);
+    window.addEventListener("resize", updateLane);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", updateLane);
+    };
+  }, [hasImage]);
 
   if (!image) return null;
 
@@ -53,7 +94,10 @@ export function ReferenceImageDock() {
 
   return (
     <>
-      <div className="referenceDockPositioner">
+      <div
+        className="referenceDockPositioner"
+        style={availableLane ? { left: availableLane.left, width: availableLane.width, right: "auto" } : undefined}
+      >
         <div
           className="referenceDock"
           aria-label="Reference scale tools"
@@ -145,6 +189,7 @@ export function ReferenceImageDock() {
       </div>
       <div
         className="referenceImageQuickDock"
+        ref={quickDockRef}
         aria-label="Reference image visibility and layer controls"
         onPointerDown={stopCanvasGesture}
         onClick={stopCanvasGesture}

@@ -127,9 +127,9 @@ export function modeFor(
  *   drag in Select               marquee-select every symbol in the rectangle; also every
  *                                empty cell, but only while Opt is additionally held
  *   cmd/ctrl + click/drag        temporarily use Select
- *   click/drag over a suggestion  with a real stitch armed, confirms it as that stitch outright -
- *                                no modifier needed, since there's no keyboard-free equivalent
- *                                of one on a touch device
+ *   click/drag over a suggestion or needs-identification marker with a real stitch armed,
+ *                                confirms/places that stitch outright - no modifier needed,
+ *                                since there's no keyboard-free equivalent of one on a touch device
  *   shift + click over a suggestion  confirms it as its own guess (no override); shift + drag
  *                                while armed elsewhere draws a straight line instead
  *   shift + opt (+ drag)         erase whatever's at the cell - suggested or confirmed
@@ -657,19 +657,17 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         return;
       }
 
-      // A cell Suggest scanned but couldn't read has no placement to click
-      // on - without this, an armed tool would just fall through to painting
-      // over it below, silently re-running the same failed match instead of
-      // ever giving the designer a way to say what it actually is.
+      // A cell Suggest could not identify has no placement to click on -
+      // without this, an armed tool would just fall through to painting over
+      // it below, silently re-running the same failed match instead of ever
+      // giving the designer a way to say what it actually is.
       const unreadable = !e.shiftKey && ui().referenceImageUnrecognized.has(cellKey(cell.col, cell.row));
 
       // A real stitch armed (not Suggest itself) is exactly as explicit a
       // choice here as it is for overriding an actual suggestion (see
-      // modeFor) - land on an unreadable cell with one armed and it's placed
-      // outright, same override, just for the "couldn't even guess" case
-      // instead of the "guessed wrong" one. Without this, an unreadable cell
-      // could only ever be fixed via the picker, with no tap-to-place
-      // shortcut - no keyboard-free equivalent of the old Shift-click either.
+      // modeFor). Keep it as a real paint stroke, rather than a one-off
+      // placement: a designer who explicitly chose a stitch should be able
+      // to paint it across several needs-identification cells in one drag.
       const unreadableOverride =
         unreadable && ui().armedSymbolId && ui().armedSymbolId !== SUGGEST_SYMBOL_ID
           ? ui().armedSymbolId
@@ -677,10 +675,14 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
 
       if (unreadableOverride) {
         e.preventDefault();
+        painting = true;
+        last = null;
+        constrainedStroke = canDrawStraight;
+        straightAxis = null;
+        currentMode = { kind: "place", symbolId: unreadableOverride };
+        canvas.setPointerCapture(e.pointerId);
         doc().beginStroke();
-        doc().place(unreadableOverride, cell.col, cell.row);
-        doc().endStroke();
-        ui().setReferenceImageUnrecognized(cellKey(cell.col, cell.row), false);
+        paint(cell);
         return;
       }
 

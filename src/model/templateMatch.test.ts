@@ -156,12 +156,23 @@ describe("templateMatch", () => {
       expect(result.confidence).toBe(1.0);
     });
 
-    it("leaves an empty cell unrecognized when no confirmed exemplar is itself blank", () => {
-      // Nothing taught so far (k2tog/skpo/purl) is blank, so there's no
-      // basis to guess which symbol an empty cell should become - some
-      // charts draw knit as the blank square, others draw purl that way.
+    it("defaults an unmatched empty cell to Knit", () => {
+      // Knit is the standard blank chart cell. A confirmed blank sample for
+      // another stitch overrides this below, but no samples is not a reason
+      // to make tracing an otherwise empty chart stall.
       const result = matchCandidateStitch(empty, exemplars, 0.6);
-      expect(result.symbolId).toBeNull();
+      expect(result.symbolId).toBe("knit");
+      expect(result.confidence).toBeGreaterThanOrEqual(0.6);
+      expect(result.isBlank).toBe(true);
+    });
+
+    it("keeps the Knit fallback when Knit has been sampled", () => {
+      // The Knit exemplar can be imperfect (here, visibly marked), yet an
+      // otherwise empty square still follows the usual chart convention.
+      const withKnit = new Map<string, BinaryGrid[]>([...exemplars, ["knit", [slash]]]);
+      const result = matchCandidateStitch(empty, withKnit, 0.6);
+      expect(result.symbolId).toBe("knit");
+      expect(result.confidence).toBeGreaterThanOrEqual(0.6);
       expect(result.isBlank).toBe(true);
     });
 
@@ -170,6 +181,17 @@ describe("templateMatch", () => {
       // learned from what the designer actually confirmed, never assumed.
       const withBlankPurl = new Map<string, BinaryGrid[]>([...exemplars, ["purl", [dash, empty]]]);
       const result = matchCandidateStitch(empty, withBlankPurl, 0.6);
+      expect(result.symbolId).toBe("purl");
+      expect(result.confidence).toBe(1.0);
+    });
+
+    it("lets an explicit non-Knit blank sample override the Knit default", () => {
+      const withKnitAndBlankPurl = new Map<string, BinaryGrid[]>([
+        ...exemplars,
+        ["knit", [slash]],
+        ["purl", [dash, empty]],
+      ]);
+      const result = matchCandidateStitch(empty, withKnitAndBlankPurl, 0.6);
       expect(result.symbolId).toBe("purl");
       expect(result.confidence).toBe(1.0);
     });
@@ -202,12 +224,13 @@ describe("templateMatch", () => {
       expect(result.isBlank).toBe(false);
     });
 
-    it("reports a blank cell as unrecognized when no exemplars exist yet", () => {
-      // Nothing has been confirmed at all - blank gets no more of a free
-      // pass than any other symbol would before its first exemplar exists.
+    it("uses the Knit fallback when no exemplars exist yet", () => {
+      // A blank chart can be traced before any teaching samples have been
+      // placed; Knit is the safe default until a confirmed blank sample says
+      // otherwise.
       const result = matchCandidateStitch(empty, new Map());
-      expect(result.symbolId).toBeNull();
-      expect(result.confidence).toBe(0);
+      expect(result.symbolId).toBe("knit");
+      expect(result.confidence).toBeGreaterThanOrEqual(0.6);
       expect(result.isBlank).toBe(true);
     });
 
