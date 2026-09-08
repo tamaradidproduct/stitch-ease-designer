@@ -411,8 +411,8 @@ export function RightPanel() {
                 {unrecognizedCount > 0 && (
                   <div className="glossary__reviewBox glossary__reviewBox--unread">
                     <p className="glossary__reviewHeader">
-                      {unrecognizedCount} stitch{unrecognizedCount === 1 ? "" : "es"} couldn't be read
-                      (dashed red on the chart) - place those by hand.
+                      {unrecognizedCount} stitch{unrecognizedCount === 1 ? "" : "es"} need identification
+                      (dashed red on the chart) - choose an armed stitch to paint over them, or place them by hand.
                     </p>
                     <div className="glossary__reviewActions">
                       <button

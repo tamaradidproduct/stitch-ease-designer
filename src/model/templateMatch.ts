@@ -167,6 +167,12 @@ export function computeGridSimilarity(
  * wrong silent guess would be most costly on.
  */
 const AMBIGUITY_MARGIN = 0.08;
+/**
+ * An empty chart square is usually Knit. This is deliberately a suggestion
+ * rather than a perfect match: a confirmed blank exemplar for another stitch
+ * always wins, and contradictory blank samples still remain unresolved.
+ */
+const DEFAULT_BLANK_KNIT_CONFIDENCE = 0.72;
 
 export function matchCandidateStitch(
   candidate: BinaryGrid,
@@ -200,18 +206,21 @@ export function matchCandidateStitch(
 
   const ranked = [...bestBySymbol.entries()].sort((a, b) => b[1] - a[1]);
   const isBlank = isCellBlank(candidate);
+  const defaultBlankToKnit = () =>
+    isBlank ? { symbolId: "knit", confidence: DEFAULT_BLANK_KNIT_CONFIDENCE, isBlank: true } : null;
 
   // Nothing scored anything at all - either there are no exemplars yet, or
-  // every comparison came back a flat zero. Nothing has been confirmed to
-  // tell a blank cell apart from any other unmatched one, so it's
-  // unrecognized like any other miss, not a guessed default.
-  if (ranked.length === 0) return { symbolId: null, confidence: 0, isBlank };
+  // every comparison came back a flat zero. An otherwise blank square follows
+  // the normal knitting convention. A chart that uses another blank symbol
+  // gets the chance to establish that first: its blank exemplar would have
+  // scored 1.0 and therefore would not reach this fallback.
+  if (ranked.length === 0) return defaultBlankToKnit() ?? { symbolId: null, confidence: 0, isBlank };
 
   const [topSymbolId, topScore] = ranked[0]!;
   const runnerUpScore = ranked[1]?.[1] ?? 0;
 
   if (topScore < minConfidence) {
-    return { symbolId: null, confidence: topScore, isBlank };
+    return defaultBlankToKnit() ?? { symbolId: null, confidence: topScore, isBlank };
   }
   if (topScore - runnerUpScore < AMBIGUITY_MARGIN) {
     // Report the leading score, but withhold the guess - a coin flip between
@@ -349,4 +358,3 @@ export function extractExemplars(
   }
   return map;
 }
-

@@ -67,7 +67,7 @@ export function useShortcuts(): void {
         !e.metaKey &&
         !e.ctrlKey &&
         !e.altKey &&
-        ["s", "d", "e", "i"].includes(e.key.toLowerCase())
+        ["s", "d", "e", "i", "1", "2", "3", "4", "5"].includes(e.key.toLowerCase())
       ) {
         e.preventDefault();
         return;

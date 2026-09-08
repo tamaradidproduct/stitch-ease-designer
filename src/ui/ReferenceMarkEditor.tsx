@@ -186,11 +186,16 @@ export function ReferenceMarkEditor() {
           e.preventDefault();
           backspace();
         }
-        if (e.key === "Tab" || e.key === "ArrowRight" || e.key === "ArrowLeft") {
+        if (
+          (e.key === "Tab" || e.key === "ArrowRight" || e.key === "ArrowLeft") &&
+          !e.metaKey &&
+          !e.ctrlKey &&
+          !e.altKey
+        ) {
           e.preventDefault();
           nextField();
         }
-        if (/^[0-9]$/.test(e.key)) {
+        if (/^[0-9]$/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
           e.preventDefault();
           appendDigit(Number(e.key));
         }

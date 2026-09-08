@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from "react";
 import { useUiStore } from "../state/uiStore";
 import { tapActivate } from "./tapActivate";
 
@@ -16,11 +17,45 @@ import { tapActivate } from "./tapActivate";
 export function PanButton() {
   const panEnabled = useUiStore((s) => s.panEnabled);
   const setPanEnabled = useUiStore((s) => s.setPanEnabled);
+  const referenceImagePanelOpen = useUiStore((s) => s.referenceImagePanelOpen);
+  const dockRef = useRef<HTMLDivElement>(null);
 
   const toggle = () => setPanEnabled(!panEnabled);
 
+  useLayoutEffect(() => {
+    if (typeof document === "undefined") return;
+    const stage = document.querySelector<HTMLElement>(".stage");
+    const toolDock = document.querySelector<HTMLElement>(".toolDock");
+    const panDock = dockRef.current;
+    if (!stage || !toolDock || !panDock) return;
+
+    // Keep the tool dock centered in the usable canvas, unless it would
+    // overlap Pan. The latter owns a 16px safety gap and pushes the dock only
+    // as far as necessary; ResizeObserver picks up Pan's hover expansion.
+    const updateToolDockPosition = () => {
+      const stageRect = stage.getBoundingClientRect();
+      const panRect = panDock.getBoundingClientRect();
+      const toolRect = toolDock.getBoundingClientRect();
+      const centered = (stageRect.width - 304) / 2;
+      const minimum = panRect.right - stageRect.left + 16 + toolRect.width / 2;
+      toolDock.style.setProperty("--tool-dock-center", `${Math.round(Math.max(centered, minimum))}px`);
+    };
+
+    updateToolDockPosition();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateToolDockPosition);
+    observer?.observe(stage);
+    observer?.observe(panDock);
+    observer?.observe(toolDock);
+    window.addEventListener("resize", updateToolDockPosition);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", updateToolDockPosition);
+      toolDock.style.removeProperty("--tool-dock-center");
+    };
+  }, [referenceImagePanelOpen]);
+
   return (
-    <div className="panDock">
+    <div className="panDock" ref={dockRef}>
       <button
         type="button"
         className="toolDock__button"

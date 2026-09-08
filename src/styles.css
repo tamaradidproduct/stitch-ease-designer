@@ -316,7 +316,9 @@ body {
      with no home-indicator gesture area to clear), so this is additive,
      not risky. */
   bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-  left: calc(50% - 152px);
+  /* Normally centered in the usable canvas. PanButton raises this custom
+     property only when the dock needs to clear its 16px safety gap. */
+  left: var(--tool-dock-center, calc((100% - 304px) / 2));
   display: flex;
   align-items: center;
   gap: 5px;
@@ -476,6 +478,46 @@ body {
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
+}
+
+/* Pan has to stay discoverable on iPad, where hover does not exist, but it
+   should not permanently consume the lower-left canvas on a pointer device.
+   The dock-measurement used by the reference scale controls observes this
+   button, so their centre automatically follows this compact/expanded width. */
+@media (hover: hover) and (pointer: fine) {
+  .panDock .toolDock__button {
+    width: 38px;
+    min-width: 38px;
+    padding: 0;
+    gap: 0;
+    overflow: hidden;
+    transition:
+      width 150ms ease,
+      padding 150ms ease,
+      gap 150ms ease;
+  }
+
+  .panDock .toolDock__button span {
+    max-width: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition:
+      max-width 150ms ease,
+      opacity 100ms ease;
+  }
+
+  .panDock .toolDock__button:hover,
+  .panDock .toolDock__button:focus-visible {
+    width: 76px;
+    padding: 0 10px;
+    gap: 6px;
+  }
+
+  .panDock .toolDock__button:hover span,
+  .panDock .toolDock__button:focus-visible span {
+    max-width: 28px;
+    opacity: 1;
+  }
 }
 
 .toolDock__button {
