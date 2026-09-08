@@ -107,8 +107,13 @@ export function useTouchGestures(ref: RefObject<HTMLCanvasElement | null>): void
         pendingTimer = setTimeout(() => {
           pendingTimer = null;
           if (pendingId === e.pointerId && pendingDown) {
-            forward("pointerdown", e.pointerId, pendingDown);
+            const down = pendingDown;
+            forward("pointerdown", e.pointerId, down);
             forwarded.add(e.pointerId);
+            const current = points.get(e.pointerId);
+            if (current && (current.x !== down.x || current.y !== down.y)) {
+              forward("pointermove", e.pointerId, current);
+            }
           }
           pendingId = null;
           pendingDown = null;
@@ -146,6 +151,11 @@ export function useTouchGestures(ref: RefObject<HTMLCanvasElement | null>): void
       if (gestureActive) {
         e.preventDefault();
         e.stopImmediatePropagation();
+        if (points.size < 2) {
+          lastMid = null;
+          lastDist = 0;
+          return;
+        }
         const mid = midpoint();
         const dist = distance();
         if (lastMid) ui().panByScreen(mid.x - lastMid.x, mid.y - lastMid.y);
