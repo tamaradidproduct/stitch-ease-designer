@@ -87,7 +87,9 @@ export function useTouchGestures(ref: RefObject<HTMLCanvasElement | null>): void
     };
 
     const onPointerDown = (e: PointerEvent) => {
-      if (e.pointerType !== "touch") return;
+      // Forwarded events are for the hooks below, not for this gesture
+      // recognizer to claim a second time.
+      if (!e.isTrusted || e.pointerType !== "touch") return;
       if (gestureActive) {
         // A third finger while already panning/zooming: ignored outright,
         // rather than folded into the two-finger math.
@@ -145,7 +147,7 @@ export function useTouchGestures(ref: RefObject<HTMLCanvasElement | null>): void
     };
 
     const onPointerMove = (e: PointerEvent) => {
-      if (e.pointerType !== "touch" || !points.has(e.pointerId)) return;
+      if (!e.isTrusted || e.pointerType !== "touch" || !points.has(e.pointerId)) return;
       points.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
       if (gestureActive) {
