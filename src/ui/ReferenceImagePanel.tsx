@@ -24,6 +24,8 @@ export function ReferenceImagePanel() {
   const camera = useUiStore((s) => s.camera);
   const viewport = useUiStore((s) => s.viewport);
   const setCalibrating = useUiStore((s) => s.setReferenceImageCalibrating);
+  const gridAlignmentStatus = useUiStore((s) => s.referenceImageGridAlignmentStatus);
+  const setGridAlignmentStatus = useUiStore((s) => s.setReferenceImageGridAlignmentStatus);
   const setCalibrationBox = useUiStore((s) => s.setReferenceImageCalibrationBox);
   const calibrationRejected = useUiStore((s) => s.referenceImageCalibrationRejected);
   const marking = useUiStore((s) => s.referenceImageMarking);
@@ -215,19 +217,23 @@ export function ReferenceImagePanel() {
           <>
             <p
               className={
-                marking && calibrationRejected
+                marking && (calibrationRejected || gridAlignmentStatus === "failed")
                   ? "refpanel__hint refpanel__hint--warn"
                   : "refpanel__hint"
               }
             >
               {marking
-                ? points.length === 0
-                  ? calibrationRejected
-                    ? "That box was too small to read. Zoom in and draw around one whole corner stitch."
-                    : "Box a corner stitch to set the image's initial scale. Then add other corners to refine it."
-                  : calibrationRejected
-                    ? "That box was too small to read. Zoom in and drag across one whole stitch."
-                    : "Add corner stitches and type their printed stitch and row numbers to refine the scale. Drag a box to move it onto the right stitch."
+                ? gridAlignmentStatus === "detecting"
+                  ? "Tightening that reference point to the nearby chart lines…"
+                  : gridAlignmentStatus === "failed"
+                    ? "Those lines were too blurry to detect, so the drawn box was used. Add more numbered reference points for precision."
+                    : points.length === 0
+                      ? calibrationRejected
+                        ? "That box was too small to read. Zoom in and draw around one whole corner stitch."
+                        : "Box a corner stitch roughly; nearby grid lines will refine it. Then add 2–3 more numbered points for precision."
+                      : calibrationRejected
+                        ? "That box was too small to read. Zoom in and drag across one whole stitch."
+                        : "Add 2–3 more reference points and enter their printed stitch and row numbers to refine the scale."
                 : image.stitchPin
                   ? "Dragging it snaps the boxed stitch onto a grid cell (hold Alt to place it freely); arrow keys nudge it a step at a time. Any corner or edge resizes around that stitch \u2014 or drag the green box's own corners to re-fit it to one stitch."
                   : "Drag it on the canvas to move, or nudge it with the arrow keys (Shift for a whole stitch); drag any corner to resize, or an edge to stretch one way (hold Shift to keep its proportions)."}
@@ -245,6 +251,7 @@ export function ReferenceImagePanel() {
                 if (marking) updateReferenceImage({ calibrationMarks: [] });
                 setActiveMark(null);
                 setCalibrating(false);
+                setGridAlignmentStatus("idle");
                 setCalibrationRejected(false);
                 setMarking(!marking);
               }}
@@ -419,6 +426,7 @@ export function ReferenceImagePanel() {
                       removeReferenceImage();
                       setOpen(false);
                       setCalibrating(false);
+                      setGridAlignmentStatus("idle");
                       setCalibrationBox(null);
                     })
                     .catch((e: unknown) =>
