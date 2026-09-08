@@ -138,6 +138,41 @@ export async function sendMagicLink(email: string): Promise<SendMagicLinkResult>
   };
 }
 
+export type SignInWithGoogleResult = { ok: true } | { ok: false; message: string };
+
+/**
+ * Redirects to Google's OAuth consent screen. Unlike `sendMagicLink`, there's
+ * no `shouldCreateUser` flag here — OAuth has no per-request equivalent.
+ * Staying invite-only instead relies on the project-wide "Allow new users to
+ * sign up" setting (Supabase dashboard → Authentication → Sign In / Providers)
+ * already being off, the same setting `sendMagicLink`'s `otp_disabled` error
+ * depends on. With it off, a Google sign-in for an email with no existing
+ * invited user is rejected the same way; for an email that *was* invited,
+ * Supabase auto-links the Google identity to that existing user by email
+ * match. Inviting still happens the same way it does today (Supabase
+ * dashboard) - this only adds a second way an already-invited person can
+ * complete sign-in, not a new way to become invited.
+ */
+export async function signInWithGoogle(): Promise<SignInWithGoogleResult> {
+  let supabase;
+  try {
+    supabase = getSupabase();
+  } catch (caught) {
+    return {
+      ok: false,
+      message: caught instanceof Error ? caught.message : "Could not start Google sign-in",
+    };
+  }
+
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: { redirectTo: window.location.origin + window.location.pathname },
+  });
+
+  if (!error) return { ok: true }; // browser is navigating away to Google now
+  return { ok: false, message: error.message };
+}
+
 export async function signOut(): Promise<void> {
   await getSupabase().auth.signOut();
 }
