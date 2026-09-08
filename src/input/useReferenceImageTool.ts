@@ -132,10 +132,13 @@ export function worldBoxToPixels(image: ReferenceImage, box: { start: Point; cur
   const bottom = Math.min(box.start.y, box.current.y);
   const top = Math.max(box.start.y, box.current.y);
   return {
-    left: ((left - image.x) / image.width) * image.naturalWidth,
-    right: ((right - image.x) / image.width) * image.naturalWidth,
-    top: ((image.y + image.height - top) / image.height) * image.naturalHeight,
-    bottom: ((image.y + image.height - bottom) / image.height) * image.naturalHeight,
+    // Guard against a zero-width/height image (e.g. malformed or hand-
+    // edited chart data) turning this into NaN/Infinity instead of just a
+    // degenerate box.
+    left: ((left - image.x) / (image.width || 1)) * image.naturalWidth,
+    right: ((right - image.x) / (image.width || 1)) * image.naturalWidth,
+    top: ((image.y + image.height - top) / (image.height || 1)) * image.naturalHeight,
+    bottom: ((image.y + image.height - bottom) / (image.height || 1)) * image.naturalHeight,
   };
 }
 
