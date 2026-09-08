@@ -228,6 +228,9 @@ type UiState = {
    */
   referenceImageCalibrating: boolean;
   setReferenceImageCalibrating: (calibrating: boolean) => void;
+  /** Feedback while a rough scale-reference box is tightened to photographed grid lines. */
+  referenceImageGridAlignmentStatus: "idle" | "detecting" | "failed";
+  setReferenceImageGridAlignmentStatus: (status: "idle" | "detecting" | "failed") => void;
   /**
    * Which reference-image corner handle the pointer is over, so the cursor
    * can show the resize direction. Only meaningful while the panel is open.
@@ -351,6 +354,7 @@ export const useUiStore = create<UiState>((set, get) => ({
     set(open ? { referenceImagePanelOpen: true } : {
       referenceImagePanelOpen: false,
       referenceImageCalibrating: false,
+      referenceImageGridAlignmentStatus: "idle",
       referenceImageCalibrationBox: null,
       referenceImageMarking: false,
       referenceImageActiveMark: null,
@@ -360,6 +364,9 @@ export const useUiStore = create<UiState>((set, get) => ({
     }),
   referenceImageCalibrating: false,
   setReferenceImageCalibrating: (referenceImageCalibrating) => set({ referenceImageCalibrating }),
+  referenceImageGridAlignmentStatus: "idle",
+  setReferenceImageGridAlignmentStatus: (referenceImageGridAlignmentStatus) =>
+    set({ referenceImageGridAlignmentStatus }),
   referenceImageMarking: false,
   setReferenceImageMarking: (referenceImageMarking) => set({ referenceImageMarking }),
   referenceImageActiveMark: null,
@@ -617,6 +624,7 @@ export const useUiStore = create<UiState>((set, get) => ({
     isPanning: false,
     referenceImagePanelOpen: false,
     referenceImageCalibrating: false,
+    referenceImageGridAlignmentStatus: "idle",
     referenceImageCalibrationBox: null,
     referenceImageMarking: false,
     referenceImageActiveMark: null,

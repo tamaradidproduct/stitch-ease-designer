@@ -1,5 +1,6 @@
 import { type RefObject, useEffect } from "react";
 import { CELL, type Point, screenToWorld } from "../canvas/camera";
+import { detectGridCell, type PixelRect } from "../model/referenceGridDetection";
 import {
   CORNERS,
   EDGES,
@@ -21,6 +22,7 @@ import {
 } from "../model/referenceCalibration";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
+import { resolveReferenceImageUrl } from "../storage/referenceImages";
 
 /** Hit-radius for the resize handle, in screen px (constant regardless of zoom). */
 const HANDLE_PX = 10;
@@ -99,6 +101,47 @@ type Drag =
       mode: "markDraw";
       start: Point;
     };
+
+async function loadReferencePixels(ref: string): Promise<ImageData> {
+  const url = await resolveReferenceImageUrl(ref);
+  const element = new Image();
+  element.crossOrigin = "anonymous";
+  element.src = url;
+  await element.decode();
+  const canvas = document.createElement("canvas");
+  canvas.width = element.naturalWidth;
+  canvas.height = element.naturalHeight;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) throw new Error("Could not inspect the reference image");
+  context.drawImage(element, 0, 0);
+  return context.getImageData(0, 0, canvas.width, canvas.height);
+}
+
+export function worldBoxToPixels(image: ReferenceImage, box: { start: Point; current: Point }): PixelRect {
+  const left = Math.min(box.start.x, box.current.x);
+  const right = Math.max(box.start.x, box.current.x);
+  const bottom = Math.min(box.start.y, box.current.y);
+  const top = Math.max(box.start.y, box.current.y);
+  return {
+    left: ((left - image.x) / image.width) * image.naturalWidth,
+    right: ((right - image.x) / image.width) * image.naturalWidth,
+    top: ((image.y + image.height - top) / image.height) * image.naturalHeight,
+    bottom: ((image.y + image.height - bottom) / image.height) * image.naturalHeight,
+  };
+}
+
+export function pixelBoxToWorld(image: ReferenceImage, box: PixelRect) {
+  return {
+    start: {
+      x: image.x + (box.left / image.naturalWidth) * image.width,
+      y: image.y + image.height - (box.bottom / image.naturalHeight) * image.height,
+    },
+    current: {
+      x: image.x + (box.right / image.naturalWidth) * image.width,
+      y: image.y + image.height - (box.top / image.naturalHeight) * image.height,
+    },
+  };
+}
 
 /**
  * Computes the transform that makes the box the user just drew equal one
@@ -550,6 +593,58 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
       }
     };
 
+    const addReferenceMark = async (
+      roughBox: { start: Point; current: Point },
+      sourceImage: ReferenceImage,
+      zoom: number,
+    ) => {
+      const ui = useUiStore.getState();
+      const minWorld = MIN_CALIBRATION_PX / zoom;
+      if (Math.abs(roughBox.current.x - roughBox.start.x) < minWorld ||
+          Math.abs(roughBox.current.y - roughBox.start.y) < minWorld) {
+        ui.setReferenceImageCalibrationRejected(true);
+        return;
+      }
+      ui.setReferenceImageGridAlignmentStatus("detecting");
+      let detectedBox: PixelRect | null = null;
+      try {
+        const pixels = await loadReferencePixels(sourceImage.ref);
+        detectedBox = detectGridCell(pixels, worldBoxToPixels(sourceImage, roughBox));
+      } catch {
+        // Pixel inspection may be unavailable for a cross-origin image. The
+        // hand-drawn box remains a valid reference point in that case.
+      }
+      const current = useDocStore.getState().referenceImage;
+      if (!current || current.ref !== sourceImage.ref) return;
+      const box = detectedBox ? pixelBoxToWorld(current, detectedBox) : roughBox;
+      ui.setReferenceImageGridAlignmentStatus(detectedBox ? "idle" : "failed");
+      const mark = markFromBox(current, box, zoom);
+      if (!mark) {
+        ui.setReferenceImageCalibrationRejected(true);
+        return;
+      }
+
+      const initialScale = !current.stitchPin ? calibrationTransform(current, box, zoom) : null;
+      if (!current.stitchPin && !initialScale) {
+        ui.setReferenceImageCalibrationRejected(true);
+        return;
+      }
+      let snapped: Partial<ReferenceImage> = {};
+      if (initialScale) {
+        const aligned = { ...current, ...initialScale };
+        if (aligned.stitchPin) {
+          snapped = snapImageToGrid(aligned.x, aligned.y, aligned, aligned.stitchPin);
+        }
+      }
+      useDocStore.getState().updateReferenceImage({
+        ...initialScale,
+        ...snapped,
+        calibrationMarks: addCalibrationMark(current.calibrationMarks, mark),
+      });
+      ui.setReferenceImageCalibrationRejected(false);
+      ui.setReferenceImageActiveMark(mark.id);
+    };
+
     const endDrag = (e: PointerEvent) => {
       if (!drag) return;
       e.stopImmediatePropagation();
@@ -573,39 +668,10 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
       } else if (drag.mode === "markDraw") {
         const box = useUiStore.getState().referenceImageCalibrationBox;
         const image = useDocStore.getState().referenceImage;
-        const mark =
-          box && image
-            ? markFromBox(image, box, useUiStore.getState().camera.zoom)
-            : null;
-        if (mark) {
-          // The first corner stitch is enough to establish a useful starting
-          // scale: the box itself tells us how large one stitch is. Keep it
-          // as the first numbered mark too, so subsequent corners can refine
-          // that estimate from their printed stitch/row numbers.
-          const initialScale =
-            !image!.stitchPin && box
-              ? calibrationTransform(image!, box, useUiStore.getState().camera.zoom)
-              : null;
-          if (!image!.stitchPin && !initialScale) {
-            useUiStore.getState().setReferenceImageCalibrationRejected(true);
-            useUiStore.getState().setReferenceImageCalibrationBox(null);
-            drag = null;
-            if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
-            return;
-          }
-          useDocStore.getState().updateReferenceImage({
-            ...initialScale,
-            calibrationMarks: addCalibrationMark(image!.calibrationMarks, mark),
-          });
-          useUiStore.getState().setReferenceImageCalibrationRejected(false);
-          // Opening the popover on the stitch just boxed is the whole point
-          // of boxing it: the numbers get read off the chart at that spot,
-          // while looking at it.
-          useUiStore.getState().setReferenceImageActiveMark(mark.id);
-        } else {
-          useUiStore.getState().setReferenceImageCalibrationRejected(true);
-        }
         useUiStore.getState().setReferenceImageCalibrationBox(null);
+        if (box && image) {
+          void addReferenceMark(box, image, useUiStore.getState().camera.zoom);
+        }
       }
       drag = null;
       if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
