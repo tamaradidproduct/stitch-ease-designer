@@ -8,6 +8,7 @@ import { isChartOpen, selectIsDirty, useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
 import { KeyboardHintBanner } from "./KeyboardHintBanner";
 import { PanButton } from "./PanButton";
+import { ReferenceImageDock } from "./ReferenceImageDock";
 import { ReferenceMarkEditor } from "./ReferenceMarkEditor";
 import { RightPanel } from "./RightPanel";
 import { StatusBar } from "./StatusBar";
@@ -44,6 +45,8 @@ export function ChartEditor() {
   const redo = useDocStore((s) => s.redo);
   const canUndo = useDocStore((s) => s.undoStack.length > 0);
   const canRedo = useDocStore((s) => s.redoStack.length > 0);
+  const referenceImage = useDocStore((s) => s.referenceImage);
+  const referenceImagePanelOpen = useUiStore((s) => s.referenceImagePanelOpen);
 
   useAutosave(chartStore);
 
@@ -212,14 +215,15 @@ export function ChartEditor() {
 
       <KeyboardHintBanner />
 
-      <Toolbar />
-      <PanButton />
       <main className="stage">
         <CanvasView />
         <ReferenceMarkEditor />
         <RightPanel />
         <StitchPicker />
         <SelectionActions />
+        <Toolbar />
+        <PanButton />
+        {referenceImagePanelOpen && referenceImage && <ReferenceImageDock />}
       </main>
       <StatusBar />
     </div>

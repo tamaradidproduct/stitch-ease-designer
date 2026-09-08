@@ -877,13 +877,18 @@ export function render(ctx: CanvasRenderingContext2D, state: RenderState): void 
   ctx.fillStyle = theme.background;
   ctx.fillRect(0, 0, vp.width, vp.height);
 
+  // During scale setup, the chart grid and placed stitches must stay visible
+  // even if this image normally sits in front. Otherwise a pale or opaque
+  // chart scan can turn the whole canvas into a blank-looking sheet as soon
+  // as a reference-point button is pressed.
+  const imageInFront = !!state.referenceImage?.inFront && !state.referenceImageMarking;
   // Behind the chart by default; in front when the designer wants to check
   // their stitches against the source by eye (then it's a statement about
   // the photo rather than about the chart).
-  if (!state.referenceImage?.inFront) drawReferenceImage(ctx, state);
+  if (!imageInFront) drawReferenceImage(ctx, state);
   drawGrid(ctx, state.camera, vp, theme);
   drawPlacements(ctx, state);
-  if (state.referenceImage?.inFront) drawReferenceImage(ctx, state);
+  if (imageInFront) drawReferenceImage(ctx, state);
   drawGroupNumbering(ctx, state);
   drawInsertAnimation(ctx, state);
   drawSelection(ctx, state);

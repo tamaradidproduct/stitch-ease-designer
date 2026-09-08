@@ -310,12 +310,12 @@ body {
 }
 
 .toolDock {
-  position: fixed;
+  position: absolute;
   z-index: 18;
   /* env() falls back to the plain value when unsupported (or on a device
      with no home-indicator gesture area to clear), so this is additive,
      not risky. */
-  bottom: calc(42px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
   left: calc(50% - 152px);
   display: flex;
   align-items: center;
@@ -332,9 +332,9 @@ body {
 }
 
 .panDock {
-  position: fixed;
+  position: absolute;
   z-index: 18;
-  bottom: calc(42px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
   left: 24px;
   padding: 7px;
   border: 1px solid var(--border);
@@ -344,6 +344,116 @@ body {
     0 8px 24px rgb(15 23 42 / 14%),
     0 2px 6px rgb(15 23 42 / 8%);
   backdrop-filter: blur(8px);
+}
+
+.referenceDockPositioner {
+  position: absolute;
+  z-index: 18;
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  /* The right panel reserves 304px of the stage, and .referenceImageQuickDock
+     floats another ~230px past that (see its own right: 328px). Reserving
+     both here, not just the panel, keeps this dock centered in space that's
+     actually empty instead of drifting under the quick dock on a narrow
+     (e.g. iPad-portrait) viewport, where there isn't 560px+ of slack to
+     absorb the overlap unnoticed. */
+  right: 560px;
+  left: 0;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.referenceDock {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  /* Bounded by the positioner's own (already-reserved) width, not the full
+     viewport - vw here would let this reach past the space actually left
+     for it and under the right panel. */
+  max-width: calc(100% - 32px);
+  padding: 7px;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgb(255 255 255 / 96%);
+  box-shadow:
+    0 8px 24px rgb(15 23 42 / 14%),
+    0 2px 6px rgb(15 23 42 / 8%);
+  backdrop-filter: blur(8px);
+  pointer-events: auto;
+}
+
+.referenceDock .toolDock__button:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+
+.referenceImageQuickDock {
+  position: absolute;
+  z-index: 18;
+  right: 328px;
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgb(255 255 255 / 96%);
+  box-shadow:
+    0 8px 24px rgb(15 23 42 / 14%),
+    0 2px 6px rgb(15 23 42 / 8%);
+  backdrop-filter: blur(8px);
+}
+
+.referenceDock__apply {
+  border-color: var(--accent) !important;
+  background: var(--accent) !important;
+  color: #fff !important;
+}
+
+.referenceDock__apply:hover:not(:disabled),
+.referenceDock__apply:focus-visible {
+  border-color: var(--accent-strong, var(--accent)) !important;
+  background: var(--accent-strong, var(--accent)) !important;
+}
+
+.referenceDock__cancel {
+  color: var(--text-muted);
+}
+
+.referenceDock__point {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 38px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.referenceDock__pointIndex {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--chrome);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.referenceDock__point[data-active="true"] {
+  border-color: var(--accent);
+  background: #e0f2fe;
+  color: var(--accent);
 }
 
 /* Deliberately shown on every platform, not just touch: (hover: hover) and
@@ -1657,6 +1767,13 @@ body {
   width: 100%;
 }
 
+.refpanel__dockHint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
 .refpanel__body {
   display: flex;
   flex-direction: column;
@@ -2200,6 +2317,10 @@ body {
   border: 1px solid var(--border);
   border-radius: 8px;
   box-shadow: 0 6px 20px rgb(15 23 42 / 18%);
+  transition:
+    left 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    top 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: left, top;
 }
 
 .markpop__fields {
@@ -2221,13 +2342,25 @@ body {
   color: var(--text-muted);
 }
 
-.markpop input {
+.markpop__input {
   width: 54px;
+  min-height: 28px;
   padding: 3px 6px;
   border: 1px solid var(--border);
   border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
   font: inherit;
   font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.markpop__input[data-active="true"],
+.markpop__input:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+  outline: 0;
 }
 
 .markpop__shortcuts {
@@ -2258,6 +2391,96 @@ body {
 
 .markpop__shortcut[data-active="true"] {
   background: #e0f2fe;
+}
+
+.markpop__keypad {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+
+.markpop__keypad button {
+  min-width: 32px;
+  min-height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.markpop__keypad button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.markpop__keypad svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.markpop__keypadNext {
+  color: var(--accent) !important;
+}
+
+.markpop__actions {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.markpop__confirm {
+  min-height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.markpop__confirm:hover:not(:disabled) {
+  filter: brightness(0.94);
+}
+
+.markpop__confirm:disabled {
+  border-color: var(--border);
+  background: var(--chrome);
+  color: var(--text-muted);
+  cursor: default;
+  opacity: 0.65;
+}
+
+.markpop__clear {
+  min-height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #dc2626;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.markpop__clear:hover,
+.markpop__clear:focus-visible {
+  background: #fef2f2;
+  outline: none;
 }
 
 /* Matches the badge drawn beside the mark on the canvas. */

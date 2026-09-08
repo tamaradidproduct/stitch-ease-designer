@@ -416,6 +416,10 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
 
     const onPointerDown = (e: PointerEvent) => {
       if (ui().spaceHeld || ui().panEnabled || e.button !== 0) return; // panning, or not a plain left click
+      // Reference-image editing is a modal canvas workflow. Even if a tool
+      // shortcut managed to change the stored tool, no stitch interaction
+      // may run until the reference panel is closed again.
+      if (ui().referenceImagePanelOpen) return;
 
       // The selected stitch remains draggable while its edit picker is open.
       // Modifier clicks are selection commands and must act on this first

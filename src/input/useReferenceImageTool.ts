@@ -132,10 +132,13 @@ export function worldBoxToPixels(image: ReferenceImage, box: { start: Point; cur
   const bottom = Math.min(box.start.y, box.current.y);
   const top = Math.max(box.start.y, box.current.y);
   return {
-    left: ((left - image.x) / image.width) * image.naturalWidth,
-    right: ((right - image.x) / image.width) * image.naturalWidth,
-    top: ((image.y + image.height - top) / image.height) * image.naturalHeight,
-    bottom: ((image.y + image.height - bottom) / image.height) * image.naturalHeight,
+    // Guard against a zero-width/height image (e.g. malformed or hand-
+    // edited chart data) turning this into NaN/Infinity instead of just a
+    // degenerate box.
+    left: ((left - image.x) / (image.width || 1)) * image.naturalWidth,
+    right: ((right - image.x) / (image.width || 1)) * image.naturalWidth,
+    top: ((image.y + image.height - top) / (image.height || 1)) * image.naturalHeight,
+    bottom: ((image.y + image.height - bottom) / (image.height || 1)) * image.naturalHeight,
   };
 }
 
@@ -421,6 +424,7 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
             grabU: (w.x - image.x) / image.width - existing.u,
             grabV: (w.y - image.y) / image.height - existing.v,
           };
+          useDocStore.getState().beginReferenceImageEdit();
           canvas.setPointerCapture(e.pointerId);
           return;
         }
@@ -494,6 +498,9 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
         };
       }
       canvas.setPointerCapture(e.pointerId);
+      if (drag.mode === "move" || drag.mode === "scale" || drag.mode === "stitchResize") {
+        useDocStore.getState().beginReferenceImageEdit();
+      }
     };
 
     /**
@@ -666,6 +673,11 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
 
     const endDrag = (e: PointerEvent) => {
       if (!drag) return;
+      const endsReferenceEdit =
+        drag.mode === "move" ||
+        drag.mode === "scale" ||
+        drag.mode === "stitchResize" ||
+        drag.mode === "markMove";
       e.stopImmediatePropagation();
       if (drag.mode === "calibrate") {
         const box = useUiStore.getState().referenceImageCalibrationBox;
@@ -693,6 +705,7 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
         }
       }
       drag = null;
+      if (endsReferenceEdit) useDocStore.getState().endReferenceImageEdit();
       if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
     };
 
