@@ -316,6 +316,7 @@ export function CanvasView() {
       unsubscribeUi();
       unsubscribeDoc();
       sprites.clear();
+      referenceImages.setOnReady(null);
       window.removeEventListener("resize", syncSize);
       media.removeEventListener("change", onDprChange);
     };
