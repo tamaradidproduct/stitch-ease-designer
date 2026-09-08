@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { allSymbols, getSymbol } from "../symbols/registry";
 import { CELL } from "../canvas/camera";
 import { exportChartCsv } from "../storage/exportCsv";
@@ -10,6 +10,7 @@ import { SUGGEST_SYMBOL_ID, useUiStore } from "../state/uiStore";
 import { ReferenceImagePanel } from "./ReferenceImagePanel";
 import { SymbolGlyph } from "./SymbolGlyph";
 import { searchSymbols } from "./symbolSearch";
+import { tapActivate } from "./tapActivate";
 
 /** Every fresh pattern starts with the two foundational knit stitches. */
 const DEFAULT_GLOSSARY_IDS = ["knit", "purl"];
@@ -79,7 +80,12 @@ export function RightPanel() {
     setAddedGlossaryIds(loadGlossaryIds(chartId));
   }, [chartId]);
 
-  useEffect(() => {
+  // Plain useEffect defers to a paint-independent scheduler tick, which
+  // lands outside the synchronous user-gesture window iOS requires to raise
+  // the on-screen keyboard for a focus() call - the same issue StitchPicker
+  // had (see the comment there). useLayoutEffect runs synchronously, before
+  // paint, in the same tick as the click that set searchSlot.
+  useLayoutEffect(() => {
     if (searchSlot !== null) glossarySearchRef.current?.focus();
   }, [searchSlot]);
 
@@ -131,6 +137,26 @@ export function RightPanel() {
       document.removeEventListener("keydown", dismissOnEscape);
     };
   }, [searchSlot]);
+
+
+  // Shown in an armed row's trailing slot in place of whatever's normally
+  // there (remove-from-glossary, or nothing) - a stitch that's mid-draw
+  // isn't a candidate for removal anyway, and this is the one spot on
+  // every armed row that's guaranteed free for it.
+  const disarmButton = (
+    <button
+      type="button"
+      className="glossary__disarm"
+      {...tapActivate(() => setArmedSymbolId(null))}
+      aria-label="Stop drawing"
+      title="Stop drawing (Esc)"
+    >
+      <svg viewBox="0 0 20 20" aria-hidden="true">
+        <circle cx="10" cy="10" r="7" />
+        <path d="m5 15 10-10" />
+      </svg>
+    </button>
+  );
 
   const placements = index.toArray();
   const seen = new Set<string>();
@@ -320,8 +346,12 @@ export function RightPanel() {
                 <button
                   type="button"
                   className="glossary__arm"
-                  onClick={() => setArmedSymbolId(SUGGEST_SYMBOL_ID)}
-                  title="Draw with Suggest (G) - matches each cell against stitches you've already confirmed over the reference image. Cmd/Ctrl-click a suggestion to confirm it, or Cmd/Ctrl-click with a stitch armed to confirm it as that stitch instead. Alt-click dismisses it - all of this drags and Shift straight-lines/gap-fills the same way Draw does."
+                  {...tapActivate(() =>
+                    setArmedSymbolId(
+                      armedSymbolId === SUGGEST_SYMBOL_ID && tool === "stitch" ? null : SUGGEST_SYMBOL_ID,
+                    )
+                  )}
+                  title="Draw with Suggest (G) - tap again to stop drawing. Matches each cell against stitches you've already confirmed over the reference image. Landing on a suggestion with a real stitch armed confirms it as that stitch outright; Shift-click confirms it as its own guess instead. Shift+Opt erases a cell, suggested or confirmed - all of this drags and Shift straight-lines/gap-fills the same way Draw does."
                 >
                   <span className="glossary__glyph" aria-hidden="true">
                     <svg viewBox="0 0 20 20" width="16" height="16">
@@ -347,7 +377,11 @@ export function RightPanel() {
                     {suggestTaughtCount}
                   </span>
                 </button>
-                <span className="glossary__removeSlot" aria-hidden="true" />
+                {armedSymbolId === SUGGEST_SYMBOL_ID && tool === "stitch" ? (
+                  disarmButton
+                ) : (
+                  <span className="glossary__removeSlot" aria-hidden="true" />
+                )}
               </div>
             )}
             {isAdmin && (suggestedCount > 0 || unrecognizedCount > 0) && (
@@ -446,8 +480,10 @@ export function RightPanel() {
                   <button
                     type="button"
                     className="glossary__arm"
-                    onClick={() => setArmedSymbolId(id)}
-                    title={`Draw with ${symbol.label} (${slot + 1})`}
+                    {...tapActivate(() =>
+                      setArmedSymbolId(id === armedSymbolId && tool === "stitch" ? null : id)
+                    )}
+                    title={`Draw with ${symbol.label} (${slot + 1}) - tap again to stop drawing`}
                   >
                     <span className="glossary__glyph">
                       <SymbolGlyph symbol={symbol} cell={Math.max(7, Math.min(20, 54 / symbol.span))} />
@@ -457,7 +493,9 @@ export function RightPanel() {
                       {stitchCounts.get(symbol.id) ?? 0}
                     </span>
                   </button>
-                  {(stitchCounts.get(symbol.id) ?? 0) === 0 && (
+                  {id === armedSymbolId && tool === "stitch" ? (
+                    disarmButton
+                  ) : (stitchCounts.get(symbol.id) ?? 0) === 0 ? (
                     <button
                       type="button"
                       className="glossary__remove"
@@ -469,8 +507,7 @@ export function RightPanel() {
                         <path d="M3.5 3.5l9 9m0-9-9 9" />
                       </svg>
                     </button>
-                  )}
-                  {(stitchCounts.get(symbol.id) ?? 0) > 0 && (
+                  ) : (
                     <span className="glossary__removeSlot" aria-hidden="true" />
                   )}
                 </div>
@@ -547,8 +584,12 @@ export function RightPanel() {
                 <button
                   type="button"
                   className="glossary__arm"
-                  onClick={() => chooseSymbol(symbol.id)}
-                  title={`Draw with ${symbol.label}`}
+                  {...tapActivate(() =>
+                    symbol.id === armedSymbolId && tool === "stitch"
+                      ? setArmedSymbolId(null)
+                      : chooseSymbol(symbol.id)
+                  )}
+                  title={`Draw with ${symbol.label} - tap again to stop drawing`}
                 >
                   <span className="glossary__glyph">
                     <SymbolGlyph symbol={symbol} cell={Math.max(7, Math.min(20, 54 / symbol.span))} />
@@ -558,7 +599,9 @@ export function RightPanel() {
                     {stitchCounts.get(symbol.id) ?? 0}
                   </span>
                 </button>
-                {(stitchCounts.get(symbol.id) ?? 0) === 0 && (
+                {symbol.id === armedSymbolId && tool === "stitch" ? (
+                  disarmButton
+                ) : (stitchCounts.get(symbol.id) ?? 0) === 0 ? (
                   <button
                     type="button"
                     className="glossary__remove"
@@ -570,8 +613,7 @@ export function RightPanel() {
                       <path d="M3.5 3.5l9 9m0-9-9 9" />
                     </svg>
                   </button>
-                )}
-                {(stitchCounts.get(symbol.id) ?? 0) > 0 && (
+                ) : (
                   <span className="glossary__removeSlot" aria-hidden="true" />
                 )}
               </div>

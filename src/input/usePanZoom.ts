@@ -75,7 +75,8 @@ export function usePanZoom(ref: RefObject<HTMLCanvasElement | null>): void {
     let pan: Pan | null = null;
 
     const onPointerDown = (e: PointerEvent) => {
-      const wantsPan = e.button === 1 || (e.button === 0 && ui().spaceHeld);
+      const wantsPan =
+        e.button === 1 || (e.button === 0 && (ui().spaceHeld || ui().panEnabled));
       if (!wantsPan || pan || !canPan()) return;
       e.preventDefault();
       pan = { pointerId: e.pointerId, button: e.button, lastX: e.clientX, lastY: e.clientY };

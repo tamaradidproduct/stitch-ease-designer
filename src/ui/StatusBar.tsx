@@ -7,6 +7,7 @@ export function StatusBar() {
   const zoom = useUiStore((s) => s.camera.zoom);
   const resetView = useUiStore((s) => s.resetView);
   const tool = useUiStore((s) => s.tool);
+  const panEnabled = useUiStore((s) => s.panEnabled);
   const selectHeld = useUiStore((s) => s.selectHeld);
   const selectedCount = useUiStore((s) => s.selectedPlacementIds.length);
   const index = useDocStore((s) => s.index);
@@ -25,11 +26,13 @@ export function StatusBar() {
       </span>
       <span className="statusbar__spacer" />
       <span className="statusbar__hint">
-        {tool === "select" || selectHeld
-          ? selectedCount
-            ? `${selectedCount} selected · Shift-click to add or remove · Delete to clear`
-            : "Click to select · Shift-click to select multiple"
-          : "space + drag to pan · ⌘ + scroll to zoom"}
+        {panEnabled
+          ? "Drag anywhere to pan"
+          : tool === "select" || selectHeld
+            ? selectedCount
+              ? `${selectedCount} selected · Shift-click to add or remove · Delete to clear`
+              : "Click to select · Shift-click to select multiple"
+            : "space + drag to pan · ⌘ + scroll to zoom"}
       </span>
       <button className="statusbar__zoom" onClick={resetView} title="Reset view (⌘0)">
         {Math.round(zoom * 100)}%

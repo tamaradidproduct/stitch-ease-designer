@@ -20,7 +20,18 @@ export class ReferenceImageCache {
   private pending = false;
   private attempts = 0;
 
-  constructor(private readonly onReady: () => void) {}
+  constructor(private onReady: () => void) {}
+
+  /**
+   * Only the live canvas needs to redraw when a load lands, but the cache
+   * itself is a singleton (see `getSharedReferenceImageCache`) shared with
+   * non-React callers that don't - this lets whichever `CanvasView` is
+   * currently mounted claim that callback without the cache needing to know
+   * about React at all.
+   */
+  setOnReady(onReady: (() => void) | null): void {
+    this.onReady = onReady ?? (() => {});
+  }
 
   /** The loaded image for `ref`, or null if it isn't ready yet (or `ref` is null). */
   get(ref: string | null): HTMLImageElement | null {

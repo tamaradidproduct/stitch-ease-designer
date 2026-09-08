@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { cellToScreenRect } from "../canvas/camera";
 import { allSymbols, getSymbol } from "../symbols/registry";
 import type { StitchSymbol } from "../symbols/types";
@@ -100,17 +101,32 @@ export function StitchPicker() {
   // every open behave like a fresh one: a stale search from the last cell
   // doesn't carry over, and if this cell already has a stitch, the list
   // starts on it rather than always at the top.
-  useEffect(() => {
+  // iOS only raises the on-screen keyboard for a focus() that lands
+  // synchronously within the user gesture that opened the picker - a
+  // requestAnimationFrame callback runs a paint later, well outside that
+  // window (this is also why a Pencil tap, which doesn't share the same
+  // touch-gesture restriction, used to work here when a finger tap didn't).
+  // flushSync can't be used here - React forbids calling it from inside a
+  // lifecycle/commit callback like this one - but useLayoutEffect doesn't
+  // need it: a state update made from inside a layout effect is already
+  // guaranteed to re-render and re-run layout effects synchronously, before
+  // the browser paints, which is the same "no yielding to the event loop"
+  // property flushSync would have provided. The searchButtonRef case needs
+  // none of this - that button exists either way - so it's focused directly,
+  // right here; the armOnly/inputRef case waits for the second effect below,
+  // once the search input this reset just requested has actually mounted.
+  useLayoutEffect(() => {
     if (!target) return;
     setQuery("");
     setSearchOpen(!!target.armOnly);
     setSearchOrigin(5);
     setActive(0);
-    requestAnimationFrame(() => {
-      if (target.armOnly) inputRef.current?.focus();
-      else searchButtonRef.current?.focus();
-    });
+    if (!target.armOnly) searchButtonRef.current?.focus();
   }, [target]);
+
+  useLayoutEffect(() => {
+    if (target?.armOnly && searchOpen) inputRef.current?.focus();
+  }, [target, searchOpen]);
 
   // Keep the contextual picker above the selected stitch or selection while
   // keeping it on screen near the canvas edges.
@@ -185,11 +201,14 @@ export function StitchPicker() {
   if (!target) return null;
 
   const openSearch = (initialQuery = "", origin = 5) => {
-    setSearchOpen(true);
-    setSearchOrigin(origin);
-    setQuery(initialQuery);
-    setActive(0);
-    requestAnimationFrame(() => inputRef.current?.focus());
+    // Same synchronous-focus requirement as the auto-open effect above.
+    flushSync(() => {
+      setSearchOpen(true);
+      setSearchOrigin(origin);
+      setQuery(initialQuery);
+      setActive(0);
+    });
+    inputRef.current?.focus();
   };
 
   const placeholder = target.armOnly
@@ -207,23 +226,14 @@ export function StitchPicker() {
       chooseSymbol(symbol.id);
       return;
     }
-    // Choosing a symbol from a multi-cell selection fills it but keeps it
-    // selected - the picker stays open, re-targeted at the new placements -
-    // and arms the symbol, so the next click elsewhere continues stamping
-    // with it instead of leaving the designer to re-pick from scratch.
+    // Choosing a symbol from a multi-cell selection fills it and closes the
+    // picker, same as a single-cell pick - but keeps the selection so the
+    // designer can see (and act on) what they just filled.
     if (target.selectionIds) {
       const newIds = replacePlacements(target.selectionIds, symbol.id);
       setSelectedPlacementIds(newIds, false);
-      openPicker({
-        col: target.col,
-        row: target.row,
-        x: target.x,
-        y: target.y,
-        currentSymbolId: symbol.id,
-        selectionIds: newIds,
-        ...(target.selectionSpan !== undefined ? { selectionSpan: target.selectionSpan } : null),
-      });
       chooseSymbol(symbol.id, "stitch", true);
+      closePicker();
       return;
     }
     if (target.selectionEmptyCells?.length) {
@@ -239,20 +249,17 @@ export function StitchPicker() {
         .filter((id): id is string => !!id))];
       setSelectedEmptyCells([]);
       setSelectedPlacementIds(newIds, false);
-      if (newIds.length) {
-        openPicker({
-          col: target.col,
-          row: target.row,
-          x: target.x,
-          y: target.y,
-          currentSymbolId: symbol.id,
-          selectionIds: newIds,
-          selectionSpan: symbol.span,
-        });
+      // Same rule as the reviewingSuggestion check further down: resolving
+      // an unrecognized cell shouldn't arm whatever was picked for it -
+      // this branch used to return before ever reaching that check, so
+      // Suggest was silently getting swapped out on every unrecognized-cell
+      // fix instead of staying armed for the rest of the review pass.
+      if (target.reviewingSuggestion) {
+        useUiStore.getState().setReferenceImageUnrecognized(`${target.col},${target.row}`, false);
+      } else if (newIds.length) {
         chooseSymbol(symbol.id, "stitch", true);
-      } else {
-        closePicker();
       }
+      closePicker();
       return;
     }
     if (target.insert) {

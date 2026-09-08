@@ -4,6 +4,7 @@ import { usePaintTool } from "../input/usePaintTool";
 import { usePanZoom } from "../input/usePanZoom";
 import { useReferenceImageTool } from "../input/useReferenceImageTool";
 import { useShortcuts } from "../input/useShortcuts";
+import { useTouchGestures } from "../input/useTouchGestures";
 import { useDocStore } from "../state/docStore";
 import { cellKey, useUiStore } from "../state/uiStore";
 import {
@@ -21,7 +22,7 @@ import {
   armedStitchCursor,
   insertStitchCursor,
 } from "./cursors";
-import { ReferenceImageCache } from "./referenceImageCache";
+import { getSharedReferenceImageCache } from "./referenceImageCache";
 import { render } from "./renderer";
 import { SpriteCache } from "./spriteCache";
 
@@ -50,7 +51,7 @@ export function CanvasView() {
     // editing a reference image, otherwise the image's move/resize cursor
     // implies the next drag will edit the image rather than pan the view.
     if (s.isPanning) return GRABBING_CURSOR;
-    if (s.spaceHeld) return GRAB_CURSOR;
+    if (s.spaceHeld || s.panEnabled) return GRAB_CURSOR;
     // The panel owns the canvas entirely while it's open - every state below
     // this is about a tool it has already overridden the hover/selection
     // feedback for.
@@ -127,8 +128,11 @@ export function CanvasView() {
     return s.armedSymbolId ? armedStitchCursor(s.armedSymbolId) : ADD_CURSOR;
   });
 
-  // Registered first so it gets first refusal on every pointer event - it
-  // claims a drag (and stops the event reaching the tools below) only when
+  // Registered first of all so a second touch finger gets first refusal,
+  // ahead of everything below - including useReferenceImageTool's own
+  // "first refusal" on a single pointer.
+  useTouchGestures(ref);
+  // Claims a drag (and stops the event reaching the tools below) only when
   // its panel is open and the click actually lands on the image.
   useReferenceImageTool(ref);
   usePanZoom(ref);
@@ -148,7 +152,12 @@ export function CanvasView() {
     // A glyph finishing rasterisation has to trigger another frame, or it
     // won't appear until something else happens to invalidate the canvas.
     const sprites = new SpriteCache(markDirty);
-    const referenceImages = new ReferenceImageCache(markDirty);
+    // Shared with usePaintTool.ts's Suggest matcher, not a private instance -
+    // two separate caches used to mean Suggest's first click always missed,
+    // silently loading an image the canvas had already rendered from its own
+    // copy a moment earlier.
+    const referenceImages = getSharedReferenceImageCache();
+    referenceImages.setOnReady(markDirty);
 
     /**
      * Match the backing store to the element's CSS size. Idempotent, so it's
@@ -307,6 +316,7 @@ export function CanvasView() {
       unsubscribeUi();
       unsubscribeDoc();
       sprites.clear();
+      referenceImages.setOnReady(null);
       window.removeEventListener("resize", syncSize);
       media.removeEventListener("change", onDprChange);
     };
