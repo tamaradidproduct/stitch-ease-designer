@@ -102,7 +102,14 @@ type Drag =
       start: Point;
     };
 
+// One entry, keyed by ref: adding a numbered reference point calls this
+// again for every mark (up to four), and re-decoding a large photo each
+// time is expensive enough to visibly lag the marking flow. The image
+// itself never changes mid-calibration, so the same decode can be reused.
+let cachedReferencePixels: { ref: string; data: ImageData } | null = null;
+
 async function loadReferencePixels(ref: string): Promise<ImageData> {
+  if (cachedReferencePixels?.ref === ref) return cachedReferencePixels.data;
   const url = await resolveReferenceImageUrl(ref);
   const element = new Image();
   element.crossOrigin = "anonymous";
@@ -114,7 +121,9 @@ async function loadReferencePixels(ref: string): Promise<ImageData> {
   const context = canvas.getContext("2d", { willReadFrequently: true });
   if (!context) throw new Error("Could not inspect the reference image");
   context.drawImage(element, 0, 0);
-  return context.getImageData(0, 0, canvas.width, canvas.height);
+  const data = context.getImageData(0, 0, canvas.width, canvas.height);
+  cachedReferencePixels = { ref, data };
+  return data;
 }
 
 export function worldBoxToPixels(image: ReferenceImage, box: { start: Point; current: Point }): PixelRect {
@@ -602,6 +611,11 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
       const minWorld = MIN_CALIBRATION_PX / zoom;
       if (Math.abs(roughBox.current.x - roughBox.start.x) < minWorld ||
           Math.abs(roughBox.current.y - roughBox.start.y) < minWorld) {
+        // Reset rather than leave a previous attempt's "failed" (blurry
+        // lines) status standing - the panel checks that status ahead of
+        // calibrationRejected, so a stale "failed" would show the wrong
+        // warning for this box's actual problem (too small).
+        ui.setReferenceImageGridAlignmentStatus("idle");
         ui.setReferenceImageCalibrationRejected(true);
         return;
       }
@@ -620,12 +634,17 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
       ui.setReferenceImageGridAlignmentStatus(detectedBox ? "idle" : "failed");
       const mark = markFromBox(current, box, zoom);
       if (!mark) {
+        // Same reasoning as the size check above: don't leave gridAlignment-
+        // Status pointing at "failed" (blurry lines) when the actual reason
+        // this box was rejected is that no mark could be built from it.
+        ui.setReferenceImageGridAlignmentStatus("idle");
         ui.setReferenceImageCalibrationRejected(true);
         return;
       }
 
       const initialScale = !current.stitchPin ? calibrationTransform(current, box, zoom) : null;
       if (!current.stitchPin && !initialScale) {
+        ui.setReferenceImageGridAlignmentStatus("idle");
         ui.setReferenceImageCalibrationRejected(true);
         return;
       }
