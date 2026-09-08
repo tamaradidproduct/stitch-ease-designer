@@ -58,7 +58,9 @@ export function CanvasView() {
     if (s.referenceImagePanelOpen) {
       // Both calibration modes aim at a specific point, which is exactly
       // what a crosshair is for.
-      if (s.referenceImageCalibrating || s.referenceImageMarking) return "crosshair";
+      if (s.referenceImageCalibrating || s.referenceImageMarking) {
+        return "crosshair";
+      }
       const image = useDocStore.getState().referenceImage;
       // An expanded module isn't itself a canvas mode. Only an editable,
       // visible image takes over the cursor; otherwise the chosen stitch
