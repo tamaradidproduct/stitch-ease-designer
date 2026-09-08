@@ -29,8 +29,8 @@ export class ReferenceImageCache {
    * currently mounted claim that callback without the cache needing to know
    * about React at all.
    */
-  setOnReady(onReady: () => void): void {
-    this.onReady = onReady;
+  setOnReady(onReady: (() => void) | null): void {
+    this.onReady = onReady ?? (() => {});
   }
 
   /** The loaded image for `ref`, or null if it isn't ready yet (or `ref` is null). */
