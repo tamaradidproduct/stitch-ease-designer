@@ -1934,6 +1934,59 @@ body {
   font-weight: 600;
 }
 
+.signIn__google {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.signIn__google:hover,
+.signIn__google:focus-visible {
+  border-color: #bae6fd;
+  background: #f8fafc;
+  outline: none;
+}
+
+.signIn__google:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.signIn__divider {
+  position: relative;
+  margin: 14px 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+.signIn__divider::before,
+.signIn__divider::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: calc(50% - 16px);
+  border-top: 1px solid var(--border);
+}
+
+.signIn__divider::before {
+  left: 0;
+}
+
+.signIn__divider::after {
+  right: 0;
+}
+
 .signIn__form {
   display: flex;
   flex-direction: column;
