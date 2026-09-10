@@ -12,6 +12,7 @@ import { searchSymbols } from "./symbolSearch";
 const MENU_WIDTH = 284;
 const SEARCH_SLOT_WIDTH = 200;
 const MAX_HEIGHT = 380;
+const MAX_HEIGHT_RESULTS = 326;
 const GLYPH_BUDGET = 210;
 
 type Section = { key: string; title: string | null; symbols: StitchSymbol[] };
@@ -62,6 +63,7 @@ export function StitchPicker() {
   const listRef = useRef<HTMLDivElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [pos, setPos] = useState({ compactLeft: 0, searchLeft: 0, top: 0 });
+  const [resultsMaxHeight, setResultsMaxHeight] = useState(MAX_HEIGHT_RESULTS);
   const selectionSpan = target?.selectionSpan;
   const currentSymbol = target?.currentSymbolId ? getSymbol(target.currentSymbolId) : undefined;
   const canDelete = !!currentSymbol || !!target?.selectionIds?.length;
@@ -179,6 +181,23 @@ export function StitchPicker() {
       top: Math.max(8, Math.min(anchorY - height - 14, window.innerHeight - height - 8)),
     });
   }, [target, camera, viewport, index, searchOpen, searchOrigin, menuWidth, expandedMenuWidth]);
+
+  // The results list is positioned absolutely below the quick row, so it
+  // doesn't contribute to the picker's own height and the layout effect
+  // above never accounts for it - a picker anchored low on screen (most
+  // stitches are below the fold, and the docked armOnly widget always sits
+  // just above the tool dock) would otherwise let the list run off the
+  // bottom of the viewport with no way to reach the hidden rows, since its
+  // CSS max-height is a flat 326px regardless of where it lands. Clamping
+  // to the space actually available below it fixes that for touch and mouse
+  // scrolling alike - the bug wasn't scrolling itself, it was that most of
+  // the list was rendered off-screen.
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const available = window.innerHeight - list.getBoundingClientRect().top - 8;
+    setResultsMaxHeight(Math.max(120, Math.min(MAX_HEIGHT_RESULTS, available)));
+  }, [searchOpen, query, pos.top, sections, matchingRepeats.length]);
 
   useEffect(() => {
     listRef.current
@@ -492,7 +511,11 @@ export function StitchPicker() {
         )}
 
           {searchOpen && !!query.trim() && (
-            <div className="picker__results picker__list" ref={listRef}>
+            <div
+              className="picker__results picker__list"
+              ref={listRef}
+              style={{ maxHeight: resultsMaxHeight }}
+            >
             {flat.length === 0 && matchingRepeats.length === 0 && (
               <div className="picker__empty">No stitch matches that.</div>
             )}

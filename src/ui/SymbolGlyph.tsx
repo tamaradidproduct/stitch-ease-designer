@@ -29,14 +29,22 @@ export function SymbolGlyph({
     const svg = svgRef.current?.querySelector("svg");
     if (!svg) return;
 
-    svg.style.transform = "translate(0, 0)";
+    svg.style.transform = "translate(0px, 0px)";
     try {
       const viewBox = svg.viewBox.baseVal;
       const bounds = svg.getBBox();
       if (!bounds.width || !bounds.height || !viewBox.width || !viewBox.height) return;
-      const x = ((viewBox.width / 2 - (bounds.x + bounds.width / 2)) / viewBox.width) * 100;
-      const y = ((viewBox.height / 2 - (bounds.y + bounds.height / 2)) / viewBox.height) * 100;
-      svg.style.transform = `translate(${x}%, ${y}%)`;
+      // Pixels, not percent: percentage resolution for `transform` on an SVG
+      // root element isn't consistent between engines (WebKit vs Chromium),
+      // so a percent-based shift here landed right in Chromium but drifted
+      // toward the top-left in Safari/WebKit. Converting through the SVG's
+      // actual rendered size sidesteps that ambiguity entirely.
+      const rendered = svg.getBoundingClientRect();
+      const scaleX = rendered.width / viewBox.width;
+      const scaleY = rendered.height / viewBox.height;
+      const x = (viewBox.width / 2 - (bounds.x + bounds.width / 2)) * scaleX;
+      const y = (viewBox.height / 2 - (bounds.y + bounds.height / 2)) * scaleY;
+      svg.style.transform = `translate(${x}px, ${y}px)`;
     } catch {
       // A glyph may be empty (for example Knit); it needs no adjustment.
     }
