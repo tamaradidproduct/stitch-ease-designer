@@ -15,8 +15,14 @@ import { tapActivate } from "./tapActivate";
 /** Every fresh pattern starts with the two foundational knit stitches. */
 const DEFAULT_GLOSSARY_IDS = ["knit", "purl"];
 
-/** Section order for the glossary search dropdown; anything uncategorized sorts last. */
-const CATEGORY_ORDER = ["basic", "increase", "decrease", "cable", "brioche", "special"];
+/**
+ * Section order for the glossary search dropdown; anything uncategorized
+ * sorts last. Deliberately its own constant, not a shared one with
+ * registry.ts's (unexported, export-image-only) CATEGORY_ORDER: that one
+ * puts decreases before increases, a different editorial call for a
+ * different context, not a value the two should be kept in sync with.
+ */
+const GLOSSARY_CATEGORY_ORDER = ["basic", "increase", "decrease", "cable", "brioche", "special"];
 const CATEGORY_LABELS: Record<string, string> = {
   basic: "Basic stitches",
   increase: "Increases",
@@ -191,9 +197,12 @@ export function RightPanel() {
     : (glossaryQuery.trim() ? searchSymbols(allSymbols(), glossaryQuery) : allSymbols())
       .filter((symbol) => !glossaryIds.has(symbol.id))
       .sort((a, b) => {
-        const ai = CATEGORY_ORDER.indexOf(a.category);
-        const bi = CATEGORY_ORDER.indexOf(b.category);
-        return (ai === -1 ? CATEGORY_ORDER.length : ai) - (bi === -1 ? CATEGORY_ORDER.length : bi);
+        const ai = GLOSSARY_CATEGORY_ORDER.indexOf(a.category);
+        const bi = GLOSSARY_CATEGORY_ORDER.indexOf(b.category);
+        return (
+          (ai === -1 ? GLOSSARY_CATEGORY_ORDER.length : ai) -
+          (bi === -1 ? GLOSSARY_CATEGORY_ORDER.length : bi)
+        );
       });
   const glossarySections: { key: string; title: string; symbols: typeof glossaryResults }[] = [];
   for (const symbol of glossaryResults) {
