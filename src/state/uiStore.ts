@@ -412,14 +412,24 @@ export const useUiStore = create<UiState>((set, get) => ({
   selectionAnchor: null,
   setSelectionAnchor: (selectionAnchor) => set({ selectionAnchor }),
   setTool: (tool) =>
-    set({
+    set((state) => ({
       tool,
+      // Suggest is a drawing operation, not a selection modifier. Leaving
+      // it armed after an explicit switch to Select creates a contradictory
+      // UI (both rows look active) while the canvas correctly routes the
+      // click to selection and opens the picker. Real stitches may remain
+      // armed while selecting so Cmd/Ctrl's temporary-selection workflow is
+      // unaffected; only the synthetic Suggest tool has no useful meaning
+      // outside Draw.
+      ...(tool === "select" && state.armedSymbolId === SUGGEST_SYMBOL_ID
+        ? { armedSymbolId: null }
+        : {}),
       picker: null,
       lastClearedSelection: null,
       lastClearedEmptyCells: null,
       selectionAnchor: null,
       ...(tool === "select" ? {} : { selectedPlacementIds: [], selectedEmptyCells: [] }),
-    }),
+    })),
   setArmedSymbolId: (armedSymbolId) =>
     set({
       armedSymbolId,

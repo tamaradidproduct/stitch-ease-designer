@@ -56,6 +56,15 @@ export class ReferenceImageCache {
     try {
       const url = await resolveReferenceImageUrl(ref);
       const img = new Image();
+      // The production app is served from app.stitch-ease.com while uploaded
+      // references are read from Supabase Storage. The browser will happily
+      // *display* that cross-origin image without this flag, but drawing it
+      // into the crop canvas then makes its pixels unreadable. Suggest calls
+      // getImageData() to compare crops, so it silently failed for every
+      // authenticated (Storage-backed) image while working with local data:
+      // URLs. Set this before `src` so Supabase's CORS response keeps the
+      // canvas origin-clean and usable by the matcher.
+      img.crossOrigin = "anonymous";
       img.src = url;
       await img.decode();
       if (ref !== this.ref) return; // a different (or no) image was set while this was loading

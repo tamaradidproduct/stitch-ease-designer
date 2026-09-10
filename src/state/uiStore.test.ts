@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { assignQuickSymbol, moveQuickSymbol, moveQuickSymbolTo, useUiStore } from "./uiStore";
+import {
+  assignQuickSymbol,
+  moveQuickSymbol,
+  moveQuickSymbolTo,
+  SUGGEST_SYMBOL_ID,
+  useUiStore,
+} from "./uiStore";
 
 beforeEach(() => {
   useUiStore.setState({ quickSymbolIds: [], armedSymbolId: null, tool: "stitch" });
@@ -58,6 +64,23 @@ describe("resetForChart", () => {
     useUiStore.getState().resetForChart();
 
     expect(useUiStore.getState().clipboardPlacements).toEqual(copied);
+  });
+});
+
+describe("tool switching", () => {
+  it("disarms Suggest when explicitly switching to Select", () => {
+    useUiStore.getState().setArmedSymbolId(SUGGEST_SYMBOL_ID);
+    useUiStore.getState().setTool("select");
+
+    expect(useUiStore.getState().tool).toBe("select");
+    expect(useUiStore.getState().armedSymbolId).toBeNull();
+  });
+
+  it("keeps a real armed stitch while selecting", () => {
+    useUiStore.getState().setArmedSymbolId("knit");
+    useUiStore.getState().setTool("select");
+
+    expect(useUiStore.getState().armedSymbolId).toBe("knit");
   });
 });
 
