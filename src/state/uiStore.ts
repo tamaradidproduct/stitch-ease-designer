@@ -414,14 +414,14 @@ export const useUiStore = create<UiState>((set, get) => ({
   setTool: (tool) =>
     set((state) => ({
       tool,
-      // Suggest is a drawing operation, not a selection modifier. Leaving
-      // it armed after an explicit switch to Select creates a contradictory
-      // UI (both rows look active) while the canvas correctly routes the
-      // click to selection and opens the picker. Real stitches may remain
-      // armed while selecting so Cmd/Ctrl's temporary-selection workflow is
-      // unaffected; only the synthetic Suggest tool has no useful meaning
-      // outside Draw.
-      ...(tool === "select" && state.armedSymbolId === SUGGEST_SYMBOL_ID
+      // Suggest is a drawing operation, not a selection modifier, and has no
+      // useful meaning outside Draw - leaving it armed after switching to
+      // any other tool creates a contradictory UI (both rows look active),
+      // and for Insert specifically it's worse than cosmetic: Insert reads
+      // armedSymbolId directly and would insert the synthetic id itself as
+      // a placement's symbolId. Real stitches may remain armed while
+      // selecting, so Cmd/Ctrl's temporary-selection workflow is unaffected.
+      ...(tool !== "stitch" && state.armedSymbolId === SUGGEST_SYMBOL_ID
         ? { armedSymbolId: null }
         : {}),
       picker: null,

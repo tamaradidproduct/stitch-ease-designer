@@ -64,7 +64,12 @@ export class ReferenceImageCache {
       // authenticated (Storage-backed) image while working with local data:
       // URLs. Set this before `src` so Supabase's CORS response keeps the
       // canvas origin-clean and usable by the matcher.
-      img.crossOrigin = "anonymous";
+      //
+      // data: URLs (DEV_SKIP_AUTH, or before an image finishes uploading)
+      // carry no CORS headers to satisfy, and some browsers fail the load
+      // entirely rather than ignore crossOrigin on one - so it's only set
+      // for an actual cross-origin request.
+      if (!url.startsWith("data:")) img.crossOrigin = "anonymous";
       img.src = url;
       await img.decode();
       if (ref !== this.ref) return; // a different (or no) image was set while this was loading
