@@ -412,14 +412,24 @@ export const useUiStore = create<UiState>((set, get) => ({
   selectionAnchor: null,
   setSelectionAnchor: (selectionAnchor) => set({ selectionAnchor }),
   setTool: (tool) =>
-    set({
+    set((state) => ({
       tool,
+      // Suggest is a drawing operation, not a selection modifier, and has no
+      // useful meaning outside Draw - leaving it armed after switching to
+      // any other tool creates a contradictory UI (both rows look active),
+      // and for Insert specifically it's worse than cosmetic: Insert reads
+      // armedSymbolId directly and would insert the synthetic id itself as
+      // a placement's symbolId. Real stitches may remain armed while
+      // selecting, so Cmd/Ctrl's temporary-selection workflow is unaffected.
+      ...(tool !== "stitch" && state.armedSymbolId === SUGGEST_SYMBOL_ID
+        ? { armedSymbolId: null }
+        : {}),
       picker: null,
       lastClearedSelection: null,
       lastClearedEmptyCells: null,
       selectionAnchor: null,
       ...(tool === "select" ? {} : { selectedPlacementIds: [], selectedEmptyCells: [] }),
-    }),
+    })),
   setArmedSymbolId: (armedSymbolId) =>
     set({
       armedSymbolId,
