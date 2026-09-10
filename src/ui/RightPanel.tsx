@@ -15,6 +15,23 @@ import { tapActivate } from "./tapActivate";
 /** Every fresh pattern starts with the two foundational knit stitches. */
 const DEFAULT_GLOSSARY_IDS = ["knit", "purl"];
 
+/**
+ * Section order for the glossary search dropdown; anything uncategorized
+ * sorts last. Deliberately its own constant, not a shared one with
+ * registry.ts's (unexported, export-image-only) CATEGORY_ORDER: that one
+ * puts decreases before increases, a different editorial call for a
+ * different context, not a value the two should be kept in sync with.
+ */
+const GLOSSARY_CATEGORY_ORDER = ["basic", "increase", "decrease", "cable", "brioche", "special"];
+const CATEGORY_LABELS: Record<string, string> = {
+  basic: "Basic stitches",
+  increase: "Increases",
+  decrease: "Decreases",
+  cable: "Cables",
+  brioche: "Brioche",
+  special: "Special",
+};
+
 const loadGlossaryIds = (chartId?: string): string[] => {
   if (!chartId || typeof localStorage === "undefined") return [];
   try {
@@ -171,11 +188,35 @@ export function RightPanel() {
     counts.set(placement.symbolId, (counts.get(placement.symbolId) ?? 0) + 1);
     return counts;
   }, new Map<string, number>());
+  // Grouped by category (basic, increases, decreases, ...) rather than left
+  // flat, so browsing the full library reads as a glossary instead of a wall
+  // of stitches. Array.prototype.sort is stable, so search relevance order
+  // (when there's a query) survives within each category bucket.
   const glossaryResults = searchSlot === null
     ? []
     : (glossaryQuery.trim() ? searchSymbols(allSymbols(), glossaryQuery) : allSymbols())
       .filter((symbol) => !glossaryIds.has(symbol.id))
-      .slice(0, 8);
+      .sort((a, b) => {
+        const ai = GLOSSARY_CATEGORY_ORDER.indexOf(a.category);
+        const bi = GLOSSARY_CATEGORY_ORDER.indexOf(b.category);
+        return (
+          (ai === -1 ? GLOSSARY_CATEGORY_ORDER.length : ai) -
+          (bi === -1 ? GLOSSARY_CATEGORY_ORDER.length : bi)
+        );
+      });
+  const glossarySections: { key: string; title: string; symbols: typeof glossaryResults }[] = [];
+  for (const symbol of glossaryResults) {
+    const current = glossarySections[glossarySections.length - 1];
+    if (current?.key === symbol.category) {
+      current.symbols.push(symbol);
+    } else {
+      glossarySections.push({
+        key: symbol.category,
+        title: CATEGORY_LABELS[symbol.category] ?? symbol.category,
+        symbols: [symbol],
+      });
+    }
+  }
   const slottedIds = new Set(quickSymbolIds);
   const remainingGlossary = glossary.filter((symbol) => !slottedIds.has(symbol.id));
   const slotCount = Math.max(5, quickSymbolIds.length + 1);
@@ -532,27 +573,39 @@ export function RightPanel() {
                         : undefined
                     }
                   />
-                  {glossaryResults.length > 0 && (
-                    <div id="glossary-search-results" className="glossarySearch__results" role="listbox">
-                      {glossaryResults.map((result, resultIndex) => (
-                        <button
-                          id={`glossary-search-result-${result.id}`}
-                          key={result.id}
-                          type="button"
-                          role="option"
-                          aria-selected={resultIndex === activeGlossaryResult}
-                          data-active={resultIndex === activeGlossaryResult}
-                          onPointerEnter={() => setActiveGlossaryResult(resultIndex)}
-                          onClick={() => chooseSearchResult(result.id)}
-                        >
-                          <span className="glossarySearch__glyph">
-                            <SymbolGlyph symbol={result} cell={Math.max(7, Math.min(18, 48 / result.span))} />
-                          </span>
-                          <span>{result.label}</span><strong>Add</strong>
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  {glossaryResults.length > 0 && (() => {
+                    let resultIndex = -1;
+                    return (
+                      <div id="glossary-search-results" className="glossarySearch__results" role="listbox">
+                        {glossarySections.map((section) => (
+                          <div key={section.key}>
+                            <div className="glossarySearch__heading">{section.title}</div>
+                            {section.symbols.map((result) => {
+                              resultIndex += 1;
+                              const at = resultIndex;
+                              return (
+                                <button
+                                  id={`glossary-search-result-${result.id}`}
+                                  key={result.id}
+                                  type="button"
+                                  role="option"
+                                  aria-selected={at === activeGlossaryResult}
+                                  data-active={at === activeGlossaryResult}
+                                  onPointerEnter={() => setActiveGlossaryResult(at)}
+                                  onClick={() => chooseSearchResult(result.id)}
+                                >
+                                  <span className="glossarySearch__glyph">
+                                    <SymbolGlyph symbol={result} cell={Math.max(7, Math.min(18, 48 / result.span))} />
+                                  </span>
+                                  <span>{result.label}</span><strong>Add</strong>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
               ) : (
                 <button
