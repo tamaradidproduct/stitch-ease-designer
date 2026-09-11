@@ -22,6 +22,7 @@ import {
 import { newUuid } from "../uuid";
 import type { LoadedChart } from "../storage/DocStore";
 import { nextHistorySequence } from "./historySequence";
+import { useUiStore } from "./uiStore";
 
 /**
  * Where the open chart stands with storage.
@@ -158,6 +159,20 @@ export const useDocStore = create<DocState>((set, get) => {
   // history bookkeeping boundary for a live drag, not UI data.
   let referenceImageEditStart: ReferenceImage | null | undefined;
   let referenceImageEditChanged = false;
+
+  /**
+   * A new document edit truncates the *whole* unified timeline's future, not
+   * just this store's own slice of it - otherwise a selection change made
+   * after undoing some edits could still be followed by a stale "redo" that
+   * jumps back to a point before it (see editorHistory.ts). Every site below
+   * that clears this store's own `redoStack` for a fresh edit calls this too.
+   */
+  const clearSelectionRedo = () => {
+    if (useUiStore.getState().selectionRedoStack.length) {
+      useUiStore.setState({ selectionRedoStack: [] });
+    }
+  };
+
   /**
    * Run a change, then either bank it as history or fold it into the stroke.
    *
@@ -188,6 +203,7 @@ export const useDocStore = create<DocState>((set, get) => {
         ...(repeatsAfter !== undefined ? { repeats: repeatsAfter } : {}),
       });
     }
+    clearSelectionRedo();
   };
 
   /**
@@ -247,19 +263,15 @@ export const useDocStore = create<DocState>((set, get) => {
     // reference point, even though it updates continuously while dragging.
     setReferenceImage: (referenceImage) =>
       set((s) => ({ referenceImage, revision: s.revision + 1 })),
-    updateReferenceImage: (patch) =>
-      set((s) => {
-        if (!s.referenceImage) return {};
-        const next = { ...s.referenceImage, ...patch };
-        if (referenceImageEditStart !== undefined) {
-          referenceImageEditChanged = true;
-          return {
-            referenceImage: next,
-            revision: s.revision + 1,
-            redoStack: [],
-          };
-        }
-        return {
+    updateReferenceImage: (patch) => {
+      const s = get();
+      if (!s.referenceImage) return;
+      const next = { ...s.referenceImage, ...patch };
+      if (referenceImageEditStart !== undefined) {
+        referenceImageEditChanged = true;
+        set({ referenceImage: next, revision: s.revision + 1, redoStack: [] });
+      } else {
+        set({
           referenceImage: next,
           revision: s.revision + 1,
           undoStack: [...s.undoStack, {
@@ -267,8 +279,10 @@ export const useDocStore = create<DocState>((set, get) => {
             referenceImage: s.referenceImage,
           }],
           redoStack: [],
-        };
-      }),
+        });
+      }
+      clearSelectionRedo();
+    },
     beginReferenceImageEdit: () => {
       if (referenceImageEditStart !== undefined) return;
       referenceImageEditStart = get().referenceImage;
@@ -288,6 +302,7 @@ export const useDocStore = create<DocState>((set, get) => {
         }],
         redoStack: [],
       }));
+      clearSelectionRedo();
     },
     removeReferenceImage: () =>
       set((s) => (s.referenceImage ? { referenceImage: null, revision: s.revision + 1 } : {})),
@@ -559,6 +574,7 @@ export const useDocStore = create<DocState>((set, get) => {
         undoStack: [...undoStack, { sequence: nextHistorySequence(), change: inverse }],
         redoStack: [],
       });
+      clearSelectionRedo();
     },
 
     undo: () => {

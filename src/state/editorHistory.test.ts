@@ -65,4 +65,34 @@ describe("ordered editor history", () => {
     redoLatest();
     expect(doc.index.placementAt(1, 0)?.symbolId).toBe("purl");
   });
+
+  it("clears the selection redo stack when a new document edit is committed", () => {
+    const doc = useDocStore.getState();
+    const ui = useUiStore.getState();
+    ui.setSelectedPlacementIds(["a"]);
+    ui.clearSelectionWithUndo();
+    undoLatest(); // Selection dismissal undone: selectionRedoStack now has an entry.
+    expect(useUiStore.getState().selectionRedoStack).toHaveLength(1);
+
+    doc.place("knit", 0, 0);
+
+    // A new doc edit truncates the whole timeline's future, not just its own
+    // stack - otherwise redoLatest() could still replay the stale selection
+    // dismissal from before this edit.
+    expect(useUiStore.getState().selectionRedoStack).toHaveLength(0);
+  });
+
+  it("clears the document redo stack when a new selection action is recorded", () => {
+    const doc = useDocStore.getState();
+    doc.place("knit", 0, 0);
+    doc.place("knit", 1, 0);
+    undoLatest(); // Last placement undone: doc.redoStack now has an entry.
+    expect(useDocStore.getState().redoStack).toHaveLength(1);
+
+    useUiStore.getState().setSelectedPlacementIds(["a"]);
+
+    // Same reasoning in the other direction: a new selection action must
+    // not leave a stale doc redoStack a later redo could still jump into.
+    expect(useDocStore.getState().redoStack).toHaveLength(0);
+  });
 });

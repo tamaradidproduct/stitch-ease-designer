@@ -9,6 +9,7 @@ import {
   zoomAt,
 } from "../canvas/camera";
 import type { BoxHandle, Placement } from "../model/types";
+import { useDocStore } from "./docStore";
 import { nextHistorySequence } from "./historySequence";
 
 export { cellKey } from "../model/cellKey";
@@ -595,6 +596,14 @@ export const useUiStore = create<UiState>((set, get) => ({
       // Only changes to actual selected stitches belong in Undo history.
       const recordSelectionHistory =
         recordUndo && !sameStringList(state.selectedPlacementIds, selectedPlacementIds);
+      // A new selection action truncates the whole unified timeline's
+      // future (see editorHistory.ts), not just this store's own redo
+      // stack - otherwise undoing some document edits and then making a
+      // new selection leaves a stale doc redoStack a "redo" could still
+      // jump back into.
+      if (recordSelectionHistory && useDocStore.getState().redoStack.length) {
+        useDocStore.setState({ redoStack: [] });
+      }
       return {
         selectedPlacementIds,
         selectedEmptyCells,
