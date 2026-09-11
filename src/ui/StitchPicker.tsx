@@ -53,7 +53,7 @@ export function StitchPicker() {
   const repeats = useDocStore((s) => s.repeats);
   const instantiateRepeat = useDocStore((s) => s.instantiateRepeat);
   const index = useDocStore((s) => s.index);
-  useDocStore((s) => s.revision);
+  const revision = useDocStore((s) => s.revision);
   const chartId = useDocStore((s) => s.meta?.id);
 
   const [query, setQuery] = useState("");
@@ -91,7 +91,7 @@ export function StitchPicker() {
       .slice(0, 5),
     [quickIds, selectionSpan],
   );
-  const moreSymbols = (() => {
+  const moreSymbols = useMemo(() => {
     const visibleIds = new Set(quickSymbols.map((symbol) => symbol.id));
     return collectGlossarySymbols(
       // The right panel treats assigned quick slots as glossary rows too,
@@ -100,7 +100,7 @@ export function StitchPicker() {
       index.toArray().map((placement) => placement.symbolId),
     ).filter((symbol) =>
       !visibleIds.has(symbol.id) && (!selectionSpan || symbol.span === selectionSpan));
-  })();
+  }, [quickSymbols, quickIds, chartId, index, selectionSpan, revision]);
   const hasMore = moreSymbols.length > 0;
   const menuWidth = MENU_WIDTH + (hasMore ? 45 : 0) + (canDelete ? 45 : 0);
   const expandedMenuWidth = menuWidth + SEARCH_SLOT_WIDTH - 40;
