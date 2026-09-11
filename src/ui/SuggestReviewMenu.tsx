@@ -35,7 +35,13 @@ export function SuggestReviewMenu() {
   // same way the right panel's count already is.
   const unrecognizedCells = [...referenceImageUnrecognized].flatMap((key) => {
     const [col, row] = key.split(",").map(Number);
-    if (!Number.isFinite(col) || !Number.isFinite(row) || index.placementAt(col, row)) return [];
+    if (
+      col === undefined ||
+      row === undefined ||
+      !Number.isFinite(col) ||
+      !Number.isFinite(row) ||
+      index.placementAt(col, row)
+    ) return [];
     return [{ col, row }];
   });
 
