@@ -241,7 +241,8 @@ export function RightPanel() {
     const [colStr, rowStr] = key.split(",");
     const col = Number(colStr);
     const row = Number(rowStr);
-    return index.placementAt(col, row) ? [] : [{ col, row }];
+    if (!Number.isFinite(col) || !Number.isFinite(row) || index.placementAt(col, row)) return [];
+    return [{ col, row }];
   });
   const unrecognizedCount = unrecognizedCells.length;
 
