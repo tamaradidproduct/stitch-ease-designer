@@ -37,11 +37,11 @@ export function Toolbar() {
         </svg>
         <span>Select</span>
       </button>
-      <div className="toolDock__button toolDock__drawGroup" data-on={!panEnabled && tool === "stitch"}>
+      <div className="toolDock__button toolDock__drawGroup" data-on={!panEnabled && !selectHeld && tool === "stitch"}>
         <button
           type="button"
           className="toolDock__drawMain"
-          aria-pressed={!panEnabled && tool === "stitch"}
+          aria-pressed={!panEnabled && !selectHeld && tool === "stitch"}
           {...tapActivate(() => setTool("stitch"))}
           title="Draw (D)"
         >
@@ -73,8 +73,8 @@ export function Toolbar() {
       <button
         type="button"
         className="toolDock__button"
-        data-on={!panEnabled && tool === "insert"}
-        aria-pressed={!panEnabled && tool === "insert"}
+        data-on={!panEnabled && !selectHeld && tool === "insert"}
+        aria-pressed={!panEnabled && !selectHeld && tool === "insert"}
         {...tapActivate(() => setTool("insert"))}
         title="Insert (I) — add a stitch and shift the rest of the row over"
       >
@@ -88,8 +88,8 @@ export function Toolbar() {
       <button
         type="button"
         className="toolDock__button toolDock__eraser"
-        data-on={!panEnabled && tool === "eraser"}
-        aria-pressed={!panEnabled && tool === "eraser"}
+        data-on={!panEnabled && !selectHeld && tool === "eraser"}
+        aria-pressed={!panEnabled && !selectHeld && tool === "eraser"}
         {...tapActivate(() => setTool("eraser"))}
         title="Erase (E)"
       >

@@ -106,14 +106,9 @@ export function CanvasView() {
     // (confirm) - elsewhere it's the straight-line-draw modifier instead,
     // handled further down.
     if (hovered?.suggested && s.shiftHeld) return CONFIRM_SUGGESTION_CURSOR;
-    if (s.tool === "select" || s.selectHeld) {
-      if (s.tool === "select") return hovered ? "default" : "crosshair";
-      // Cmd's temporary selection clutch: the same unarmed "+" badge as a
-      // baseline empty-cell hover, so it reads as "this click will select
-      // and open the picker here" - a plain arrow over an existing stitch,
-      // which already looks selectable on its own.
-      return hovered ? "default" : ADD_CURSOR;
-    }
+    // Cmd/Ctrl's temporary selection clutch reads as Select outright, cursor
+    // included - not some hybrid with whatever tool it's overriding.
+    if (s.tool === "select" || s.selectHeld) return hovered ? "default" : "crosshair";
     if (s.tool === "eraser") return ERASE_CURSOR;
     if (s.tool === "insert") {
       // No insertHover yet (over the ruler, or before the first pointer
