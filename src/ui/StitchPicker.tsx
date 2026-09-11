@@ -171,18 +171,32 @@ export function StitchPicker() {
       const selectedPlacement = index.placements.get(id);
       return selectedPlacement ? [selectedPlacement] : [];
     }) ?? [];
+    // A bulk empty-cell target (e.g. "Replace all" on every pending
+    // unidentified marker) is just as much a multi-cell selection as
+    // `selectionIds` is - it needs the same bounding-box treatment so the
+    // picker opens over the whole batch instead of jumping to whichever
+    // cell happens to be `target.col/row` (previously always the first).
+    const emptyCells = target.selectionEmptyCells ?? [];
+    const hasMultiCellSelection = selection.length > 0 || emptyCells.length > 0;
     const cell = cellToScreenRect(target.col, target.row, camera, viewport);
     const placement = index.placementAt(target.col, target.row);
     const span = target.selectionSpan ?? (placement ? index.spanOf(placement) : 1);
-    const minCol = selection.length ? Math.min(...selection.map((item) => item.col)) : target.col;
-    const maxCol = selection.length
-      ? Math.max(...selection.map((item) => item.col + index.spanOf(item)))
+    const minCol = hasMultiCellSelection
+      ? Math.min(...selection.map((item) => item.col), ...emptyCells.map((c) => c.col))
+      : target.col;
+    const maxCol = hasMultiCellSelection
+      ? Math.max(
+          ...selection.map((item) => item.col + index.spanOf(item)),
+          ...emptyCells.map((c) => c.col + 1),
+        )
       : target.col + span;
-    const maxRow = selection.length ? Math.max(...selection.map((item) => item.row)) : target.row;
+    const maxRow = hasMultiCellSelection
+      ? Math.max(...selection.map((item) => item.row), ...emptyCells.map((c) => c.row))
+      : target.row;
     const leftEdge = cellToScreenRect(minCol, maxRow, camera, viewport);
     const rightEdge = cellToScreenRect(maxCol, maxRow, camera, viewport);
     const anchorX = (canvasRect?.left ?? 0) + (leftEdge.x + rightEdge.x) / 2;
-    const anchorY = (canvasRect?.top ?? 0) + (selection.length ? leftEdge.y : cell.y);
+    const anchorY = (canvasRect?.top ?? 0) + (hasMultiCellSelection ? leftEdge.y : cell.y);
     const height = root.offsetHeight;
     const compactLeft = Math.max(8, Math.min(
       anchorX - menuWidth / 2,
@@ -270,7 +284,17 @@ export function StitchPicker() {
     if (target.selectionIds) {
       const newIds = replacePlacements(target.selectionIds, symbol.id);
       setSelectedPlacementIds(newIds, false);
-      chooseSymbol(symbol.id, "stitch", true);
+      // Same rule as the reviewingSuggestion checks below: resolving a
+      // suggested placement shouldn't arm whatever was picked for it -
+      // Suggest stays armed so a review pass can keep going cell by cell.
+      // It still belongs in the glossary and the quick row exactly like any
+      // other pick, though - only the arming (and the tool switch that
+      // comes with it) is what a review resolve skips.
+      if (target.reviewingSuggestion) {
+        useUiStore.getState().addQuickSymbol(symbol.id);
+      } else {
+        chooseSymbol(symbol.id, "stitch", true);
+      }
       closePicker();
       return;
     }
@@ -292,8 +316,15 @@ export function StitchPicker() {
       // this branch used to return before ever reaching that check, so
       // Suggest was silently getting swapped out on every unrecognized-cell
       // fix instead of staying armed for the rest of the review pass.
+      //
+      // Clears every cell in this batch, not just `target.col,row` - a
+      // single unrecognized-cell edit and "Replace all" (which fills every
+      // currently-unrecognized cell in one go) both land here, and both need
+      // every one of their markers cleared, not only the anchor cell's.
       if (target.reviewingSuggestion) {
-        useUiStore.getState().setReferenceImageUnrecognized(`${target.col},${target.row}`, false);
+        const setUnrecognized = useUiStore.getState().setReferenceImageUnrecognized;
+        for (const cell of cells) setUnrecognized(`${cell.col},${cell.row}`, false);
+        useUiStore.getState().addQuickSymbol(symbol.id);
       } else if (newIds.length) {
         chooseSymbol(symbol.id, "stitch", true);
       }
@@ -314,6 +345,7 @@ export function StitchPicker() {
     // review pass can keep going cell by cell.
     if (target.reviewingSuggestion) {
       useUiStore.getState().setReferenceImageUnrecognized(`${target.col},${target.row}`, false);
+      useUiStore.getState().addQuickSymbol(symbol.id);
       closePicker();
       return;
     }

@@ -53,7 +53,7 @@ export function RightPanel() {
   const referenceImage = useDocStore((state) => state.referenceImage);
   const revision = useDocStore((state) => state.revision);
   const acceptSuggestions = useDocStore((state) => state.acceptSuggestions);
-  const erasePlacements = useDocStore((state) => state.erasePlacements);
+  const dismissSuggestions = useDocStore((state) => state.dismissSuggestions);
   const isAdmin = useUiStore((state) => state.role === "admin");
   const chooseSymbol = useUiStore((state) => state.chooseSymbol);
   const armedSymbolId = useUiStore((state) => state.armedSymbolId);
@@ -62,6 +62,7 @@ export function RightPanel() {
   const removeQuickSymbol = useUiStore((state) => state.removeQuickSymbol);
   const moveQuickSymbolTo = useUiStore((state) => state.moveQuickSymbolTo);
   const setArmedSymbolId = useUiStore((state) => state.setArmedSymbolId);
+  const openPicker = useUiStore((state) => state.openPicker);
   const zoom = useUiStore((state) => state.camera.zoom);
   const viewport = useUiStore((state) => state.viewport);
   const zoomAt = useUiStore((state) => state.zoomAt);
@@ -221,11 +222,18 @@ export function RightPanel() {
           .map((p) => p.symbolId),
       ).size
     : 0;
-  const suggestedCount = placements.filter((p) => p.suggested).length;
-  const unrecognizedCount = [...referenceImageUnrecognized].filter((key) => {
+  const suggestedPlacements = placements.filter((p) => p.suggested);
+  const suggestedCount = suggestedPlacements.length;
+  // A marker is stale once something's been placed at its cell by any other
+  // route (a hand-placed stitch, a later successful scan).
+  const unrecognizedCells = [...referenceImageUnrecognized].flatMap((key) => {
     const [colStr, rowStr] = key.split(",");
-    return !index.placementAt(Number(colStr), Number(rowStr));
-  }).length;
+    const col = Number(colStr);
+    const row = Number(rowStr);
+    if (!Number.isFinite(col) || !Number.isFinite(row) || index.placementAt(col, row)) return [];
+    return [{ col, row }];
+  });
+  const unrecognizedCount = unrecognizedCells.length;
 
   const addToGlossary = (id: string) => {
     if (!meta || glossaryIds.has(id)) return;
@@ -414,47 +422,83 @@ export function RightPanel() {
                 )}
               </div>
             )}
-            {isAdmin && (suggestedCount > 0 || unrecognizedCount > 0) && (
-              <div className="glossary__suggestReview">
-                {suggestedCount > 0 && (
-                  <div className="glossary__reviewBox">
-                    <p className="glossary__reviewHeader">
-                      {suggestedCount} suggested stitch{suggestedCount === 1 ? "" : "es"} awaiting review
-                    </p>
-                    <div className="glossary__reviewActions">
-                      <button type="button" className="btn btn--primary" onClick={() => acceptSuggestions()}>
-                        Accept all
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn--quiet btn--danger"
-                        onClick={() => {
-                          const toRemove = placements.filter((p) => p.suggested).map((p) => p.id);
-                          if (toRemove.length > 0) erasePlacements(toRemove);
-                        }}
-                      >
-                        Discard all
-                      </button>
-                    </div>
-                  </div>
-                )}
-                {unrecognizedCount > 0 && (
-                  <div className="glossary__reviewBox glossary__reviewBox--unread">
-                    <p className="glossary__reviewHeader">
-                      {unrecognizedCount} stitch{unrecognizedCount === 1 ? "" : "es"} need identification
-                      (dashed red on the chart) - choose an armed stitch to paint over them, or place them by hand.
-                    </p>
-                    <div className="glossary__reviewActions">
-                      <button
-                        type="button"
-                        className="btn btn--quiet"
-                        onClick={clearReferenceImageUnrecognized}
-                      >
-                        Dismiss markers
-                      </button>
-                    </div>
-                  </div>
-                )}
+            {isAdmin && suggestedCount > 0 && (
+              <div className="glossary__item">
+                <span className="glossary__dragHandle glossary__dragHandle--empty" aria-hidden="true" />
+                <span
+                  className="glossary__reviewPreview glossary__reviewPreview--identified"
+                  aria-hidden="true"
+                />
+                <span className="glossary__label">
+                  {suggestedCount} identified
+                </span>
+                <button
+                  type="button"
+                  className="glossary__reviewAction"
+                  onClick={() => acceptSuggestions()}
+                  aria-label="Accept all identified suggestions"
+                  title="Accept all"
+                >
+                  <svg viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="m4 10 3.5 3.5L16 5" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  className="glossary__reviewAction"
+                  onClick={() => dismissSuggestions()}
+                  aria-label="Dismiss all identified suggestions"
+                  title="Dismiss all"
+                >
+                  <svg viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="M4.5 4.5l11 11M15.5 4.5l-11 11" />
+                  </svg>
+                </button>
+              </div>
+            )}
+            {isAdmin && unrecognizedCount > 0 && (
+              <div className="glossary__item">
+                <span className="glossary__dragHandle glossary__dragHandle--empty" aria-hidden="true" />
+                <span
+                  className="glossary__reviewPreview glossary__reviewPreview--unrecognized"
+                  aria-hidden="true"
+                />
+                <span className="glossary__label">
+                  {unrecognizedCount} unidentified
+                </span>
+                <button
+                  type="button"
+                  className="glossary__reviewAction"
+                  onClick={clearReferenceImageUnrecognized}
+                  aria-label="Dismiss all unidentified markers"
+                  title="Dismiss all"
+                >
+                  <svg viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="M4.5 4.5l11 11M15.5 4.5l-11 11" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  className="glossary__reviewAction"
+                  onClick={() => {
+                    const first = unrecognizedCells[0];
+                    if (!first) return;
+                    openPicker({
+                      col: first.col,
+                      row: first.row,
+                      x: 0,
+                      y: 0,
+                      selectionEmptyCells: unrecognizedCells,
+                      reviewingSuggestion: true,
+                    });
+                  }}
+                  aria-label="Replace all unidentified markers with a chosen stitch"
+                  title="Replace all"
+                >
+                  <svg viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="M4 8.5h9.5M11 5.5l3 3-3 3M16 11.5H6.5M9 8.5l-3 3 3 3" />
+                  </svg>
+                </button>
               </div>
             )}
             {Array.from({ length: slotCount }, (_, slot) => {

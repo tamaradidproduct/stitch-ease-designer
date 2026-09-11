@@ -743,6 +743,17 @@ body {
   outline: none;
 }
 
+.picker__quickButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.picker__quickButton:disabled:hover {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text);
+}
+
 .picker__quickButton:hover::after {
   opacity: 1;
   transform: translate(-50%, 0);
@@ -1179,6 +1190,90 @@ body {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+}
+
+/* ---- suggest review menu ------------------------------------------------ */
+
+/* Two labeled groups side by side - a colored count heading over a row of
+   bare icon-and-label actions (no button chrome by default), separated by a
+   thin neutral divider. Color stays limited to the two headings; the
+   actions themselves are neutral until hovered/focused. */
+.suggestReview {
+  position: fixed;
+  z-index: 20;
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 16px 20px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow:
+    0 12px 32px rgb(15 23 42 / 16%),
+    0 2px 8px rgb(15 23 42 / 8%);
+}
+
+.suggestReview__group {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.suggestReview__heading {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.suggestReview__heading--identified {
+  color: #9333ea;
+}
+
+.suggestReview__heading--unrecognized {
+  color: #dc2626;
+}
+
+.suggestReview__row {
+  display: flex;
+  gap: 24px;
+}
+
+.suggestReview__divider {
+  align-self: stretch;
+  width: 1px;
+  margin-top: 4px;
+  background: var(--border);
+}
+
+.suggestReview__action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 2px;
+  border: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.suggestReview__action svg {
+  fill: none;
+  stroke: currentColor;
+}
+
+.suggestReview__action:hover:not(:disabled),
+.suggestReview__action:focus-visible {
+  color: var(--accent);
+  outline: none;
+}
+
+.suggestReview__action:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* ---- reference image panel ---------------------------------------------- */
@@ -2376,46 +2471,63 @@ body {
   color: var(--text);
 }
 
-/* The "Suggest" glossary row's review area: suggested placements awaiting
-   Accept/Discard, and cells auto-suggest couldn't read. */
-.glossary__suggestReview {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 0 2px 6px;
+/* The "Suggest" glossary rows summarizing pending identified/unidentified
+   results - compact, matching every other glossary row's structure rather
+   than a large explanatory card. */
+.glossary__reviewPreview {
+  display: grid;
+  width: 38px;
+  min-height: 24px;
+  place-items: center;
+  flex: none;
+  border-radius: 4px;
 }
 
-.glossary__reviewBox {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px;
+.glossary__reviewPreview--identified {
+  background: rgba(147, 51, 234, 0.15);
+  border: 1.5px solid #9333ea;
+}
+
+.glossary__reviewPreview--unrecognized {
+  background: rgba(220, 38, 38, 0.08);
+  border: 1.5px dashed #dc2626;
+}
+
+.glossary__reviewAction {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  place-items: center;
+  flex: none;
+  border: 1px solid transparent;
   border-radius: 6px;
-  background: #faf5ff;
-  border: 1px solid #d8b4fe;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
 }
 
-.glossary__reviewHeader {
-  font-size: 11px;
-  font-weight: 600;
-  color: #7e22ce;
+.glossary__reviewAction:hover:not(:disabled),
+.glossary__reviewAction:focus-visible {
+  border-color: #bae6fd;
+  background: #e0f2fe;
+  color: var(--accent);
+  outline: none;
 }
 
-.glossary__reviewActions {
-  display: flex;
-  gap: 6px;
+.glossary__reviewAction:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
-/* Matches the dashed red marker drawn on unrecognized cells - a distinct
-   colour from the purple suggested-review box, since this one is asking
-   for a person, not a confirmation. */
-.glossary__reviewBox--unread {
-  background: #fef2f2;
-  border-color: #fecaca;
-}
-
-.glossary__reviewBox--unread .glossary__reviewHeader {
-  color: #b91c1c;
+.glossary__reviewAction svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 /* The stitch/row prompt anchored to the mark just placed on the canvas. */

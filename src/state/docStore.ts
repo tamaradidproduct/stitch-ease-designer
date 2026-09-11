@@ -84,6 +84,12 @@ type DocState = {
    * single guess doesn't need to wait for a full review pass).
    */
   acceptSuggestions: (ids?: string[]) => void;
+  /**
+   * Erases suggested placements in one undoable step - every one of them by
+   * default, or just `ids`. The identified-review counterpart to
+   * `acceptSuggestions`: same targeting rules, opposite outcome.
+   */
+  dismissSuggestions: (ids?: string[]) => void;
   /** Returns the replaced placements' new ids, or the original `ids` unchanged if nothing was replaced. */
   replacePlacements: (ids: string[], symbolId: string) => string[];
   erasePlacements: (ids: string[]) => void;
@@ -218,6 +224,14 @@ export const useDocStore = create<DocState>((set, get) => {
         removed: suggested,
         added: suggested.map(({ suggested: _dropped, confidence: _score, ...rest }) => rest),
       });
+    },
+    dismissSuggestions: (ids) => {
+      const idSet = ids ? new Set(ids) : null;
+      const suggested = [...get().index.placements.values()].filter(
+        (p) => p.suggested && (!idSet || idSet.has(p.id)),
+      );
+      if (!suggested.length) return;
+      commit({ added: [], removed: suggested });
     },
     canInsertAt: (col, row) => canInsertAtIndex(get().index, col, row),
     insertPlacement: (symbolId, col, row) =>
