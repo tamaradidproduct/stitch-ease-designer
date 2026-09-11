@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { cellKey } from "../model/cellKey";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
 
@@ -49,7 +50,7 @@ export function SelectionActions() {
       openedEmptySelection.current = "";
       return;
     }
-    const key = selectedEmptyCells.map((c) => `${c.col},${c.row}`).sort().join(":");
+    const key = selectedEmptyCells.map((c) => cellKey(c.col, c.row)).sort().join(":");
     if (openedEmptySelection.current === key) return;
     openedEmptySelection.current = key;
     const first = selectedEmptyCells[0]!;

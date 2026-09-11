@@ -1,8 +1,8 @@
 import type { DocIndex } from "./docIndex";
+import { cellKey } from "./cellKey";
 
 /** The library's explicit placeholder: it occupies grid space, but is not knit. */
 const NO_STITCH = "empty";
-const key = (col: number, row: number) => `${col},${row}`;
 
 export type StitchGroup = {
   /** Every occupied cell, including explicit no-stitch cells used as structure. */
@@ -29,7 +29,7 @@ function buildTopology(index: DocIndex): ChartTopology {
   for (const placement of index.placements.values()) {
     for (let offset = 0; offset < index.spanOf(placement); offset++) {
       const col = placement.col + offset;
-      cells.set(key(col, placement.row), {
+      cells.set(cellKey(col, placement.row), {
         col,
         row: placement.row,
         isStitch: placement.symbolId !== NO_STITCH,
@@ -60,7 +60,7 @@ function buildTopology(index: DocIndex): ChartTopology {
       for (let dx = -1; dx <= 1; dx++) {
         for (let dy = -1; dy <= 1; dy++) {
           if (dx === 0 && dy === 0) continue;
-          const neighbour = key(current.col + dx, current.row + dy);
+          const neighbour = cellKey(current.col + dx, current.row + dy);
           if (unseen.delete(neighbour)) queue.push(neighbour);
         }
       }
@@ -97,8 +97,8 @@ export function stitchGroupAt(
   row: number,
   revision?: number,
 ): StitchGroup | null {
-  if (revision !== undefined) return chartTopology(index, revision).groupByCell.get(key(col, row)) ?? null;
-  return stitchGroups(index).find((group) => group.cells.has(key(col, row))) ?? null;
+  if (revision !== undefined) return chartTopology(index, revision).groupByCell.get(cellKey(col, row)) ?? null;
+  return stitchGroups(index).find((group) => group.cells.has(cellKey(col, row))) ?? null;
 }
 
 /** Stitch numbers for one row of one connected group, read right to left. */

@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { cellToScreenRect } from "../canvas/camera";
+import { unoccupiedCellsFromKeys } from "../model/cellKey";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
 
@@ -33,17 +34,10 @@ export function SuggestReviewMenu() {
   // A marker is stale once something's been placed at its cell by any other
   // route (a hand-placed stitch, a later successful scan) - filtered the
   // same way the right panel's count already is.
-  const unrecognizedCells = [...referenceImageUnrecognized].flatMap((key) => {
-    const [col, row] = key.split(",").map(Number);
-    if (
-      col === undefined ||
-      row === undefined ||
-      !Number.isFinite(col) ||
-      !Number.isFinite(row) ||
-      index.placementAt(col, row)
-    ) return [];
-    return [{ col, row }];
-  });
+  const unrecognizedCells = unoccupiedCellsFromKeys(
+    referenceImageUnrecognized,
+    (col, row) => !!index.placementAt(col, row),
+  );
 
   const open = role === "admin" && !!bounds;
 

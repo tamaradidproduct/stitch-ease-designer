@@ -6,7 +6,8 @@ import { useReferenceImageTool } from "../input/useReferenceImageTool";
 import { useShortcuts } from "../input/useShortcuts";
 import { useTouchGestures } from "../input/useTouchGestures";
 import { useDocStore } from "../state/docStore";
-import { cellKey, useUiStore } from "../state/uiStore";
+import { cellKey } from "../model/cellKey";
+import { useUiStore } from "../state/uiStore";
 import {
   ADD_CURSOR,
   BLOCKED_MOVE_CURSOR,

@@ -5,6 +5,7 @@ import { exportChartCsv } from "../storage/exportCsv";
 import { type ImageFormat, exportChartImage } from "../storage/exportImage";
 import { exportChart } from "../storage/exportImport";
 import { cellWithinReferenceImage } from "../canvas/referenceImageCrop";
+import { unoccupiedCellsFromKeys } from "../model/cellKey";
 import { useDocStore } from "../state/docStore";
 import { SUGGEST_SYMBOL_ID, useUiStore } from "../state/uiStore";
 import { ReferenceImagePanel } from "./ReferenceImagePanel";
@@ -226,13 +227,10 @@ export function RightPanel() {
   const suggestedCount = suggestedPlacements.length;
   // A marker is stale once something's been placed at its cell by any other
   // route (a hand-placed stitch, a later successful scan).
-  const unrecognizedCells = [...referenceImageUnrecognized].flatMap((key) => {
-    const [colStr, rowStr] = key.split(",");
-    const col = Number(colStr);
-    const row = Number(rowStr);
-    if (!Number.isFinite(col) || !Number.isFinite(row) || index.placementAt(col, row)) return [];
-    return [{ col, row }];
-  });
+  const unrecognizedCells = unoccupiedCellsFromKeys(
+    referenceImageUnrecognized,
+    (col, row) => !!index.placementAt(col, row),
+  );
   const unrecognizedCount = unrecognizedCells.length;
 
   const addToGlossary = (id: string) => {

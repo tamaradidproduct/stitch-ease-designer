@@ -3,6 +3,7 @@ import { CELL, cellToScreenRect } from "../canvas/camera";
 import type { Placement } from "../model/types";
 import { patchCalibrationMark } from "../model/referenceCalibration";
 import { useDocStore } from "../state/docStore";
+import { redoLatest, undoLatest } from "../state/editorHistory";
 import { SUGGEST_SYMBOL_ID, useUiStore } from "../state/uiStore";
 
 /** Arrow key -> world-space direction. +y is up, matching +row. */
@@ -84,8 +85,8 @@ export function useShortcuts(): void {
 
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
         e.preventDefault();
-        if (e.shiftKey) doc.redo();
-        else if (!ui.restoreLastClearedSelection()) doc.undo();
+        if (e.shiftKey) redoLatest();
+        else undoLatest();
         return;
       }
 

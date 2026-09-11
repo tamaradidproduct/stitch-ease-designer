@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { cellToScreenRect } from "../canvas/camera";
+import { cellKey } from "../model/cellKey";
 import { allSymbols, getSymbol } from "../symbols/registry";
 import type { StitchSymbol } from "../symbols/types";
 import { useDocStore } from "../state/docStore";
@@ -323,7 +324,7 @@ export function StitchPicker() {
       // every one of their markers cleared, not only the anchor cell's.
       if (target.reviewingSuggestion) {
         const setUnrecognized = useUiStore.getState().setReferenceImageUnrecognized;
-        for (const cell of cells) setUnrecognized(`${cell.col},${cell.row}`, false);
+        for (const cell of cells) setUnrecognized(cellKey(cell.col, cell.row), false);
         useUiStore.getState().addQuickSymbol(symbol.id);
       } else if (newIds.length) {
         chooseSymbol(symbol.id, "stitch", true);
@@ -344,7 +345,7 @@ export function StitchPicker() {
     // arm whatever the designer just picked - Suggest stays armed so a
     // review pass can keep going cell by cell.
     if (target.reviewingSuggestion) {
-      useUiStore.getState().setReferenceImageUnrecognized(`${target.col},${target.row}`, false);
+      useUiStore.getState().setReferenceImageUnrecognized(cellKey(target.col, target.row), false);
       useUiStore.getState().addQuickSymbol(symbol.id);
       closePicker();
       return;

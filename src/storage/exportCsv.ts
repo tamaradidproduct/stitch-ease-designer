@@ -1,4 +1,5 @@
 import { chartBounds } from "../model/chartBounds";
+import { cellKey } from "../model/cellKey";
 import type { Placement } from "../model/types";
 import { abbreviationFor } from "../symbols/abbreviations";
 import { downloadBlob, safeFilename } from "./download";
@@ -27,7 +28,7 @@ export function chartToCsv(placements: Iterable<Placement>): string {
   const { minCol, maxCol, minRow, maxRow } = bounds;
 
   const grid = new Map<string, string>();
-  for (const p of list) grid.set(`${p.col},${p.row}`, abbreviationFor(p.symbolId));
+  for (const p of list) grid.set(cellKey(p.col, p.row), abbreviationFor(p.symbolId));
 
   const header = ["", ...Array.from({ length: maxCol - minCol + 1 }, (_, i) => String(i + 1))];
   const lines = [header.map(csvField).join(",")];
@@ -36,7 +37,7 @@ export function chartToCsv(placements: Iterable<Placement>): string {
   for (let row = maxRow; row >= minRow; row--) {
     const cells = [String(rowLabel++)];
     for (let col = minCol; col <= maxCol; col++) {
-      cells.push(grid.get(`${col},${row}`) ?? "");
+      cells.push(grid.get(cellKey(col, row)) ?? "");
     }
     lines.push(cells.map(csvField).join(","));
   }

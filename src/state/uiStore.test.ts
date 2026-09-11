@@ -57,6 +57,31 @@ describe("resetForChart", () => {
     expect(useUiStore.getState().selectedPlacementIds).toEqual(["first"]);
   });
 
+  it("restores a dismissed multi-selection after Select returns to Draw", () => {
+    const ui = useUiStore.getState();
+    ui.setTool("select");
+    ui.setSelectedPlacementIds(["first", "second"]);
+
+    useUiStore.getState().clearSelectionWithUndo();
+    useUiStore.getState().setTool("stitch");
+
+    expect(useUiStore.getState().selectedPlacementIds).toEqual([]);
+    expect(useUiStore.getState().restoreLastClearedSelection()).toBe(true);
+    expect(useUiStore.getState().selectedPlacementIds).toEqual(["first", "second"]);
+  });
+
+  it("records a selection dismissed directly by switching tools", () => {
+    const ui = useUiStore.getState();
+    ui.setTool("select");
+    ui.setSelectedPlacementIds(["first"]);
+
+    useUiStore.getState().setTool("stitch");
+
+    expect(useUiStore.getState().selectedPlacementIds).toEqual([]);
+    expect(useUiStore.getState().restoreLastClearedSelection()).toBe(true);
+    expect(useUiStore.getState().selectedPlacementIds).toEqual(["first"]);
+  });
+
   it("keeps the clipboard through chart resets until it is explicitly replaced", () => {
     const copied = [{ id: "copied", symbolId: "knit", col: 2, row: 3 }];
     useUiStore.getState().setClipboardPlacements(copied);
