@@ -2,13 +2,14 @@ import { type RefObject, useEffect } from "react";
 import { type Cell, screenToCell, screenToInsertCell } from "../canvas/camera";
 import { RULER } from "../canvas/theme";
 import { DocIndex } from "../model/docIndex";
+import { cellKey, parseCellKey } from "../model/cellKey";
 import { stitchGroups } from "../model/stitchNumbers";
 import { insertTargetCol } from "../model/ops";
 import { getSharedReferenceImageCache } from "../canvas/referenceImageCache";
 import { cellWithinReferenceImage, cropReferenceImageCell } from "../canvas/referenceImageCrop";
 import { binarizeCrop, extractExemplars, matchCandidateStitch } from "../model/templateMatch";
 import { useDocStore } from "../state/docStore";
-import { SUGGEST_SYMBOL_ID, cellKey, useUiStore } from "../state/uiStore";
+import { SUGGEST_SYMBOL_ID, useUiStore } from "../state/uiStore";
 
 /**
  * Whether a click/pointerdown that just produced `ids` (via `selectExisting`)
@@ -19,6 +20,20 @@ import { SUGGEST_SYMBOL_ID, cellKey, useUiStore } from "../state/uiStore";
  */
 export function shouldOpenPickerForSelection(ids: string[], additive: boolean): boolean {
   return !additive && ids.length === 1;
+}
+
+/**
+ * An ordinary armed click outside an active selection dismisses first. The
+ * click is consumed instead of doing two unrelated things (clearing a
+ * selection and placing a stitch) in one gesture.
+ */
+export function shouldDismissSelectionBeforeDrawing(
+  armedSymbolId: string | null,
+  targetOccupied: boolean,
+  hasSelection: boolean,
+  shiftKey: boolean,
+): boolean {
+  return !shiftKey && !targetOccupied && !!armedSymbolId && hasSelection;
 }
 
 export type StraightAxis = "row" | "column";
@@ -347,9 +362,9 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       // internal gaps are draggable, but empty space between distant selected
       // groups is not turned into one enormous move target.
       return stitchGroups(DocIndex.from(selected)).some((group) => {
-        const coordinates = [...group.cells].map((cellKey) => {
-          const [col, row] = cellKey.split(",").map(Number);
-          return { col: col!, row: row! };
+        const coordinates = [...group.cells].flatMap((key) => {
+          const cell = parseCellKey(key);
+          return cell ? [cell] : [];
         });
         const cols = coordinates.map((point) => point.col);
         const rows = coordinates.map((point) => point.row);
@@ -402,18 +417,18 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         // A non-additive selection always replaces whatever was selected
         // before, empty cells included - otherwise a stale empty-cell
         // selection could linger alongside a freshly selected stitch.
-        if (ui().selectedEmptyCells.length) ui().setSelectedEmptyCells([]);
-        ui().setSelectedPlacementIds(ids);
+        ui().setSelection(ids, [], true);
         return ids;
       }
-      const selected = new Set(ui().selectedPlacementIds);
+      const state = ui();
+      const selected = new Set(state.selectedPlacementIds);
       const removing = ids.every((id) => selected.has(id));
       for (const id of ids) {
         if (removing) selected.delete(id);
         else selected.add(id);
       }
       const next = [...selected];
-      ui().setSelectedPlacementIds(next);
+      state.setSelection(next, state.selectedEmptyCells, true);
       return next;
     };
 
@@ -510,9 +525,10 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         // An armed click on empty space while a picker was open dismisses
         // it (and the selection under it) rather than also painting there -
         // this first click's job is closing the picker, full stop. A second
-        // click, with the picker now gone, paints normally.
+        // click, with the picker now gone, paints normally. This is a real
+        // selection dismissal, so Cmd/Ctrl+Z must be able to restore it.
         if (!e.shiftKey && ui().armedSymbolId && !doc().index.placementAt(pickerCell.col, pickerCell.row)) {
-          ui().clearSelection();
+          ui().clearSelectionWithUndo();
           return;
         }
         // Neither a modifier command nor a drag on the current selection:
@@ -615,24 +631,19 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
 
       const existing = existingAtCell;
 
-      // Clicking empty space away from a selection while a stitch is armed
-      // paints right there, same as any other armed click on empty space -
-      // it doesn't wait for a separate click to dismiss a selection first,
-      // e.g. one just left behind by picking a symbol for it. The stale
-      // selection is cleared (without undo - it's not something a Cmd/Ctrl+Z
-      // would sensibly restore in the middle of an unrelated paint stroke) so
-      // it doesn't linger highlighted once the designer's attention has
-      // clearly moved on. Unarmed, a click on empty space always selects it
-      // and opens its picker instead (see below), even away from an existing
-      // selection - Cmd's selection clutch works the same way plain click
-      // does here, it just gets you there via a different route.
-      if (
-        !e.shiftKey &&
-        !existing &&
-        ui().armedSymbolId &&
-        (ui().selectedPlacementIds.length || ui().selectedEmptyCells.length)
-      ) {
-        ui().clearSelection();
+      // Clicking empty space away from an active selection dismisses the
+      // selection first, even when a stitch remains armed. Consuming this
+      // click matches every other contextual dismissal: it cannot also
+      // place a stitch. The next click begins drawing normally, and Undo can
+      // restore the dismissed selection.
+      if (shouldDismissSelectionBeforeDrawing(
+        ui().armedSymbolId,
+        !!existing,
+        !!(ui().selectedPlacementIds.length || ui().selectedEmptyCells.length),
+        e.shiftKey,
+      )) {
+        ui().clearSelectionWithUndo();
+        return;
       }
 
       if (ui().tool === "eraser") {
@@ -801,7 +812,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
             }
             return members;
           });
-        ui().setSelectedPlacementIds([...new Set([...selectionBaseline, ...ids])]);
+        const nextIds = [...new Set([...selectionBaseline, ...ids])];
 
         // Empty cells join a marquee's results too, but only while Opt is
         // also held (Cmd+Opt) - plain Cmd-drag stays exactly the marquee it
@@ -811,6 +822,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         // Every other empty-cell path (a plain or Cmd click, replacing a
         // selection by clicking away) is intentionally NOT gated this way -
         // this restriction is specific to the drag/marquee tool.
+        let nextEmptyCells = selectionEmptyBaseline;
         if (e.altKey) {
           const emptyCells = new Map<string, Cell>(
             selectionEmptyBaseline.map((c) => [cellKey(c.col, c.row), c]),
@@ -820,10 +832,11 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
               if (!doc().index.placementAt(col, row)) emptyCells.set(cellKey(col, row), { col, row });
             }
           }
-          ui().setSelectedEmptyCells([...emptyCells.values()]);
-        } else if (ui().selectedEmptyCells.length !== selectionEmptyBaseline.length) {
-          ui().setSelectedEmptyCells(selectionEmptyBaseline);
+          nextEmptyCells = [...emptyCells.values()];
         }
+        // Marquee previews update continuously but become one undoable
+        // selection action only when the pointer is released.
+        ui().setSelection(nextIds, nextEmptyCells, false);
         return;
       }
       if (!painting) return;
@@ -890,7 +903,12 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       if (selecting) {
         const start = selectionStart!;
         const existing = doc().index.placementAt(start.col, start.row);
-        if (!selectionMoved) {
+        if (selectionMoved) {
+          const finalIds = ui().selectedPlacementIds;
+          const finalEmptyCells = ui().selectedEmptyCells;
+          ui().setSelection(selectionBaseline, selectionEmptyBaseline, false);
+          ui().setSelection(finalIds, finalEmptyCells, true);
+        } else {
           if (selectionAdditive) {
             // Cmd+Shift: the first click on a cell toggles it into the pool
             // and becomes a range anchor; a second Cmd+Shift click on
@@ -899,8 +917,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
             const anchor = ui().selectionAnchor;
             if (anchor && (anchor.col !== start.col || anchor.row !== start.row)) {
               const { ids, emptyCells } = cellsInBoundingBox(anchor, start);
-              ui().setSelectedPlacementIds(ids);
-              ui().setSelectedEmptyCells(emptyCells);
+              ui().setSelection(ids, emptyCells, true);
               ui().setSelectionAnchor(null);
             } else if (existing) {
               const ids = selectExisting(existing.id, true);

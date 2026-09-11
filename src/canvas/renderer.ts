@@ -19,6 +19,7 @@ import { drawGrid, labelStep } from "./grid";
 import type { ReferenceImageCache } from "./referenceImageCache";
 import type { SpriteCache } from "./spriteCache";
 import type { PickerTarget, SelectionBox, SelectionMove, Tool } from "../state/uiStore";
+import { parseCellKey } from "../model/cellKey";
 import { RULER, theme } from "./theme";
 
 export type RenderState = {
@@ -612,9 +613,9 @@ function drawUnrecognizedCells(ctx: CanvasRenderingContext2D, state: RenderState
   ctx.fillStyle = "rgba(220, 38, 38, 0.08)";
 
   for (const key of referenceImageUnrecognized) {
-    const [colStr, rowStr] = key.split(",");
-    const col = Number(colStr);
-    const row = Number(rowStr);
+    const cell = parseCellKey(key);
+    if (!cell) continue;
+    const { col, row } = cell;
     if (index.placementAt(col, row)) continue;
 
     const r = cellToScreenRect(col, row, cam, vp);

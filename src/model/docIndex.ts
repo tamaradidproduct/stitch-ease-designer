@@ -1,4 +1,5 @@
 import { spanOf } from "../symbols/registry";
+import { cellKey } from "./cellKey";
 import type { Placement } from "./types";
 
 /**
@@ -12,7 +13,6 @@ import type { Placement } from "./types";
 /** Cells per chunk, per axis. Chunks exist purely to make culling cheap. */
 export const CHUNK = 64;
 
-const cellKey = (col: number, row: number) => `${col},${row}`;
 const chunkKey = (col: number, row: number) =>
   `${Math.floor(col / CHUNK)},${Math.floor(row / CHUNK)}`;
 

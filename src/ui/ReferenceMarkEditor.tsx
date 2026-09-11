@@ -3,6 +3,7 @@ import { worldToScreen } from "../canvas/camera";
 import { patchCalibrationMark, withoutCalibrationMark } from "../model/referenceCalibration";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
+import { redoLatest, undoLatest } from "../state/editorHistory";
 import { tapActivate } from "./tapActivate";
 
 /**
@@ -26,8 +27,6 @@ export function ReferenceMarkEditor() {
   const viewport = useUiStore((s) => s.viewport);
   const image = useDocStore((s) => s.referenceImage);
   const updateReferenceImage = useDocStore((s) => s.updateReferenceImage);
-  const undo = useDocStore((s) => s.undo);
-  const redo = useDocStore((s) => s.redo);
   const rowInput = useRef<HTMLButtonElement | null>(null);
   const stitchInput = useRef<HTMLButtonElement | null>(null);
   const [fieldState, setFieldState] = useState<{
@@ -169,8 +168,8 @@ export function ReferenceMarkEditor() {
         e.stopPropagation();
         if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
           e.preventDefault();
-          if (e.shiftKey) redo();
-          else undo();
+          if (e.shiftKey) redoLatest();
+          else undoLatest();
           return;
         }
         if (e.key === "Escape") {

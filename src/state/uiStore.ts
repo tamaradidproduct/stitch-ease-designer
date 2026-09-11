@@ -9,6 +9,9 @@ import {
   zoomAt,
 } from "../canvas/camera";
 import type { BoxHandle, Placement } from "../model/types";
+import { nextHistorySequence } from "./historySequence";
+
+export { cellKey } from "../model/cellKey";
 
 export type Tool = "select" | "stitch" | "eraser" | "insert";
 
@@ -29,9 +32,6 @@ export type Role = "admin" | "designer";
  * against user exemplars from the reference image instead of placing a fixed symbol.
  */
 export const SUGGEST_SYMBOL_ID = "__suggest__";
-
-/** Cell key for the unrecognized set - one placement per cell, so coordinates identify it. */
-export const cellKey = (col: number, row: number): string => `${col},${row}`;
 
 /** Where the picker is anchored: which cell it will fill, and where to draw it. */
 export type PickerTarget = {
@@ -62,6 +62,17 @@ export type PickerTarget = {
 export type SuggestReviewBounds = { minCol: number; maxCol: number; minRow: number; maxRow: number };
 
 export type SelectionBox = { start: Cell; current: Cell };
+
+export type SelectionSnapshot = {
+  placementIds: string[];
+  emptyCells: Cell[];
+};
+
+export type SelectionHistoryEntry = {
+  before: SelectionSnapshot;
+  after: SelectionSnapshot;
+  sequence: number;
+};
 /**
  * `blocked` is true when the drop target is occupied (by an unselected
  * stitch for a move, or by anything at all for a duplicate). `duplicating`
@@ -205,6 +216,9 @@ type UiState = {
   lastClearedSelection: string[] | null;
   /** The empty-cell counterpart of `lastClearedSelection`. */
   lastClearedEmptyCells: Cell[] | null;
+  /** Selection changes on the same ordered timeline as document edits. */
+  selectionUndoStack: SelectionHistoryEntry[];
+  selectionRedoStack: SelectionHistoryEntry[];
   /**
    * The first cell of a Cmd+Shift click-then-click range select, waiting for
    * a second Cmd+Shift click to complete the bounding box. Cleared by any
@@ -320,6 +334,7 @@ type UiState = {
   selectPlacement: (id: string, additive: boolean) => void;
   setSelectedPlacementIds: (ids: string[], recordUndo?: boolean) => void;
   setSelectedEmptyCells: (cells: Cell[], recordUndo?: boolean) => void;
+  setSelection: (ids: string[], cells: Cell[], recordUndo?: boolean) => void;
   setClipboardPlacements: (placements: Placement[]) => void;
   setSelectionBox: (box: SelectionBox | null) => void;
   setSelectionMove: (move: SelectionMove | null) => void;
@@ -328,6 +343,8 @@ type UiState = {
   clearSelectionWithUndo: () => void;
   /** Restores the selection stashed by `clearSelectionWithUndo`, if any. Returns whether it did. */
   restoreLastClearedSelection: () => boolean;
+  undoSelection: () => boolean;
+  redoSelection: () => boolean;
 
   setViewport: (vp: Viewport) => void;
   setHover: (cell: Cell | null) => void;
@@ -354,6 +371,12 @@ type UiState = {
 
 const sameCell = (a: Cell | null, b: Cell | null) =>
   a === b || (!!a && !!b && a.col === b.col && a.row === b.row);
+
+const sameStringList = (a: readonly string[], b: readonly string[]) =>
+  a.length === b.length && a.every((value, index) => value === b[index]);
+
+const sameCellList = (a: readonly Cell[], b: readonly Cell[]) =>
+  a.length === b.length && a.every((value, index) => sameCell(value, b[index] ?? null));
 
 export const useUiStore = create<UiState>((set, get) => ({
   camera: defaultCamera(),
@@ -438,10 +461,19 @@ export const useUiStore = create<UiState>((set, get) => ({
   selectionMove: null,
   lastClearedSelection: null,
   lastClearedEmptyCells: null,
+  selectionUndoStack: [],
+  selectionRedoStack: [],
   selectionAnchor: null,
   setSelectionAnchor: (selectionAnchor) => set({ selectionAnchor }),
-  setTool: (tool) =>
-    set((state) => ({
+  setTool: (tool) => {
+    const state = get();
+    if (
+      tool !== "select" &&
+      (state.selectedPlacementIds.length || state.selectedEmptyCells.length)
+    ) {
+      state.setSelection([], [], true);
+    }
+    set((current) => ({
       tool,
       // Suggest is a drawing operation, not a selection modifier, and has no
       // useful meaning outside Draw - leaving it armed after switching to
@@ -450,15 +482,14 @@ export const useUiStore = create<UiState>((set, get) => ({
       // armedSymbolId directly and would insert the synthetic id itself as
       // a placement's symbolId. Real stitches may remain armed while
       // selecting, so Cmd/Ctrl's temporary-selection workflow is unaffected.
-      ...(tool !== "stitch" && state.armedSymbolId === SUGGEST_SYMBOL_ID
+      ...(tool !== "stitch" && current.armedSymbolId === SUGGEST_SYMBOL_ID
         ? { armedSymbolId: null }
         : {}),
       picker: null,
-      lastClearedSelection: null,
-      lastClearedEmptyCells: null,
       selectionAnchor: null,
       ...(tool === "select" ? {} : { selectedPlacementIds: [], selectedEmptyCells: [] }),
-    })),
+    }));
+  },
   setArmedSymbolId: (armedSymbolId) =>
     set({
       armedSymbolId,
@@ -534,28 +565,60 @@ export const useUiStore = create<UiState>((set, get) => ({
   openPicker: (picker) => set({ picker, suggestReview: null }),
   closePicker: () => set({ picker: null }),
   selectPlacement: (id, additive) => {
-    const selected = get().selectedPlacementIds;
+    const state = get();
+    const selected = state.selectedPlacementIds;
     if (!additive) {
-      set({ selectedPlacementIds: [id], selectedEmptyCells: [], lastClearedSelection: null });
+      state.setSelection([id], [], true);
       return;
     }
-    set({
-      selectedPlacementIds: selected.includes(id)
+    state.setSelection(
+      selected.includes(id)
         ? selected.filter((selectedId) => selectedId !== id)
         : [...selected, id],
-      lastClearedSelection: null,
-    });
+      state.selectedEmptyCells,
+      true,
+    );
   },
-  setSelectedPlacementIds: (selectedPlacementIds, recordUndo = true) =>
-    set((state) => ({
-      selectedPlacementIds,
-      lastClearedSelection: recordUndo ? state.selectedPlacementIds : null,
-    })),
-  setSelectedEmptyCells: (selectedEmptyCells, recordUndo = true) =>
-    set((state) => ({
-      selectedEmptyCells,
-      lastClearedEmptyCells: recordUndo ? state.selectedEmptyCells : null,
-    })),
+  setSelection: (selectedPlacementIds, selectedEmptyCells, recordUndo = true) =>
+    set((state) => {
+      if (
+        sameStringList(state.selectedPlacementIds, selectedPlacementIds) &&
+        sameCellList(state.selectedEmptyCells, selectedEmptyCells)
+      ) return {};
+      const before = {
+        placementIds: state.selectedPlacementIds,
+        emptyCells: state.selectedEmptyCells,
+      };
+      const after = { placementIds: selectedPlacementIds, emptyCells: selectedEmptyCells };
+      // Empty-cell highlighting is a contextual edit target (most commonly
+      // the cell whose picker is open), not a standalone selection action.
+      // Only changes to actual selected stitches belong in Undo history.
+      const recordSelectionHistory =
+        recordUndo && !sameStringList(state.selectedPlacementIds, selectedPlacementIds);
+      return {
+        selectedPlacementIds,
+        selectedEmptyCells,
+        lastClearedSelection: recordUndo ? state.selectedPlacementIds : null,
+        lastClearedEmptyCells: recordUndo ? state.selectedEmptyCells : null,
+        ...(recordSelectionHistory
+          ? {
+              selectionUndoStack: [
+                ...state.selectionUndoStack,
+                { before, after, sequence: nextHistorySequence() },
+              ],
+              selectionRedoStack: [],
+            }
+          : null),
+      };
+    }),
+  setSelectedPlacementIds: (selectedPlacementIds, recordUndo = true) => {
+    const state = get();
+    state.setSelection(selectedPlacementIds, state.selectedEmptyCells, recordUndo);
+  },
+  setSelectedEmptyCells: (selectedEmptyCells, recordUndo = true) => {
+    const state = get();
+    state.setSelection(state.selectedPlacementIds, selectedEmptyCells, recordUndo);
+  },
   setClipboardPlacements: (clipboardPlacements) => set({ clipboardPlacements }),
   setSelectionBox: (selectionBox) => set({ selectionBox }),
   setSelectionMove: (selectionMove) => set({ selectionMove }),
@@ -568,11 +631,11 @@ export const useUiStore = create<UiState>((set, get) => ({
     selectionMove: null,
   }),
   clearSelectionWithUndo: () => {
-    const { selectedPlacementIds: current, selectedEmptyCells: currentEmpty } = get();
+    const state = get();
+    const { selectedPlacementIds: current, selectedEmptyCells: currentEmpty } = state;
     if (!current.length && !currentEmpty.length) return;
+    state.setSelection([], [], true);
     set({
-      selectedPlacementIds: [],
-      selectedEmptyCells: [],
       lastClearedSelection: current.length ? current : null,
       lastClearedEmptyCells: currentEmpty.length ? currentEmpty : null,
       selectionBox: null,
@@ -585,6 +648,40 @@ export const useUiStore = create<UiState>((set, get) => ({
     set({
       selectedPlacementIds: stash ?? [],
       selectedEmptyCells: emptyStash ?? [],
+      lastClearedSelection: null,
+      lastClearedEmptyCells: null,
+    });
+    return true;
+  },
+  undoSelection: () => {
+    const state = get();
+    const entry = state.selectionUndoStack[state.selectionUndoStack.length - 1];
+    if (!entry) return false;
+    set({
+      selectedPlacementIds: entry.before.placementIds,
+      selectedEmptyCells: entry.before.emptyCells,
+      selectionUndoStack: state.selectionUndoStack.slice(0, -1),
+      selectionRedoStack: [...state.selectionRedoStack, entry],
+      picker: null,
+      selectionBox: null,
+      selectionMove: null,
+      lastClearedSelection: null,
+      lastClearedEmptyCells: null,
+    });
+    return true;
+  },
+  redoSelection: () => {
+    const state = get();
+    const entry = state.selectionRedoStack[state.selectionRedoStack.length - 1];
+    if (!entry) return false;
+    set({
+      selectedPlacementIds: entry.after.placementIds,
+      selectedEmptyCells: entry.after.emptyCells,
+      selectionUndoStack: [...state.selectionUndoStack, entry],
+      selectionRedoStack: state.selectionRedoStack.slice(0, -1),
+      picker: null,
+      selectionBox: null,
+      selectionMove: null,
       lastClearedSelection: null,
       lastClearedEmptyCells: null,
     });
@@ -674,6 +771,8 @@ export const useUiStore = create<UiState>((set, get) => ({
     selectionMove: null,
     lastClearedSelection: null,
     lastClearedEmptyCells: null,
+    selectionUndoStack: [],
+    selectionRedoStack: [],
     selectionAnchor: null,
     hover: null,
     insertHover: null,

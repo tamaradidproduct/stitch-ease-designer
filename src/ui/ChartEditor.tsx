@@ -5,6 +5,7 @@ import { ChartNotFoundError } from "../storage/DocStore";
 import { chartStore } from "../storage/store";
 import { useAutosave } from "../storage/useAutosave";
 import { isChartOpen, selectIsDirty, useDocStore } from "../state/docStore";
+import { redoLatest, undoLatest } from "../state/editorHistory";
 import { useUiStore } from "../state/uiStore";
 import { KeyboardHintBanner } from "./KeyboardHintBanner";
 import { PanButton } from "./PanButton";
@@ -42,10 +43,12 @@ export function ChartEditor() {
   const unknownSymbolIds = useDocStore((s) => s.unknownSymbolIds);
   const statusDetail = useDocStore((s) => s.statusDetail);
   const status = useDocStore((s) => s.status);
-  const undo = useDocStore((s) => s.undo);
-  const redo = useDocStore((s) => s.redo);
-  const canUndo = useDocStore((s) => s.undoStack.length > 0);
-  const canRedo = useDocStore((s) => s.redoStack.length > 0);
+  const canUndoDocument = useDocStore((s) => s.undoStack.length > 0);
+  const canRedoDocument = useDocStore((s) => s.redoStack.length > 0);
+  const canUndoSelection = useUiStore((s) => s.selectionUndoStack.length > 0);
+  const canRedoSelection = useUiStore((s) => s.selectionRedoStack.length > 0);
+  const canUndo = canUndoDocument || canUndoSelection;
+  const canRedo = canRedoDocument || canRedoSelection;
   const referenceImage = useDocStore((s) => s.referenceImage);
   const referenceImagePanelOpen = useUiStore((s) => s.referenceImagePanelOpen);
 
@@ -170,7 +173,7 @@ export function ChartEditor() {
         <button
           type="button"
           className="topbar__historyButton"
-          onClick={undo}
+          onClick={undoLatest}
           disabled={!canUndo}
           title="Undo (⌘Z)"
           aria-label="Undo"
@@ -183,7 +186,7 @@ export function ChartEditor() {
         <button
           type="button"
           className="topbar__historyButton"
-          onClick={redo}
+          onClick={redoLatest}
           disabled={!canRedo}
           title="Redo (⇧⌘Z)"
           aria-label="Redo"

@@ -21,6 +21,7 @@ import {
 } from "../model/types";
 import { newUuid } from "../uuid";
 import type { LoadedChart } from "../storage/DocStore";
+import { nextHistorySequence } from "./historySequence";
 
 /**
  * Where the open chart stands with storage.
@@ -42,6 +43,8 @@ export type SaveStatus = "idle" | "saving" | "conflict" | "error";
  * model (ops.ts) about a second kind of state to reverse.
  */
 type HistoryEntry = {
+  /** Shared with selection history so Undo can respect true action order. */
+  sequence: number;
   /** Placement/repeat history uses reversible operations. */
   change?: Change;
   repeats?: RepeatDefinition[];
@@ -174,6 +177,7 @@ export const useDocStore = create<DocState>((set, get) => {
       set({ revision: revision + 1, stroke: [...stroke, change], redoStack: [] });
     } else {
       const entry: HistoryEntry = {
+        sequence: nextHistorySequence(),
         change: inverse,
         ...(repeatsAfter !== undefined ? { repeats } : {}),
       };
@@ -258,7 +262,10 @@ export const useDocStore = create<DocState>((set, get) => {
         return {
           referenceImage: next,
           revision: s.revision + 1,
-          undoStack: [...s.undoStack, { referenceImage: s.referenceImage }],
+          undoStack: [...s.undoStack, {
+            sequence: nextHistorySequence(),
+            referenceImage: s.referenceImage,
+          }],
           redoStack: [],
         };
       }),
@@ -275,7 +282,10 @@ export const useDocStore = create<DocState>((set, get) => {
       referenceImageEditChanged = false;
       if (!changed || !before) return;
       set((s) => ({
-        undoStack: [...s.undoStack, { referenceImage: before }],
+        undoStack: [...s.undoStack, {
+          sequence: nextHistorySequence(),
+          referenceImage: before,
+        }],
         redoStack: [],
       }));
     },
@@ -544,7 +554,11 @@ export const useDocStore = create<DocState>((set, get) => {
       // The stroke is already applied; bank a single inverse for all of it.
       const merged = mergeChanges(stroke);
       const inverse: Change = { added: merged.removed, removed: merged.added };
-      set({ stroke: null, undoStack: [...undoStack, { change: inverse }], redoStack: [] });
+      set({
+        stroke: null,
+        undoStack: [...undoStack, { sequence: nextHistorySequence(), change: inverse }],
+        redoStack: [],
+      });
     },
 
     undo: () => {
@@ -553,6 +567,7 @@ export const useDocStore = create<DocState>((set, get) => {
       if (!entry) return;
       const inverse = entry.change ? apply(index, entry.change) : undefined;
       const redoEntry: HistoryEntry = {
+        sequence: entry.sequence,
         ...(inverse ? { change: inverse } : {}),
         ...(entry.repeats !== undefined ? { repeats } : {}),
         ...(entry.referenceImage !== undefined ? { referenceImage: get().referenceImage } : {}),
@@ -572,6 +587,7 @@ export const useDocStore = create<DocState>((set, get) => {
       if (!entry) return;
       const inverse = entry.change ? apply(index, entry.change) : undefined;
       const undoEntry: HistoryEntry = {
+        sequence: entry.sequence,
         ...(inverse ? { change: inverse } : {}),
         ...(entry.repeats !== undefined ? { repeats } : {}),
         ...(entry.referenceImage !== undefined ? { referenceImage: get().referenceImage } : {}),

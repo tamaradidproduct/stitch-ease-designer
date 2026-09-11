@@ -3,6 +3,7 @@ import { SUGGEST_SYMBOL_ID } from "../state/uiStore";
 import {
   constrainToStraightAxis,
   modeFor,
+  shouldDismissSelectionBeforeDrawing,
   shouldOpenPickerForSelection,
   straightAxisFor,
   straightLineCells,
@@ -27,6 +28,21 @@ describe("shouldOpenPickerForSelection", () => {
   it("does not open the picker for zero or multiple ids", () => {
     expect(shouldOpenPickerForSelection([], false)).toBe(false);
     expect(shouldOpenPickerForSelection(["a", "b"], false)).toBe(false);
+  });
+});
+
+describe("shouldDismissSelectionBeforeDrawing", () => {
+  it("consumes an armed click on empty canvas while a selection is active", () => {
+    expect(shouldDismissSelectionBeforeDrawing("purl", false, true, false)).toBe(true);
+  });
+
+  it("does not intercept the following draw click after the selection is gone", () => {
+    expect(shouldDismissSelectionBeforeDrawing("purl", false, false, false)).toBe(false);
+  });
+
+  it("does not shadow occupied-cell or Shift interactions", () => {
+    expect(shouldDismissSelectionBeforeDrawing("purl", true, true, false)).toBe(false);
+    expect(shouldDismissSelectionBeforeDrawing("purl", false, true, true)).toBe(false);
   });
 });
 

@@ -1,4 +1,5 @@
 import { newPlacementId } from "../model/ops";
+import { cellKey } from "../model/cellKey";
 import type { Placement, ReferenceImage, RepeatDefinition } from "../model/types";
 import { getSymbol } from "../symbols/registry";
 
@@ -196,7 +197,7 @@ function validate(stored: unknown): StoredChart {
         throw new ChartFormatError(`repeat ${i} has a stitch outside its footprint`);
       }
       for (let col = stitch.col; col < stitch.col + span; col++) {
-        const key = `${col},${stitch.row}`;
+        const key = cellKey(col, stitch.row);
         if (occupied.has(key)) {
           throw new ChartFormatError(`repeat ${i} has overlapping stitches at col ${col}, row ${stitch.row}`);
         }
@@ -317,14 +318,14 @@ export function decode(stored: unknown, knownSymbol: (id: string) => boolean): D
     }
   }
 
-  const suggestedCells = new Set((chart.suggested ?? []).map(([col, row]) => `${col},${row}`));
+  const suggestedCells = new Set((chart.suggested ?? []).map(([col, row]) => cellKey(col, row)));
   const placements = chart.stitches.map(([col, row, paletteIndex, groupIndex]) => ({
     id: newPlacementId(),
     symbolId: chart.palette[paletteIndex]!,
     col,
     row,
     ...(groupIndex === undefined ? {} : { groupId: chart.groups![groupIndex] }),
-    ...(suggestedCells.has(`${col},${row}`) ? { suggested: true } : {}),
+    ...(suggestedCells.has(cellKey(col, row)) ? { suggested: true } : {}),
   }));
 
   return {
