@@ -157,6 +157,9 @@ export function RightPanel() {
   );
 
   const { placements, glossary, glossaryIds, stitchCounts } = useMemo(() => {
+    // The document mutates its index in place; its revision invalidates this
+    // cached snapshot when placements change.
+    void revision;
     const chartPlacements = index.toArray();
     const chartGlossary = collectGlossarySymbols(
       addedGlossaryIds,
