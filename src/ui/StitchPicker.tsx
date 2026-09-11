@@ -92,6 +92,9 @@ export function StitchPicker() {
     [quickIds, selectionSpan],
   );
   const moreSymbols = useMemo(() => {
+    // The document mutates its index in place; its revision invalidates this
+    // cached snapshot when placements change.
+    void revision;
     const visibleIds = new Set(quickSymbols.map((symbol) => symbol.id));
     return collectGlossarySymbols(
       // The right panel treats assigned quick slots as glossary rows too,
