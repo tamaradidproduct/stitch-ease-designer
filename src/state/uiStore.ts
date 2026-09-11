@@ -58,6 +58,9 @@ export type PickerTarget = {
   reviewingSuggestion?: boolean;
 };
 
+/** Inclusive cell bounds a Suggest stroke's review menu is anchored over. */
+export type SuggestReviewBounds = { minCol: number; maxCol: number; minRow: number; maxRow: number };
+
 export type SelectionBox = { start: Cell; current: Cell };
 /**
  * `blocked` is true when the drop target is occupied (by an unselected
@@ -275,6 +278,20 @@ type UiState = {
   setReferenceImageUnrecognized: (key: string, unrecognized: boolean) => void;
   clearReferenceImageUnrecognized: () => void;
 
+  /**
+   * The bounding box (in chart cells) of the cells a single Suggest stroke
+   * just produced results for - identified or unidentified, whichever the
+   * matcher landed on. Purely an anchor for where the review menu appears;
+   * what it reviews is always every currently pending suggestion in the
+   * document, not just this batch (see `SuggestReviewMenu`). Never derived
+   * from document order or from all pending suggestions, so the menu tracks
+   * the stroke that just finished rather than an arbitrary earlier one.
+   */
+  suggestReview: SuggestReviewBounds | null;
+  /** Opens the review menu anchored to `bounds`, replacing any menu already open. */
+  openSuggestReview: (bounds: SuggestReviewBounds) => void;
+  closeSuggestReview: () => void;
+
   setTool: (tool: Tool) => void;
   setArmedSymbolId: (id: string | null) => void;
   /**
@@ -285,6 +302,15 @@ type UiState = {
    * be tweaked again immediately, armed for wherever the next click goes.
    */
   chooseSymbol: (id: string, tool?: Tool, preserveSelection?: boolean) => void;
+  /**
+   * Adds `id` to the next free quick slot without arming it or touching the
+   * tool - the quick-access half of `chooseSymbol`, on its own. Used when
+   * resolving a suggestion review (an identified placement or an
+   * unrecognized marker): the stitch just picked belongs in the glossary
+   * and the quick row exactly like any other pick, but Suggest needs to
+   * stay armed so the rest of the review pass isn't interrupted.
+   */
+  addQuickSymbol: (id: string) => void;
   /** Clears a stitch's quick-access assignment without moving other slots. */
   removeQuickSymbol: (id: string) => void;
   /** Reorders a quick stitch, updating the number-key shortcuts. */
@@ -389,6 +415,9 @@ export const useUiStore = create<UiState>((set, get) => ({
       return { referenceImageUnrecognized: next };
     }),
   clearReferenceImageUnrecognized: () => set({ referenceImageUnrecognized: new Set<string>() }),
+  suggestReview: null,
+  openSuggestReview: (bounds) => set({ suggestReview: bounds }),
+  closeSuggestReview: () => set({ suggestReview: null }),
   referenceImageCalibrationBox: null,
   setReferenceImageCalibrationBox: (referenceImageCalibrationBox) =>
     set({ referenceImageCalibrationBox }),
@@ -468,6 +497,14 @@ export const useUiStore = create<UiState>((set, get) => ({
     });
   },
 
+  addQuickSymbol: (id) => {
+    const current = get().quickSymbolIds;
+    const quickSymbolIds = assignQuickSymbol(current, id);
+    if (quickSymbolIds === current) return;
+    saveQuickSymbolIds(quickSymbolIds);
+    set({ quickSymbolIds });
+  },
+
   removeQuickSymbol: (id) => {
     const state = get();
     const slot = state.quickSymbolIds.indexOf(id);
@@ -490,7 +527,11 @@ export const useUiStore = create<UiState>((set, get) => ({
     set({ quickSymbolIds });
   },
 
-  openPicker: (picker) => set({ picker }),
+  // Editing a single suggested/unidentified cell always wins over the batch
+  // review menu it was opened from - closing it here (rather than leaving it
+  // to reappear once the picker closes) is what keeps "choose a stitch" from
+  // ever reopening the menu, per the review menu's lifecycle rules.
+  openPicker: (picker) => set({ picker, suggestReview: null }),
   closePicker: () => set({ picker: null }),
   selectPlacement: (id, additive) => {
     const selected = get().selectedPlacementIds;
@@ -617,15 +658,16 @@ export const useUiStore = create<UiState>((set, get) => ({
 
   centerCameraAt: (x, y) => set((s) => ({ camera: { ...s.camera, x, y } })),
 
-  centerViewAt100: (x, y) => set({ camera: { x, y, zoom: 1 }, picker: null }),
+  centerViewAt100: (x, y) => set({ camera: { x, y, zoom: 1 }, picker: null, suggestReview: null }),
 
-  resetView: () => set({ camera: defaultCamera(), picker: null }),
+  resetView: () => set({ camera: defaultCamera(), picker: null, suggestReview: null }),
 
   resetForChart: () => set({
     camera: defaultCamera(),
     tool: "stitch",
     armedSymbolId: null,
     picker: null,
+    suggestReview: null,
     selectedPlacementIds: [],
     selectedEmptyCells: [],
     selectionBox: null,

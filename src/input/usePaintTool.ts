@@ -180,6 +180,25 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
     // The mode the current drag is painting with - re-derived from live
     // modifiers on every move (see `modeFor`), not fixed at pointerdown.
     let currentMode: StrokeMode | null = null;
+    // Cells this pointer gesture's Suggest matching actually produced a
+    // result for (identified or unidentified) - reset per gesture, read once
+    // the gesture ends to anchor the review menu over exactly this batch,
+    // never over all pending suggestions or an earlier batch.
+    let suggestBatchCells: Cell[] = [];
+
+    const finishSuggestBatch = () => {
+      if (suggestBatchCells.length) {
+        const cols = suggestBatchCells.map((c) => c.col);
+        const rows = suggestBatchCells.map((c) => c.row);
+        ui().openSuggestReview({
+          minCol: Math.min(...cols),
+          maxCol: Math.max(...cols),
+          minRow: Math.min(...rows),
+          maxRow: Math.max(...rows),
+        });
+      }
+      suggestBatchCells = [];
+    };
 
     const cellAt = (e: PointerEvent | MouseEvent): Cell | null => {
       const rect = canvas.getBoundingClientRect();
@@ -231,6 +250,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       } else {
         ui().setReferenceImageUnrecognized(key, true);
       }
+      suggestBatchCells.push(cell);
     };
 
     /**
@@ -415,11 +435,25 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
     };
 
     const onPointerDown = (e: PointerEvent) => {
+      // A fresh gesture never carries over a previous one's batch - the only
+      // paths that populate it (matchAndPlace, the Select-tool quick-action)
+      // run entirely between this point and the matching endStroke below.
+      suggestBatchCells = [];
       if (ui().spaceHeld || ui().panEnabled || e.button !== 0) return; // panning, or not a plain left click
       // Reference-image editing is a modal canvas workflow. Even if a tool
       // shortcut managed to change the stored tool, no stitch interaction
       // may run until the reference panel is closed again.
       if (ui().referenceImagePanelOpen) return;
+
+      // Any canvas click starting a real interaction is "outside" the review
+      // menu (its own buttons live off-canvas, in a fixed-position element
+      // the click would have landed on instead) - closes it permanently for
+      // that batch, same as SuggestReviewMenu's own outside-pointerdown
+      // listener does for clicks elsewhere in the app. If this same click
+      // goes on to produce a fresh Suggest batch, `finishSuggestBatch` opens
+      // a new menu for it below - never a reopening of this one.
+      const wasReviewOpen = !!ui().suggestReview;
+      if (wasReviewOpen) ui().closeSuggestReview();
 
       // The selected stitch remains draggable while its edit picker is open.
       // Modifier clicks are selection commands and must act on this first
@@ -663,6 +697,15 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       // giving the designer a way to say what it actually is.
       const unreadable = !e.shiftKey && ui().referenceImageUnrecognized.has(cellKey(cell.col, cell.row));
 
+      // A plain empty cell - never scanned, nothing pending to click on -
+      // is not itself part of the review. While the review menu was open,
+      // this click's whole job was dismissing it, whether or not a stitch
+      // (Suggest included) happens to be armed: painting through it here
+      // would turn one click into two unrelated actions instead of the
+      // plain dismissal the menu's own outside-click handling already
+      // promises for every other kind of "outside" click.
+      if (wasReviewOpen && !existingAtCell && !unreadable) return;
+
       // A real stitch armed (not Suggest itself) is exactly as explicit a
       // choice here as it is for overriding an actual suggestion (see
       // modeFor). Keep it as a real paint stroke, rather than a one-off
@@ -895,8 +938,10 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
               // action on empty space, then back to Draw.
               ui().setTool("stitch");
               const armed = ui().armedSymbolId;
-              if (armed === SUGGEST_SYMBOL_ID) applyMode({ kind: "suggest" }, start);
-              else if (armed) doc().place(armed, start.col, start.row);
+              if (armed === SUGGEST_SYMBOL_ID) {
+                applyMode({ kind: "suggest" }, start);
+                finishSuggestBatch();
+              } else if (armed) doc().place(armed, start.col, start.row);
               else {
                 ui().setSelectedEmptyCells([start]);
                 const rect = canvas.getBoundingClientRect();
@@ -943,10 +988,12 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         doc().beginStroke();
         paintStraightSegment(from, constrainToStraightAxis(from, to, axis));
         doc().endStroke();
+        finishSuggestBatch();
         currentMode = null;
         return;
       }
       doc().endStroke();
+      finishSuggestBatch();
       currentMode = null;
     };
 
