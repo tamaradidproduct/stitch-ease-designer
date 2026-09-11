@@ -11,9 +11,7 @@ import { ReferenceImagePanel } from "./ReferenceImagePanel";
 import { SymbolGlyph } from "./SymbolGlyph";
 import { searchSymbols } from "./symbolSearch";
 import { tapActivate } from "./tapActivate";
-
-/** Every fresh pattern starts with the two foundational knit stitches. */
-const DEFAULT_GLOSSARY_IDS = ["knit", "purl"];
+import { collectGlossarySymbols, loadGlossaryIds } from "./chartGlossary";
 
 /**
  * Section order for the glossary search dropdown; anything uncategorized
@@ -30,23 +28,6 @@ const CATEGORY_LABELS: Record<string, string> = {
   cable: "Cables",
   brioche: "Brioche",
   special: "Special",
-};
-
-const loadGlossaryIds = (chartId?: string): string[] => {
-  if (!chartId || typeof localStorage === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(`stitch-ease:glossary:${chartId}`);
-    // No chart-specific glossary has been saved yet: start with the two
-    // stitches every pattern is likely to need. Once a designer removes one,
-    // their explicit stored list (including an empty one) takes precedence.
-    if (raw === null) return [...DEFAULT_GLOSSARY_IDS];
-    const stored: unknown = JSON.parse(raw);
-    return Array.isArray(stored)
-      ? stored.filter((id): id is string => typeof id === "string")
-      : [...DEFAULT_GLOSSARY_IDS];
-  } catch {
-    return [...DEFAULT_GLOSSARY_IDS];
-  }
 };
 
 export function RightPanel() {
@@ -176,13 +157,10 @@ export function RightPanel() {
   );
 
   const placements = index.toArray();
-  const seen = new Set<string>();
-  const glossary = [...addedGlossaryIds, ...placements.map((placement) => placement.symbolId)].flatMap((id) => {
-    if (seen.has(id)) return [];
-    seen.add(id);
-    const symbol = getSymbol(id);
-    return symbol ? [symbol] : [];
-  });
+  const glossary = collectGlossarySymbols(
+    addedGlossaryIds,
+    placements.map((placement) => placement.symbolId),
+  );
   const glossaryIds = new Set(glossary.map((symbol) => symbol.id));
   const stitchCounts = placements.reduce((counts, placement) => {
     counts.set(placement.symbolId, (counts.get(placement.symbolId) ?? 0) + 1);

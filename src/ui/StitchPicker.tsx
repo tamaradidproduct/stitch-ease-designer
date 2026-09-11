@@ -8,6 +8,7 @@ import { useUiStore } from "../state/uiStore";
 import { insertTargetCol } from "../model/ops";
 import { SymbolGlyph } from "./SymbolGlyph";
 import { searchSymbols } from "./symbolSearch";
+import { collectGlossarySymbols, loadGlossaryIds } from "./chartGlossary";
 
 const MENU_WIDTH = 284;
 const SEARCH_SLOT_WIDTH = 200;
@@ -53,9 +54,11 @@ export function StitchPicker() {
   const instantiateRepeat = useDocStore((s) => s.instantiateRepeat);
   const index = useDocStore((s) => s.index);
   useDocStore((s) => s.revision);
+  const chartId = useDocStore((s) => s.meta?.id);
 
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [searchOrigin, setSearchOrigin] = useState(5);
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -67,8 +70,6 @@ export function StitchPicker() {
   const selectionSpan = target?.selectionSpan;
   const currentSymbol = target?.currentSymbolId ? getSymbol(target.currentSymbolId) : undefined;
   const canDelete = !!currentSymbol || !!target?.selectionIds?.length;
-  const menuWidth = MENU_WIDTH + (canDelete ? 45 : 0);
-  const expandedMenuWidth = menuWidth + SEARCH_SLOT_WIDTH - 40;
 
   const sections = useMemo(() => {
     if (!query.trim()) return [];
@@ -90,6 +91,19 @@ export function StitchPicker() {
       .slice(0, 5),
     [quickIds, selectionSpan],
   );
+  const moreSymbols = (() => {
+    const visibleIds = new Set(quickSymbols.map((symbol) => symbol.id));
+    return collectGlossarySymbols(
+      // The right panel treats assigned quick slots as glossary rows too,
+      // including slots beyond the five shown in this compact picker.
+      [...quickIds, ...loadGlossaryIds(chartId)],
+      index.toArray().map((placement) => placement.symbolId),
+    ).filter((symbol) =>
+      !visibleIds.has(symbol.id) && (!selectionSpan || symbol.span === selectionSpan));
+  })();
+  const hasMore = moreSymbols.length > 0;
+  const menuWidth = MENU_WIDTH + (hasMore ? 45 : 0) + (canDelete ? 45 : 0);
+  const expandedMenuWidth = menuWidth + SEARCH_SLOT_WIDTH - 40;
 
   // Flat order is what the arrow keys walk, so it must match render order.
   const flat = useMemo(() => sections.flatMap((s) => s.symbols), [sections]);
@@ -121,6 +135,7 @@ export function StitchPicker() {
     if (!target) return;
     setQuery("");
     setSearchOpen(!!target.armOnly);
+    setMoreOpen(false);
     setSearchOrigin(5);
     setActive(0);
     if (!target.armOnly) searchButtonRef.current?.focus();
@@ -223,6 +238,7 @@ export function StitchPicker() {
     // Same synchronous-focus requirement as the auto-open effect above.
     flushSync(() => {
       setSearchOpen(true);
+      setMoreOpen(false);
       setSearchOrigin(origin);
       setQuery(initialQuery);
       setActive(0);
@@ -383,6 +399,7 @@ export function StitchPicker() {
       ref={rootRef}
       className="picker"
       data-search-open={searchOpen}
+      data-drawer-below={pos.top < 280}
       style={{
         left: searchOpen ? pos.searchLeft : pos.compactLeft,
         top: pos.top,
@@ -445,6 +462,28 @@ export function StitchPicker() {
               </svg>
             </button>
           )}
+          {hasMore && (
+            <button
+              type="button"
+              className="picker__quickButton picker__moreButton"
+              data-active={moreOpen}
+              onClick={() => {
+                setSearchOpen(false);
+                setMoreOpen((open) => !open);
+              }}
+              aria-expanded={moreOpen}
+              aria-controls="picker-more-stitches"
+              aria-label="More stitches from this pattern"
+              title="More stitches from this pattern"
+              data-label="More stitches"
+            >
+              <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+                <circle cx="5" cy="10" r="1.35" fill="currentColor" />
+                <circle cx="10" cy="10" r="1.35" fill="currentColor" />
+                <circle cx="15" cy="10" r="1.35" fill="currentColor" />
+              </svg>
+            </button>
+          )}
           {canDelete && (
             <button
               type="button"
@@ -467,6 +506,32 @@ export function StitchPicker() {
             </button>
           )}
         </div>
+
+        {moreOpen && (
+          <div id="picker-more-stitches" className="picker__moreDrawer" aria-label="More stitches in this pattern">
+            <div className="picker__moreHeader">This pattern</div>
+            <div className="picker__moreList">
+              {moreSymbols.map((symbol) => (
+                <button
+                  key={symbol.id}
+                  type="button"
+                  className="picker__item"
+                  onClick={() => choose(symbol)}
+                  title={symbol.label}
+                >
+                  <span className="picker__glyph">
+                    <SymbolGlyph symbol={symbol} cell={cellSizeFor(symbol)} />
+                  </span>
+                  <span className="picker__label">{symbol.label}</span>
+                  {symbol.id === target.currentSymbolId && (
+                    <span className="picker__current">current</span>
+                  )}
+                  {symbol.span > 1 && <span className="picker__span">{symbol.span} sts</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {target.selectionIds && target.selectionIds.length > 1 && (
           <div className="picker__selectionBubbles" aria-label="Selection actions">
