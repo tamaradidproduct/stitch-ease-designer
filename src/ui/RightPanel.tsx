@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { allSymbols, getSymbol } from "../symbols/registry";
 import { CELL } from "../canvas/camera";
 import { exportChartCsv } from "../storage/exportCsv";
@@ -51,7 +51,7 @@ export function RightPanel() {
   const index = useDocStore((state) => state.index);
   const repeats = useDocStore((state) => state.repeats);
   const referenceImage = useDocStore((state) => state.referenceImage);
-  useDocStore((state) => state.revision);
+  const revision = useDocStore((state) => state.revision);
   const acceptSuggestions = useDocStore((state) => state.acceptSuggestions);
   const erasePlacements = useDocStore((state) => state.erasePlacements);
   const isAdmin = useUiStore((state) => state.role === "admin");
@@ -156,16 +156,24 @@ export function RightPanel() {
     </button>
   );
 
-  const placements = index.toArray();
-  const glossary = collectGlossarySymbols(
-    addedGlossaryIds,
-    placements.map((placement) => placement.symbolId),
-  );
-  const glossaryIds = new Set(glossary.map((symbol) => symbol.id));
-  const stitchCounts = placements.reduce((counts, placement) => {
-    counts.set(placement.symbolId, (counts.get(placement.symbolId) ?? 0) + 1);
-    return counts;
-  }, new Map<string, number>());
+  const { placements, glossary, glossaryIds, stitchCounts } = useMemo(() => {
+    const chartPlacements = index.toArray();
+    const chartGlossary = collectGlossarySymbols(
+      addedGlossaryIds,
+      chartPlacements.map((placement) => placement.symbolId),
+    );
+    const chartGlossaryIds = new Set(chartGlossary.map((symbol) => symbol.id));
+    const chartStitchCounts = chartPlacements.reduce((counts, placement) => {
+      counts.set(placement.symbolId, (counts.get(placement.symbolId) ?? 0) + 1);
+      return counts;
+    }, new Map<string, number>());
+    return {
+      placements: chartPlacements,
+      glossary: chartGlossary,
+      glossaryIds: chartGlossaryIds,
+      stitchCounts: chartStitchCounts,
+    };
+  }, [addedGlossaryIds, index, revision]);
   // Grouped by category (basic, increases, decreases, ...) rather than left
   // flat, so browsing the full library reads as a glossary instead of a wall
   // of stitches. Array.prototype.sort is stable, so search relevance order
