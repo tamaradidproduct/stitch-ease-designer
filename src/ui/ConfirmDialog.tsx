@@ -27,6 +27,9 @@ export function ConfirmDialog({
 
   useEffect(() => {
     confirmRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") onCancel();
     };
