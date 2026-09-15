@@ -4,7 +4,6 @@ import {
   scaleFromCalibrationMarks,
   withoutCalibrationMark,
 } from "../model/referenceCalibration";
-import { resizeReferenceImageAround, stitchBoxRect } from "../model/types";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
 import { removeReferenceImageFile, uploadReferenceImage } from "../storage/referenceImages";
@@ -51,37 +50,6 @@ export function ReferenceImagePanel() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement | null>(null);
-
-  // Each axis's size as a percentage of its uploaded pixel dimensions - 100%
-  // means one world unit per source pixel, same "how zoomed in is it"
-  // reading a percentage has anywhere else in an image editor. Independent
-  // per axis so a source chart with non-square stitches can be stretched to
-  // match the app's square grid, not just scaled uniformly.
-  const widthPercent = image ? Math.round((image.width / image.naturalWidth) * 100) : 100;
-  const heightPercent = image ? Math.round((image.height / image.naturalHeight) * 100) : 100;
-
-  // Steps off the rounded, displayed percentage (not the raw float) by
-  // exactly one point per click - stepping off the underlying value would
-  // drift away from whole percentages after repeated rounding.
-  const applyScale = (axis: "width" | "height", direction: 1 | -1) => {
-    if (!image) return;
-    const currentPercent = axis === "width" ? widthPercent : heightPercent;
-    const nextPercent = Math.max(1, currentPercent + direction);
-    // Anchored on the calibrated stitch's bottom-left corner once there is
-    // one, so nudging the size never undoes the alignment that "Set stitch
-    // size" established. Before calibration there's no such reference
-    // point, so it falls back to the image's own centre - which at least
-    // keeps a resize from shoving the image off in some direction.
-    const stitch = stitchBoxRect(image);
-    const anchor = stitch
-      ? { x: stitch.x, y: stitch.y }
-      : { x: image.x + image.width / 2, y: image.y + image.height / 2 };
-    const width =
-      axis === "width" ? Math.max(CELL, image.naturalWidth * (nextPercent / 100)) : image.width;
-    const height =
-      axis === "height" ? Math.max(CELL, image.naturalHeight * (nextPercent / 100)) : image.height;
-    updateReferenceImage(resizeReferenceImageAround(image, width, height, anchor));
-  };
 
   const onFile = async (file: File) => {
     if (!meta) return;
@@ -133,14 +101,19 @@ export function ReferenceImagePanel() {
           <span>{image ? (image.visible ? "Visible on canvas" : "Hidden") : "No image added"}</span>
         </div>
         {image ? (
-          <button
-            type="button"
-            className="btn btn--quiet refpanel__headerAction"
-            onClick={() => setOpen(!open)}
-            aria-expanded={open}
-          >
-            {open ? "Save changes" : "Edit reference"}
-          </button>
+          // While editing, "Save changes" lives in the reference dock at the
+          // bottom of the canvas, next to "Set scale" - the two actions that
+          // belong together while a designer is looking at the image itself,
+          // not back here in the side panel.
+          !open && (
+            <button
+              type="button"
+              className="btn btn--quiet refpanel__headerAction"
+              onClick={() => setOpen(true)}
+            >
+              Edit reference
+            </button>
+          )
         ) : (
           <button
             type="button"
@@ -249,50 +222,6 @@ export function ReferenceImagePanel() {
                 value={image.opacity}
                 onChange={(e) => updateReferenceImage({ opacity: Number(e.target.value) })}
               />
-            </label>
-            <label className="refpanel__row" title="Stretch the image horizontally. Once a stitch is boxed, it stretches around that stitch's bottom-left corner.">
-              <span>Width</span>
-              <div className="refpanel__stepper">
-                <button
-                  type="button"
-                  className="refpanel__stepBtn"
-                  aria-label="Shrink image width"
-                  onClick={() => applyScale("width", -1)}
-                >
-                  −
-                </button>
-                <span className="refpanel__stepValue">{widthPercent}%</span>
-                <button
-                  type="button"
-                  className="refpanel__stepBtn"
-                  aria-label="Enlarge image width"
-                  onClick={() => applyScale("width", 1)}
-                >
-                  +
-                </button>
-              </div>
-            </label>
-            <label className="refpanel__row" title="Stretch the image vertically. Once a stitch is boxed, it stretches around that stitch's bottom-left corner.">
-              <span>Height</span>
-              <div className="refpanel__stepper">
-                <button
-                  type="button"
-                  className="refpanel__stepBtn"
-                  aria-label="Shrink image height"
-                  onClick={() => applyScale("height", -1)}
-                >
-                  −
-                </button>
-                <span className="refpanel__stepValue">{heightPercent}%</span>
-                <button
-                  type="button"
-                  className="refpanel__stepBtn"
-                  aria-label="Enlarge image height"
-                  onClick={() => applyScale("height", 1)}
-                >
-                  +
-                </button>
-              </div>
             </label>
             {marking && (
               <div className="refpanel__marks">

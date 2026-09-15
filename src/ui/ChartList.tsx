@@ -5,6 +5,7 @@ import type { DocMeta } from "../model/types";
 import { chartStore } from "../storage/store";
 import { importChartIntoStore } from "../storage/exportImport";
 import { removeReferenceImageFile } from "../storage/referenceImages";
+import { ConfirmDialog } from "./ConfirmDialog";
 
 const formatWhen = (iso: string) => {
   const date = new Date(iso);
@@ -21,6 +22,7 @@ export function ChartList() {
   const [charts, setCharts] = useState<DocMeta[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<DocMeta | null>(null);
   const fileInput = useRef<HTMLInputElement | null>(null);
 
   const refresh = useCallback(async () => {
@@ -164,15 +166,7 @@ export function ChartList() {
               <button
                 type="button"
                 className="btn btn--quiet btn--danger"
-                onClick={() => {
-                  if (confirm(`Delete "${chart.name}"? This can't be undone.`)) {
-                    void run(async () => {
-                      const loaded = await chartStore.load(chart.id);
-                      if (loaded.referenceImage) await removeReferenceImageFile(loaded.referenceImage.ref);
-                      await chartStore.remove(chart.id);
-                    });
-                  }
-                }}
+                onClick={() => setDeleting(chart)}
               >
                 Delete
               </button>
@@ -180,6 +174,22 @@ export function ChartList() {
           </li>
         ))}
       </ul>
+
+      {deleting && (
+        <ConfirmDialog
+          message={`Delete "${deleting.name}"? This can't be undone.`}
+          onCancel={() => setDeleting(null)}
+          onConfirm={() => {
+            const chart = deleting;
+            setDeleting(null);
+            void run(async () => {
+              const loaded = await chartStore.load(chart.id);
+              if (loaded.referenceImage) await removeReferenceImageFile(loaded.referenceImage.ref);
+              await chartStore.remove(chart.id);
+            });
+          }}
+        />
+      )}
     </div>
   );
 }
