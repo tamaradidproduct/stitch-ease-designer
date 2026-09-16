@@ -1,13 +1,13 @@
 import { useEffect, useRef } from "react";
 import { canInsertAt } from "../model/ops";
-import { usePaintTool } from "../input/usePaintTool";
+import { isDismissable, resolveSuggestAction, usePaintTool } from "../input/usePaintTool";
 import { usePanZoom } from "../input/usePanZoom";
 import { useReferenceImageTool } from "../input/useReferenceImageTool";
 import { useShortcuts } from "../input/useShortcuts";
 import { useTouchGestures } from "../input/useTouchGestures";
 import { useDocStore } from "../state/docStore";
 import { cellKey } from "../model/cellKey";
-import { useUiStore } from "../state/uiStore";
+import { SUGGEST_SYMBOL_ID, useUiStore } from "../state/uiStore";
 import {
   ADD_CURSOR,
   BLOCKED_MOVE_CURSOR,
@@ -20,6 +20,7 @@ import {
   INSERT_ADD_CURSOR,
   INSERT_BLOCKED_CURSOR,
   STRAIGHT_DRAW_CURSOR,
+  SUGGEST_CURSOR,
   armedStitchCursor,
   insertStitchCursor,
 } from "./cursors";
@@ -94,19 +95,41 @@ export function CanvasView() {
     const hovered = s.hover
       ? useDocStore.getState().index.placementAt(s.hover.col, s.hover.row)
       : undefined;
-    // Shift+Opt is the destructive brush over anything there's actually
-    // something to erase - a placement, or an unrecognized-cell marker -
-    // checked ahead of the generic cases it's standing in for (straight-line
-    // draw, duplicate-drag), matching `modeFor`'s own precedence. Empty space
-    // has nothing to erase, so it keeps its normal cursor instead of implying
-    // a destructive action that would actually be a no-op.
-    if (s.shiftHeld && s.altHeld && (hovered || (s.hover && s.referenceImageUnrecognized.has(cellKey(s.hover.col, s.hover.row))))) {
-      return DISMISS_SUGGESTION_CURSOR;
+    const hoveredUnrecognized =
+      !!s.hover && s.referenceImageUnrecognized.has(cellKey(s.hover.col, s.hover.row));
+    // Holding both review chords at once is blocked outright (FR-4,
+    // revised) - checked before anything else, including Dismiss's own
+    // precedence over the no-modifier override just below.
+    if (s.selectHeld && s.shiftHeld && s.altHeld) return "not-allowed";
+    // Dismiss always wins, even over the no-modifier override just below -
+    // matches `modeFor`'s own precedence exactly (a deliberately held
+    // destructive chord should never be silently absorbed by whatever's
+    // armed), computed from the same live modifiers and sticky default
+    // rather than a second copy of the rule (Gotcha G-1, G-2; SR-1).
+    if (s.shiftHeld && s.altHeld) {
+      if (isDismissable(hovered, hoveredUnrecognized)) return DISMISS_SUGGESTION_CURSOR;
+      return s.tool === "eraser" ? ERASE_CURSOR : "default";
+    } else {
+      // A real armed stitch landing on a suggestion applies and confirms it
+      // outright with no modifier needed (pre-existing, unaffected - FR-11)
+      // - that override wins over the Confirm cursor below, the same way it
+      // wins in the paint logic.
+      const overrideSymbolId =
+        s.armedSymbolId && s.armedSymbolId !== SUGGEST_SYMBOL_ID ? s.armedSymbolId : null;
+      if (!(hovered?.suggested && overrideSymbolId)) {
+        const effective = resolveSuggestAction(
+          { confirmHeld: s.selectHeld, dismissHeld: false },
+          s.armedSymbolId === SUGGEST_SYMBOL_ID ? s.suggestAction : "suggest",
+        );
+        if (effective === "confirm" && hovered?.suggested) return CONFIRM_SUGGESTION_CURSOR;
+        // The sticky default can resolve to Dismiss too, with no live
+        // modifier held at all (the toolDock's Dismiss button) - mirrors
+        // `modeFor`'s own fallback check, not just its live-Shift+Opt path.
+        if (effective === "dismiss" && isDismissable(hovered, hoveredUnrecognized)) {
+          return DISMISS_SUGGESTION_CURSOR;
+        }
+      }
     }
-    // Shift alone only does something over an actual pending suggestion
-    // (confirm) - elsewhere it's the straight-line-draw modifier instead,
-    // handled further down.
-    if (hovered?.suggested && s.shiftHeld) return CONFIRM_SUGGESTION_CURSOR;
     // Cmd/Ctrl's temporary selection clutch reads as Select outright, cursor
     // included - not some hybrid with whatever tool it's overriding.
     if (s.tool === "select" || s.selectHeld) return hovered ? "default" : "crosshair";
@@ -123,6 +146,10 @@ export function CanvasView() {
     // cells carry either the add badge or the armed-stitch preview.
     if (s.armedSymbolId && s.shiftHeld) return STRAIGHT_DRAW_CURSOR;
     if (hovered) return "default";
+    // Suggest armed but nothing eligible under the cursor - a distinct wand
+    // badge, not the plain add-cursor a real armed stitch would show here,
+    // nor an armed-stitch glyph preview (FR-8).
+    if (s.armedSymbolId === SUGGEST_SYMBOL_ID) return SUGGEST_CURSOR;
     return s.armedSymbolId ? armedStitchCursor(s.armedSymbolId) : ADD_CURSOR;
   });
 

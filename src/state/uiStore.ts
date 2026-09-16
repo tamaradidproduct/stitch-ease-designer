@@ -34,6 +34,14 @@ export type Role = "admin" | "designer";
  */
 export const SUGGEST_SYMBOL_ID = "__suggest__";
 
+/**
+ * The sticky default action a Suggest stroke performs when no review
+ * modifier is physically held - toggled by the toolDock's Confirm/Suggest/
+ * Dismiss buttons. Only meaningful while Suggest is armed; a literally held
+ * modifier always overrides it live (see `resolveSuggestAction`).
+ */
+export type SuggestAction = "suggest" | "confirm" | "dismiss";
+
 /** Where the picker is anchored: which cell it will fill, and where to draw it. */
 export type PickerTarget = {
   col: number;
@@ -200,6 +208,9 @@ type UiState = {
    * instead, which is the state the canvas starts in.
    */
   armedSymbolId: string | null;
+  /** See `SuggestAction` - reset to "suggest" everywhere `armedSymbolId` moves away from the Suggest sentinel. */
+  suggestAction: SuggestAction;
+  setSuggestAction: (action: SuggestAction) => void;
   quickSymbolIds: string[];
   picker: PickerTarget | null;
   selectedPlacementIds: string[];
@@ -221,10 +232,12 @@ type UiState = {
   selectionUndoStack: SelectionHistoryEntry[];
   selectionRedoStack: SelectionHistoryEntry[];
   /**
-   * The first cell of a Cmd+Shift click-then-click range select, waiting for
-   * a second Cmd+Shift click to complete the bounding box. Cleared by any
-   * other selection change - see `useShortcuts`'s Escape handler and the
-   * various resets below.
+   * The cell a later Cmd/Ctrl+Shift click will complete a bounding-box range
+   * select from - set by the most recent click of any other kind (plain,
+   * Shift-only, a drag's start), not only a prior Cmd+Shift click itself, so
+   * range-select never requires its first click to hold the chord too.
+   * Cleared by any other selection change - see `useShortcuts`'s Escape
+   * handler and the various resets below.
    */
   selectionAnchor: Cell | null;
   setSelectionAnchor: (cell: Cell | null) => void;
@@ -453,6 +466,8 @@ export const useUiStore = create<UiState>((set, get) => ({
 
   tool: "stitch",
   armedSymbolId: null,
+  suggestAction: "suggest",
+  setSuggestAction: (suggestAction) => set({ suggestAction }),
   quickSymbolIds: loadQuickSymbolIds(),
   picker: null,
   selectedPlacementIds: [],
@@ -484,7 +499,7 @@ export const useUiStore = create<UiState>((set, get) => ({
       // a placement's symbolId. Real stitches may remain armed while
       // selecting, so Cmd/Ctrl's temporary-selection workflow is unaffected.
       ...(tool !== "stitch" && current.armedSymbolId === SUGGEST_SYMBOL_ID
-        ? { armedSymbolId: null }
+        ? { armedSymbolId: null, suggestAction: "suggest" as const }
         : {}),
       picker: null,
       selectionAnchor: null,
@@ -494,6 +509,10 @@ export const useUiStore = create<UiState>((set, get) => ({
   setArmedSymbolId: (armedSymbolId) =>
     set({
       armedSymbolId,
+      // Disarming, arming a real stitch, and re-arming Suggest itself all
+      // start the sticky default fresh - a stale Confirm/Dismiss default
+      // surviving a re-arm is confusing and easy to miss (FR-2).
+      suggestAction: "suggest",
       tool: "stitch",
       selectedPlacementIds: [],
       selectedEmptyCells: [],
@@ -514,6 +533,9 @@ export const useUiStore = create<UiState>((set, get) => ({
     if (quickSymbolIds !== current) saveQuickSymbolIds(quickSymbolIds);
     set({
       armedSymbolId: id,
+      // Arming a real stitch always moves away from the Suggest sentinel
+      // (FR-2) - see setArmedSymbolId above.
+      suggestAction: "suggest",
       tool,
       quickSymbolIds,
       // Always an arm, never a disarm - see setArmedSymbolId above.
@@ -772,6 +794,7 @@ export const useUiStore = create<UiState>((set, get) => ({
     camera: defaultCamera(),
     tool: "stitch",
     armedSymbolId: null,
+    suggestAction: "suggest",
     picker: null,
     suggestReview: null,
     selectedPlacementIds: [],

@@ -12,7 +12,7 @@ import { ReferenceImagePanel } from "./ReferenceImagePanel";
 import { SymbolGlyph } from "./SymbolGlyph";
 import { searchSymbols } from "./symbolSearch";
 import { tapActivate } from "./tapActivate";
-import { collectGlossarySymbols, loadGlossaryIds } from "./chartGlossary";
+import { collectGlossarySymbols, countConfirmedStitches, loadGlossaryIds, symbolsWithAnyPlacement } from "./chartGlossary";
 
 /**
  * Section order for the glossary search dropdown; anything uncategorized
@@ -158,7 +158,7 @@ export function RightPanel() {
     </button>
   );
 
-  const { placements, glossary, glossaryIds, stitchCounts } = useMemo(() => {
+  const { placements, glossary, glossaryIds, stitchCounts, symbolsPlaced } = useMemo(() => {
     // The document mutates its index in place; its revision invalidates this
     // cached snapshot when placements change.
     void revision;
@@ -168,15 +168,17 @@ export function RightPanel() {
       chartPlacements.map((placement) => placement.symbolId),
     );
     const chartGlossaryIds = new Set(chartGlossary.map((symbol) => symbol.id));
-    const chartStitchCounts = chartPlacements.reduce((counts, placement) => {
-      counts.set(placement.symbolId, (counts.get(placement.symbolId) ?? 0) + 1);
-      return counts;
-    }, new Map<string, number>());
     return {
       placements: chartPlacements,
       glossary: chartGlossary,
       glossaryIds: chartGlossaryIds,
-      stitchCounts: chartStitchCounts,
+      // Displayed count excludes still-pending suggestions (FR-13, G-8) -
+      // but glossary removal-safety needs a separate "any placement at all"
+      // check, confirmed or suggested, or a symbol with only a pending
+      // suggestion would look removable (FR-14, G-9). Two distinctly named
+      // values from the start, not one reused for both purposes.
+      stitchCounts: countConfirmedStitches(chartPlacements),
+      symbolsPlaced: symbolsWithAnyPlacement(chartPlacements),
     };
   }, [addedGlossaryIds, index, revision]);
   // Grouped by category (basic, increases, decreases, ...) rather than left
@@ -245,7 +247,7 @@ export function RightPanel() {
     }
   };
   const removeFromGlossary = (id: string) => {
-    if (!meta || (stitchCounts.get(id) ?? 0) > 0) return;
+    if (!meta || symbolsPlaced.has(id)) return;
     const next = addedGlossaryIds.filter((symbolId) => symbolId !== id);
     setAddedGlossaryIds(next);
     removeQuickSymbol(id);
@@ -387,7 +389,7 @@ export function RightPanel() {
                       armedSymbolId === SUGGEST_SYMBOL_ID && tool === "stitch" ? null : SUGGEST_SYMBOL_ID,
                     )
                   )}
-                  title="Draw with Suggest (G) - tap again to stop drawing. Matches each cell against stitches you've already confirmed over the reference image. Landing on a suggestion with a real stitch armed confirms it as that stitch outright; Shift-click confirms it as its own guess instead. Shift+Opt erases a cell, suggested or confirmed - all of this drags and Shift straight-lines/gap-fills the same way Draw does."
+                  title="Draw with Suggest (G) - tap again to stop drawing. Matches each cell against stitches you've already confirmed over the reference image. Landing on a suggestion with a real stitch armed confirms it as that stitch outright. Cmd/Ctrl confirms a suggestion as its own guess instead; Shift+Opt dismisses a suggestion or unrecognized marker (never a hand-drawn or confirmed stitch) - or tap the toolDock's Confirm/Dismiss buttons to make either the sticky default. All of this drags and Shift straight-lines/gap-fills the same way Draw does."
                 >
                   <span className="glossary__glyph" aria-hidden="true">
                     <svg viewBox="0 0 20 20" width="16" height="16">
@@ -567,7 +569,7 @@ export function RightPanel() {
                   </button>
                   {id === armedSymbolId && tool === "stitch" ? (
                     disarmButton
-                  ) : (stitchCounts.get(symbol.id) ?? 0) === 0 ? (
+                  ) : !symbolsPlaced.has(symbol.id) ? (
                     <button
                       type="button"
                       className="glossary__remove"
@@ -685,7 +687,7 @@ export function RightPanel() {
                 </button>
                 {symbol.id === armedSymbolId && tool === "stitch" ? (
                   disarmButton
-                ) : (stitchCounts.get(symbol.id) ?? 0) === 0 ? (
+                ) : !symbolsPlaced.has(symbol.id) ? (
                   <button
                     type="button"
                     className="glossary__remove"

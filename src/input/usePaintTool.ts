@@ -9,7 +9,7 @@ import { getSharedReferenceImageCache } from "../canvas/referenceImageCache";
 import { cellWithinReferenceImage, cropReferenceImageCell } from "../canvas/referenceImageCrop";
 import { binarizeCrop, extractExemplars, matchCandidateStitch } from "../model/templateMatch";
 import { useDocStore } from "../state/docStore";
-import { SUGGEST_SYMBOL_ID, useUiStore } from "../state/uiStore";
+import { SUGGEST_SYMBOL_ID, type SuggestAction, useUiStore } from "../state/uiStore";
 
 /**
  * Whether a click/pointerdown that just produced `ids` (via `selectExisting`)
@@ -82,40 +82,114 @@ export function strokeKey(mode: StrokeMode): string {
 }
 
 /**
+ * Whether a cell is eligible for Dismiss: a pending suggestion, or a cell
+ * Suggest scanned but couldn't identify. Shared by every call site that
+ * needs it (paint, toolDock highlight, cursor) so this rule can't drift out
+ * of sync between them the way the modifier precedence rule once did (FR-12,
+ * SR-2).
+ */
+export function isDismissable(
+  target: { suggested?: boolean } | undefined,
+  unrecognized: boolean,
+): boolean {
+  return !!target?.suggested || unrecognized;
+}
+
+/**
+ * The effective Suggest action right now: a literally held modifier always
+ * overrides the sticky default, live. Holding both chords at once is an
+ * invalid combination - "blocked", a hard no-op with no highlight and a
+ * blocked cursor, rather than either one winning (revised FR-4: this was
+ * originally "Dismiss wins," changed after QA flagged that silently picking
+ * a winner for two conflicting deliberate gestures was worse than refusing
+ * both). Extracted so the paint logic, the toolDock's highlight, and the
+ * canvas cursor all resolve this identically - three copies of this exact
+ * precedence rule, fixed one at a time, is what Gotcha G-2 recurred on
+ * (SR-1).
+ */
+export function resolveSuggestAction(
+  live: { confirmHeld: boolean; dismissHeld: boolean },
+  sticky: SuggestAction,
+): SuggestAction | "blocked" {
+  if (live.confirmHeld && live.dismissHeld) return "blocked";
+  if (live.dismissHeld) return "dismiss";
+  if (live.confirmHeld) return "confirm";
+  return sticky;
+}
+
+/**
  * The mode a pointer event's modifiers and the currently armed stitch imply.
  * Read live on every move rather than captured once at the start of a drag,
- * so toggling Shift or Alt mid-stroke switches what the rest of it does -
- * the same way Alt already flips an in-progress selection-drag between
- * moving and duplicating.
+ * so toggling a modifier mid-stroke switches what the rest of it does - the
+ * same way Alt already flips an in-progress selection-drag between moving
+ * and duplicating.
  *
- * Shift+Opt is the destructive chord (erases whatever's at the cell,
- * suggested or confirmed) and always wins. Shift alone confirms a
- * suggestion under the cursor - but only when `targetIsSuggested`, so an
- * armed stitch's straight-line draw (also Shift) still works everywhere
- * else; without that gate Shift would shadow the armed stitch the same way
- * Cmd/Ctrl used to. A real armed stitch (not Suggest itself) rides along as
- * `overrideSymbolId` - confirming a suggestion as that specific stitch
- * instead of whatever it was guessed as.
+ * Confirm is Cmd/Ctrl; Dismiss is Shift+Opt - deliberately unrelated chords,
+ * not a symmetric modifier/modifier+Opt pair (see Gotcha G-7: Cmd/Ctrl+Opt
+ * is already claimed by "temporarily use Select, and also pick up empty
+ * cells in the marquee"). Both are review actions and work regardless of
+ * what's armed or which tool is active - narrow carve-outs into Cmd/Ctrl's
+ * temporary-Select and Shift's straight-line meanings, live only when the
+ * hovered cell is actually eligible (FR-3, FR-11, FR-12).
  *
- * That override no longer needs Shift held at all: with a real stitch
- * armed, landing on a suggestion - by click or by dragging across it -
- * confirms it as that stitch outright. Shift is still how a suggestion gets
- * confirmed as its own guess (nothing armed but Suggest itself), and still
- * how the confirm gesture straight-lines/gap-fills; it's just no longer the
- * only way to override one with a stitch you already know you want, which
- * has no keyboard-free equivalent on a touch device anyway.
+ * The *sticky* default (`suggestAction`) only has meaning while Suggest
+ * itself is armed - a real armed stitch keeps drawing normally regardless of
+ * the sticky value, and only ever responds to a modifier that's actually
+ * held live (Gotcha G-3). `resolveSuggestAction` folds the live-vs-sticky
+ * precedence in for the Suggest-armed case; everywhere else it's called with
+ * a fixed "suggest" sticky value, which is a no-op default that only a live
+ * modifier can turn into anything.
+ *
+ * A real armed stitch (not Suggest itself) rides along as `overrideSymbolId`
+ * - confirming a suggestion as that specific stitch instead of whatever it
+ * was guessed as. That override needs no modifier at all: landing on a
+ * suggestion - by click or by dragging across it - confirms it as that
+ * stitch outright, and takes precedence over everything below (pre-existing
+ * behavior, unaffected by this feature - see FR-11).
  */
 export function modeFor(
-  e: { shiftKey: boolean; altKey: boolean },
+  e: { metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey: boolean },
   armedSymbolId: string | null,
-  targetIsSuggested: boolean,
+  suggestAction: SuggestAction,
+  target: { suggested?: boolean } | undefined,
+  unrecognized: boolean,
 ): StrokeMode | null {
-  if (e.shiftKey && e.altKey) return { kind: "erase" };
+  const targetIsSuggested = !!target?.suggested;
+  const confirmHeld = e.metaKey || e.ctrlKey;
+  const dismissHeld = e.shiftKey && e.altKey;
+
+  // Holding both review chords at once is blocked outright (FR-4, revised)
+  // - before anything else, including the no-modifier override just below,
+  // gets a say.
+  if (confirmHeld && dismissHeld) return null;
+
+  // Dismiss (live only - it has no sticky-only path of its own to beat)
+  // always wins, even over the no-modifier override just below: a
+  // deliberately held destructive chord should never be silently absorbed
+  // by whatever happens to be armed (matches Dismiss's precedence over
+  // Confirm generally - FR-4).
+  if (dismissHeld) {
+    return isDismissable(target, unrecognized) ? { kind: "erase" } : null;
+  }
+
+  // A real armed stitch (not Suggest itself) landing on a suggestion applies
+  // and confirms it outright - no modifier needed, and this wins over
+  // everything below (FR-11, pre-existing and unaffected by this feature).
   const overrideSymbolId =
     armedSymbolId && armedSymbolId !== SUGGEST_SYMBOL_ID ? armedSymbolId : null;
-  if (targetIsSuggested && (e.shiftKey || overrideSymbolId)) {
-    return overrideSymbolId ? { kind: "confirm", overrideSymbolId } : { kind: "confirm" };
+  if (targetIsSuggested && overrideSymbolId) {
+    return { kind: "confirm", overrideSymbolId };
   }
+
+  const effective = resolveSuggestAction(
+    { confirmHeld, dismissHeld: false },
+    armedSymbolId === SUGGEST_SYMBOL_ID ? suggestAction : "suggest",
+  );
+  // Confirm never generates anything of its own (FR-10) - landing on an
+  // ineligible cell is a no-op, full stop, whether Cmd/Ctrl is held live or
+  // the sticky default is active.
+  if (effective === "confirm") return targetIsSuggested ? { kind: "confirm" } : null;
+  if (effective === "dismiss") return isDismissable(target, unrecognized) ? { kind: "erase" } : null;
   if (armedSymbolId === SUGGEST_SYMBOL_ID) return { kind: "suggest" };
   if (armedSymbolId) return { kind: "place", symbolId: armedSymbolId };
   return null;
@@ -141,13 +215,17 @@ export function modeFor(
  *   alt/opt + drag a selection       copy it instead of moving it, leaving the originals in place
  *   drag in Select               marquee-select every symbol in the rectangle; also every
  *                                empty cell, but only while Opt is additionally held
- *   cmd/ctrl + click/drag        temporarily use Select
+ *   cmd/ctrl + click/drag        temporarily use Select - except hovering an actual pending
+ *                                suggestion, which confirms it instead (see below)
  *   click/drag over a suggestion or needs-identification marker with a real stitch armed,
  *                                confirms/places that stitch outright - no modifier needed,
  *                                since there's no keyboard-free equivalent of one on a touch device
- *   shift + click over a suggestion  confirms it as its own guess (no override); shift + drag
- *                                while armed elsewhere draws a straight line instead
- *   shift + opt (+ drag)         erase whatever's at the cell - suggested or confirmed
+ *   cmd/ctrl (+ drag) over a suggestion  confirms it as its own guess (no override); a no-op
+ *                                anywhere else. Suggest's toolDock also has a sticky "Confirm"
+ *                                button that does the same without holding the key down.
+ *   shift + opt (+ drag)         dismisses whatever's pending at the cell - a suggestion or an
+ *                                unrecognized marker, never a hand-drawn or confirmed stitch; a
+ *                                no-op anywhere else. Sticky "Dismiss" toolDock button, same idea.
  *   cmd/ctrl + shift + click     toggle one cell into/out of the selection pool; a second such
  *                                click on another cell selects the bounding box between them
  *   drag from an empty cell (Draw/Eraser)  paint or erase across every cell crossed
@@ -184,7 +262,15 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
     let selectionBaseline: string[] = [];
     let selectionEmptyBaseline: Cell[] = [];
     let selectionAdditive = false;
-    let selectionMoved = false;
+    // Raw client-pixel pointerdown position for the current select/marquee
+    // gesture, used to judge click-vs-drag by actual pixel distance rather
+    // than grid-cell crossing - a cell can be only a few pixels wide at a
+    // tight zoom, and a flag that latches true on any movement mid-gesture
+    // never resets, so a trackpad tap that nudges the pointer across a cell
+    // boundary and back gets permanently rerouted into drag handling
+    // (Gotcha G-5).
+    let selectionPointerDown: { x: number; y: number } | null = null;
+    const DRAG_THRESHOLD_PX = 5;
     let movingSelection = false;
     let constrainedStroke = false;
     let straightAxis: StraightAxis | null = null;
@@ -200,6 +286,11 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
     // the gesture ends to anchor the review menu over exactly this batch,
     // never over all pending suggestions or an earlier batch.
     let suggestBatchCells: Cell[] = [];
+    // Suggestions placed during one gesture do not become confirmed exemplars,
+    // so reuse this snapshot across that gesture instead of rebuilding it
+    // after each placement has incremented the document revision.
+    let suggestExemplars: ReturnType<typeof extractExemplars> | null = null;
+    let suggestExemplarImageRef: string | null = null;
 
     const finishSuggestBatch = () => {
       if (suggestBatchCells.length) {
@@ -213,6 +304,8 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         });
       }
       suggestBatchCells = [];
+      suggestExemplars = null;
+      suggestExemplarImageRef = null;
     };
 
     const cellAt = (e: PointerEvent | MouseEvent): Cell | null => {
@@ -248,15 +341,21 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       // so a designer session can never trigger a match even if something
       // upstream still manages to arm Suggest or reach this call.
       if (ui().role !== "admin") return;
+      // Suggest never overwrites an existing stitch (confirmed or pending).
+      // Skipping it here also avoids unnecessary image processing.
+      if (doc().index.placementAt(cell.col, cell.row)) return;
       const refImage = doc().referenceImage;
       if (!refImage || !cellWithinReferenceImage(refImage, cell.col, cell.row)) return;
       const cachedImg = getSharedReferenceImageCache().get(refImage.ref);
       if (!cachedImg) return;
 
-      const exemplars = extractExemplars(doc().index, refImage, cachedImg, doc().revision);
+      if (!suggestExemplars || suggestExemplarImageRef !== refImage.ref) {
+        suggestExemplars = extractExemplars(doc().index, refImage, cachedImg, doc().revision);
+        suggestExemplarImageRef = refImage.ref;
+      }
       const crop = cropReferenceImageCell(refImage, cachedImg, cell.col, cell.row, 32);
       const grid = binarizeCrop(crop);
-      const match = matchCandidateStitch(grid, exemplars);
+      const match = matchCandidateStitch(grid, suggestExemplars);
       const key = cellKey(cell.col, cell.row);
 
       if (match.symbolId) {
@@ -287,18 +386,22 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
     };
 
     /**
-     * Erases whatever placement is at `cell`, suggested or confirmed - the
-     * Shift+Opt destructive brush. Unlike `confirmAt`, this isn't gated to
-     * suggestions only: Shift+Opt is a deliberate, unambiguous chord, so it's
-     * safe to let it erase any stitch it crosses.
+     * Dismisses whatever's pending at `cell` - the Shift+Opt brush. Gated to
+     * a still-`suggested` placement, same as `confirmAt`: Dismiss must never
+     * erase a hand-drawn or already-confirmed stitch, even though it reaches
+     * this function via the same generic "erase" stroke mode a plain
+     * placement erase might otherwise use (FR-12, Gotcha G-1 - this gate is
+     * kept here as well as in `modeFor`'s eligibility check, not instead of
+     * it, so the rule can't come loose from one of the two copies again).
      */
     const eraseAt = (cell: Cell) => {
       const target = doc().index.placementAt(cell.col, cell.row);
       if (target) {
+        if (!target.suggested) return;
         doc().erasePlacements([target.id]);
         return;
       }
-      // No placement to erase - but a cell Suggest scanned and couldn't
+      // No placement to dismiss - but a cell Suggest scanned and couldn't
       // read is its own kind of "something's here" mark. Dismiss clears
       // that the same way it clears an unwanted suggestion, instead of
       // silently doing nothing.
@@ -383,7 +486,29 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       return doc().index.groupMembers(placement.groupId).map((candidate) => candidate.id);
     };
 
-    /** Every placement id (whole groups) and empty cell inside the rectangle between `a` and `b`, inclusive - the Cmd+Shift click-then-click range select. */
+    /**
+     * Every cell in the rectangle between `a` and `b`, inclusive, regardless
+     * of what's there - the click-then-Shift-click gap fill (armed with a
+     * stitch or Suggest). Unlike `cellsInBoundingBox` below, this doesn't
+     * care what's already at each cell; `applyMode`'s own per-mode rules
+     * (the Overwrite Safety Block, Suggest's own matching, Dismiss's
+     * eligibility) decide what actually happens at each one.
+     */
+    const rectangleCells = (a: Cell, b: Cell): Cell[] => {
+      const minCol = Math.min(a.col, b.col);
+      const maxCol = Math.max(a.col, b.col);
+      const minRow = Math.min(a.row, b.row);
+      const maxRow = Math.max(a.row, b.row);
+      const cells: Cell[] = [];
+      for (let col = minCol; col <= maxCol; col++) {
+        for (let row = minRow; row <= maxRow; row++) {
+          cells.push({ col, row });
+        }
+      }
+      return cells;
+    };
+
+    /** Every placement id (whole groups) and empty cell inside the rectangle between `a` and `b`, inclusive - the click-then-Shift-click gap fill (nothing armed) and the Cmd/Ctrl+Shift click-then-click range select. */
     const cellsInBoundingBox = (a: Cell, b: Cell): { ids: string[]; emptyCells: Cell[] } => {
       const minCol = Math.min(a.col, b.col);
       const maxCol = Math.max(a.col, b.col);
@@ -480,7 +605,13 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
           ? doc().index.placementAt(pickerCell.col, pickerCell.row)
           : undefined;
         const modeHere = pickerCell
-          ? modeFor(e, ui().armedSymbolId, !!targetAtPickerCell?.suggested)
+          ? modeFor(
+              e,
+              ui().armedSymbolId,
+              ui().suggestAction,
+              targetAtPickerCell,
+              ui().referenceImageUnrecognized.has(cellKey(pickerCell.col, pickerCell.row)),
+            )
           : null;
 
         // Reviewing a suggestion, or erasing, elsewhere on the canvas wins
@@ -494,6 +625,10 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
           applyMode(modeHere, pickerCell);
           return;
         }
+        // Same Dismiss no-op as the main flow below (FR-12) - Shift+Opt on
+        // a cell it can't act on must not fall through to retargeting the
+        // open picker via Shift's ordinary meaning here.
+        if (e.shiftKey && e.altKey && !modeHere) return;
 
         const modifierSelect = e.shiftKey || e.metaKey || e.ctrlKey;
         const modifierTarget = pickerCell
@@ -542,21 +677,44 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       const cell = cellAt(e);
       if (!cell) return;
 
-      // The Cmd+Shift range-select anchor only survives into a second
-      // Cmd+Shift click - anything else (a plain click, a drag, an
-      // unrelated tool switch) drops it, so a stale anchor never resurfaces
-      // as a surprise bounding box much later.
-      if (!((e.metaKey || e.ctrlKey) && e.shiftKey)) ui().setSelectionAnchor(null);
+      // Range-select doesn't require its first click to hold Cmd/Ctrl+Shift
+      // too - only the second, completing click does. Every click that
+      // ISN'T itself that completing click becomes the anchor a later
+      // Cmd/Ctrl+Shift click can complete a range from, whatever else that
+      // click goes on to do (place a stitch, select a placement, open the
+      // picker on empty space). Keyed on Shift alone, not Cmd/Ctrl+Shift
+      // together, same as Gotcha G-4's fix below it: once already
+      // mid-gesture only Shift reliably drives this, and checking Cmd/Ctrl
+      // too here risks overwriting the anchor on the very click that's
+      // supposed to read it back instead of leaving it for the
+      // additive-select flow below to complete the bounding box with.
+      if (!e.shiftKey) ui().setSelectionAnchor(cell);
 
       // Confirm/erase claim the gesture only when it actually applies -
-      // elsewhere, Shift and Alt keep their other meanings (straight-line
-      // draw, duplicate-drag) undisturbed. This intentionally runs ahead of
-      // `temporarySelect` and the multi-select drag check further down:
-      // reviewing a suggestion or erasing is a narrow, deliberate action
-      // gated on a modifier, and it wins over whatever else that modifier or
-      // an active selection would otherwise mean here.
+      // elsewhere, Cmd/Ctrl and Shift+Opt keep their other meanings
+      // (temporary Select, destructive-vs-straight-line) undisturbed. This
+      // intentionally runs ahead of `temporarySelect` and the multi-select
+      // drag check further down: reviewing a suggestion or dismissing one is
+      // a narrow, deliberate action gated on a modifier (live or sticky),
+      // and it wins over whatever else that modifier or an active selection
+      // would otherwise mean here.
       const existingAtCell = doc().index.placementAt(cell.col, cell.row);
-      const modeHere = modeFor(e, ui().armedSymbolId, !!existingAtCell?.suggested);
+      const modeHere = modeFor(
+        e,
+        ui().armedSymbolId,
+        ui().suggestAction,
+        existingAtCell,
+        ui().referenceImageUnrecognized.has(cellKey(cell.col, cell.row)),
+      );
+
+      // Shift+Opt is Dismiss's own destructive chord - landing on a cell it
+      // can't act on (a hand-drawn or already-confirmed stitch, or plain
+      // empty space) must be a pure no-op, full stop, not fall through to
+      // whatever an unmodified click there would otherwise do (selecting the
+      // stitch, opening its picker). FR-12 promises Dismiss never touches
+      // those cells; silently doing something else instead is just as
+      // surprising as erasing them outright would have been.
+      if (e.shiftKey && e.altKey && !modeHere) return;
 
       // Shift has to be down before the gesture begins. Reading the store as
       // well as the pointer event keeps the canvas state and its cursor in
@@ -603,6 +761,34 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         return;
       }
 
+      // Click, then Shift+click a different cell: with nothing armed, fill
+      // the gap with a selection instead of a stitch or Suggest matches -
+      // the unarmed counterpart to the pendingShiftFill rectangle below,
+      // reading the same anchor `selectionAnchor` tracks off any prior
+      // click. Excludes Cmd/Ctrl+Shift, which keeps its own existing
+      // click-then-click rectangle select (`selecting`/`endStroke` below) -
+      // this is a second, additional way to complete a range, not a
+      // replacement for that one. Additive: extends whatever's already
+      // selected, the same way that one already is.
+      if (e.shiftKey && !e.metaKey && !e.ctrlKey && !ui().armedSymbolId) {
+        const anchor = ui().selectionAnchor;
+        if (anchor && (anchor.col !== cell.col || anchor.row !== cell.row)) {
+          e.preventDefault();
+          const { ids, emptyCells } = cellsInBoundingBox(anchor, cell);
+          const nextIds = [...new Set([...ui().selectedPlacementIds, ...ids])];
+          const selectedEmptyKeys = new Set(
+            ui().selectedEmptyCells.map((c) => cellKey(c.col, c.row)),
+          );
+          const nextEmpty = [
+            ...ui().selectedEmptyCells,
+            ...emptyCells.filter((c) => !selectedEmptyKeys.has(cellKey(c.col, c.row))),
+          ];
+          ui().setSelection(nextIds, nextEmpty, true);
+          ui().setSelectionAnchor(null);
+          return;
+        }
+      }
+
       // An existing multi-select is always draggable from within it, no
       // matter which tool is active - Cmd/Select is only needed to *start* a
       // selection, not to move one that's already made.
@@ -623,7 +809,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         selectionBaseline = e.shiftKey ? [...ui().selectedPlacementIds] : [];
         selectionEmptyBaseline = e.shiftKey ? [...ui().selectedEmptyCells] : [];
         selectionAdditive = e.shiftKey;
-        selectionMoved = false;
+        selectionPointerDown = { x: e.clientX, y: e.clientY };
         last = cell;
         canvas.setPointerCapture(e.pointerId);
         return;
@@ -740,6 +926,25 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         return;
       }
 
+      // Shift-clicking an existing placement already toggles it in/out of
+      // the selection (see the `existing` branch above) from any tool -
+      // the equivalent for an empty cell didn't exist, so every click
+      // replaced the whole selection with just that one cell instead of
+      // adding to it (Gotcha G-6). Scoped to nothing armed, same as the
+      // "Shift is ignored while something's armed, to keep gap-fill
+      // dragging working" rule just below.
+      if (e.shiftKey && !ui().armedSymbolId && !unreadable) {
+        const emptyCells = ui().selectedEmptyCells;
+        const key = cellKey(cell.col, cell.row);
+        const alreadySelected = emptyCells.some((c) => cellKey(c.col, c.row) === key);
+        const nextEmpty = alreadySelected
+          ? emptyCells.filter((c) => cellKey(c.col, c.row) !== key)
+          : [...emptyCells, cell];
+        ui().setSelectedEmptyCells(nextEmpty);
+        ui().setSelectionAnchor(alreadySelected ? null : cell);
+        return;
+      }
+
       if (!ui().armedSymbolId || unreadable) {
         const rect = canvas.getBoundingClientRect();
         if (ui().selectedPlacementIds.length) ui().setSelectedPlacementIds([]);
@@ -789,7 +994,6 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         const cell = cellAt(e);
         if (!cell || (last && last.col === cell.col && last.row === cell.row)) return;
         last = cell;
-        selectionMoved = true;
         const start = selectionStart!;
         ui().setSelectionBox({ start, current: cell });
         const minCol = Math.min(start.col, cell.col);
@@ -849,7 +1053,13 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       // this entirely.
       if (!erasing) {
         const targetHere = doc().index.placementAt(cell.col, cell.row);
-        currentMode = modeFor(e, ui().armedSymbolId, !!targetHere?.suggested);
+        currentMode = modeFor(
+          e,
+          ui().armedSymbolId,
+          ui().suggestAction,
+          targetHere,
+          ui().referenceImageUnrecognized.has(cellKey(cell.col, cell.row)),
+        );
       }
       if (pendingShiftFill) {
         // Movement turns the pending click into a fresh straight stroke. Its
@@ -903,6 +1113,13 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       if (selecting) {
         const start = selectionStart!;
         const existing = doc().index.placementAt(start.col, start.row);
+        // Pixel distance, not grid-cell crossing (Gotcha G-5) - a tap that
+        // nudges the pointer across a cell boundary and back is still a
+        // click, not a drag, however small that cell is on screen.
+        const selectionMoved =
+          !!selectionPointerDown &&
+          Math.hypot(e.clientX - selectionPointerDown.x, e.clientY - selectionPointerDown.y) >=
+            DRAG_THRESHOLD_PX;
         if (selectionMoved) {
           const finalIds = ui().selectedPlacementIds;
           const finalEmptyCells = ui().selectedEmptyCells;
@@ -978,7 +1195,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         selectionBaseline = [];
         selectionEmptyBaseline = [];
         selectionAdditive = false;
-        selectionMoved = false;
+        selectionPointerDown = null;
         ui().setSelectionBox(null);
         last = null;
         if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
@@ -1001,10 +1218,17 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
           currentMode = null;
           return;
         }
-        const axis = straightAxisFor(from, to);
+        // Click, then Shift+click a second cell: fill the whole rectangle
+        // between them with the armed stitch or Suggest matches, not just
+        // the straight line through them - the unarmed equivalent (fill it
+        // with a selection instead) is the plain-Shift branch in
+        // onPointerDown, both reading the same anchor concept.
         doc().beginStroke();
-        paintStraightSegment(from, constrainToStraightAxis(from, to, axis));
+        for (const rectCell of rectangleCells(from, to)) paint(rectCell);
         doc().endStroke();
+        // Rectangle cells are ordered by their bounds, not click direction.
+        // Keep the continuation anchor at the actual Shift-click target.
+        if (currentMode) lastDrawn = { cell: to, key: strokeKey(currentMode) };
         finishSuggestBatch();
         currentMode = null;
         return;

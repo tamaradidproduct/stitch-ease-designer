@@ -642,6 +642,16 @@ body {
   color: #fff;
 }
 
+/* Suggest's Confirm/Suggest/Dismiss trio shares the same purple used
+   elsewhere for Suggest (the glossary row, the review menu heading) rather
+   than the toolDock's default blue - all three read as one mode this way,
+   whichever is currently active (FR-6). */
+.toolDock--suggest .toolDock__button[data-on="true"] {
+  border-color: #9333ea;
+  background: #9333ea;
+  color: #fff;
+}
+
 .toolDock__separator {
   width: 1px;
   height: 24px;
