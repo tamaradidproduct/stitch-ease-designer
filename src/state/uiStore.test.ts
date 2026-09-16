@@ -122,6 +122,54 @@ describe("tool switching", () => {
   });
 });
 
+describe("suggestAction reset (FR-2)", () => {
+  it("resets to 'suggest' when Suggest is disarmed", () => {
+    useUiStore.getState().setArmedSymbolId(SUGGEST_SYMBOL_ID);
+    useUiStore.getState().setSuggestAction("confirm");
+
+    useUiStore.getState().setArmedSymbolId(null);
+
+    expect(useUiStore.getState().suggestAction).toBe("suggest");
+  });
+
+  it("resets to 'suggest' when a real stitch is armed instead", () => {
+    useUiStore.getState().setArmedSymbolId(SUGGEST_SYMBOL_ID);
+    useUiStore.getState().setSuggestAction("dismiss");
+
+    useUiStore.getState().chooseSymbol("knit");
+
+    expect(useUiStore.getState().suggestAction).toBe("suggest");
+  });
+
+  it("resets to 'suggest' when switching tools away from Suggest", () => {
+    useUiStore.getState().setArmedSymbolId(SUGGEST_SYMBOL_ID);
+    useUiStore.getState().setSuggestAction("confirm");
+
+    useUiStore.getState().setTool("select");
+
+    expect(useUiStore.getState().suggestAction).toBe("suggest");
+  });
+
+  it("resets to 'suggest' on a full chart reset", () => {
+    useUiStore.getState().setArmedSymbolId(SUGGEST_SYMBOL_ID);
+    useUiStore.getState().setSuggestAction("dismiss");
+
+    useUiStore.getState().resetForChart();
+
+    expect(useUiStore.getState().suggestAction).toBe("suggest");
+  });
+
+  it("resets to 'suggest' when Suggest is re-armed, so a stale sticky default never survives a re-arm", () => {
+    useUiStore.getState().setArmedSymbolId(SUGGEST_SYMBOL_ID);
+    useUiStore.getState().setSuggestAction("confirm");
+    useUiStore.getState().setArmedSymbolId(null);
+
+    useUiStore.getState().setArmedSymbolId(SUGGEST_SYMBOL_ID);
+
+    expect(useUiStore.getState().suggestAction).toBe("suggest");
+  });
+});
+
 describe("removeQuickSymbol", () => {
   it("clears the assignment in place and disarms the removed stitch", () => {
     useUiStore.getState().chooseSymbol("knit");

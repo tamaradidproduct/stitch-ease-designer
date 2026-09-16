@@ -71,6 +71,24 @@ export const DISMISS_SUGGESTION_CURSOR = cursor(
   "default",
 );
 
+/**
+ * Shown while Suggest is armed and hovering empty or otherwise ineligible
+ * space - a purple wand badge, matching the toolDock's purple, so it reads
+ * as its own distinct mode instead of the plain add-cursor a real armed
+ * stitch would show here (FR-8).
+ */
+export const SUGGEST_CURSOR = cursor(
+  svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M0 16V0L11.6 11.6081H4.55353L4.40242 11.732L0 16Z" fill="#fff"/>
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M1 2.3V13.5L3.969 10.6309L4.129 10.4918L9.165 10.5L1 2.3Z" fill="#000"/>
+    <circle cx="17.5" cy="15.5" r="6.5" fill="#9333ea" stroke="#fff" stroke-width="1.5"/>
+    <path d="M14.7 18.3l4.6-4.6M18.2 13l.7 1.5 1.5.7-1.5.7-.7 1.5-.7-1.5-1.5-.7 1.5-.7Z" stroke="#fff" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" fill="#fff"/>
+  </svg>`),
+  0,
+  0,
+  "default",
+);
+
 const armedCursorCache = new Map<string, string>();
 
 function svgDataUrl(svg: string): string {

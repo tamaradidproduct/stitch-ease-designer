@@ -1,5 +1,6 @@
 import { getSymbol } from "../symbols/registry";
 import type { StitchSymbol } from "../symbols/types";
+import type { Placement } from "../model/types";
 
 /** Every fresh pattern starts with the two foundational knit stitches. */
 export const DEFAULT_GLOSSARY_IDS = ["knit", "purl"];
@@ -37,4 +38,29 @@ export function collectGlossarySymbols(
     const symbol = getSymbol(id);
     return symbol ? [symbol] : [];
   });
+}
+
+/**
+ * Per-symbol counts for the glossary's displayed count, excluding
+ * still-pending suggestions - confirming one must visibly increment its
+ * symbol's count by one, which it can't do if it was already counted the
+ * moment Suggest guessed it (FR-13, Gotcha G-8).
+ */
+export function countConfirmedStitches(placements: readonly Placement[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const placement of placements) {
+    if (placement.suggested) continue;
+    counts.set(placement.symbolId, (counts.get(placement.symbolId) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/**
+ * Which symbols have any placement at all, confirmed or still-suggested -
+ * the separate check "safe to remove from glossary" must use. Reusing
+ * `countConfirmedStitches` for that decision would let a symbol with only a
+ * pending suggestion look removable when it isn't (FR-14, Gotcha G-9).
+ */
+export function symbolsWithAnyPlacement(placements: readonly Placement[]): Set<string> {
+  return new Set(placements.map((placement) => placement.symbolId));
 }

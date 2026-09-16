@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { SUGGEST_SYMBOL_ID } from "../state/uiStore";
 import {
   constrainToStraightAxis,
+  isDismissable,
   modeFor,
+  resolveSuggestAction,
   shouldDismissSelectionBeforeDrawing,
   shouldOpenPickerForSelection,
   straightAxisFor,
@@ -10,7 +12,11 @@ import {
   strokeKey,
 } from "./usePaintTool";
 
-const noMods = { shiftKey: false, altKey: false };
+const noMods = { metaKey: false, ctrlKey: false, shiftKey: false, altKey: false };
+const cmdHeld = { ...noMods, metaKey: true };
+const dismissHeld = { ...noMods, shiftKey: true, altKey: true };
+const suggested = { suggested: true };
+const confirmed = { suggested: false };
 
 describe("shouldOpenPickerForSelection", () => {
   it("opens the picker for a plain click that selects exactly one stitch", () => {
@@ -73,44 +79,112 @@ describe("straight drawing", () => {
   });
 });
 
+describe("resolveSuggestAction", () => {
+  it("falls back to the sticky default when nothing live is held", () => {
+    expect(resolveSuggestAction({ confirmHeld: false, dismissHeld: false }, "suggest")).toBe("suggest");
+    expect(resolveSuggestAction({ confirmHeld: false, dismissHeld: false }, "confirm")).toBe("confirm");
+    expect(resolveSuggestAction({ confirmHeld: false, dismissHeld: false }, "dismiss")).toBe("dismiss");
+  });
+
+  it("lets a literally held modifier win over the sticky default", () => {
+    expect(resolveSuggestAction({ confirmHeld: true, dismissHeld: false }, "dismiss")).toBe("confirm");
+    expect(resolveSuggestAction({ confirmHeld: false, dismissHeld: true }, "confirm")).toBe("dismiss");
+  });
+
+  it("is blocked - not Dismiss winning - if both chords are somehow held at once", () => {
+    // Revised FR-4: two conflicting deliberate gestures held together is a
+    // hard no-op, not a silently-chosen winner.
+    expect(resolveSuggestAction({ confirmHeld: true, dismissHeld: true }, "suggest")).toBe("blocked");
+    expect(resolveSuggestAction({ confirmHeld: true, dismissHeld: true }, "confirm")).toBe("blocked");
+    expect(resolveSuggestAction({ confirmHeld: true, dismissHeld: true }, "dismiss")).toBe("blocked");
+  });
+});
+
+describe("isDismissable", () => {
+  it("is eligible for a still-suggested placement", () => {
+    expect(isDismissable(suggested, false)).toBe(true);
+  });
+
+  it("is eligible for an unrecognized marker with no placement", () => {
+    expect(isDismissable(undefined, true)).toBe(true);
+  });
+
+  it("is not eligible for a hand-drawn or already-confirmed placement", () => {
+    expect(isDismissable(confirmed, false)).toBe(false);
+  });
+
+  it("is not eligible for empty, unmarked space", () => {
+    expect(isDismissable(undefined, false)).toBe(false);
+  });
+});
+
 describe("modeFor", () => {
   it("draws with the armed stitch when nothing is held", () => {
-    expect(modeFor(noMods, "purl", false)).toEqual({ kind: "place", symbolId: "purl" });
+    expect(modeFor(noMods, "purl", "suggest", undefined, false)).toEqual({ kind: "place", symbolId: "purl" });
   });
 
   it("is null when nothing is armed and no modifier is held", () => {
-    expect(modeFor(noMods, null, false)).toBeNull();
+    expect(modeFor(noMods, null, "suggest", undefined, false)).toBeNull();
   });
 
-  it("matches with Suggest when it's the armed stitch", () => {
-    expect(modeFor(noMods, SUGGEST_SYMBOL_ID, false)).toEqual({ kind: "suggest" });
+  it("matches with Suggest when it's the armed stitch and the sticky default is plain Suggest", () => {
+    expect(modeFor(noMods, SUGGEST_SYMBOL_ID, "suggest", undefined, false)).toEqual({ kind: "suggest" });
   });
 
-  it("confirms as originally guessed on Shift over a suggestion, when Suggest or nothing is armed", () => {
-    expect(modeFor({ ...noMods, shiftKey: true }, SUGGEST_SYMBOL_ID, true)).toEqual({ kind: "confirm" });
-    expect(modeFor({ ...noMods, shiftKey: true }, null, true)).toEqual({ kind: "confirm" });
+  it("confirms as originally guessed on Cmd/Ctrl over a suggestion, when Suggest or nothing is armed", () => {
+    expect(modeFor(cmdHeld, SUGGEST_SYMBOL_ID, "suggest", suggested, false)).toEqual({ kind: "confirm" });
+    expect(modeFor(cmdHeld, null, "suggest", suggested, false)).toEqual({ kind: "confirm" });
   });
 
-  it("confirms as the armed stitch on Shift over a suggestion when a real stitch is armed", () => {
-    expect(modeFor({ ...noMods, shiftKey: true }, "purl", true)).toEqual({
+  it("confirms as the armed stitch on landing on a suggestion when a real stitch is armed, no modifier needed", () => {
+    expect(modeFor(noMods, "purl", "suggest", suggested, false)).toEqual({
       kind: "confirm",
       overrideSymbolId: "purl",
     });
   });
 
-  it("falls through to the armed stitch on Shift when the target isn't actually suggested", () => {
-    // Preserves straight-line draw while armed: Shift shouldn't shadow the
-    // armed stitch just because it's held, only when there's something to review.
-    expect(modeFor({ ...noMods, shiftKey: true }, "purl", false)).toEqual({
-      kind: "place",
-      symbolId: "purl",
-    });
+  it("is a no-op on Cmd/Ctrl when the target isn't actually suggested (falls through to temporary-Select elsewhere)", () => {
+    expect(modeFor(cmdHeld, SUGGEST_SYMBOL_ID, "suggest", confirmed, false)).toBeNull();
+    expect(modeFor(cmdHeld, "purl", "suggest", undefined, false)).toBeNull();
   });
 
-  it("erases on Shift+Opt, regardless of what's armed", () => {
-    expect(modeFor({ shiftKey: true, altKey: true }, "purl", false)).toEqual({ kind: "erase" });
-    expect(modeFor({ shiftKey: true, altKey: true }, null, false)).toEqual({ kind: "erase" });
-    expect(modeFor({ shiftKey: true, altKey: true }, null, true)).toEqual({ kind: "erase" });
+  it("dismisses a suggestion or unrecognized marker on Shift+Opt, regardless of what's armed", () => {
+    expect(modeFor(dismissHeld, "purl", "suggest", suggested, false)).toEqual({ kind: "erase" });
+    expect(modeFor(dismissHeld, null, "suggest", undefined, true)).toEqual({ kind: "erase" });
+    expect(modeFor(dismissHeld, SUGGEST_SYMBOL_ID, "suggest", suggested, false)).toEqual({ kind: "erase" });
+  });
+
+  it("never dismisses a hand-drawn or already-confirmed placement (Gotcha G-1)", () => {
+    expect(modeFor(dismissHeld, "purl", "suggest", confirmed, false)).toBeNull();
+    expect(modeFor(dismissHeld, null, "suggest", confirmed, false)).toBeNull();
+  });
+
+  it("follows the sticky default while Suggest is armed and nothing is held live", () => {
+    expect(modeFor(noMods, SUGGEST_SYMBOL_ID, "confirm", suggested, false)).toEqual({ kind: "confirm" });
+    expect(modeFor(noMods, SUGGEST_SYMBOL_ID, "dismiss", suggested, false)).toEqual({ kind: "erase" });
+  });
+
+  it("never starts a fresh Suggest match under a sticky Confirm/Dismiss default (Gotcha G-3)", () => {
+    expect(modeFor(noMods, SUGGEST_SYMBOL_ID, "confirm", undefined, false)).toBeNull();
+    expect(modeFor(noMods, SUGGEST_SYMBOL_ID, "dismiss", undefined, false)).toBeNull();
+  });
+
+  it("ignores the sticky default entirely once armed away from Suggest - a real armed stitch keeps drawing normally (Gotcha G-3)", () => {
+    expect(modeFor(noMods, "purl", "confirm", undefined, false)).toEqual({ kind: "place", symbolId: "purl" });
+    expect(modeFor(noMods, "purl", "dismiss", undefined, false)).toEqual({ kind: "place", symbolId: "purl" });
+  });
+
+  it("lets a literally held modifier override the sticky default live, for the duration held", () => {
+    // Sticky Dismiss, but Cmd is physically held right now: acts as Confirm.
+    expect(modeFor(cmdHeld, SUGGEST_SYMBOL_ID, "dismiss", suggested, false)).toEqual({ kind: "confirm" });
+  });
+
+  it("is a hard no-op when both chords are somehow held at once, even over an eligible target (revised FR-4)", () => {
+    const both = { ...noMods, metaKey: true, shiftKey: true, altKey: true };
+    expect(modeFor(both, SUGGEST_SYMBOL_ID, "confirm", suggested, false)).toBeNull();
+    expect(modeFor(both, SUGGEST_SYMBOL_ID, "dismiss", suggested, false)).toBeNull();
+    // And it wins over the no-modifier override too.
+    expect(modeFor(both, "purl", "suggest", suggested, false)).toBeNull();
   });
 });
 
