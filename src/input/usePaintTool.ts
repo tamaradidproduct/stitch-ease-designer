@@ -286,6 +286,11 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
     // the gesture ends to anchor the review menu over exactly this batch,
     // never over all pending suggestions or an earlier batch.
     let suggestBatchCells: Cell[] = [];
+    // Suggestions placed during one gesture do not become confirmed exemplars,
+    // so reuse this snapshot across that gesture instead of rebuilding it
+    // after each placement has incremented the document revision.
+    let suggestExemplars: ReturnType<typeof extractExemplars> | null = null;
+    let suggestExemplarImageRef: string | null = null;
 
     const finishSuggestBatch = () => {
       if (suggestBatchCells.length) {
@@ -299,6 +304,8 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         });
       }
       suggestBatchCells = [];
+      suggestExemplars = null;
+      suggestExemplarImageRef = null;
     };
 
     const cellAt = (e: PointerEvent | MouseEvent): Cell | null => {
@@ -334,15 +341,21 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       // so a designer session can never trigger a match even if something
       // upstream still manages to arm Suggest or reach this call.
       if (ui().role !== "admin") return;
+      // Suggest never overwrites an existing stitch (confirmed or pending).
+      // Skipping it here also avoids unnecessary image processing.
+      if (doc().index.placementAt(cell.col, cell.row)) return;
       const refImage = doc().referenceImage;
       if (!refImage || !cellWithinReferenceImage(refImage, cell.col, cell.row)) return;
       const cachedImg = getSharedReferenceImageCache().get(refImage.ref);
       if (!cachedImg) return;
 
-      const exemplars = extractExemplars(doc().index, refImage, cachedImg, doc().revision);
+      if (!suggestExemplars || suggestExemplarImageRef !== refImage.ref) {
+        suggestExemplars = extractExemplars(doc().index, refImage, cachedImg, doc().revision);
+        suggestExemplarImageRef = refImage.ref;
+      }
       const crop = cropReferenceImageCell(refImage, cachedImg, cell.col, cell.row, 32);
       const grid = binarizeCrop(crop);
-      const match = matchCandidateStitch(grid, exemplars);
+      const match = matchCandidateStitch(grid, suggestExemplars);
       const key = cellKey(cell.col, cell.row);
 
       if (match.symbolId) {
@@ -1213,6 +1226,9 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         doc().beginStroke();
         for (const rectCell of rectangleCells(from, to)) paint(rectCell);
         doc().endStroke();
+        // Rectangle cells are ordered by their bounds, not click direction.
+        // Keep the continuation anchor at the actual Shift-click target.
+        if (currentMode) lastDrawn = { cell: to, key: strokeKey(currentMode) };
         finishSuggestBatch();
         currentMode = null;
         return;
