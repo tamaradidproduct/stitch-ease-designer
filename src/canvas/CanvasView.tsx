@@ -108,6 +108,7 @@ export function CanvasView() {
     // rather than a second copy of the rule (Gotcha G-1, G-2; SR-1).
     if (s.shiftHeld && s.altHeld) {
       if (isDismissable(hovered, hoveredUnrecognized)) return DISMISS_SUGGESTION_CURSOR;
+      return s.tool === "eraser" ? ERASE_CURSOR : "default";
     } else {
       // A real armed stitch landing on a suggestion applies and confirms it
       // outright with no modifier needed (pre-existing, unaffected - FR-11)
