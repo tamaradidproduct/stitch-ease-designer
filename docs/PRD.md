@@ -92,8 +92,8 @@ guess as-is) and **Dismiss** (clear it).
 | *(blocked)* | `Cmd`/`Ctrl` **+** `Shift`+`Opt/Alt` together | — | Hard no-op: `not-allowed` cursor, no toolDock button highlighted, no stroke effect. See FR-4. |
 
 **FR-5.** **MUST NOT** use `Cmd`/`Ctrl`+`Opt/Alt` for Dismiss. That chord is already
-claimed: `Cmd`/`Ctrl`+drag means "temporarily use Select," and `Opt/Alt` held
-during that same drag means "also include empty cells in the marquee." This
+claimed: `Cmd`/`Ctrl`+drag means "temporarily use Select" (see **FR-21** for
+the current empty-cell pickup rule for that same drag). This
 was tried and reverted — see Gotcha G-7 below.
 
 **FR-4 (revised).** A *literally held* modifier always wins over the sticky
@@ -286,6 +286,19 @@ each copy again:
 the shared helper rather than re-deriving the rule inline — that's the
 entire reason G-2 doesn't get a fourth occurrence.
 
+**FR-21.** During a Select-tool or temporary-select (`Cmd`/`Ctrl`-held) marquee
+drag, empty cells join the selection alongside any symbols the rectangle
+covers **only while `Cmd`/`Ctrl` + `Shift` + `Opt/Alt` are all three held
+together**, read live so toggling any of them mid-drag adds or drops the
+empty cells without restarting the gesture. `Cmd`/`Ctrl`+`Opt/Alt` alone (no
+`Shift`) — or plain `Opt/Alt` while already in the Select tool — is a plain
+marquee with no empty-cell pickup. **Revision (2026-09-18):** this narrowed
+from a single-key trigger (`Opt/Alt` alone) to this three-key chord, to make
+picking up empty cells a deliberate combination rather than something an
+incidental `Opt`/`Alt` tap could trigger during an otherwise-ordinary
+marquee drag. See `includeEmptyCells` in `usePaintTool.ts`'s
+`onPointerMove`.
+
 #### Do not touch
 
 - **DNT-2.** Suggest's own template-matching internals (confidence thresholds, exemplar
@@ -297,10 +310,9 @@ entire reason G-2 doesn't get a fourth occurrence.
 - **DNT-4.** `Cmd`/`Ctrl` alone as the app-wide "temporarily use Select" modifier — must
   keep working everywhere except the narrow carve-out where it's hovering an
   actual confirmable suggestion.
-- **DNT-5.** `Cmd`/`Ctrl`+`Opt/Alt`+drag's "temporary-Select-with-empty-cells" marquee, and
-  plain `Opt/Alt`+drag while already in the Select tool doing the same thing —
-  this is the shortcut G-7 protects. Confirm/Dismiss must never claim this
-  chord again.
+- **DNT-5.** The `Cmd`/`Ctrl`+`Shift`+`Opt/Alt` "temporary-Select-with-empty-cells"
+  marquee (FR-21) — this is the shortcut G-7 protects. Confirm/Dismiss must
+  never claim any part of this chord again.
 - **DNT-6.** Draw's Overwrite Safety Block (never overwrites an existing placement) —
   unrelated pre-existing rule that Dismiss's "skip what it can't act on"
   behavior mirrors, not replaces.
