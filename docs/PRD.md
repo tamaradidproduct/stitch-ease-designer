@@ -85,12 +85,12 @@ guess as-is) and **Dismiss** (clear it).
 | Action | Live trigger | Sticky (toolDock click) | Eligibility |
 |---|---|---|---|
 | Confirm | `Cmd`/`Ctrl` | "Confirm" button | Only a placement with `.suggested === true`. No-op elsewhere. |
-| Dismiss | `Shift`+`Opt` | "Dismiss" button | Only a `.suggested` placement or an unrecognized-marker cell (a cell Suggest scanned but couldn't read). Never a hand-drawn or already-confirmed stitch. |
+| Dismiss | `Shift`+`Opt/Alt` | "Dismiss" button | Only a `.suggested` placement or an unrecognized-marker cell (a cell Suggest scanned but couldn't read). Never a hand-drawn or already-confirmed stitch. |
 | Suggest (default) | *(no modifier)* | "Suggest" button (center, purple) | Runs template matching on click/drag — unchanged from before this feature. |
-| *(blocked)* | `Cmd`/`Ctrl` **+** `Shift`+`Opt` together | — | Hard no-op: `not-allowed` cursor, no toolDock button highlighted, no stroke effect. See FR-4. |
+| *(blocked)* | `Cmd`/`Ctrl` **+** `Shift`+`Opt/Alt` together | — | Hard no-op: `not-allowed` cursor, no toolDock button highlighted, no stroke effect. See FR-4. |
 
-**MUST NOT** use `Cmd`/`Ctrl`+`Opt` for Dismiss. That chord is already
-claimed: `Cmd`/`Ctrl`+drag means "temporarily use Select," and `Opt` held
+**MUST NOT** use `Cmd`/`Ctrl`+`Opt/Alt` for Dismiss. That chord is already
+claimed: `Cmd`/`Ctrl`+drag means "temporarily use Select," and `Opt/Alt` held
 during that same drag means "also include empty cells in the marquee." This
 was tried and reverted — see Gotcha G-7 below.
 
@@ -120,9 +120,11 @@ no toolDock button highlighted, stroke is a no-op.
   Confirm/Suggest/Dismiss (Suggest keeps the center slot); reverts to normal
   immediately on disarm.
 - **All three** buttons' active/"on" state uses Suggest's purple accent
-  (`#9333ea` light / `#c084fc` dark) — not the toolDock's default blue. (This
-  shipped once as "only Suggest is purple," then was corrected: Confirm and
-  Dismiss must match when active, so the whole panel reads as one mode.)
+  (`#9333ea`) — not the toolDock's default blue. (This shipped once as "only
+  Suggest is purple," then was corrected: Confirm and Dismiss must match when
+  active, so the whole panel reads as one mode.) The app has no dark mode
+  yet (no `prefers-color-scheme` handling anywhere in `styles.css`), so
+  there's no dark variant of this color to document.
 - Clicking Confirm/Dismiss toggles the sticky default (click again to return
   to plain Suggest). Clicking the center Suggest button always resets to
   plain Suggest.
@@ -196,7 +198,7 @@ sync by hand.** This is why the shared helpers above exist now.
   implementation, and the mode-decision function's erase branch, on
   `isDismissable`.
 - **G-2 — Holding the live modifier for the *other* action didn't switch
-  behavior.** The toolDock highlight correctly flipped to "Confirm," but the
+  behavior.** The `toolDock` highlight correctly flipped to "Confirm," but the
   stroke itself kept dismissing — the modifier-merging helper forced the
   sticky action's modifiers onto every event regardless of what was
   physically held. **This exact bug recurred a second time in the cursor
@@ -219,7 +221,7 @@ sync by hand.** This is why the shared helpers above exist now.
   without the user intending a drag; once an internal "did this move" flag
   latched true, it stayed true for the rest of the gesture. Symptom in two
   places: G-4's range-select, and plain empty-cell clicks selecting nothing
-  (a marquee drag without `Opt` ignores empty cells entirely). Fixed by
+  (a marquee drag without `Opt/Alt` ignores empty cells entirely). Fixed by
   judging "was this a drag" by raw pixel distance from pointerdown to
   pointerup (~5px threshold), not grid-cell crossing — a cell can be only a
   few pixels wide at a tight zoom.
@@ -229,15 +231,15 @@ sync by hand.** This is why the shared helpers above exist now.
   missing additive-toggle branch, scoped to when nothing is armed (matching
   the existing "Shift is ignored while something's armed, to keep gap-fill
   dragging working" rule).
-- **G-7 — Cmd/Ctrl+Opt+drag's "select empty cells" shortcut broke.** The
+- **G-7 — Cmd/Ctrl+Opt/Alt+drag's "select empty cells" shortcut broke.** The
   headline gotcha. Pre-existing shortcut: `Cmd`/`Ctrl`+drag temporarily
-  engages Select; `Opt` held during that drag also picks up empty cells in
-  the marquee. Setting Dismiss's trigger to `Cmd`/`Ctrl`+`Opt` unconditionally
+  engages Select; `Opt/Alt` held during that drag also picks up empty cells in
+  the marquee. Setting Dismiss's trigger to `Cmd`/`Ctrl`+`Opt/Alt` unconditionally
   claimed that chord first. First attempted fix (scope the erase branch to
   only fire when something's actually dismissable, else fall through) was
   correct but insufficient for a drag starting on a dismissable cell. Actual
-  fix: don't use `Cmd`/`Ctrl`+`Opt` for Dismiss at all — asymmetric pair,
-  Confirm = `Cmd`/`Ctrl`, Dismiss = `Shift`+`Opt`, zero overlap with the
+  fix: don't use `Cmd`/`Ctrl`+`Opt/Alt` for Dismiss at all — asymmetric pair,
+  Confirm = `Cmd`/`Ctrl`, Dismiss = `Shift`+`Opt/Alt`, zero overlap with the
   temporary-Select system (which only ever keys off `Cmd`/`Ctrl`).
 - **G-8 — Confirming a suggestion didn't visibly change anything.** Glossary
   stitch counts included still-suggested placements from the moment Suggest
@@ -251,12 +253,12 @@ sync by hand.** This is why the shared helpers above exist now.
 - **G-10 — Holding both review chords at once silently picked a winner.**
   Shipped first as "Dismiss wins" (consistent with Dismiss's precedence over
   the no-modifier armed-stitch override). QA flagged that a user holding
-  both `Cmd` and `Shift`+`Opt` at once has contradictory intent, and picking
+  both `Cmd` and `Shift`+`Opt/Alt` at once has contradictory intent, and picking
   one silently is worse than telling them nothing will happen. Fixed by
   giving `resolveSuggestAction` a `"blocked"` result, checked first, before
   Dismiss's own precedence — see FR-4 (revised).
 
-**Testing note, not a code issue.** `Cmd`/`Ctrl`+`Opt`+drag cannot be
+**Testing note, not a code issue.** `Cmd`/`Ctrl`+`Opt/Alt`+drag cannot be
 reliably driven through some browser-automation/accessibility layers — it
 can get intercepted as an OS-level pinch-zoom gesture before it reaches the
 page. Verify that specific combo by hand if an automated check for it won't
@@ -287,14 +289,14 @@ entire reason G-2 doesn't get a fourth occurrence.
 - Suggest's own template-matching internals (confidence thresholds, exemplar
   matching) — this feature only adds review actions on top of results
   Suggest already produces.
-- Plain `Shift` as the straight-line/gap-fill draw modifier. `Shift`+`Opt`
-  overriding it into "destructive" only when `Opt` is *also* held is
+- Plain `Shift` as the straight-line/gap-fill draw modifier. `Shift`+`Opt/Alt`
+  overriding it into "destructive" only when `Opt/Alt` is *also* held is
   existing, intentional behavior.
 - `Cmd`/`Ctrl` alone as the app-wide "temporarily use Select" modifier — must
   keep working everywhere except the narrow carve-out where it's hovering an
   actual confirmable suggestion.
-- `Cmd`/`Ctrl`+`Opt`+drag's "temporary-Select-with-empty-cells" marquee, and
-  plain `Opt`+drag while already in the Select tool doing the same thing —
+- `Cmd`/`Ctrl`+`Opt/Alt`+drag's "temporary-Select-with-empty-cells" marquee, and
+  plain `Opt/Alt`+drag while already in the Select tool doing the same thing —
   this is the shortcut G-7 protects. Confirm/Dismiss must never claim this
   chord again.
 - Draw's Overwrite Safety Block (never overwrites an existing placement) —
