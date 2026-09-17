@@ -1,9 +1,10 @@
 # Product Requirements Document (PRD)
-*Last Updated: 2026-09-17*
+*Last Updated: 2026-09-18*
 
 ## Core App Overview
 
-Stitch Ease Designer is a desktop web app for knitting designers. The core of
+Stitch Ease Designer is a web app for knitting designers, targeting both
+desktop (mouse + keyboard) and iPad (touch and Apple Pencil). The core of
 it is a chart editor: an infinite canvas that is itself a grid of square
 cells, where each cell can hold a stitch (some stitches span several cells).
 Clicking any cell places a stitch from the Figma symbol library.
@@ -333,3 +334,35 @@ marquee drag. See `includeEmptyCells` in `usePaintTool.ts`'s
 | `src/styles.css` | Purple on-state styling for the toolDock's Suggest/Confirm/Dismiss buttons |
 | `src/ui/chartGlossary.ts` | `countConfirmedStitches`, `symbolsWithAnyPlacement` (pure, tested) |
 | `src/ui/RightPanel.tsx` | Consumes the above two for the glossary's displayed counts and remove-eligibility |
+
+## Known Platform Limitations (Desktop vs iPad)
+
+QA testing (2026-09-17) split test coverage by device (Desktop / iPad) and
+found that several Suggest-tool interactions are currently reachable only
+via physical keyboard modifiers, with no touch or Apple Pencil equivalent —
+`useTouchGestures.ts` explicitly ignores Pencil input (`pointerType: "pen"`),
+and no `pointerType` branching exists anywhere in `usePaintTool.ts` or
+`CanvasView.tsx` to offer an alternate gesture. **Confirm and Dismiss
+themselves work fine on iPad** via the sticky toolDock buttons — the gaps
+below are specifically the *modifier-only* behaviors layered on top of them.
+
+Tracked as Enhancement issues in the QA Airtable base (`Stitch Ease QA`),
+not yet scheduled:
+
+- Confirm+Dismiss simultaneous-block state (no touch equivalent for holding
+  both chords at once)
+- Live modifier override of a sticky toolDock action (cursor/highlight and
+  stroke behavior) — no touch equivalent for a *temporary* override; iPad
+  only ever has the sticky state
+- The `Cmd`/`Ctrl`+`Shift`+`Opt/Alt` marquee empty-cell-inclusion chord (see
+  FR-21) and its two regression boundaries
+- The `Cmd`/`Ctrl`+`Opt/Alt` marquee-vs-Dismiss collision boundary (G-7)
+- `Cmd`/`Ctrl`+`Shift` range-select (two-click range completion)
+- `Shift`+click additive empty-cell selection
+
+Three of these (both live-override cases and the simultaneous-block case)
+share one root cause: there is currently no touch-native way to *temporarily*
+override a sticky selection at all, only discrete taps. Solving that once
+(e.g. a long-press-to-override pattern) would likely resolve all three
+rather than needing three separate gesture designs. This is a design
+decision, not something to build without product input.
