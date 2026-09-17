@@ -1,5 +1,5 @@
 # Product Requirements Document (PRD)
-*Last Updated: 2026-09-16*
+*Last Updated: 2026-09-17*
 
 ## Core App Overview
 
@@ -23,7 +23,7 @@ routes).
 
 ### Chart deletion confirmation
 
-**Requirement.** Deleting a chart from the chart list must show an in-app
+**FR-1.** Deleting a chart from the chart list must show an in-app
 confirmation dialog (chart name + "can't be undone" warning, Cancel/Delete)
 before the delete happens. The dialog must not depend on the browser's native
 `confirm()`.
@@ -43,7 +43,7 @@ testing that this exact silent failure is reproducible.
   handler with this dialog, gated on a `deleting: DocMeta | null` bit of
   local state.
 
-**Do not touch.** The dialog's focus handling (confirm button auto-focused on
+**DNT-1.** The dialog's focus handling (confirm button auto-focused on
 open) was tightened once already ("Keep confirm dialog focus stable") —
 preserve that fix if this component is touched again.
 
@@ -51,9 +51,11 @@ preserve that fix if this component is touched again.
 
 ### Reference image panel: scale controls
 
-**Requirement.** The reference-image side panel's "Save changes" action lives
+**FR-2.** The reference-image side panel's "Save changes" action lives
 in the bottom canvas dock (`ReferenceImageDock`), next to "Set scale," not in
-the side panel header. The panel no longer exposes manual Width/Height
+the side panel header.
+
+**FR-3.** The panel no longer exposes manual Width/Height
 percentage steppers — sizing an image is done entirely through "Set scale"
 (boxing a real stitch and applying the derived scale).
 
@@ -89,7 +91,7 @@ guess as-is) and **Dismiss** (clear it).
 | Suggest (default) | *(no modifier)* | "Suggest" button (center, purple) | Runs template matching on click/drag — unchanged from before this feature. |
 | *(blocked)* | `Cmd`/`Ctrl` **+** `Shift`+`Opt/Alt` together | — | Hard no-op: `not-allowed` cursor, no toolDock button highlighted, no stroke effect. See FR-4. |
 
-**MUST NOT** use `Cmd`/`Ctrl`+`Opt/Alt` for Dismiss. That chord is already
+**FR-5.** **MUST NOT** use `Cmd`/`Ctrl`+`Opt/Alt` for Dismiss. That chord is already
 claimed: `Cmd`/`Ctrl`+drag means "temporarily use Select," and `Opt/Alt` held
 during that same drag means "also include empty cells in the marquee." This
 was tried and reverted — see Gotcha G-7 below.
@@ -108,7 +110,7 @@ no toolDock button highlighted, stroke is a no-op.
 - `suggestAction: "suggest" | "confirm" | "dismiss"` in the UI store
   (`src/state/uiStore.ts`), default `"suggest"` — the sticky default action
   Suggest performs when no modifier is held.
-- **MUST** reset to `"suggest"` whenever Suggest is disarmed or a different
+- **FR-6.** **MUST** reset to `"suggest"` whenever Suggest is disarmed or a different
   symbol/tool is armed. Reset paths: `setArmedSymbolId`, `chooseSymbol`,
   `setTool`'s Suggest-disarm branch, and `resetForChart`. Stale sticky state
   surviving a re-arm is easy to miss — check all of these again if the
@@ -116,19 +118,19 @@ no toolDock button highlighted, stroke is a no-op.
 
 #### Bottom toolDock
 
-- While Suggest is armed, the toolDock replaces Select/Draw/Insert with
+- **FR-7.** While Suggest is armed, the toolDock replaces Select/Draw/Insert with
   Confirm/Suggest/Dismiss (Suggest keeps the center slot); reverts to normal
   immediately on disarm.
-- **All three** buttons' active/"on" state uses Suggest's purple accent
+- **FR-8.** **All three** buttons' active/"on" state uses Suggest's purple accent
   (`#9333ea`) — not the toolDock's default blue. (This shipped once as "only
   Suggest is purple," then was corrected: Confirm and Dismiss must match when
   active, so the whole panel reads as one mode.) The app has no dark mode
   yet (no `prefers-color-scheme` handling anywhere in `styles.css`), so
   there's no dark variant of this color to document.
-- Clicking Confirm/Dismiss toggles the sticky default (click again to return
+- **FR-9.** Clicking Confirm/Dismiss toggles the sticky default (click again to return
   to plain Suggest). Clicking the center Suggest button always resets to
   plain Suggest.
-- The Confirm/Suggest/Dismiss row is deliberately **not** gated on
+- **FR-10.** The Confirm/Suggest/Dismiss row is deliberately **not** gated on
   `!selectHeld` the way the ordinary Select/Draw/Insert row is — holding
   `Cmd`/`Ctrl` to confirm a suggestion is the whole point of this row;
   falling back to a plain "Select" read the way the normal row does would
@@ -136,10 +138,10 @@ no toolDock button highlighted, stroke is a no-op.
 
 #### Cursor
 
-- Suggest armed + hovering empty/ineligible space → a distinct purple "magic
+- **FR-11.** Suggest armed + hovering empty/ineligible space → a distinct purple "magic
   wand" cursor (`SUGGEST_CURSOR` in `src/canvas/cursors.ts`), not the plain
   add-cursor or an armed-stitch glyph preview.
-- Effective action is Confirm and the hovered cell is actually confirmable →
+- **FR-12.** Effective action is Confirm and the hovered cell is actually confirmable →
   green-check cursor. Effective action is Dismiss and the cell is actually
   dismissable → red-X cursor. Both chords held at once → `not-allowed`
   (FR-4). **MUST NOT** show the confirm/dismiss cursors over an ineligible
@@ -148,15 +150,15 @@ no toolDock button highlighted, stroke is a no-op.
 
 #### Paint/erase behavior
 
-- Confirm/Dismiss **MUST NOT** ever start a fresh Suggest match. Landing on a
+- **FR-13.** Confirm/Dismiss **MUST NOT** ever start a fresh Suggest match. Landing on a
   cell with nothing pending is a no-op for both, regardless of whether the
   modifier is held live or the sticky default is active.
-- **Confirm eligibility:** `.suggested === true`. Accepts it as its own
+- **FR-14. Confirm eligibility:** `.suggested === true`. Accepts it as its own
   guess. If a real stitch is separately armed and lands on a suggestion, that
   stitch is applied and confirmed outright — no modifier needed for that
   override, and it wins over the Dismiss/Confirm cursor and stroke logic
   below it (pre-existing behavior, unaffected by this feature).
-- **Dismiss eligibility:** `.suggested === true`, or an unrecognized-marker
+- **FR-15. Dismiss eligibility:** `.suggested === true`, or an unrecognized-marker
   cell. **MUST NOT** erase a hand-drawn or already-confirmed placement, even
   mid-drag when the drag also crosses one — skip it silently, the same way
   Draw's Overwrite Safety Block skips already-filled cells. Dismiss wins over
@@ -166,21 +168,21 @@ no toolDock button highlighted, stroke is a no-op.
 
 #### Shared helpers (implemented — see Consolidation)
 
-- `resolveSuggestAction(live: { confirmHeld, dismissHeld }, sticky): SuggestAction | "blocked"`
+- **FR-16.** `resolveSuggestAction(live: { confirmHeld, dismissHeld }, sticky): SuggestAction | "blocked"`
   in `src/input/usePaintTool.ts` — the one place the live-wins-over-sticky
   precedence (including the FR-4 blocked case) is computed. Called by the
   paint logic, the toolDock highlight, and the canvas cursor.
-- `isDismissable(target: { suggested?: boolean } | undefined, unrecognized: boolean): boolean`
+- **FR-17.** `isDismissable(target: { suggested?: boolean } | undefined, unrecognized: boolean): boolean`
   in `src/input/usePaintTool.ts` — the one place Dismiss eligibility is
   computed. Called by the same three consumers.
 
 #### Related side effects
 
-- Glossary per-symbol stitch counts **MUST** exclude still-`.suggested`
+- **FR-18.** Glossary per-symbol stitch counts **MUST** exclude still-`.suggested`
   placements. Confirming a suggestion must visibly increment its symbol's
   count by one. Implemented as `countConfirmedStitches(placements)` in
   `src/ui/chartGlossary.ts`.
-- A separate "has any placement at all" check (confirmed *or* still
+- **FR-19.** A separate "has any placement at all" check (confirmed *or* still
   suggested) **MUST** gate whether a symbol is safe to remove from the
   glossary — reusing the confirmed-only count for that decision lets a
   symbol with only a pending suggestion look removable when it isn't.
@@ -280,29 +282,29 @@ each copy again:
   purposes), which is what let G-9 slip through unnoticed the first time
   with the un-consolidated version.
 
-If a fourth consumer of any of these rules is ever added, it **MUST** call
+**FR-20.** If a fourth consumer of any of these rules is ever added, it **MUST** call
 the shared helper rather than re-deriving the rule inline — that's the
 entire reason G-2 doesn't get a fourth occurrence.
 
 #### Do not touch
 
-- Suggest's own template-matching internals (confidence thresholds, exemplar
+- **DNT-2.** Suggest's own template-matching internals (confidence thresholds, exemplar
   matching) — this feature only adds review actions on top of results
   Suggest already produces.
-- Plain `Shift` as the straight-line/gap-fill draw modifier. `Shift`+`Opt/Alt`
+- **DNT-3.** Plain `Shift` as the straight-line/gap-fill draw modifier. `Shift`+`Opt/Alt`
   overriding it into "destructive" only when `Opt/Alt` is *also* held is
   existing, intentional behavior.
-- `Cmd`/`Ctrl` alone as the app-wide "temporarily use Select" modifier — must
+- **DNT-4.** `Cmd`/`Ctrl` alone as the app-wide "temporarily use Select" modifier — must
   keep working everywhere except the narrow carve-out where it's hovering an
   actual confirmable suggestion.
-- `Cmd`/`Ctrl`+`Opt/Alt`+drag's "temporary-Select-with-empty-cells" marquee, and
+- **DNT-5.** `Cmd`/`Ctrl`+`Opt/Alt`+drag's "temporary-Select-with-empty-cells" marquee, and
   plain `Opt/Alt`+drag while already in the Select tool doing the same thing —
   this is the shortcut G-7 protects. Confirm/Dismiss must never claim this
   chord again.
-- Draw's Overwrite Safety Block (never overwrites an existing placement) —
+- **DNT-6.** Draw's Overwrite Safety Block (never overwrites an existing placement) —
   unrelated pre-existing rule that Dismiss's "skip what it can't act on"
   behavior mirrors, not replaces.
-- The real-armed-stitch-overrides-a-suggestion path — already needed no
+- **DNT-7.** The real-armed-stitch-overrides-a-suggestion path — already needed no
   modifier before this feature existed, and must not gain one; it still
   wins over Confirm's own cursor/highlight, and loses only to a *live*
   Dismiss hold (FR-4).
