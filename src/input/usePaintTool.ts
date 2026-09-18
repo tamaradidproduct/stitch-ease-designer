@@ -213,6 +213,26 @@ export function modeFor(
 }
 
 /**
+ * Sticky Dismiss must claim a drag even if its first cell is protected. That
+ * lets a touch stroke begin on a confirmed stitch and continue to pending
+ * cells, while `eraseAt` remains the per-cell protection against erasing it.
+ */
+export function shouldStartStickyDismissStroke(
+  e: { metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey: boolean },
+  armedSymbolId: string | null,
+  suggestAction: SuggestAction,
+): boolean {
+  return (
+    armedSymbolId === SUGGEST_SYMBOL_ID &&
+    suggestAction === "dismiss" &&
+    !e.metaKey &&
+    !e.ctrlKey &&
+    !e.shiftKey &&
+    !e.altKey
+  );
+}
+
+/**
  * Placing, selecting, moving, and inserting stitches.
  *
  *   click empty cell (Draw)     select it and open the picker, or place the armed stitch if one's armed
@@ -774,6 +794,19 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         constrainedStroke = canDrawStraight;
         straightAxis = null;
         currentMode = modeHere;
+        canvas.setPointerCapture(e.pointerId);
+        doc().beginStroke();
+        paint(cell);
+        return;
+      }
+
+      if (shouldStartStickyDismissStroke(e, ui().armedSymbolId, ui().suggestAction)) {
+        e.preventDefault();
+        painting = true;
+        last = null;
+        constrainedStroke = false;
+        straightAxis = null;
+        currentMode = { kind: "erase" };
         canvas.setPointerCapture(e.pointerId);
         doc().beginStroke();
         paint(cell);
