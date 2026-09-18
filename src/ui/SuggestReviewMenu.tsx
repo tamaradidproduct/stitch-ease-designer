@@ -3,6 +3,7 @@ import { cellToScreenRect } from "../canvas/camera";
 import { unoccupiedCellsFromKeys } from "../model/cellKey";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
+import { CheckIcon, CrossIcon } from "./icons";
 
 /**
  * The compact menu that appears once after a Suggest stroke finishes,
@@ -145,9 +146,7 @@ export function SuggestReviewMenu() {
             aria-label="Accept all identified suggestions"
             title="Accept all"
           >
-            <svg viewBox="0 0 20 20" width="19" height="19" aria-hidden="true">
-              <path d="m4 10 3.5 3.5L16 5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+            <CheckIcon width={19} height={19} strokeWidth={1.7} />
             <span>Accept all</span>
           </button>
           <button
@@ -158,9 +157,7 @@ export function SuggestReviewMenu() {
             aria-label="Dismiss all identified suggestions"
             title="Dismiss all"
           >
-            <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true">
-              <path d="M4.5 4.5l11 11M15.5 4.5l-11 11" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-            </svg>
+            <CrossIcon width={17} height={17} strokeWidth={1.7} />
             <span>Dismiss all</span>
           </button>
         </div>
@@ -181,9 +178,7 @@ export function SuggestReviewMenu() {
             aria-label="Dismiss all unidentified markers"
             title="Dismiss all"
           >
-            <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true">
-              <path d="M4.5 4.5l11 11M15.5 4.5l-11 11" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-            </svg>
+            <CrossIcon width={17} height={17} strokeWidth={1.7} />
             <span>Dismiss all</span>
           </button>
           <button
