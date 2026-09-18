@@ -1,6 +1,7 @@
 import { type RefObject, useEffect } from "react";
 import { screenToCell, screenToInsertCell } from "../canvas/camera";
 import { RULER } from "../canvas/theme";
+import { useCanvasRect } from "./useCanvasRect";
 import { useUiStore } from "../state/uiStore";
 
 const isTyping = (target: EventTarget | null) =>
@@ -21,6 +22,8 @@ const isTyping = (target: EventTarget | null) =>
  * fire far too often to be routing through a re-render.
  */
 export function usePanZoom(ref: RefObject<HTMLCanvasElement | null>): void {
+  const getRect = useCanvasRect(ref);
+
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
@@ -34,25 +37,9 @@ export function usePanZoom(ref: RefObject<HTMLCanvasElement | null>): void {
     // keep the canvas navigable while either contextual UI is open.
     const canScrollPan = () => true;
 
-    // Cached instead of read on every wheel/pointermove, since
-    // getBoundingClientRect forces a layout read. Refreshed whenever the
-    // canvas is resized (CanvasView already runs a ResizeObserver on it and
-    // publishes the result as `viewport`, so we piggyback on that instead of
-    // running a second observer on the same element) or the page scrolls or
-    // the window itself resizes, which can reposition the canvas without
-    // changing its own box size.
-    let rect = canvas.getBoundingClientRect();
-    const updateRect = () => {
-      rect = canvas.getBoundingClientRect();
-    };
-    const unsubscribeViewport = useUiStore.subscribe((state, prev) => {
-      if (state.viewport !== prev.viewport) updateRect();
-    });
-    window.addEventListener("scroll", updateRect, true);
-    window.addEventListener("resize", updateRect);
-
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
+      const rect = getRect();
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
 
@@ -96,6 +83,7 @@ export function usePanZoom(ref: RefObject<HTMLCanvasElement | null>): void {
 
       ui().setKeyboardSelectionActive(false);
 
+      const rect = getRect();
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
       // The rulers float above the canvas, including their border stroke,
@@ -174,9 +162,6 @@ export function usePanZoom(ref: RefObject<HTMLCanvasElement | null>): void {
     window.addEventListener("blur", onBlur);
 
     return () => {
-      unsubscribeViewport();
-      window.removeEventListener("scroll", updateRect, true);
-      window.removeEventListener("resize", updateRect);
       canvas.removeEventListener("wheel", onWheel);
       canvas.removeEventListener("pointerdown", onPointerDown);
       canvas.removeEventListener("pointermove", onPointerMove);
@@ -187,5 +172,5 @@ export function usePanZoom(ref: RefObject<HTMLCanvasElement | null>): void {
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("blur", onBlur);
     };
-  }, [ref]);
+  }, [ref, getRect]);
 }
