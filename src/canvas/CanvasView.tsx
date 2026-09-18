@@ -25,6 +25,7 @@ import {
   insertStitchCursor,
 } from "./cursors";
 import { getSharedReferenceImageCache } from "./referenceImageCache";
+import { pickRenderUiFields, RENDER_UI_FIELDS } from "./canvasRenderFields";
 import { render } from "./renderer";
 import { SpriteCache } from "./spriteCache";
 
@@ -216,29 +217,11 @@ export function CanvasView() {
     // renderer reads; spaceHeld/isPanning changes (handled by the cursor
     // selector above) shouldn't force an extra repaint.
     const unsubscribeUi = useUiStore.subscribe((state, prev) => {
-      if (
-        state.camera !== prev.camera ||
-        state.viewport !== prev.viewport ||
-        state.hover !== prev.hover ||
-        state.insertHover !== prev.insertHover ||
-        state.insertAnimation !== prev.insertAnimation ||
-        state.picker !== prev.picker ||
-        state.selectedPlacementIds !== prev.selectedPlacementIds ||
-        state.selectedEmptyCells !== prev.selectedEmptyCells ||
-        state.selectionBox !== prev.selectionBox ||
-        state.selectionMove !== prev.selectionMove ||
-        state.tool !== prev.tool ||
-        state.selectHeld !== prev.selectHeld ||
-        state.keyboardSelectionActive !== prev.keyboardSelectionActive ||
-        state.stitchHighlightColor !== prev.stitchHighlightColor ||
-        state.stitchHighlightOpacity !== prev.stitchHighlightOpacity ||
-        state.referenceImagePanelOpen !== prev.referenceImagePanelOpen ||
-        state.referenceImageCalibrationBox !== prev.referenceImageCalibrationBox ||
-        state.referenceImageActiveMark !== prev.referenceImageActiveMark ||
-        state.referenceImageMarking !== prev.referenceImageMarking ||
-        state.referenceImageUnrecognized !== prev.referenceImageUnrecognized ||
-        state.altHeld !== prev.altHeld
-      ) {
+      const uiFieldChanged = RENDER_UI_FIELDS.some((key) => state[key] !== prev[key]);
+      // altHeld isn't itself read by render() (it only feeds the cursor
+      // selector above), so it's kept as its own check rather than folded
+      // into RENDER_UI_FIELDS - preserved here unchanged from prior behavior.
+      if (uiFieldChanged || state.altHeld !== prev.altHeld) {
         markDirty();
       }
     });
@@ -251,29 +234,7 @@ export function CanvasView() {
       if (!dirty.current) return;
       dirty.current = false;
 
-      const {
-        camera,
-        viewport,
-        hover,
-        insertHover,
-        insertAnimation,
-        picker,
-        selectedPlacementIds,
-        selectedEmptyCells,
-        tool,
-        selectHeld,
-        keyboardSelectionActive,
-        stitchHighlightColor,
-        stitchHighlightOpacity,
-        selectionBox,
-        selectionMove,
-        referenceImagePanelOpen,
-        referenceImageCalibrating,
-        referenceImageCalibrationBox,
-        referenceImageActiveMark,
-        referenceImageMarking,
-        referenceImageUnrecognized,
-      } = useUiStore.getState();
+      const { picker, ...renderUiFields } = pickRenderUiFields(useUiStore.getState());
       const { index, revision, referenceImage } = useDocStore.getState();
       const dpr = window.devicePixelRatio || 1;
 
@@ -281,37 +242,18 @@ export function CanvasView() {
       // Work in CSS pixels; the DPR scale is applied once, here.
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       render(ctx, {
-        camera,
-        viewport,
-        hover,
-        insertHover,
-        insertAnimation,
+        ...renderUiFields,
         index,
         revision,
         sprites,
         referenceImage,
         referenceImageCache: referenceImages,
-        referenceImagePanelOpen,
-        referenceImageCalibrating,
-        referenceImageCalibrationBox,
         referenceImageMarks: referenceImage?.calibrationMarks ?? [],
-        referenceImageActiveMark,
-        referenceImageMarking,
-        referenceImageUnrecognized,
         pickerTarget: picker,
-        selectedPlacementIds,
-        selectedEmptyCells,
-        tool,
-        selectHeld,
-        keyboardSelectionActive,
-        stitchHighlightColor,
-        stitchHighlightOpacity,
-        selectionBox,
-        selectionMove,
       });
       ctx.restore();
-      if (insertAnimation) {
-        if (performance.now() - insertAnimation.startedAt < 220) dirty.current = true;
+      if (renderUiFields.insertAnimation) {
+        if (performance.now() - renderUiFields.insertAnimation.startedAt < 220) dirty.current = true;
         else useUiStore.getState().setInsertAnimation(null);
       }
     };
