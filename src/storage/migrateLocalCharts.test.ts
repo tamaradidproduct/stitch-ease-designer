@@ -1,7 +1,21 @@
 import { describe, expect, it } from "vitest";
+import type { ReferenceImage } from "../model/types";
 import type { DocStore } from "./DocStore";
 import { createMemoryDocStore } from "./keyValueDocStore";
 import { migrateLocalCharts } from "./migrateLocalCharts";
+
+const referenceImage: ReferenceImage = {
+  ref: "data:image/png;base64,AAAA",
+  x: 0,
+  y: 0,
+  width: 100,
+  height: 80,
+  naturalWidth: 200,
+  naturalHeight: 160,
+  opacity: 0.5,
+  visible: true,
+  locked: false,
+};
 
 const seed = async (store: DocStore, name: string, symbolId = "knit") => {
   const meta = await store.create(name);
@@ -78,5 +92,47 @@ describe("migrateLocalCharts", () => {
     expect(result.failed).toEqual([{ name: "Will fail", message: "quota exceeded" }]);
     expect((await source.list()).map((m) => m.name)).toEqual(["Will fail"]);
     void willFail;
+  });
+
+  it("carries a chart's reference image over to the target, re-uploaded rather than reused as-is", async () => {
+    const source = createMemoryDocStore();
+    const meta = await source.create("Peacock yoke");
+    await source.save(meta.id, [], meta.rev, [], referenceImage);
+
+    const target = createMemoryDocStore();
+    const calls: { targetChartId: string; image: ReferenceImage }[] = [];
+    const migratedRef: ReferenceImage = { ...referenceImage, ref: "uid/new-chart-id/reference.png" };
+    const migrateImage = async (targetChartId: string, image: ReferenceImage) => {
+      calls.push({ targetChartId, image });
+      return migratedRef;
+    };
+
+    const result = await migrateLocalCharts(source, target, migrateImage);
+
+    expect(result.failed).toEqual([]);
+    expect(result.migrated).toEqual(["Peacock yoke"]);
+
+    const targetMeta = (await target.list())[0]!;
+    expect(calls).toEqual([{ targetChartId: targetMeta.id, image: referenceImage }]);
+
+    const migratedChart = await target.load(targetMeta.id);
+    expect(migratedChart.referenceImage).toEqual(migratedRef);
+  });
+
+  it("leaves a chart with a reference image in the source when re-uploading the image fails", async () => {
+    const source = createMemoryDocStore();
+    const meta = await source.create("Peacock yoke");
+    await source.save(meta.id, [], meta.rev, [], referenceImage);
+
+    const target = createMemoryDocStore();
+    const migrateImage = async () => {
+      throw new Error("upload failed");
+    };
+
+    const result = await migrateLocalCharts(source, target, migrateImage);
+
+    expect(result.migrated).toEqual([]);
+    expect(result.failed).toEqual([{ name: "Peacock yoke", message: "upload failed" }]);
+    expect((await source.list()).map((m) => m.name)).toEqual(["Peacock yoke"]);
   });
 });
