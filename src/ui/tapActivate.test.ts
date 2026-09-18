@@ -34,7 +34,7 @@ describe("tapActivate", () => {
     expect(event.stopPropagation).not.toHaveBeenCalled();
   });
 
-  it("contains click activation and invokes the action for desktop input", () => {
+  it("allows normal desktop clicks to propagate", () => {
     const activate = vi.fn();
     const event = {
       currentTarget: {},
@@ -44,6 +44,19 @@ describe("tapActivate", () => {
     tapActivate(activate).onClick(event as never);
 
     expect(activate).toHaveBeenCalledOnce();
+    expect(event.stopPropagation).not.toHaveBeenCalled();
+  });
+
+  it("contains and ignores the synthesized click after touch activation", () => {
+    const activate = vi.fn();
+    const event = {
+      currentTarget: { __tapLastFired: Date.now() },
+      stopPropagation: vi.fn(),
+    };
+
+    tapActivate(activate).onClick(event as never);
+
+    expect(activate).not.toHaveBeenCalled();
     expect(event.stopPropagation).toHaveBeenCalledOnce();
   });
 });

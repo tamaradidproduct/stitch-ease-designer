@@ -30,9 +30,11 @@ type TapGuarded = HTMLElement & { __tapLastFired?: number };
 export function tapActivate(fn: () => void) {
   return {
     onClick: (e: ReactMouseEvent) => {
-      e.stopPropagation();
       const el = e.currentTarget as TapGuarded;
-      if (el.__tapLastFired !== undefined && Date.now() - el.__tapLastFired < 500) return;
+      if (el.__tapLastFired !== undefined && Date.now() - el.__tapLastFired < 500) {
+        e.stopPropagation();
+        return;
+      }
       fn();
     },
     onPointerUp: (e: ReactPointerEvent) => {
