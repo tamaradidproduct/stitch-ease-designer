@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import { SUGGEST_SYMBOL_ID } from "../state/uiStore";
 import {
   constrainToStraightAxis,
+  includeEmptyCells,
   isDismissable,
   modeFor,
   resolveSuggestAction,
+  shouldBlockDismissGesture,
   shouldDismissSelectionBeforeDrawing,
   shouldOpenPickerForSelection,
   straightAxisFor,
@@ -49,6 +51,30 @@ describe("shouldDismissSelectionBeforeDrawing", () => {
   it("does not shadow occupied-cell or Shift interactions", () => {
     expect(shouldDismissSelectionBeforeDrawing("purl", true, true, false)).toBe(false);
     expect(shouldDismissSelectionBeforeDrawing("purl", false, true, true)).toBe(false);
+  });
+});
+
+describe("includeEmptyCells", () => {
+  it("requires Cmd/Ctrl, Shift, and Opt/Alt together", () => {
+    expect(includeEmptyCells({ ...noMods, metaKey: true, shiftKey: true, altKey: true })).toBe(true);
+    expect(includeEmptyCells({ ...noMods, ctrlKey: true, shiftKey: true, altKey: true })).toBe(true);
+  });
+
+  it("keeps Select+Opt and Cmd/Ctrl+Opt marquees placement-only", () => {
+    expect(includeEmptyCells({ ...noMods, altKey: true })).toBe(false);
+    expect(includeEmptyCells({ ...noMods, metaKey: true, altKey: true })).toBe(false);
+    expect(includeEmptyCells({ ...noMods, ctrlKey: true, altKey: true })).toBe(false);
+  });
+});
+
+describe("shouldBlockDismissGesture", () => {
+  it("blocks an ineligible Shift+Opt/Alt gesture without Cmd/Ctrl", () => {
+    expect(shouldBlockDismissGesture(dismissHeld, null)).toBe(true);
+  });
+
+  it("does not block Cmd/Ctrl+Shift+Opt/Alt's empty-cell marquee", () => {
+    expect(shouldBlockDismissGesture({ ...dismissHeld, metaKey: true }, null)).toBe(false);
+    expect(shouldBlockDismissGesture({ ...dismissHeld, ctrlKey: true }, null)).toBe(false);
   });
 });
 
