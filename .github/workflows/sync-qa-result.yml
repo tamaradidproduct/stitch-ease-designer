@@ -1,0 +1,98 @@
+name: Sync QA result from comment
+
+# Replaces Airtable's "Sync Status from computed value" automation: a retest
+# is a structured comment on the Test Case issue, and this reads the latest
+# one and writes it onto the issue's Project item, instead of a rollup
+# formula computing it from a separate Test Runs table.
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+env:
+  GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+  OWNER: tamaradidproduct
+  PROJECT_NUMBER: 2
+
+jobs:
+  sync:
+    if: contains(github.event.comment.body, 'Result:')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Parse comment
+        id: parse
+        run: |
+          body="${{ github.event.comment.body }}"
+          result=$(echo "$body" | grep -m1 -oE 'Result:[[:space:]]*.+' | sed -E 's/Result:[[:space:]]*//' | sed -E 's/[[:space:]]+$//')
+          device=$(echo "$body" | grep -m1 -oE 'Device:[[:space:]]*.+' | sed -E 's/Device:[[:space:]]*//' | sed -E 's/[[:space:]]+$//')
+          input=$(echo "$body" | grep -m1 -oE 'Input:[[:space:]]*.+' | sed -E 's/Input:[[:space:]]*//' | sed -E 's/[[:space:]]+$//')
+          echo "result=$result" >> "$GITHUB_OUTPUT"
+          echo "device=$device" >> "$GITHUB_OUTPUT"
+          echo "input=$input" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve project + field metadata
+        id: meta
+        run: |
+          fields=$(gh project field-list "$PROJECT_NUMBER" --owner "$OWNER" --format json)
+          project_id=$(gh project view "$PROJECT_NUMBER" --owner "$OWNER" --format json --jq '.id')
+          echo "project_id=$project_id" >> "$GITHUB_OUTPUT"
+          echo "$fields" > /tmp/fields.json
+
+      - name: Add issue to project (idempotent) and get item id
+        id: item
+        run: |
+          item_id=$(gh project item-add "$PROJECT_NUMBER" --owner "$OWNER" \
+            --url "${{ github.event.issue.html_url }}" --format json --jq '.id')
+          echo "item_id=$item_id" >> "$GITHUB_OUTPUT"
+
+      - name: Set Result field
+        if: steps.parse.outputs.result != ''
+        run: |
+          field_id=$(jq -r '.fields[] | select(.name=="Result") | .id' /tmp/fields.json)
+          option_id=$(jq -r --arg v "${{ steps.parse.outputs.result }}" \
+            '.fields[] | select(.name=="Result") | .options[] | select(.name|ascii_downcase==($v|ascii_downcase)) | .id' /tmp/fields.json)
+          if [ -z "$option_id" ]; then
+            echo "::warning::Unrecognized Result value '${{ steps.parse.outputs.result }}' - skipping"
+          else
+            gh project item-edit --id "${{ steps.item.outputs.item_id }}" \
+              --project-id "${{ steps.meta.outputs.project_id }}" \
+              --field-id "$field_id" --single-select-option-id "$option_id"
+          fi
+
+      - name: Set Device field
+        if: steps.parse.outputs.device != ''
+        run: |
+          field_id=$(jq -r '.fields[] | select(.name=="Device") | .id' /tmp/fields.json)
+          option_id=$(jq -r --arg v "${{ steps.parse.outputs.device }}" \
+            '.fields[] | select(.name=="Device") | .options[] | select(.name|ascii_downcase==($v|ascii_downcase)) | .id' /tmp/fields.json)
+          if [ -z "$option_id" ]; then
+            echo "::warning::Unrecognized Device value '${{ steps.parse.outputs.device }}' - skipping"
+          else
+            gh project item-edit --id "${{ steps.item.outputs.item_id }}" \
+              --project-id "${{ steps.meta.outputs.project_id }}" \
+              --field-id "$field_id" --single-select-option-id "$option_id"
+          fi
+
+      - name: Set Input Method field
+        if: steps.parse.outputs.input != ''
+        run: |
+          field_id=$(jq -r '.fields[] | select(.name=="Input Method") | .id' /tmp/fields.json)
+          option_id=$(jq -r --arg v "${{ steps.parse.outputs.input }}" \
+            '.fields[] | select(.name=="Input Method") | .options[] | select(.name|ascii_downcase==($v|ascii_downcase)) | .id' /tmp/fields.json)
+          if [ -z "$option_id" ]; then
+            echo "::warning::Unrecognized Input value '${{ steps.parse.outputs.input }}' - skipping"
+          else
+            gh project item-edit --id "${{ steps.item.outputs.item_id }}" \
+              --project-id "${{ steps.meta.outputs.project_id }}" \
+              --field-id "$field_id" --single-select-option-id "$option_id"
+          fi
+
+      - name: Auto-label qa-flagged on Fail/Blocked/Pass with comments
+        if: contains(fromJSON('["Fail", "Blocked", "Pass with comments"]'), steps.parse.outputs.result)
+        run: gh issue edit "${{ github.event.issue.number }}" --repo "${{ github.repository }}" --add-label qa-flagged
+
+      - name: Remove qa-flagged when retest passes clean
+        if: steps.parse.outputs.result == 'Pass'
+        run: gh issue edit "${{ github.event.issue.number }}" --repo "${{ github.repository }}" --remove-label qa-flagged
