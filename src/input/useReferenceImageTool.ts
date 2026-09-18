@@ -715,16 +715,12 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
 
     const onPointerLeave = () => useUiStore.getState().setReferenceImageHandle(null);
 
-    // Cast to EventListener at each call site: routing through this shared
-    // helper's plain EventTarget signature loses the per-event-name overload
-    // that otherwise lets TS infer each handler's specific event type from
-    // its string literal.
     return registerListeners(canvas, [
-      ["pointerdown", onPointerDown as EventListener],
-      ["pointerleave", onPointerLeave as EventListener],
-      ["pointermove", onPointerMove as EventListener],
-      ["pointerup", endDrag as EventListener],
-      ["pointercancel", endDrag as EventListener],
+      ["pointerdown", onPointerDown],
+      ["pointerleave", onPointerLeave],
+      ["pointermove", onPointerMove],
+      ["pointerup", endDrag],
+      ["pointercancel", endDrag],
     ]);
   }, [ref, getRect]);
 }

@@ -306,14 +306,10 @@ export function useShortcuts(): void {
       useUiStore.getState().setAltHeld(false);
     };
 
-    // Cast to EventListener at each call site: routing through this shared
-    // helper's plain EventTarget signature loses the per-event-name overload
-    // (addEventListener<K extends keyof WindowEventMap>) that otherwise lets
-    // TS infer each handler's specific event type from its string literal.
     return registerListeners(window, [
-      ["keydown", onKeyDown as EventListener],
-      ["keyup", onKeyUp as EventListener],
-      ["blur", onBlur as EventListener],
+      ["keydown", onKeyDown],
+      ["keyup", onKeyUp],
+      ["blur", onBlur],
     ]);
   }, []);
 }

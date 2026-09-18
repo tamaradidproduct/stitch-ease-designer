@@ -152,22 +152,18 @@ export function usePanZoom(ref: RefObject<HTMLCanvasElement | null>): void {
     // canvas stuck in pan mode.
     const onBlur = () => ui().setSpaceHeld(false);
 
-    // Cast to EventListener at each call site: routing through this shared
-    // helper's plain EventTarget signature loses the per-event-name overload
-    // that otherwise lets TS infer each handler's specific event type from
-    // its string literal.
     const unregisterCanvas = registerListeners(canvas, [
-      ["wheel", onWheel as EventListener, { passive: false }],
-      ["pointerdown", onPointerDown as EventListener],
-      ["pointermove", onPointerMove as EventListener],
-      ["pointerup", endPan as EventListener],
-      ["pointercancel", endPan as EventListener],
-      ["pointerleave", onPointerLeave as EventListener],
+      ["wheel", onWheel, { passive: false }],
+      ["pointerdown", onPointerDown],
+      ["pointermove", onPointerMove],
+      ["pointerup", endPan],
+      ["pointercancel", endPan],
+      ["pointerleave", onPointerLeave],
     ]);
     const unregisterWindow = registerListeners(window, [
-      ["keydown", onKeyDown as EventListener],
-      ["keyup", onKeyUp as EventListener],
-      ["blur", onBlur as EventListener],
+      ["keydown", onKeyDown],
+      ["keyup", onKeyUp],
+      ["blur", onBlur],
     ]);
 
     return () => {

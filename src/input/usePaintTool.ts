@@ -1268,16 +1268,12 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       });
     };
 
-    // Cast to EventListener at each call site: routing through this shared
-    // helper's plain EventTarget signature loses the per-event-name overload
-    // that otherwise lets TS infer each handler's specific event type from
-    // its string literal.
     return registerListeners(canvas, [
-      ["pointerdown", onPointerDown as EventListener],
-      ["pointermove", onPointerMove as EventListener],
-      ["pointerup", endStroke as EventListener],
-      ["pointercancel", endStroke as EventListener],
-      ["dblclick", onDoubleClick as EventListener],
+      ["pointerdown", onPointerDown],
+      ["pointermove", onPointerMove],
+      ["pointerup", endStroke],
+      ["pointercancel", endStroke],
+      ["dblclick", onDoubleClick],
     ]);
   }, [ref, getRect]);
 }

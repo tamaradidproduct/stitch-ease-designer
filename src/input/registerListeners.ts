@@ -1,7 +1,17 @@
-/** One `addEventListener` call's worth of arguments, as a tuple. */
+/**
+ * One `addEventListener` call's worth of arguments, as a tuple.
+ *
+ * `listener` is deliberately untyped (`(ev: any) => any`) rather than
+ * `EventListenerOrEventListenerObject`: callers pass handlers typed to their
+ * own specific event (`(e: PointerEvent) => void`, `(e: KeyboardEvent) =>
+ * void`, ...), and checking those contravariantly against the general
+ * `Event`-typed listener signature would force an `as EventListener` cast at
+ * every call site. The cast happens once, internally, instead.
+ */
 export type ListenerEntry = readonly [
   type: string,
-  listener: EventListenerOrEventListenerObject,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- see doc comment above
+  listener: (ev: any) => any,
   options?: boolean | AddEventListenerOptions,
 ];
 
@@ -23,11 +33,11 @@ export type ListenerEntry = readonly [
  */
 export function registerListeners(target: EventTarget, entries: readonly ListenerEntry[]): () => void {
   for (const [type, listener, options] of entries) {
-    target.addEventListener(type, listener, options);
+    target.addEventListener(type, listener as EventListener, options);
   }
   return () => {
     for (const [type, listener, options] of entries) {
-      target.removeEventListener(type, listener, options);
+      target.removeEventListener(type, listener as EventListener, options);
     }
   };
 }

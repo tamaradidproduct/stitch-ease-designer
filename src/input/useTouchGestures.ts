@@ -219,15 +219,11 @@ export function useTouchGestures(ref: RefObject<HTMLCanvasElement | null>): void
       }
     };
 
-    // Cast to EventListener at each call site: routing through this shared
-    // helper's plain EventTarget signature loses the per-event-name overload
-    // that otherwise lets TS infer each handler's specific event type from
-    // its string literal.
     const unregister = registerListeners(canvas, [
-      ["pointerdown", onPointerDown as EventListener],
-      ["pointermove", onPointerMove as EventListener],
-      ["pointerup", endGesture as EventListener],
-      ["pointercancel", endGesture as EventListener],
+      ["pointerdown", onPointerDown],
+      ["pointermove", onPointerMove],
+      ["pointerup", endGesture],
+      ["pointercancel", endGesture],
     ]);
 
     return () => {
