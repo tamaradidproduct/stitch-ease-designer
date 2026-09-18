@@ -4,6 +4,7 @@ import { useDocStore } from "../state/docStore";
 import { SUGGEST_SYMBOL_ID, useUiStore } from "../state/uiStore";
 import { SymbolGlyph } from "./SymbolGlyph";
 import { tapActivate } from "./tapActivate";
+import { CheckIcon, CrossIcon } from "./icons";
 
 export function Toolbar() {
   const referenceImagePanelOpen = useUiStore((s) => s.referenceImagePanelOpen);
@@ -53,9 +54,7 @@ export function Toolbar() {
           {...tapActivate(() => toggleSticky("confirm"))}
           title="Confirm (Cmd/Ctrl) — tap to make it the sticky default"
         >
-          <svg viewBox="0 0 20 20" aria-hidden="true">
-            <path d="m4 10 3.5 3.5L16 5" />
-          </svg>
+          <CheckIcon />
           <span>Confirm</span>
         </button>
       ) : (
@@ -129,9 +128,7 @@ export function Toolbar() {
           {...tapActivate(() => toggleSticky("dismiss"))}
           title="Dismiss (Shift+Opt) — tap to make it the sticky default"
         >
-          <svg viewBox="0 0 20 20" aria-hidden="true">
-            <path d="M4.5 4.5l11 11M15.5 4.5l-11 11" />
-          </svg>
+          <CrossIcon />
           <span>Dismiss</span>
         </button>
       ) : (
