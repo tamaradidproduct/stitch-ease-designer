@@ -24,6 +24,7 @@ import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
 import { resolveReferenceImageUrl } from "../storage/referenceImages";
 import { useCanvasRect } from "./useCanvasRect";
+import { registerListeners } from "./registerListeners";
 
 /** Hit-radius for the resize handle, in screen px (constant regardless of zoom). */
 const HANDLE_PX = 10;
@@ -714,17 +715,16 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
 
     const onPointerLeave = () => useUiStore.getState().setReferenceImageHandle(null);
 
-    canvas.addEventListener("pointerdown", onPointerDown);
-    canvas.addEventListener("pointerleave", onPointerLeave);
-    canvas.addEventListener("pointermove", onPointerMove);
-    canvas.addEventListener("pointerup", endDrag);
-    canvas.addEventListener("pointercancel", endDrag);
-    return () => {
-      canvas.removeEventListener("pointerdown", onPointerDown);
-      canvas.removeEventListener("pointerleave", onPointerLeave);
-      canvas.removeEventListener("pointermove", onPointerMove);
-      canvas.removeEventListener("pointerup", endDrag);
-      canvas.removeEventListener("pointercancel", endDrag);
-    };
+    // Cast to EventListener at each call site: routing through this shared
+    // helper's plain EventTarget signature loses the per-event-name overload
+    // that otherwise lets TS infer each handler's specific event type from
+    // its string literal.
+    return registerListeners(canvas, [
+      ["pointerdown", onPointerDown as EventListener],
+      ["pointerleave", onPointerLeave as EventListener],
+      ["pointermove", onPointerMove as EventListener],
+      ["pointerup", endDrag as EventListener],
+      ["pointercancel", endDrag as EventListener],
+    ]);
   }, [ref, getRect]);
 }

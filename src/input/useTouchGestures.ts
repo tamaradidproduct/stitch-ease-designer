@@ -1,4 +1,5 @@
 import { type RefObject, useEffect } from "react";
+import { registerListeners } from "./registerListeners";
 import { useUiStore } from "../state/uiStore";
 
 type Point = { x: number; y: number };
@@ -218,17 +219,20 @@ export function useTouchGestures(ref: RefObject<HTMLCanvasElement | null>): void
       }
     };
 
-    canvas.addEventListener("pointerdown", onPointerDown);
-    canvas.addEventListener("pointermove", onPointerMove);
-    canvas.addEventListener("pointerup", endGesture);
-    canvas.addEventListener("pointercancel", endGesture);
+    // Cast to EventListener at each call site: routing through this shared
+    // helper's plain EventTarget signature loses the per-event-name overload
+    // that otherwise lets TS infer each handler's specific event type from
+    // its string literal.
+    const unregister = registerListeners(canvas, [
+      ["pointerdown", onPointerDown as EventListener],
+      ["pointermove", onPointerMove as EventListener],
+      ["pointerup", endGesture as EventListener],
+      ["pointercancel", endGesture as EventListener],
+    ]);
 
     return () => {
       clearPending();
-      canvas.removeEventListener("pointerdown", onPointerDown);
-      canvas.removeEventListener("pointermove", onPointerMove);
-      canvas.removeEventListener("pointerup", endGesture);
-      canvas.removeEventListener("pointercancel", endGesture);
+      unregister();
     };
   }, [ref]);
 }

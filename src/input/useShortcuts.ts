@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { CELL, cellToScreenRect } from "../canvas/camera";
 import type { Placement } from "../model/types";
 import { patchCalibrationMark } from "../model/referenceCalibration";
+import { registerListeners } from "./registerListeners";
 import { useDocStore } from "../state/docStore";
 import { redoLatest, undoLatest } from "../state/editorHistory";
 import { SUGGEST_SYMBOL_ID, useUiStore } from "../state/uiStore";
@@ -305,13 +306,14 @@ export function useShortcuts(): void {
       useUiStore.getState().setAltHeld(false);
     };
 
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("keyup", onKeyUp);
-    window.addEventListener("blur", onBlur);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("keyup", onKeyUp);
-      window.removeEventListener("blur", onBlur);
-    };
+    // Cast to EventListener at each call site: routing through this shared
+    // helper's plain EventTarget signature loses the per-event-name overload
+    // (addEventListener<K extends keyof WindowEventMap>) that otherwise lets
+    // TS infer each handler's specific event type from its string literal.
+    return registerListeners(window, [
+      ["keydown", onKeyDown as EventListener],
+      ["keyup", onKeyUp as EventListener],
+      ["blur", onBlur as EventListener],
+    ]);
   }, []);
 }

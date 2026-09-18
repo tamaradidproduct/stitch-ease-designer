@@ -1,6 +1,7 @@
 import { type RefObject, useEffect } from "react";
 import { screenToCell, screenToInsertCell } from "../canvas/camera";
 import { RULER } from "../canvas/theme";
+import { registerListeners } from "./registerListeners";
 import { useCanvasRect } from "./useCanvasRect";
 import { useUiStore } from "../state/uiStore";
 
@@ -151,26 +152,27 @@ export function usePanZoom(ref: RefObject<HTMLCanvasElement | null>): void {
     // canvas stuck in pan mode.
     const onBlur = () => ui().setSpaceHeld(false);
 
-    canvas.addEventListener("wheel", onWheel, { passive: false });
-    canvas.addEventListener("pointerdown", onPointerDown);
-    canvas.addEventListener("pointermove", onPointerMove);
-    canvas.addEventListener("pointerup", endPan);
-    canvas.addEventListener("pointercancel", endPan);
-    canvas.addEventListener("pointerleave", onPointerLeave);
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("keyup", onKeyUp);
-    window.addEventListener("blur", onBlur);
+    // Cast to EventListener at each call site: routing through this shared
+    // helper's plain EventTarget signature loses the per-event-name overload
+    // that otherwise lets TS infer each handler's specific event type from
+    // its string literal.
+    const unregisterCanvas = registerListeners(canvas, [
+      ["wheel", onWheel as EventListener, { passive: false }],
+      ["pointerdown", onPointerDown as EventListener],
+      ["pointermove", onPointerMove as EventListener],
+      ["pointerup", endPan as EventListener],
+      ["pointercancel", endPan as EventListener],
+      ["pointerleave", onPointerLeave as EventListener],
+    ]);
+    const unregisterWindow = registerListeners(window, [
+      ["keydown", onKeyDown as EventListener],
+      ["keyup", onKeyUp as EventListener],
+      ["blur", onBlur as EventListener],
+    ]);
 
     return () => {
-      canvas.removeEventListener("wheel", onWheel);
-      canvas.removeEventListener("pointerdown", onPointerDown);
-      canvas.removeEventListener("pointermove", onPointerMove);
-      canvas.removeEventListener("pointerup", endPan);
-      canvas.removeEventListener("pointercancel", endPan);
-      canvas.removeEventListener("pointerleave", onPointerLeave);
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("keyup", onKeyUp);
-      window.removeEventListener("blur", onBlur);
+      unregisterCanvas();
+      unregisterWindow();
     };
   }, [ref, getRect]);
 }
