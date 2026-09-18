@@ -68,6 +68,10 @@ describe("migrateLocalCharts", () => {
     expect(result.failed).toEqual([{ name: "Keep me", message: "simulated network drop" }]);
     // Not removed locally - nothing was actually confirmed written.
     expect((await source.list()).map((m) => m.name)).toEqual(["Keep me"]);
+    // And no empty orphan left behind in the target either - `create`
+    // ran before `save` failed, so without cleanup this would silently
+    // grow a fresh orphan on every retry.
+    expect(await flaky.list()).toEqual([]);
   });
 
   it("migrates the rest even if one chart fails, and only removes the successful ones", async () => {
@@ -134,5 +138,32 @@ describe("migrateLocalCharts", () => {
     expect(result.migrated).toEqual([]);
     expect(result.failed).toEqual([{ name: "Peacock yoke", message: "upload failed" }]);
     expect((await source.list()).map((m) => m.name)).toEqual(["Peacock yoke"]);
+    // No empty orphan left in the target from the `create` that ran
+    // before the image re-upload failed.
+    expect(await target.list()).toEqual([]);
+  });
+
+  it("removes the just-created target chart if the save after a successful image migration fails", async () => {
+    const source = createMemoryDocStore();
+    const meta = await source.create("Peacock yoke");
+    await source.save(meta.id, [], meta.rev, [], referenceImage);
+
+    const target = createMemoryDocStore();
+    const flakyTarget: DocStore = {
+      ...target,
+      async save() {
+        throw new Error("quota exceeded");
+      },
+    };
+    const migrateImage = async () => ({ ...referenceImage, ref: "uid/new-chart-id/reference.png" });
+
+    const result = await migrateLocalCharts(source, flakyTarget, migrateImage);
+
+    expect(result.migrated).toEqual([]);
+    expect(result.failed).toEqual([{ name: "Peacock yoke", message: "quota exceeded" }]);
+    expect((await source.list()).map((m) => m.name)).toEqual(["Peacock yoke"]);
+    // The image migration succeeded, but the chart it belonged to never
+    // got saved - the empty chart `create` made for it must not survive.
+    expect(await target.list()).toEqual([]);
   });
 });

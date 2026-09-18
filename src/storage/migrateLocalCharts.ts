@@ -54,8 +54,19 @@ export async function migrateLocalCharts(
     try {
       const { placements, repeats, referenceImage } = await source.load(meta.id);
       const created = await target.create(meta.name);
-      const migratedImage = referenceImage ? await migrateImage(created.id, referenceImage) : undefined;
-      await target.save(created.id, placements, created.rev, repeats, migratedImage);
+      try {
+        const migratedImage = referenceImage ? await migrateImage(created.id, referenceImage) : undefined;
+        await target.save(created.id, placements, created.rev, repeats, migratedImage);
+      } catch (error) {
+        // Otherwise a failure here - the image re-upload, or the save that
+        // follows it - would leave an empty chart behind in the target
+        // with nothing pointing back at it; since the source chart stays
+        // put (below) for a retry, an unremoved orphan would just get a
+        // sibling every time that retry runs. Same cleanup importChartIntoStore
+        // does for the equivalent failure on the file-import path.
+        await target.remove(created.id).catch(() => {});
+        throw error;
+      }
       await source.remove(meta.id);
       result.migrated.push(meta.name);
     } catch (error) {
