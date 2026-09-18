@@ -1,0 +1,63 @@
+name: Test Case
+description: A QA test case for Stitch Ease Designer, tracked in the "Stitch Ease QA" project.
+title: "[Test Case] "
+labels: ["test-case"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        After filing this, add it to the [Stitch Ease QA project](https://github.com/users/tamaradidproduct/projects/2) and set Device/Priority/Test Type/Result there — those live as project fields, not in this form.
+  - type: textarea
+    id: preconditions
+    attributes:
+      label: Preconditions
+      description: State required before the steps below apply.
+    validations:
+      required: false
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps
+      description: Numbered steps to reproduce/execute.
+    validations:
+      required: true
+  - type: textarea
+    id: expected-result
+    attributes:
+      label: Expected Result
+    validations:
+      required: true
+  - type: input
+    id: modifier-input
+    attributes:
+      label: Modifier / Input
+      description: "e.g. Cmd held, Shift+Opt held, both held (blocked)"
+    validations:
+      required: false
+  - type: input
+    id: requirement
+    attributes:
+      label: Requirement(s)
+      description: "Link into docs/PRD.md, e.g. docs/PRD.md#FR-21"
+    validations:
+      required: false
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+    validations:
+      required: false
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        **Retesting:** add a comment below in this exact format so the "Sync Result from comment" workflow can pick it up:
+
+        ```
+        Result: Pass
+        Device: iPad
+        Input: Pencil
+        Notes: optional free text
+        ```
+
+        `Result` must be one of: Not run, Pass, Pass with comments, Fail, Blocked, Ready to retest.
