@@ -61,3 +61,7 @@ body:
         ```
 
         `Result` must be one of: Not run, Pass, Pass with comments, Fail, Blocked, Ready to retest.
+        `Device` must be one of: Desktop, iPad.
+        `Input` must be one of: N/A, Touch, Pencil.
+
+        Spelling/casing has to match exactly, or the sync workflow can't find the matching project field option and skips that field.
