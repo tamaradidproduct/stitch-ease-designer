@@ -114,7 +114,7 @@ export function MigrateLocalCharts({
     return (
       <div className="signIn">
         <div className="signIn__card">
-          <h1 className="signIn__title">Couldn’t check your local charts</h1>
+          <h1 className="signIn__title">Couldn't check your local charts</h1>
           <p className="signIn__error">{phase.message}</p>
           <p className="signIn__sent">Your browser charts have not been changed.</p>
           <div className="signIn__form signIn__form--actions">
