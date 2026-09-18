@@ -106,12 +106,20 @@ export function encode(
 
 const isInteger = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n);
 
-function validate(stored: unknown): StoredChart {
-  if (typeof stored !== "object" || stored === null) {
-    throw new ChartFormatError("not an object");
-  }
-  const chart = stored as Partial<StoredChart>;
+/**
+ * `validate()`'s checks, split into one function per shape it inspects -
+ * each throwing the same `ChartFormatError` messages the single cascading
+ * function used to. They're still called from `validate()` in their
+ * original order, and that order is deliberate: a chart with more than one
+ * problem must keep surfacing the same first error it always has, so a
+ * check can't be moved earlier or later than where it ran before even when
+ * regrouping it under a more sensible-sounding name would be tempting (this
+ * is why, for instance, the two stitch-related checks below stay as two
+ * separate functions at their original two positions, rather than one
+ * `validateStitches` doing both back to back).
+ */
 
+function validateVersion(chart: Partial<StoredChart>): void {
   if (!isInteger(chart.v)) throw new ChartFormatError("missing version");
   if (chart.v !== 1 && chart.v !== STORED_VERSION) {
     // The version field is the migration hook. There's nothing to migrate from
@@ -120,14 +128,19 @@ function validate(stored: unknown): StoredChart {
       `unsupported chart version ${chart.v} (this build reads ${STORED_VERSION})`,
     );
   }
+}
 
+function validatePalette(chart: Partial<StoredChart>): void {
   if (!Array.isArray(chart.palette) || chart.palette.some((s) => typeof s !== "string")) {
     throw new ChartFormatError("palette must be an array of symbol ids");
   }
+}
+
+/** Per-stitch tuple shape and palette-index bounds - the first of the two stitch passes. */
+function validateStitchTuples(chart: Partial<StoredChart>): void {
   if (!Array.isArray(chart.stitches)) {
     throw new ChartFormatError("stitches must be an array");
   }
-
   chart.stitches.forEach((stitch, i) => {
     if (!Array.isArray(stitch) || ![3, 4].includes(stitch.length) || !stitch.every(isInteger)) {
       throw new ChartFormatError(`stitch ${i} has an invalid tuple`);
@@ -137,13 +150,19 @@ function validate(stored: unknown): StoredChart {
       throw new ChartFormatError(`stitch ${i} references palette index ${paletteIndex}`);
     }
   });
+}
 
-  chart.groups ??= [];
-  chart.repeats ??= [];
+function validateGroups(chart: Partial<StoredChart>): void {
   if (!Array.isArray(chart.groups) || chart.groups.some((id) => typeof id !== "string")) {
     throw new ChartFormatError("groups must be an array of ids");
   }
+}
+
+function validateRepeatsIsArray(chart: Partial<StoredChart>): void {
   if (!Array.isArray(chart.repeats)) throw new ChartFormatError("repeats must be an array");
+}
+
+function validateSuggested(chart: Partial<StoredChart>): void {
   if (
     chart.suggested !== undefined &&
     (!Array.isArray(chart.suggested) ||
@@ -151,12 +170,19 @@ function validate(stored: unknown): StoredChart {
   ) {
     throw new ChartFormatError("suggested must be an array of [col, row] pairs");
   }
-  chart.stitches.forEach((stitch, i) => {
+}
+
+/** Per-stitch group-index bounds - the second of the two stitch passes. */
+function validateStitchGroupReferences(chart: Partial<StoredChart>): void {
+  chart.stitches!.forEach((stitch, i) => {
     if (stitch.length === 4 && (stitch[3] < 0 || stitch[3] >= chart.groups!.length)) {
       throw new ChartFormatError(`stitch ${i} references an invalid group`);
     }
   });
-  chart.repeats.forEach((repeat, i) => {
+}
+
+function validateRepeats(chart: Partial<StoredChart>): void {
+  chart.repeats!.forEach((repeat, i) => {
     if (
       typeof repeat !== "object" ||
       repeat === null ||
@@ -184,7 +210,7 @@ function validate(stored: unknown): StoredChart {
   // by createRepeat(). Reject a malformed footprint before it can be
   // instantiated: DocIndex records one owner per cell, so overlapping repeat
   // stitches would otherwise silently overwrite each other's occupancy.
-  chart.repeats.forEach((repeat, i) => {
+  chart.repeats!.forEach((repeat, i) => {
     const occupied = new Set<string>();
     for (const stitch of repeat.stitches) {
       const span = getSymbol(stitch.symbolId)?.span ?? 1;
@@ -205,75 +231,103 @@ function validate(stored: unknown): StoredChart {
       }
     }
   });
+}
 
-  if (chart.referenceImage !== undefined) {
-    const img = chart.referenceImage as Partial<ReferenceImage> | null;
-    if (
-      typeof img !== "object" ||
-      img === null ||
-      typeof img.ref !== "string" ||
-      typeof img.x !== "number" ||
-      typeof img.y !== "number" ||
-      typeof img.width !== "number" ||
-      !(img.width > 0) ||
-      typeof img.height !== "number" ||
-      !(img.height > 0) ||
-      typeof img.naturalWidth !== "number" ||
-      !(img.naturalWidth > 0) ||
-      typeof img.naturalHeight !== "number" ||
-      !(img.naturalHeight > 0) ||
-      typeof img.opacity !== "number" ||
-      typeof img.visible !== "boolean" ||
-      typeof img.locked !== "boolean" ||
-      (img.inFront !== undefined && typeof img.inFront !== "boolean")
-    ) {
-      throw new ChartFormatError("referenceImage is invalid");
-    }
-    if (img.calibrationMarks !== undefined) {
-      // Scaffolding for one calibration, but stored, so it survives a
-      // reload - which means it arrives from untrusted storage like
-      // everything else here. A mark off the image would anchor a fit to a
-      // point that isn't on the photo.
-      if (
-        !Array.isArray(img.calibrationMarks) ||
-        img.calibrationMarks.some(
-          (point) =>
-            typeof point !== "object" ||
-            point === null ||
-            typeof point.id !== "string" ||
-            typeof point.u !== "number" ||
-            typeof point.v !== "number" ||
-            typeof point.w !== "number" ||
-            typeof point.h !== "number" ||
-            !(point.u >= 0 && point.u <= 1) ||
-            !(point.v >= 0 && point.v <= 1) ||
-            // A box has to have an extent and has to fit on the photo: a
-            // zero-width one names no stitch and can't be grabbed back.
-            !(point.w > 0 && point.u + point.w <= 1) ||
-            !(point.h > 0 && point.v + point.h <= 1) ||
-            (point.stitch !== null && !Number.isFinite(point.stitch)) ||
-            (point.row !== null && !Number.isFinite(point.row)),
-        )
-      ) {
-        throw new ChartFormatError("referenceImage.calibrationMarks is invalid");
-      }
-    }
-    if (img.stitchPin !== undefined) {
-      const pin = img.stitchPin as Partial<NonNullable<ReferenceImage["stitchPin"]>> | null;
-      // A fraction of the image, so both components are bounded - anything
-      // outside 0..1 would pin a point that isn't on the image at all.
-      if (
-        typeof pin !== "object" ||
-        pin === null ||
-        typeof pin.u !== "number" ||
-        typeof pin.v !== "number" ||
-        !(pin.u >= 0 && pin.u <= 1) ||
-        !(pin.v >= 0 && pin.v <= 1)
-      ) {
-        throw new ChartFormatError("referenceImage.stitchPin is invalid");
-      }
-    }
+/**
+ * Scaffolding for one calibration, but stored, so it survives a reload -
+ * which means it arrives from untrusted storage like everything else here.
+ * A mark off the image would anchor a fit to a point that isn't on the
+ * photo.
+ */
+function validateCalibrationMarks(img: Partial<ReferenceImage>): void {
+  if (img.calibrationMarks === undefined) return;
+  if (
+    !Array.isArray(img.calibrationMarks) ||
+    img.calibrationMarks.some(
+      (point) =>
+        typeof point !== "object" ||
+        point === null ||
+        typeof point.id !== "string" ||
+        typeof point.u !== "number" ||
+        typeof point.v !== "number" ||
+        typeof point.w !== "number" ||
+        typeof point.h !== "number" ||
+        !(point.u >= 0 && point.u <= 1) ||
+        !(point.v >= 0 && point.v <= 1) ||
+        // A box has to have an extent and has to fit on the photo: a
+        // zero-width one names no stitch and can't be grabbed back.
+        !(point.w > 0 && point.u + point.w <= 1) ||
+        !(point.h > 0 && point.v + point.h <= 1) ||
+        (point.stitch !== null && !Number.isFinite(point.stitch)) ||
+        (point.row !== null && !Number.isFinite(point.row)),
+    )
+  ) {
+    throw new ChartFormatError("referenceImage.calibrationMarks is invalid");
   }
+}
+
+/** A fraction of the image, so both components are bounded - anything outside 0..1 would pin a point that isn't on the image at all. */
+function validateStitchPin(img: Partial<ReferenceImage>): void {
+  if (img.stitchPin === undefined) return;
+  const pin = img.stitchPin as Partial<NonNullable<ReferenceImage["stitchPin"]>> | null;
+  if (
+    typeof pin !== "object" ||
+    pin === null ||
+    typeof pin.u !== "number" ||
+    typeof pin.v !== "number" ||
+    !(pin.u >= 0 && pin.u <= 1) ||
+    !(pin.v >= 0 && pin.v <= 1)
+  ) {
+    throw new ChartFormatError("referenceImage.stitchPin is invalid");
+  }
+}
+
+function validateReferenceImage(chart: Partial<StoredChart>): void {
+  if (chart.referenceImage === undefined) return;
+  const img = chart.referenceImage as Partial<ReferenceImage> | null;
+  if (
+    typeof img !== "object" ||
+    img === null ||
+    typeof img.ref !== "string" ||
+    typeof img.x !== "number" ||
+    typeof img.y !== "number" ||
+    typeof img.width !== "number" ||
+    !(img.width > 0) ||
+    typeof img.height !== "number" ||
+    !(img.height > 0) ||
+    typeof img.naturalWidth !== "number" ||
+    !(img.naturalWidth > 0) ||
+    typeof img.naturalHeight !== "number" ||
+    !(img.naturalHeight > 0) ||
+    typeof img.opacity !== "number" ||
+    typeof img.visible !== "boolean" ||
+    typeof img.locked !== "boolean" ||
+    (img.inFront !== undefined && typeof img.inFront !== "boolean")
+  ) {
+    throw new ChartFormatError("referenceImage is invalid");
+  }
+  validateCalibrationMarks(img);
+  validateStitchPin(img);
+}
+
+function validate(stored: unknown): StoredChart {
+  if (typeof stored !== "object" || stored === null) {
+    throw new ChartFormatError("not an object");
+  }
+  const chart = stored as Partial<StoredChart>;
+
+  validateVersion(chart);
+  validatePalette(chart);
+  validateStitchTuples(chart);
+
+  chart.groups ??= [];
+  chart.repeats ??= [];
+  validateGroups(chart);
+  validateRepeatsIsArray(chart);
+  validateSuggested(chart);
+  validateStitchGroupReferences(chart);
+  validateRepeats(chart);
+  validateReferenceImage(chart);
 
   return chart as StoredChart;
 }
