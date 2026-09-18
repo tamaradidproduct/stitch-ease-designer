@@ -10,6 +10,8 @@ import { cellWithinReferenceImage, cropReferenceImageCell } from "../canvas/refe
 import { binarizeCrop, extractExemplars, matchCandidateStitch } from "../model/templateMatch";
 import { useDocStore } from "../state/docStore";
 import { SUGGEST_SYMBOL_ID, type SuggestAction, useUiStore } from "../state/uiStore";
+import { registerListeners } from "./registerListeners";
+import { useCanvasRect } from "./useCanvasRect";
 
 /**
  * Whether a click/pointerdown that just produced `ids` (via `selectExisting`)
@@ -247,6 +249,8 @@ export function modeFor(
  * this hook stays out of the way when either is in play.
  */
 export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
+  const getRect = useCanvasRect(ref);
+
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
@@ -309,7 +313,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
     };
 
     const cellAt = (e: PointerEvent | MouseEvent): Cell | null => {
-      const rect = canvas.getBoundingClientRect();
+      const rect = getRect();
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
       if (sx < RULER || sy < RULER) return null;
@@ -323,7 +327,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
     // exactly where its own indicator was drawn, not wherever the last
     // pointermove happened to leave the store.
     const insertCellAt = (e: PointerEvent | MouseEvent): Cell | null => {
-      const rect = canvas.getBoundingClientRect();
+      const rect = getRect();
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
       if (sx < RULER || sy < RULER) return null;
@@ -561,7 +565,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       if (!shouldOpenPickerForSelection(ids, additive)) return;
       const placement = doc().index.placements.get(ids[0]!);
       if (!placement) return;
-      const rect = canvas.getBoundingClientRect();
+      const rect = getRect();
       ui().openPicker({
         col: placement.col,
         row: placement.row,
@@ -858,7 +862,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
             ui().setInsertAnimation({ col: insertedCol, row: target.row });
           }
         } else {
-          const rect = canvas.getBoundingClientRect();
+          const rect = getRect();
           ui().openPicker({
             col: target.col,
             row: target.row,
@@ -946,7 +950,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       }
 
       if (!ui().armedSymbolId || unreadable) {
-        const rect = canvas.getBoundingClientRect();
+        const rect = getRect();
         if (ui().selectedPlacementIds.length) ui().setSelectedPlacementIds([]);
         ui().setSelectedEmptyCells([cell]);
         ui().openPicker({
@@ -1159,7 +1163,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
               // click does - select the empty cell and open its picker -
               // regardless of what's armed, since Cmd always means "select."
               ui().setSelectedEmptyCells([start]);
-              const rect = canvas.getBoundingClientRect();
+              const rect = getRect();
               ui().openPicker({
                 col: start.col,
                 row: start.row,
@@ -1178,7 +1182,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
               } else if (armed) doc().place(armed, start.col, start.row);
               else {
                 ui().setSelectedEmptyCells([start]);
-                const rect = canvas.getBoundingClientRect();
+                const rect = getRect();
                 ui().openPicker({
                   col: start.col,
                   row: start.row,
@@ -1253,7 +1257,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         return;
       const cell = cellAt(e);
       if (!cell) return;
-      const rect = canvas.getBoundingClientRect();
+      const rect = getRect();
       const existing = doc().index.placementAt(cell.col, cell.row);
       ui().openPicker({
         col: cell.col,
@@ -1264,18 +1268,12 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       });
     };
 
-    canvas.addEventListener("pointerdown", onPointerDown);
-    canvas.addEventListener("pointermove", onPointerMove);
-    canvas.addEventListener("pointerup", endStroke);
-    canvas.addEventListener("pointercancel", endStroke);
-    canvas.addEventListener("dblclick", onDoubleClick);
-
-    return () => {
-      canvas.removeEventListener("pointerdown", onPointerDown);
-      canvas.removeEventListener("pointermove", onPointerMove);
-      canvas.removeEventListener("pointerup", endStroke);
-      canvas.removeEventListener("pointercancel", endStroke);
-      canvas.removeEventListener("dblclick", onDoubleClick);
-    };
-  }, [ref]);
+    return registerListeners(canvas, [
+      ["pointerdown", onPointerDown],
+      ["pointermove", onPointerMove],
+      ["pointerup", endStroke],
+      ["pointercancel", endStroke],
+      ["dblclick", onDoubleClick],
+    ]);
+  }, [ref, getRect]);
 }

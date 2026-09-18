@@ -23,6 +23,8 @@ import {
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
 import { resolveReferenceImageUrl } from "../storage/referenceImages";
+import { useCanvasRect } from "./useCanvasRect";
+import { registerListeners } from "./registerListeners";
 
 /** Hit-radius for the resize handle, in screen px (constant regardless of zoom). */
 const HANDLE_PX = 10;
@@ -361,6 +363,8 @@ export function handleAt(
  * which one wins.
  */
 export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>): void {
+  const getRect = useCanvasRect(ref);
+
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
@@ -368,7 +372,7 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
     let drag: Drag | null = null;
 
     const worldAt = (e: PointerEvent) => {
-      const rect = canvas.getBoundingClientRect();
+      const rect = getRect();
       const { camera, viewport } = useUiStore.getState();
       return screenToWorld(e.clientX - rect.left, e.clientY - rect.top, camera, viewport);
     };
@@ -711,17 +715,12 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
 
     const onPointerLeave = () => useUiStore.getState().setReferenceImageHandle(null);
 
-    canvas.addEventListener("pointerdown", onPointerDown);
-    canvas.addEventListener("pointerleave", onPointerLeave);
-    canvas.addEventListener("pointermove", onPointerMove);
-    canvas.addEventListener("pointerup", endDrag);
-    canvas.addEventListener("pointercancel", endDrag);
-    return () => {
-      canvas.removeEventListener("pointerdown", onPointerDown);
-      canvas.removeEventListener("pointerleave", onPointerLeave);
-      canvas.removeEventListener("pointermove", onPointerMove);
-      canvas.removeEventListener("pointerup", endDrag);
-      canvas.removeEventListener("pointercancel", endDrag);
-    };
-  }, [ref]);
+    return registerListeners(canvas, [
+      ["pointerdown", onPointerDown],
+      ["pointerleave", onPointerLeave],
+      ["pointermove", onPointerMove],
+      ["pointerup", endDrag],
+      ["pointercancel", endDrag],
+    ]);
+  }, [ref, getRect]);
 }

@@ -1,5 +1,5 @@
 import type { ReferenceImage } from "../model/types";
-import type { DocStore } from "./DocStore";
+import type { ChartStore } from "./ChartStore";
 import { resolveReferenceImageUrl, uploadReferenceImage } from "./referenceImages";
 
 export type MigrationResult = {
@@ -43,8 +43,8 @@ async function migrateReferenceImage(
  * limbo with neither store holding a complete version.
  */
 export async function migrateLocalCharts(
-  source: DocStore,
-  target: DocStore,
+  source: ChartStore,
+  target: ChartStore,
   migrateImage: (targetChartId: string, image: ReferenceImage) => Promise<ReferenceImage> = migrateReferenceImage,
 ): Promise<MigrationResult> {
   const result: MigrationResult = { migrated: [], failed: [] };

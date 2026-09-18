@@ -259,6 +259,45 @@ describe("validation", () => {
       palette: [CABLE, "knit"],
       stitches: [[0, 0, 0], [4, 0, 1]],
     },
+    "groups not an array of ids": {
+      v: 1,
+      palette: ["knit"],
+      stitches: [[0, 0, 0]],
+      groups: [1, 2],
+    },
+    "stitch references an out-of-range group": {
+      v: 1,
+      palette: ["knit"],
+      stitches: [[0, 0, 0, 5]],
+      groups: ["group-a"],
+    },
+    "suggested not an array of [col, row] pairs": {
+      v: 1,
+      palette: ["knit"],
+      stitches: [[0, 0, 0]],
+      suggested: [[0]],
+    },
+    "repeats not an array": { v: 1, palette: [], stitches: [], repeats: "no" },
+    "repeat missing required fields": {
+      v: 1,
+      palette: [],
+      stitches: [],
+      repeats: [{ id: "repeat-1", name: "Incomplete" }],
+    },
+    "repeat stitch outside its footprint": {
+      v: 1,
+      palette: [],
+      stitches: [],
+      repeats: [
+        {
+          id: "repeat-1",
+          name: "Out of bounds",
+          width: 2,
+          height: 1,
+          stitches: [{ symbolId: "knit", col: 5, row: 0 }],
+        },
+      ],
+    },
     "overlap within a repeat": {
       v: STORED_VERSION,
       palette: [],

@@ -5,14 +5,14 @@ import {
   ChartConflictError,
   ChartNotFoundError,
   DEFAULT_CHART_NAME,
-  type DocStore,
+  type ChartStore,
   type LoadedChart,
   StorageFullError,
-} from "./DocStore";
+} from "./ChartStore";
 import { decode, emptyChart, encode } from "./serialize";
 
 /**
- * A `DocStore` over any synchronous key-value store.
+ * A `ChartStore` over any synchronous key-value store.
  *
  * The in-memory store (tests) and the browser store (the first release) differ
  * only in where bytes land, so they share this implementation and therefore
@@ -32,7 +32,7 @@ export type KeyValueBackend = {
   remove(key: string): void;
 };
 
-export type DocStoreOptions = {
+export type ChartStoreOptions = {
   /** Injectable for deterministic ordering in tests. */
   clock?: () => Date;
   /** Injectable so the store isn't welded to the symbol registry. */
@@ -41,10 +41,10 @@ export type DocStoreOptions = {
 
 type Index = Record<string, DocMeta>;
 
-export function createKeyValueDocStore(
+export function createKeyValueChartStore(
   backend: KeyValueBackend,
-  options: DocStoreOptions = {},
-): DocStore {
+  options: ChartStoreOptions = {},
+): ChartStore {
   const clock = options.clock ?? (() => new Date());
   const knownSymbol = options.knownSymbol ?? ((id: string) => !!getSymbol(id));
   const stamp = () => clock().toISOString();
@@ -187,9 +187,9 @@ export function createKeyValueDocStore(
 }
 
 /** For tests, and any caller that wants a throwaway store. */
-export function createMemoryDocStore(options: DocStoreOptions = {}): DocStore {
+export function createMemoryChartStore(options: ChartStoreOptions = {}): ChartStore {
   const map = new Map<string, string>();
-  return createKeyValueDocStore(
+  return createKeyValueChartStore(
     {
       read: (key) => map.get(key) ?? null,
       write: (key, value) => void map.set(key, value),
@@ -209,11 +209,11 @@ export function createMemoryDocStore(options: DocStoreOptions = {}): DocStore {
  * `StorageFullError` so the UI can tell the user to export and prune rather
  * than failing an autosave silently.
  */
-export function createLocalDocStore(
+export function createLocalChartStore(
   storage: Pick<Storage, "getItem" | "setItem" | "removeItem"> = window.localStorage,
-  options: DocStoreOptions = {},
-): DocStore {
-  return createKeyValueDocStore(
+  options: ChartStoreOptions = {},
+): ChartStore {
+  return createKeyValueChartStore(
     {
       read: (key) => storage.getItem(key),
       write: (key, value) => {

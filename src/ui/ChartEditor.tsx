@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { CanvasView } from "../canvas/CanvasView";
-import { ChartNotFoundError } from "../storage/DocStore";
+import { ChartNotFoundError } from "../storage/ChartStore";
 import { chartStore } from "../storage/store";
 import { useAutosave } from "../storage/useAutosave";
 import { isChartOpen, selectIsDirty, useDocStore } from "../state/docStore";

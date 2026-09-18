@@ -5,9 +5,9 @@ import {
   ChartConflictError,
   ChartNotFoundError,
   DEFAULT_CHART_NAME,
-  type DocStore,
+  type ChartStore,
   type LoadedChart,
-} from "./DocStore";
+} from "./ChartStore";
 import { decode, emptyChart, encode } from "./serialize";
 
 /** Shape of a `public.charts` row as it comes back from PostgREST. */
@@ -36,19 +36,19 @@ export function metaFromRow(row: Pick<ChartRow, "id" | "name" | "created_at" | "
 }
 
 /**
- * A `DocStore` backed by the `public.charts` table.
+ * A `ChartStore` backed by the `public.charts` table.
  *
  * No `user_id` is ever sent by the client: the column defaults to
  * `auth.uid()` on insert, row-level security scopes every select/update/
  * delete to it, and `charts_touch()` pins it against change on update. The
  * client can't claim to be someone else even by accident.
  *
- * Held to the same `docStore.contract.ts` suite as the local and in-memory
+ * Held to the same `chartStore.contract.ts` suite as the local and in-memory
  * stores (run manually against a live project — see README), which is what
- * makes this swap-in behind the `DocStore` interface a real guarantee rather
+ * makes this swap-in behind the `ChartStore` interface a real guarantee rather
  * than a hope.
  */
-export function createSupabaseDocStore(client: SupabaseClient): DocStore {
+export function createSupabaseChartStore(client: SupabaseClient): ChartStore {
   const knownSymbol = (id: string) => !!getSymbol(id);
 
   return {
