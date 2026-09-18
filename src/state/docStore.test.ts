@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { DocMeta, ReferenceImage } from "../model/types";
-import type { LoadedChart } from "../storage/DocStore";
+import type { LoadedChart } from "../storage/ChartStore";
 import { isChartOpen, useDocStore } from "./docStore";
 
 const meta = (id: string, rev = "r1"): DocMeta => ({

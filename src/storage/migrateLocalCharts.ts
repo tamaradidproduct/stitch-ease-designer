@@ -1,4 +1,4 @@
-import type { DocStore } from "./DocStore";
+import type { ChartStore } from "./ChartStore";
 
 export type MigrationResult = {
   migrated: string[];
@@ -17,8 +17,8 @@ export type MigrationResult = {
  * limbo with neither store holding a complete version.
  */
 export async function migrateLocalCharts(
-  source: DocStore,
-  target: DocStore,
+  source: ChartStore,
+  target: ChartStore,
 ): Promise<MigrationResult> {
   const result: MigrationResult = { migrated: [], failed: [] };
   const charts = await source.list();

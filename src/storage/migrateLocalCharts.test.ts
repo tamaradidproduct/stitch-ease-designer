@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { DocStore } from "./DocStore";
-import { createMemoryDocStore } from "./keyValueDocStore";
+import type { ChartStore } from "./ChartStore";
+import { createMemoryChartStore } from "./keyValueChartStore";
 import { migrateLocalCharts } from "./migrateLocalCharts";
 
-const seed = async (store: DocStore, name: string, symbolId = "knit") => {
+const seed = async (store: ChartStore, name: string, symbolId = "knit") => {
   const meta = await store.create(name);
   await store.save(meta.id, [{ id: "p", symbolId, col: 0, row: 0 }], meta.rev);
   return meta;
@@ -11,8 +11,8 @@ const seed = async (store: DocStore, name: string, symbolId = "knit") => {
 
 describe("migrateLocalCharts", () => {
   it("copies every chart's stitches and removes it from the source", async () => {
-    const source = createMemoryDocStore();
-    const target = createMemoryDocStore();
+    const source = createMemoryChartStore();
+    const target = createMemoryChartStore();
     await seed(source, "Peacock yoke", "purl");
     await seed(source, "Sleeve cable", "k2tog");
 
@@ -32,17 +32,17 @@ describe("migrateLocalCharts", () => {
   });
 
   it("does nothing to an empty source", async () => {
-    const result = await migrateLocalCharts(createMemoryDocStore(), createMemoryDocStore());
+    const result = await migrateLocalCharts(createMemoryChartStore(), createMemoryChartStore());
     expect(result).toEqual({ migrated: [], failed: [] });
   });
 
   it("leaves a chart in the source when the target write fails, rather than losing it", async () => {
-    const source = createMemoryDocStore();
+    const source = createMemoryChartStore();
     const good = await seed(source, "Keep me");
     void good;
 
-    const flaky: DocStore = {
-      ...createMemoryDocStore(),
+    const flaky: ChartStore = {
+      ...createMemoryChartStore(),
       async save() {
         throw new Error("simulated network drop");
       },
@@ -57,13 +57,13 @@ describe("migrateLocalCharts", () => {
   });
 
   it("migrates the rest even if one chart fails, and only removes the successful ones", async () => {
-    const source = createMemoryDocStore();
+    const source = createMemoryChartStore();
     await seed(source, "Will succeed");
     const willFail = await seed(source, "Will fail");
 
-    const target = createMemoryDocStore();
+    const target = createMemoryChartStore();
     const realSave = target.save.bind(target);
-    const flakyTarget: DocStore = {
+    const flakyTarget: ChartStore = {
       ...target,
       async create(name) {
         if (name === "Will fail") throw new Error("quota exceeded");

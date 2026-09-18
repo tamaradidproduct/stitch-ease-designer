@@ -5,11 +5,11 @@ import {
   ChartConflictError,
   ChartNotFoundError,
   DEFAULT_CHART_NAME,
-  type DocStore,
-} from "./DocStore";
+  type ChartStore,
+} from "./ChartStore";
 
 /**
- * The behaviour every `DocStore` must have, run against each implementation.
+ * The behaviour every `ChartStore` must have, run against each implementation.
  *
  * This exists so that swapping browser storage for Supabase is a mechanical
  * change rather than a hopeful one: the conflict semantics, the ordering, and
@@ -28,8 +28,8 @@ const stitch = (symbolId: string, col: number, row: number): Placement => ({
   row,
 });
 
-export function describeDocStoreContract(name: string, makeStore: () => DocStore): void {
-  describe(`DocStore contract: ${name}`, () => {
+export function describeChartStoreContract(name: string, makeStore: () => ChartStore): void {
+  describe(`ChartStore contract: ${name}`, () => {
     it("starts empty", async () => {
       expect(await makeStore().list()).toEqual([]);
     });

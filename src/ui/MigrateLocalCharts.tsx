@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { DocMeta } from "../model/types";
-import type { DocStore } from "../storage/DocStore";
+import type { ChartStore } from "../storage/ChartStore";
 import { migrateLocalCharts, type MigrationResult } from "../storage/migrateLocalCharts";
 import { localChartStore } from "../storage/store";
 
@@ -26,7 +26,7 @@ export function MigrateLocalCharts({
   targetStore,
   onDone,
 }: {
-  targetStore: DocStore;
+  targetStore: ChartStore;
   onDone: () => void;
 }) {
   const [phase, setPhase] = useState<Phase>({ step: "checking" });

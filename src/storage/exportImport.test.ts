@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { DocMeta } from "../model/types";
-import { DEFAULT_CHART_NAME, StorageFullError, type DocStore } from "./DocStore";
+import { DEFAULT_CHART_NAME, StorageFullError, type ChartStore } from "./ChartStore";
 import { importChart, importChartIntoStore } from "./exportImport";
-import { createMemoryDocStore } from "./keyValueDocStore";
+import { createMemoryChartStore } from "./keyValueChartStore";
 import { emptyChart } from "./serialize";
 
 const jsonFile = (name: string, body: unknown) =>
@@ -29,7 +29,7 @@ describe("importChart", () => {
 
 describe("importChartIntoStore", () => {
   it("creates the chart and writes its content", async () => {
-    const store = createMemoryDocStore();
+    const store = createMemoryChartStore();
     const file = jsonFile("Gansey.stitchchart.json", emptyChart());
 
     const meta = await importChartIntoStore(store, file);
@@ -48,7 +48,7 @@ describe("importChartIntoStore", () => {
       rev: "r1",
     };
     const removed: string[] = [];
-    const store: DocStore = {
+    const store: ChartStore = {
       list: async () => [],
       create: async () => created,
       load: async () => {

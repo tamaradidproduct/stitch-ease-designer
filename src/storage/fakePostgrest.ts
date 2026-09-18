@@ -1,8 +1,8 @@
 /**
  * A minimal fake of the `supabase-js` PostgREST query builder, faithful
- * enough to run `docStore.contract.ts` against `createSupabaseDocStore`.
+ * enough to run `chartStore.contract.ts` against `createSupabaseChartStore`.
  *
- * Only implements the exact call shapes `supabaseDocStore.ts` actually uses:
+ * Only implements the exact call shapes `supabaseChartStore.ts` actually uses:
  * `select().order()`, `select().eq().maybeSingle()`, `insert().select().single()`,
  * `update().eq()[.eq()].select().maybeSingle()`, `delete().eq().select().maybeSingle()`.
  * Not a general PostgREST mock — extend the chain shapes here if the store
@@ -160,7 +160,7 @@ class Builder {
   }
 }
 
-/** Enough of `SupabaseClient` for `createSupabaseDocStore` to run against. */
+/** Enough of `SupabaseClient` for `createSupabaseChartStore` to run against. */
 export function createFakeSupabaseClient(
   table: FakeTable,
   clock: () => Date = () => new Date(),
