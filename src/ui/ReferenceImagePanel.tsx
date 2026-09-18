@@ -101,19 +101,13 @@ export function ReferenceImagePanel() {
           <span>{image ? (image.visible ? "Visible on canvas" : "Hidden") : "No image added"}</span>
         </div>
         {image ? (
-          // While editing, "Save changes" lives in the reference dock at the
-          // bottom of the canvas, next to "Set scale" - the two actions that
-          // belong together while a designer is looking at the image itself,
-          // not back here in the side panel.
-          !open && (
-            <button
-              type="button"
-              className="btn btn--quiet refpanel__headerAction"
-              onClick={() => setOpen(true)}
-            >
-              Edit reference
-            </button>
-          )
+          <button
+            type="button"
+            className="btn btn--quiet refpanel__headerAction"
+            onClick={() => setOpen(!open)}
+          >
+            {open ? "Save changes" : "Edit reference"}
+          </button>
         ) : (
           <button
             type="button"

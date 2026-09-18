@@ -31,11 +31,19 @@ export function tapActivate(fn: () => void) {
   return {
     onClick: (e: ReactMouseEvent) => {
       const el = e.currentTarget as TapGuarded;
-      if (el.__tapLastFired !== undefined && Date.now() - el.__tapLastFired < 500) return;
+      if (el.__tapLastFired !== undefined && Date.now() - el.__tapLastFired < 500) {
+        e.stopPropagation();
+        return;
+      }
       fn();
     },
     onPointerUp: (e: ReactPointerEvent) => {
       if (e.pointerType === "mouse") return;
+      // Touch actions run here rather than in the synthesized click below.
+      // Keep that terminal event inside a floating control too: on iPad it
+      // can otherwise reach a canvas gesture listener after the action has
+      // re-rendered its dock.
+      e.stopPropagation();
       e.preventDefault();
       (e.currentTarget as TapGuarded).__tapLastFired = Date.now();
       fn();
