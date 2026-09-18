@@ -7,7 +7,7 @@ import {
   modeFor,
   resolveSuggestAction,
   shouldBlockDismissGesture,
-  shouldStartStickyDismissStroke,
+  shouldStartDismissStroke,
   shouldDismissSelectionBeforeDrawing,
   shouldOpenPickerForSelection,
   straightAxisFor,
@@ -219,16 +219,20 @@ describe("modeFor", () => {
   });
 });
 
-describe("shouldStartStickyDismissStroke", () => {
-  it("claims a tap or drag that starts on a protected confirmed stitch", () => {
-    expect(shouldStartStickyDismissStroke(noMods, SUGGEST_SYMBOL_ID, "dismiss")).toBe(true);
+describe("shouldStartDismissStroke", () => {
+  it("claims a tap or drag that starts on a protected confirmed stitch for sticky Dismiss", () => {
+    expect(shouldStartDismissStroke(noMods, SUGGEST_SYMBOL_ID, "dismiss")).toBe(true);
   });
 
-  it("does not claim a gesture when a live modifier overrides or conflicts with sticky Dismiss", () => {
-    expect(shouldStartStickyDismissStroke(cmdHeld, SUGGEST_SYMBOL_ID, "dismiss")).toBe(false);
-    expect(shouldStartStickyDismissStroke(dismissHeld, SUGGEST_SYMBOL_ID, "dismiss")).toBe(false);
+  it("claims a tap or drag that starts on a protected confirmed stitch for live Dismiss", () => {
+    expect(shouldStartDismissStroke(dismissHeld, SUGGEST_SYMBOL_ID, "suggest")).toBe(true);
+    expect(shouldStartDismissStroke(dismissHeld, null, "suggest")).toBe(true);
+  });
+
+  it("does not claim a gesture when a live modifier overrides or conflicts with Dismiss", () => {
+    expect(shouldStartDismissStroke(cmdHeld, SUGGEST_SYMBOL_ID, "dismiss")).toBe(false);
     expect(
-      shouldStartStickyDismissStroke(
+      shouldStartDismissStroke(
         { ...noMods, metaKey: true, shiftKey: true, altKey: true },
         SUGGEST_SYMBOL_ID,
         "dismiss",
@@ -236,9 +240,9 @@ describe("shouldStartStickyDismissStroke", () => {
     ).toBe(false);
   });
 
-  it("does not claim a normal Suggest stroke or a real armed stitch", () => {
-    expect(shouldStartStickyDismissStroke(noMods, SUGGEST_SYMBOL_ID, "suggest")).toBe(false);
-    expect(shouldStartStickyDismissStroke(noMods, "purl", "dismiss")).toBe(false);
+  it("does not claim a normal Suggest stroke or a real armed stitch without live Dismiss", () => {
+    expect(shouldStartDismissStroke(noMods, SUGGEST_SYMBOL_ID, "suggest")).toBe(false);
+    expect(shouldStartDismissStroke(noMods, "purl", "dismiss")).toBe(false);
   });
 });
 

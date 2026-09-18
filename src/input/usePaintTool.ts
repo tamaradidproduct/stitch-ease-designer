@@ -213,23 +213,26 @@ export function modeFor(
 }
 
 /**
- * Sticky Dismiss must claim a drag even if its first cell is protected. That
- * lets a touch stroke begin on a confirmed stitch and continue to pending
- * cells, while `eraseAt` remains the per-cell protection against erasing it.
+ * Dismiss must claim a drag even if its first cell is protected. That lets a
+ * touch or Shift+Opt stroke begin on a confirmed stitch and continue to
+ * pending cells, while `eraseAt` remains the per-cell protection against
+ * erasing it.
  */
-export function shouldStartStickyDismissStroke(
-  e: { metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey: boolean },
+export function shouldStartDismissStroke(
+  e: ModifierKeys,
   armedSymbolId: string | null,
   suggestAction: SuggestAction,
 ): boolean {
-  return (
+  const confirmHeld = e.metaKey || e.ctrlKey;
+  const dismissHeld = e.shiftKey && e.altKey;
+  const stickyDismiss =
     armedSymbolId === SUGGEST_SYMBOL_ID &&
     suggestAction === "dismiss" &&
     !e.metaKey &&
     !e.ctrlKey &&
     !e.shiftKey &&
-    !e.altKey
-  );
+    !e.altKey;
+  return !confirmHeld && (dismissHeld || stickyDismiss);
 }
 
 /**
@@ -667,7 +670,8 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         // Same Dismiss no-op as the main flow below (FR-12) - Shift+Opt on
         // a cell it can't act on must not fall through to retargeting the
         // open picker via Shift's ordinary meaning here.
-        if (shouldBlockDismissGesture(e, modeHere)) return;
+        const startsDismissStroke = shouldStartDismissStroke(e, ui().armedSymbolId, ui().suggestAction);
+        if (shouldBlockDismissGesture(e, modeHere) && !startsDismissStroke) return;
 
         const modifierSelect = e.shiftKey || e.metaKey || e.ctrlKey;
         const modifierTarget = pickerCell
@@ -745,6 +749,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         existingAtCell,
         ui().referenceImageUnrecognized.has(cellKey(cell.col, cell.row)),
       );
+      const startsDismissStroke = shouldStartDismissStroke(e, ui().armedSymbolId, ui().suggestAction);
 
       // Shift+Opt is Dismiss's own destructive chord - landing on a cell it
       // can't act on (a hand-drawn or already-confirmed stitch, or plain
@@ -753,7 +758,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       // stitch, opening its picker). FR-12 promises Dismiss never touches
       // those cells; silently doing something else instead is just as
       // surprising as erasing them outright would have been.
-      if (shouldBlockDismissGesture(e, modeHere)) return;
+      if (shouldBlockDismissGesture(e, modeHere) && !startsDismissStroke) return;
 
       // Shift has to be down before the gesture begins. Reading the store as
       // well as the pointer event keeps the canvas state and its cursor in
@@ -800,7 +805,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         return;
       }
 
-      if (shouldStartStickyDismissStroke(e, ui().armedSymbolId, ui().suggestAction)) {
+      if (startsDismissStroke) {
         e.preventDefault();
         painting = true;
         last = null;
