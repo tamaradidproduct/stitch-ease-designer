@@ -51,17 +51,4 @@ body:
     attributes:
       value: |
         ---
-        **Retesting:** add a comment below in this exact format so the "Sync Result from comment" workflow can pick it up:
-
-        ```
-        Result: Pass
-        Device: iPad
-        Input: Pencil
-        Notes: optional free text
-        ```
-
-        `Result` must be one of: Not run, Pass, Pass with comments, Fail, Blocked, Ready to retest.
-        `Device` must be one of: Desktop, iPad.
-        `Input` must be one of: N/A, Touch, Pencil.
-
-        Spelling/casing has to match exactly, or the sync workflow can't find the matching project field option and skips that field.
+        **Retesting:** don't comment on this issue — click **Create sub-issue** below and use the **Test Run** template. Each run gets its own sub-issue (its own history entry), and the "Sync QA result" workflow reads it from there and updates this Test Case's Result/Device/Input Method/Environment project fields and `qa-flagged` label automatically.
