@@ -144,7 +144,7 @@ no toolDock button highlighted, stroke is a no-op.
   add-cursor or an armed-stitch glyph preview.
 - **FR-12.** Effective action is Confirm and the hovered cell is actually confirmable →
   green-check cursor. Effective action is Dismiss and the cell is actually
-  dismissable → red-X cursor. Both chords held at once → `not-allowed`
+  dismissible → red-X cursor. Both chords held at once → `not-allowed`
   (FR-4). **MUST NOT** show the confirm/dismiss cursors over an ineligible
   cell — the eligibility check here **is** `isDismissable` (below), the same
   function the paint logic calls, not a separate copy.
@@ -239,8 +239,8 @@ sync by hand.** This is why the shared helpers above exist now.
   engages Select; `Opt/Alt` held during that drag also picks up empty cells in
   the marquee. Setting Dismiss's trigger to `Cmd`/`Ctrl`+`Opt/Alt` unconditionally
   claimed that chord first. First attempted fix (scope the erase branch to
-  only fire when something's actually dismissable, else fall through) was
-  correct but insufficient for a drag starting on a dismissable cell. Actual
+  only fire when something's actually dismissible, else fall through) was
+  correct but insufficient for a drag starting on a dismissible cell. Actual
   fix: don't use `Cmd`/`Ctrl`+`Opt/Alt` for Dismiss at all — asymmetric pair,
   Confirm = `Cmd`/`Ctrl`, Dismiss = `Shift`+`Opt/Alt`, zero overlap with the
   temporary-Select system (which only ever keys off `Cmd`/`Ctrl`).
