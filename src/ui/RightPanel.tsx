@@ -45,6 +45,7 @@ export function RightPanel() {
   const [activeGlossaryResult, setActiveGlossaryResult] = useState(0);
   const [draggingQuickId, setDraggingQuickId] = useState<string | null>(null);
   const [dragOverQuickId, setDragOverQuickId] = useState<string | null>(null);
+  const [dragOverQuickSlot, setDragOverQuickSlot] = useState<number | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [exportBusy, setExportBusy] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -74,6 +75,12 @@ export function RightPanel() {
   const clearReferenceImageUnrecognized = useUiStore((state) => state.clearReferenceImageUnrecognized);
   const chartId = meta?.id;
   const addedGlossaryIds = useGlossaryIds(chartId);
+
+  const resetDragState = () => {
+    setDraggingQuickId(null);
+    setDragOverQuickId(null);
+    setDragOverQuickSlot(null);
+  };
 
   // Plain useEffect defers to a paint-independent scheduler tick, which
   // lands outside the synchronous user-gesture window iOS requires to raise
@@ -432,8 +439,7 @@ export function RightPanel() {
                     event.preventDefault();
                     const draggedId = draggingQuickId;
                     if (draggedId && draggedId !== id) moveQuickSymbolTo(draggedId, slot);
-                    setDraggingQuickId(null);
-                    setDragOverQuickId(null);
+                    resetDragState();
                   }}
                 >
                   <button
@@ -445,10 +451,7 @@ export function RightPanel() {
                       event.dataTransfer.setData("text/plain", symbol.id);
                       setDraggingQuickId(symbol.id);
                     }}
-                    onDragEnd={() => {
-                      setDraggingQuickId(null);
-                      setDragOverQuickId(null);
-                    }}
+                    onDragEnd={resetDragState}
                     aria-label={`Drag to reorder ${symbol.label}`}
                     title="Drag to reorder"
                   >
@@ -553,6 +556,23 @@ export function RightPanel() {
                   key={`empty:${slot}`}
                   type="button"
                   className="glossary__item glossary__item--empty"
+                  data-drag-over={dragOverQuickSlot === slot}
+                  onDragOver={(event) => {
+                    if (draggingQuickId) {
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = "move";
+                      if (dragOverQuickSlot !== slot) setDragOverQuickSlot(slot);
+                    }
+                  }}
+                  onDragLeave={() =>
+                    setDragOverQuickSlot((current) => current === slot ? null : current)
+                  }
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    const draggedId = draggingQuickId;
+                    if (draggedId) moveQuickSymbolTo(draggedId, slot);
+                    resetDragState();
+                  }}
                   onClick={() => searchForQuickStitch(slot)}
                   title={slot < 5 ? `Choose a stitch for shortcut ${slot + 1}` : "Add another stitch"}
                 >
