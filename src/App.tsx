@@ -9,7 +9,6 @@ import { ChartEditor } from "./ui/ChartEditor";
 import { ChartList } from "./ui/ChartList";
 import { MigrateLocalCharts } from "./ui/MigrateLocalCharts";
 import { SignIn } from "./ui/SignIn";
-import { QaDashboard } from "./qa/QaDashboard";
 
 /**
  * Hash routing, not browser history: GitHub Pages serves static files with no
@@ -41,13 +40,12 @@ export default function App() {
   return <SignedIn userId={session.session.user.id} role={role} />;
 }
 
-function ChartRoutes({ role, qaEnabled }: { role: Role; qaEnabled: boolean }) {
+function ChartRoutes() {
   return (
     <HashRouter>
       <Routes>
         <Route path="/" element={<ChartList />} />
         <Route path="/c/:id" element={<ChartEditor />} />
-        <Route path="/qa" element={role === "admin" && qaEnabled ? <QaDashboard /> : <Navigate to="/" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </HashRouter>
@@ -82,7 +80,7 @@ function SignedIn({ userId, role }: { userId: string; role: Role }) {
     );
   }
 
-  return <ChartRoutes role={role} qaEnabled />;
+  return <ChartRoutes />;
 }
 
 /**
@@ -109,7 +107,5 @@ function DevLocal({ role }: { role: Role }) {
     useUiStore.getState().setRole(role);
   }, [role]);
 
-  // Local development intentionally has no authenticated Supabase user, but
-  // the QA route is useful to preview alongside the rest of the app.
-  return <ChartRoutes role={role} qaEnabled />;
+  return <ChartRoutes />;
 }

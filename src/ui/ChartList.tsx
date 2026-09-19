@@ -6,7 +6,6 @@ import { chartStore } from "../storage/store";
 import { importChartIntoStore } from "../storage/exportImport";
 import { removeReferenceImageFile } from "../storage/referenceImages";
 import { ConfirmDialog } from "./ConfirmDialog";
-import { useUiStore } from "../state/uiStore";
 
 const formatWhen = (iso: string) => {
   const date = new Date(iso);
@@ -25,7 +24,6 @@ export function ChartList() {
   const [renaming, setRenaming] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<DocMeta | null>(null);
   const fileInput = useRef<HTMLInputElement | null>(null);
-  const isAdmin = useUiStore((state) => state.role === "admin");
 
   const refresh = useCallback(async () => {
     try {
@@ -81,11 +79,6 @@ export function ChartList() {
           <button type="button" className="btn btn--primary" onClick={onNew}>
             New chart
           </button>
-          {isAdmin && (
-            <button type="button" className="btn btn--quiet" onClick={() => navigate("/qa")}>
-              QA
-            </button>
-          )}
           {/* No real session to sign out of in dev-bypass mode - the button
               would be a visible no-op, so it's not shown at all rather than
               shown disabled or explained. */}

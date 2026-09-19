@@ -104,10 +104,14 @@ permission, and save it in this repository as the `STAGING_PAGES_TOKEN` Actions
 secret. The staging workflow then builds and validates the app before it writes
 the generated files to the staging site's `gh-pages` branch.
 
-After a staging deployment, run **Create staging QA run and collect sign-off**
-against the staging URL. Once QA approves it, open a pull request from
-`staging` to `main`; the protected `production` environment pauses the final
-Pages deployment until the release is approved.
+After validating a staging deployment through the current QA process, open a
+pull request from `staging` to `main`; the protected `production` environment
+pauses the final Pages deployment until the release is approved.
+
+The former test-cases-as-code dashboard and synchronization workflows are
+retired. Their database migrations remain in version control as historical
+migration records; removing already-applied migrations would desynchronize
+Supabase environments. The legacy QA tables are no longer used by the app.
 
 Pages is configured with **Build type: GitHub Actions** (not the legacy
 branch mode, which would publish the raw repository instead of `dist/`).
@@ -215,31 +219,6 @@ request.
 
 There's no in-app invite or role-management UI yet — both are handled by
 hand via the dashboard/SQL editor for now.
-
-### QA test management
-
-Admins can open `#/qa` to create a staging test run, execute its Desktop and
-iPad test matrix, and record the final product sign-off. Test definitions live
-in `manual-tests/` as Markdown with frontmatter. The dashboard is deliberately
-an admin-only surface; database policies independently enforce the same
-`app_metadata.role = admin` rule, so hiding the route is never the access
-control boundary.
-
-Apply the QA migrations in `supabase/migrations/` to the Stitch Ease Supabase
-project before using this area. The dashboard syncs FR/DNT items from
-`docs/PRD.md`, then displays linked test cases from `manual-tests/` with their
-preconditions, steps, expected result, and modifier/input. A test run records
-only a status, comments, and private image/PDF attachments.
-
-The repository's `sync-manual-tests.yml` workflow uses a server-only
-`SUPABASE_SERVICE_ROLE_KEY` secret to upsert requirements and test definitions;
-never add that key to a `VITE_` variable or expose it in the browser. To enable
-the **Create GitHub issue** action for failed or blocked tests, deploy the
-`create-qa-issue` Edge Function and add its `GITHUB_ISSUES_TOKEN` secret in
-Supabase. Use a fine-grained GitHub token scoped only to this repository with
-**Issues: Read and write** permission. The token remains server-side; it is
-never shipped to the app. Configure a protected GitHub `staging` environment
-with QA required reviewers for `qa-staging-signoff.yml`.
 
 ## Terminology
 
