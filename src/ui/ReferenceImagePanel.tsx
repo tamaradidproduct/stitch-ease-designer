@@ -64,7 +64,9 @@ export function ReferenceImagePanel() {
       if (!referenceImagePanelRef.current?.contains(event.target as Node)) setTraceMenuOpen(false);
     };
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setTraceMenuOpen(false);
+      if (event.key !== "Escape") return;
+      event.stopImmediatePropagation();
+      setTraceMenuOpen(false);
     };
     document.addEventListener("pointerdown", closeOutside);
     document.addEventListener("keydown", closeOnEscape);
