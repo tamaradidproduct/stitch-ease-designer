@@ -28,6 +28,7 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_GTM_ID: ${{ vars.VITE_GTM_ID }}
 
       - name: Publish to the staging Pages repository
         uses: peaceiris/actions-gh-pages@v4
