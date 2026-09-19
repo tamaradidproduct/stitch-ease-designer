@@ -12,7 +12,13 @@ import { ReferenceImagePanel } from "./ReferenceImagePanel";
 import { SymbolGlyph } from "./SymbolGlyph";
 import { searchSymbols } from "./symbolSearch";
 import { tapActivate } from "./tapActivate";
-import { collectGlossarySymbols, countConfirmedStitches, loadGlossaryIds, symbolsWithAnyPlacement } from "./chartGlossary";
+import {
+  collectGlossarySymbols,
+  countConfirmedStitches,
+  saveGlossaryIds,
+  symbolsWithAnyPlacement,
+  useGlossaryIds,
+} from "./chartGlossary";
 import { CheckIcon, CloseIcon, CrossIcon } from "./icons";
 
 /**
@@ -44,9 +50,6 @@ export function RightPanel() {
   const [exportOpen, setExportOpen] = useState(false);
   const [exportBusy, setExportBusy] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
-  const [addedGlossaryIds, setAddedGlossaryIds] = useState<string[]>(() =>
-    loadGlossaryIds(useDocStore.getState().meta?.id),
-  );
   const glossarySearchRef = useRef<HTMLInputElement | null>(null);
   const inlineSearchRef = useRef<HTMLDivElement | null>(null);
   const meta = useDocStore((state) => state.meta);
@@ -76,10 +79,7 @@ export function RightPanel() {
   const referenceImageUnrecognized = useUiStore((state) => state.referenceImageUnrecognized);
   const clearReferenceImageUnrecognized = useUiStore((state) => state.clearReferenceImageUnrecognized);
   const chartId = meta?.id;
-
-  useEffect(() => {
-    setAddedGlossaryIds(loadGlossaryIds(chartId));
-  }, [chartId]);
+  const addedGlossaryIds = useGlossaryIds(chartId);
 
   // Plain useEffect defers to a paint-independent scheduler tick, which
   // lands outside the synchronous user-gesture window iOS requires to raise
@@ -239,24 +239,14 @@ export function RightPanel() {
   const addToGlossary = (id: string) => {
     if (!meta || glossaryIds.has(id)) return;
     const next = [...addedGlossaryIds, id];
-    setAddedGlossaryIds(next);
     setGlossaryQuery("");
-    try {
-      localStorage.setItem(`stitch-ease:glossary:${meta.id}`, JSON.stringify(next));
-    } catch {
-      // The glossary remains available for this session if storage is unavailable.
-    }
+    saveGlossaryIds(meta.id, next);
   };
   const removeFromGlossary = (id: string) => {
     if (!meta || symbolsPlaced.has(id)) return;
     const next = addedGlossaryIds.filter((symbolId) => symbolId !== id);
-    setAddedGlossaryIds(next);
     removeQuickSymbol(id);
-    try {
-      localStorage.setItem(`stitch-ease:glossary:${meta.id}`, JSON.stringify(next));
-    } catch {
-      // The glossary remains updated for this session if storage is unavailable.
-    }
+    saveGlossaryIds(meta.id, next);
   };
   const chooseSearchResult = (id: string) => {
     addToGlossary(id);
