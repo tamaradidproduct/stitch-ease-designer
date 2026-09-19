@@ -76,6 +76,10 @@ describe("shouldBlockDismissGesture", () => {
     expect(shouldBlockDismissGesture({ ...dismissHeld, metaKey: true }, null)).toBe(false);
     expect(shouldBlockDismissGesture({ ...dismissHeld, ctrlKey: true }, null)).toBe(false);
   });
+
+  it("does not block when a valid stroke mode is present", () => {
+    expect(shouldBlockDismissGesture(dismissHeld, { kind: "erase" })).toBe(false);
+  });
 });
 
 describe("straight drawing", () => {

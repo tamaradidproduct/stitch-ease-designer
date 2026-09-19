@@ -39,9 +39,9 @@ export function shouldDismissSelectionBeforeDrawing(
 }
 
 /** Whether a live marquee should include empty cells as well as placements. */
-export function includeEmptyCells(
-  e: { metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey: boolean },
-): boolean {
+export type ModifierKeys = { metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey: boolean };
+
+export function includeEmptyCells(e: ModifierKeys): boolean {
   return (e.metaKey || e.ctrlKey) && e.shiftKey && e.altKey;
 }
 
@@ -49,10 +49,7 @@ export function includeEmptyCells(
  * Shift+Opt/Alt with no dismissible target is a no-op, except when Cmd/Ctrl
  * is also held: that full chord belongs to empty-cell marquee selection.
  */
-export function shouldBlockDismissGesture(
-  e: { metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey: boolean },
-  mode: StrokeMode | null,
-): boolean {
+export function shouldBlockDismissGesture(e: ModifierKeys, mode: StrokeMode | null): boolean {
   return e.shiftKey && e.altKey && !e.metaKey && !e.ctrlKey && !mode;
 }
 
