@@ -197,6 +197,23 @@ request.
 There's no in-app invite or role-management UI yet — both are handled by
 hand via the dashboard/SQL editor for now.
 
+### QA test management
+
+Admins can open `#/qa` to create a staging test run, execute its Desktop and
+iPad test matrix, and record the final product sign-off. Test definitions live
+in `manual-tests/` as Markdown with frontmatter. The dashboard is deliberately
+an admin-only surface; database policies independently enforce the same
+`app_metadata.role = admin` rule, so hiding the route is never the access
+control boundary.
+
+Apply `supabase/migrations/20260918235725_create_qa_test_management.sql` to
+the Stitch Ease Supabase project before using this area. The repository's
+`sync-manual-tests.yml` workflow uses a server-only
+`SUPABASE_SERVICE_ROLE_KEY` secret to upsert test definitions; never add that
+key to a `VITE_` variable or expose it in the browser. Configure a protected
+GitHub `staging` environment with QA required reviewers for
+`qa-staging-signoff.yml`.
+
 ## Terminology
 
 Terms used consistently across the code and this doc.
