@@ -76,6 +76,12 @@ export function RightPanel() {
   const chartId = meta?.id;
   const addedGlossaryIds = useGlossaryIds(chartId);
 
+  const resetDragState = () => {
+    setDraggingQuickId(null);
+    setDragOverQuickId(null);
+    setDragOverQuickSlot(null);
+  };
+
   // Plain useEffect defers to a paint-independent scheduler tick, which
   // lands outside the synchronous user-gesture window iOS requires to raise
   // the on-screen keyboard for a focus() call - the same issue StitchPicker
@@ -433,9 +439,7 @@ export function RightPanel() {
                     event.preventDefault();
                     const draggedId = draggingQuickId;
                     if (draggedId && draggedId !== id) moveQuickSymbolTo(draggedId, slot);
-                    setDraggingQuickId(null);
-                    setDragOverQuickId(null);
-                    setDragOverQuickSlot(null);
+                    resetDragState();
                   }}
                 >
                   <button
@@ -447,11 +451,7 @@ export function RightPanel() {
                       event.dataTransfer.setData("text/plain", symbol.id);
                       setDraggingQuickId(symbol.id);
                     }}
-                    onDragEnd={() => {
-                      setDraggingQuickId(null);
-                      setDragOverQuickId(null);
-                      setDragOverQuickSlot(null);
-                    }}
+                    onDragEnd={resetDragState}
                     aria-label={`Drag to reorder ${symbol.label}`}
                     title="Drag to reorder"
                   >
@@ -561,7 +561,7 @@ export function RightPanel() {
                     if (draggingQuickId) {
                       event.preventDefault();
                       event.dataTransfer.dropEffect = "move";
-                      setDragOverQuickSlot(slot);
+                      if (dragOverQuickSlot !== slot) setDragOverQuickSlot(slot);
                     }
                   }}
                   onDragLeave={() =>
@@ -571,9 +571,7 @@ export function RightPanel() {
                     event.preventDefault();
                     const draggedId = draggingQuickId;
                     if (draggedId) moveQuickSymbolTo(draggedId, slot);
-                    setDraggingQuickId(null);
-                    setDragOverQuickId(null);
-                    setDragOverQuickSlot(null);
+                    resetDragState();
                   }}
                   onClick={() => searchForQuickStitch(slot)}
                   title={slot < 5 ? `Choose a stitch for shortcut ${slot + 1}` : "Add another stitch"}
