@@ -109,5 +109,7 @@ function DevLocal({ role }: { role: Role }) {
     useUiStore.getState().setRole(role);
   }, [role]);
 
-  return <ChartRoutes role={role} qaEnabled={false} />;
+  // Local development intentionally has no authenticated Supabase user, but
+  // the QA route is useful to preview alongside the rest of the app.
+  return <ChartRoutes role={role} qaEnabled />;
 }
