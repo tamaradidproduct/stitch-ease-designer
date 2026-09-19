@@ -28,6 +28,7 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_GTM_ID: ${{ vars.VITE_GTM_ID }}
 
       # public/CNAME belongs to the production site, so overwrite it in the
       # generated staging artifact before publishing it to the separate site.
@@ -41,3 +42,35 @@ jobs:
           publish_branch: gh-pages
           publish_dir: dist
           keep_files: false
+
+      # Deployment logging is deliberately best-effort: a temporary Airtable
+      # outage must not roll back an otherwise successful staging deployment.
+      - name: Record successful deployment in Airtable
+        continue-on-error: true
+        env:
+          AIRTABLE_DEPLOY_WEBHOOK_URL: ${{ secrets.AIRTABLE_STAGING_DEPLOY_WEBHOOK_URL }}
+          DEPLOYMENT_URL: https://staging.designer.stitch-ease.com
+          GITHUB_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          DEPLOYED_COMMIT_SHA: ${{ github.sha }}
+          DEPLOYED_BRANCH: ${{ github.ref_name }}
+        run: |
+          if [ -z "$AIRTABLE_DEPLOY_WEBHOOK_URL" ]; then
+            echo "::warning::AIRTABLE_STAGING_DEPLOY_WEBHOOK_URL is not configured; skipping Airtable deployment logging"
+            exit 0
+          fi
+
+          short_sha="${DEPLOYED_COMMIT_SHA:0:7}"
+          jq -n \
+            --arg deployment "staging · $short_sha" \
+            --arg commit_sha "$DEPLOYED_COMMIT_SHA" \
+            --arg branch "$DEPLOYED_BRANCH" \
+            --arg deployment_url "$DEPLOYMENT_URL" \
+            --arg github_run_url "$GITHUB_RUN_URL" \
+            --arg deployed_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg workflow_run_id "$WORKFLOW_RUN_ID" \
+            '{deployment: $deployment, commit_sha: $commit_sha, branch: $branch, deployment_url: $deployment_url, github_run_url: $github_run_url, deployed_at: $deployed_at, workflow_run_id: $workflow_run_id}' \
+          | curl --fail --silent --show-error --retry 3 \
+              --header 'Content-Type: application/json' \
+              --data-binary @- \
+              "$AIRTABLE_DEPLOY_WEBHOOK_URL"
