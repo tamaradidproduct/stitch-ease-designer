@@ -87,8 +87,27 @@ to anyone who opens the site.
 
 Every push to `main` builds and publishes to GitHub Pages via
 `.github/workflows/deploy.yml`. The deploy is gated on typecheck and the test
-suite — this is what the group uses, and a broken build reaching them is worse
-than a late one.
+suite, then pauses for the protected `production` environment approval. This
+is what the group uses, and a broken build reaching them is worse than a late
+one.
+
+### Staging release flow
+
+The `staging` branch deploys to the separate
+[`stitch-ease-designer-staging`](https://github.com/tamaradidproduct/stitch-ease-designer-staging)
+GitHub Pages site via `.github/workflows/deploy-staging.yml`. Its custom domain
+is `https://staging.designer.stitch-ease.com`.
+
+To enable the staging publisher, create a fine-grained GitHub personal access
+token limited to the staging repository with **Contents: Read and write**
+permission, and save it in this repository as the `STAGING_PAGES_TOKEN` Actions
+secret. The staging workflow then builds and validates the app before it writes
+the generated files to the staging site's `gh-pages` branch.
+
+After a staging deployment, run **Create staging QA run and collect sign-off**
+against the staging URL. Once QA approves it, open a pull request from
+`staging` to `main`; the protected `production` environment pauses the final
+Pages deployment until the release is approved.
 
 Pages is configured with **Build type: GitHub Actions** (not the legacy
 branch mode, which would publish the raw repository instead of `dist/`).

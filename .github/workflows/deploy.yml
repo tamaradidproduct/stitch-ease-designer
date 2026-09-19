@@ -48,7 +48,7 @@ jobs:
           path: dist
 
   deploy:
-    needs: build
+    needs: release_approval
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -56,3 +56,13 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  # This environment is the release gate. Keep the Pages-specific environment
+  # on the actual deploy job so the deploy-pages action continues to publish to
+  # the production GitHub Pages site.
+  release_approval:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - run: echo "Production deployment approved"
