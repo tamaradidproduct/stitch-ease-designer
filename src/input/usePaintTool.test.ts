@@ -7,6 +7,7 @@ import {
   modeFor,
   resolveSuggestAction,
   shouldBlockDismissGesture,
+  shouldStartDismissStroke,
   shouldDismissSelectionBeforeDrawing,
   shouldOpenPickerForSelection,
   straightAxisFor,
@@ -215,6 +216,33 @@ describe("modeFor", () => {
     expect(modeFor(both, SUGGEST_SYMBOL_ID, "dismiss", suggested, false)).toBeNull();
     // And it wins over the no-modifier override too.
     expect(modeFor(both, "purl", "suggest", suggested, false)).toBeNull();
+  });
+});
+
+describe("shouldStartDismissStroke", () => {
+  it("claims a tap or drag that starts on a protected confirmed stitch for sticky Dismiss", () => {
+    expect(shouldStartDismissStroke(noMods, SUGGEST_SYMBOL_ID, "dismiss")).toBe(true);
+  });
+
+  it("claims a tap or drag that starts on a protected confirmed stitch for live Dismiss", () => {
+    expect(shouldStartDismissStroke(dismissHeld, SUGGEST_SYMBOL_ID, "suggest")).toBe(true);
+    expect(shouldStartDismissStroke(dismissHeld, null, "suggest")).toBe(true);
+  });
+
+  it("does not claim a gesture when a live modifier overrides or conflicts with Dismiss", () => {
+    expect(shouldStartDismissStroke(cmdHeld, SUGGEST_SYMBOL_ID, "dismiss")).toBe(false);
+    expect(
+      shouldStartDismissStroke(
+        { ...noMods, metaKey: true, shiftKey: true, altKey: true },
+        SUGGEST_SYMBOL_ID,
+        "dismiss",
+      ),
+    ).toBe(false);
+  });
+
+  it("does not claim a normal Suggest stroke or a real armed stitch without live Dismiss", () => {
+    expect(shouldStartDismissStroke(noMods, SUGGEST_SYMBOL_ID, "suggest")).toBe(false);
+    expect(shouldStartDismissStroke(noMods, "purl", "dismiss")).toBe(false);
   });
 });
 
