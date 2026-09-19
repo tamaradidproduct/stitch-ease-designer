@@ -2,7 +2,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 /**
- * Deployed at the root of app.stitch-ease.com (see public/CNAME) rather than
+ * Deployed at the root of staging.designer.stitch-ease.com (see public/CNAME) rather than
  * at GitHub's own /<repo>/ project-page path, so the build serves from "/"
  * same as dev - no path prefix to keep in sync between them anymore.
  */
