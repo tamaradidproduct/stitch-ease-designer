@@ -113,7 +113,7 @@ const response = await fetch(`${baseUrl}/rest/v1/qa_test_cases?on_conflict=id`, 
 
 if (!response.ok) throw new Error(`Test case sync failed: ${await response.text()}`);
 const links = cases.flatMap((testCase) => testCase.requirement_ids.map((requirement_id) => ({ test_case_id: testCase.id, requirement_id })));
-const clearLinks = await fetch(`${baseUrl}/rest/v1/qa_test_case_requirements`, { method: "DELETE", headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } });
+const clearLinks = await fetch(`${baseUrl}/rest/v1/qa_test_case_requirements?test_case_id=not.is.null`, { method: "DELETE", headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } });
 if (!clearLinks.ok) throw new Error(`Requirement link reset failed: ${await clearLinks.text()}`);
 if (links.length) {
   const linksResponse = await fetch(`${baseUrl}/rest/v1/qa_test_case_requirements`, { method: "POST", headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" }, body: JSON.stringify(links) });
