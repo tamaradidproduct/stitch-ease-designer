@@ -30,10 +30,6 @@ jobs:
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
           VITE_GTM_ID: ${{ vars.VITE_GTM_ID }}
 
-      # public/CNAME belongs to the production site, so overwrite it in the
-      # generated staging artifact before publishing it to the separate site.
-      - run: printf '%s\n' 'staging.designer.stitch-ease.com' > dist/CNAME
-
       - name: Publish to the staging Pages repository
         uses: peaceiris/actions-gh-pages@v4
         with:

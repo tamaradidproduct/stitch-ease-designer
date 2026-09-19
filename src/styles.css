@@ -1410,12 +1410,12 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
-.glossaryModule {
+.refpanel {
   position: relative;
   overflow: visible;
 }
 
-.glossaryModule__paletteButton {
+.refpanel__paletteButton {
   display: grid;
   width: 28px;
   height: 28px;
@@ -1429,16 +1429,16 @@ body {
   cursor: pointer;
 }
 
-.glossaryModule__paletteButton:hover,
-.glossaryModule__paletteButton:focus-visible,
-.glossaryModule__paletteButton[data-on="true"] {
+.refpanel__paletteButton:hover,
+.refpanel__paletteButton:focus-visible,
+.refpanel__paletteButton[data-on="true"] {
   border-color: var(--accent-soft-border);
   background: var(--accent-soft-bg);
   color: var(--accent);
   outline: none;
 }
 
-.glossaryModule__paletteButton svg {
+.refpanel__paletteButton svg {
   width: 17px;
   height: 17px;
   fill: none;
@@ -1448,7 +1448,7 @@ body {
   stroke-linejoin: round;
 }
 
-.traceColors--popover {
+.refpanel__traceColors {
   position: absolute;
   top: 48px;
   right: 8px;
@@ -1937,6 +1937,12 @@ body {
   padding: 4px 8px;
   color: var(--accent);
   font-size: 11px;
+}
+
+.refpanel__headerControls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .refpanel__quickControls {
