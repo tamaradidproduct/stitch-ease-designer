@@ -2801,6 +2801,23 @@ body {
 .qa__resultActions button[data-active="true"][data-status="failed"], .qa__resultActions button[data-active="true"][data-status="blocked"] { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
 .qa__resultActions button[data-active="true"][data-status="skipped"] { background: #e0f2fe; border-color: #7dd3fc; color: #075985; }
 .qa__hint { margin: 10px 0 0; color: var(--muted); font-size: .88rem; }
+.qa__traceability { margin-bottom: 18px; }
+.qa__tableWrap { overflow-x: auto; }
+.qa__tableWrap table { width: 100%; border-collapse: collapse; font-size: .86rem; }
+.qa__tableWrap th, .qa__tableWrap td { padding: 10px; border-top: 1px solid var(--border); text-align: left; vertical-align: top; white-space: pre-line; }
+.qa__tableWrap th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-spacing: .04em; }
+.qa__tableWrap small { display: block; margin-top: 3px; color: var(--muted); }
+.qa__case--result { align-items: start; }
+.qa__finding { margin-top: 7px; }
+.qa__feedbackToggle, .qa__attachmentLink, .qa__issue { border: 0; padding: 0; color: var(--accent); background: none; font: inherit; font-size: .8rem; cursor: pointer; text-align: left; }
+.qa__feedback { display: grid; gap: 8px; max-width: 480px; margin-top: 8px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--chrome); }
+.qa__feedbackError { color: var(--danger); }
+.qa__comment { margin: 0; white-space: pre-wrap; color: var(--text); font-size: .85rem; }
+.qa__feedbackInput { display: flex; gap: 6px; }
+.qa__feedbackInput input { min-width: 0; flex: 1; padding: 6px 8px; border: 1px solid var(--border); border-radius: 5px; font: inherit; }
+.qa__feedbackInput button { border: 1px solid var(--accent); border-radius: 5px; background: var(--accent); color: var(--on-solid); cursor: pointer; font: inherit; }
+.qa__attachment { color: var(--muted); font-size: .8rem; }
+.qa__attachment input { display: block; margin-top: 4px; max-width: 100%; }
 
 @media (max-width: 760px) {
   .qa { padding: 20px 14px 40px; }

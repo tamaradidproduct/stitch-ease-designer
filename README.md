@@ -225,13 +225,21 @@ an admin-only surface; database policies independently enforce the same
 `app_metadata.role = admin` rule, so hiding the route is never the access
 control boundary.
 
-Apply `supabase/migrations/20260918235725_create_qa_test_management.sql` to
-the Stitch Ease Supabase project before using this area. The repository's
-`sync-manual-tests.yml` workflow uses a server-only
-`SUPABASE_SERVICE_ROLE_KEY` secret to upsert test definitions; never add that
-key to a `VITE_` variable or expose it in the browser. Configure a protected
-GitHub `staging` environment with QA required reviewers for
-`qa-staging-signoff.yml`.
+Apply the QA migrations in `supabase/migrations/` to the Stitch Ease Supabase
+project before using this area. The dashboard syncs FR/DNT items from
+`docs/PRD.md`, then displays linked test cases from `manual-tests/` with their
+preconditions, steps, expected result, and modifier/input. A test run records
+only a status, comments, and private image/PDF attachments.
+
+The repository's `sync-manual-tests.yml` workflow uses a server-only
+`SUPABASE_SERVICE_ROLE_KEY` secret to upsert requirements and test definitions;
+never add that key to a `VITE_` variable or expose it in the browser. To enable
+the **Create GitHub issue** action for failed or blocked tests, deploy the
+`create-qa-issue` Edge Function and add its `GITHUB_ISSUES_TOKEN` secret in
+Supabase. Use a fine-grained GitHub token scoped only to this repository with
+**Issues: Read and write** permission. The token remains server-side; it is
+never shipped to the app. Configure a protected GitHub `staging` environment
+with QA required reviewers for `qa-staging-signoff.yml`.
 
 ## Terminology
 

@@ -3,6 +3,9 @@ id: TC-SMOKE-001
 title: Open an existing chart
 priority: P1
 component: Chart editor
+requirements:
+  - FR-1
+modifier_input: None
 platforms:
   - desktop
   - ipad

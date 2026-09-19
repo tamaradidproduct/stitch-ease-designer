@@ -3,7 +3,7 @@ name: Sync manual test cases
 on:
   push:
     branches: [main]
-    paths: ["manual-tests/**", "scripts/tcac/sync.mjs"]
+    paths: ["docs/PRD.md", "manual-tests/**", "scripts/tcac/sync.mjs"]
   workflow_dispatch:
 
 permissions:
