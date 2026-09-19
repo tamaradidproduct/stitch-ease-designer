@@ -40,8 +40,6 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export function RightPanel() {
   const [helpOpen, setHelpOpen] = useState(false);
-  const [traceMenuOpen, setTraceMenuOpen] = useState(false);
-  const glossaryModuleRef = useRef<HTMLElement | null>(null);
   const [glossaryQuery, setGlossaryQuery] = useState("");
   const [searchSlot, setSearchSlot] = useState<number | null>(null);
   const [activeGlossaryResult, setActiveGlossaryResult] = useState(0);
@@ -72,10 +70,6 @@ export function RightPanel() {
   const viewport = useUiStore((state) => state.viewport);
   const zoomAt = useUiStore((state) => state.zoomAt);
   const centerViewAt100 = useUiStore((state) => state.centerViewAt100);
-  const stitchHighlightColor = useUiStore((state) => state.stitchHighlightColor);
-  const stitchHighlightOpacity = useUiStore((state) => state.stitchHighlightOpacity);
-  const setStitchHighlight = useUiStore((state) => state.setStitchHighlight);
-  const setStitchHighlightOpacity = useUiStore((state) => state.setStitchHighlightOpacity);
   const referenceImageUnrecognized = useUiStore((state) => state.referenceImageUnrecognized);
   const clearReferenceImageUnrecognized = useUiStore((state) => state.clearReferenceImageUnrecognized);
   const chartId = meta?.id;
@@ -96,22 +90,6 @@ export function RightPanel() {
   useEffect(() => {
     setActiveGlossaryResult(0);
   }, [searchSlot, glossaryQuery]);
-
-  useEffect(() => {
-    if (!traceMenuOpen) return;
-    const closeOutside = (event: PointerEvent) => {
-      if (!glossaryModuleRef.current?.contains(event.target as Node)) setTraceMenuOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setTraceMenuOpen(false);
-    };
-    document.addEventListener("pointerdown", closeOutside);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", closeOutside);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [traceMenuOpen]);
 
   useEffect(() => {
     if (searchSlot === null) return;
@@ -304,7 +282,7 @@ export function RightPanel() {
 
   return (
     <aside className="rightPanel" aria-label="Pattern details">
-      <section ref={glossaryModuleRef} className="sideModule glossaryModule">
+      <section className="sideModule">
         <div className="sideModule__header">
           <div>
             <h2>Stitch glossary</h2>
@@ -312,60 +290,7 @@ export function RightPanel() {
               {glossary.length} stitch type{glossary.length === 1 ? "" : "s"} in this pattern
             </span>
           </div>
-          <button
-            type="button"
-            className="glossaryModule__paletteButton"
-            data-on={traceMenuOpen || stitchHighlightOpacity > 0}
-            {...tapActivate(() => setTraceMenuOpen((open) => !open))}
-            aria-expanded={traceMenuOpen}
-            aria-label="Canvas stitch colors"
-            title="Canvas stitch colors"
-          >
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path d="M10 3a7 7 0 1 0 0 14h1.2a1.6 1.6 0 0 0 0-3.2h-.5a1.2 1.2 0 0 1 0-2.4H13A4 4 0 0 0 17 7.5C17 5 14 3 10 3Z" />
-              <circle cx="6.5" cy="8" r=".8" /><circle cx="9" cy="5.8" r=".8" /><circle cx="13" cy="6.8" r=".8" />
-            </svg>
-          </button>
         </div>
-        {traceMenuOpen && (
-          <div className="traceColors traceColors--popover">
-            <div className="traceColors__label">
-              <span>Canvas stitch color</span>
-              <button type="button" onClick={() => setStitchHighlightOpacity(0)}>Off</button>
-            </div>
-            <div className="traceColors__presets" aria-label="Stitch highlight color">
-              {["#f59e0b", "#ec4899", "#8b5cf6", "#10b981", "#0284c7"].map((color) => (
-                <button
-                  key={color}
-                  type="button"
-                  style={{ background: color }}
-                  data-on={stitchHighlightColor === color && stitchHighlightOpacity > 0}
-                  onClick={() => setStitchHighlight(color, stitchHighlightOpacity || 0.22)}
-                  aria-label={`Use ${color} stitch highlight`}
-                />
-              ))}
-              <label className="traceColors__custom" title="Choose a custom color">
-                <input
-                  type="color"
-                  value={stitchHighlightColor}
-                  onChange={(event) => setStitchHighlight(event.target.value, stitchHighlightOpacity || 0.22)}
-                  aria-label="Custom stitch highlight color"
-                />
-              </label>
-            </div>
-            <label className="traceColors__intensity">
-              <span>Intensity</span>
-              <input
-                type="range"
-                min="0"
-                max="0.5"
-                step="0.05"
-                value={stitchHighlightOpacity}
-                onChange={(event) => setStitchHighlightOpacity(Number(event.target.value))}
-              />
-            </label>
-          </div>
-        )}
         <div className="sideModule__body">
           <div className="glossary">
             {isAdmin && (
