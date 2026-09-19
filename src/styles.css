@@ -6,6 +6,24 @@
   --text-muted: #64748b;
   --accent: #0284c7;
 
+  /* Soft tint of --accent used for hover/selected/focus backgrounds, plus
+     the border that goes with it - repeated identically across the toolbar,
+     stitch picker, glossary and selection controls. */
+  --accent-soft-bg: #e0f2fe;
+  --accent-soft-border: #bae6fd;
+  /* White text/icon color on any solid, saturated button background
+     (accent, danger, the purple Suggest-mode toolDock, dark tooltips) -
+     not tied to one particular background color, just "light enough to
+     read on top of it". */
+  --on-solid: #fff;
+
+  /* Destructive actions (delete, remove, error states) and their soft
+     hover/background tint, repeated identically across pickers, selection
+     actions and error banners. */
+  --danger: #dc2626;
+  --danger-soft-bg: #fef2f2;
+  --danger-soft-border: #fecaca;
+
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   font-size: 13px;
   color: var(--text);
@@ -167,8 +185,8 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  background: #fef2f2;
-  border-bottom-color: #fecaca;
+  background: var(--danger-soft-bg);
+  border-bottom-color: var(--danger-soft-border);
   color: #7f1d1d;
 }
 
@@ -252,7 +270,7 @@ body {
 .glyph__cell {
   position: absolute;
   top: 0;
-  background: #fff;
+  background: var(--bg);
   box-shadow: inset 0 0 0 0.5px #94a3b8;
 }
 
@@ -302,7 +320,7 @@ body {
 .toolbar__btn[data-on="true"] {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--on-solid);
 }
 
 .toolbar__spacer {
@@ -411,7 +429,7 @@ body {
 .referenceDock__apply {
   border-color: var(--accent) !important;
   background: var(--accent) !important;
-  color: #fff !important;
+  color: var(--on-solid) !important;
 }
 
 .referenceDock__apply:hover:not(:disabled),
@@ -454,7 +472,7 @@ body {
 
 .referenceDock__point[data-active="true"] {
   border-color: var(--accent);
-  background: #e0f2fe;
+  background: var(--accent-soft-bg);
   color: var(--accent);
 }
 
@@ -548,8 +566,8 @@ body {
 }
 
 .toolDock__button:focus-visible {
-  border-color: #bae6fd;
-  background: #e0f2fe;
+  border-color: var(--accent-soft-border);
+  background: var(--accent-soft-bg);
   color: var(--accent);
   outline: none;
 }
@@ -559,8 +577,8 @@ body {
    read as the Pan button's inconsistent state). */
 @media (hover: hover) {
   .toolDock__button:hover {
-    border-color: #bae6fd;
-    background: #e0f2fe;
+    border-color: var(--accent-soft-border);
+    background: var(--accent-soft-bg);
     color: var(--accent);
     outline: none;
   }
@@ -609,7 +627,7 @@ body {
   place-items: center;
   border: 1px solid var(--border);
   border-radius: 50%;
-  background: #fff;
+  background: var(--bg);
   color: var(--accent);
   cursor: pointer;
   box-shadow: 0 1px 3px rgb(15 23 42 / 15%);
@@ -625,13 +643,13 @@ body {
 }
 
 .toolDock__drawStop:focus-visible {
-  background: #e0f2fe;
+  background: var(--accent-soft-bg);
   outline: none;
 }
 
 @media (hover: hover) {
   .toolDock__drawStop:hover {
-    background: #e0f2fe;
+    background: var(--accent-soft-bg);
     outline: none;
   }
 }
@@ -639,7 +657,7 @@ body {
 .toolDock__button[data-on="true"] {
   border-color: var(--accent);
   background: var(--accent);
-  color: #fff;
+  color: var(--on-solid);
 }
 
 /* Suggest's Confirm/Suggest/Dismiss trio shares the same purple used
@@ -649,7 +667,7 @@ body {
 .toolDock--suggest .toolDock__button[data-on="true"] {
   border-color: #9333ea;
   background: #9333ea;
-  color: #fff;
+  color: var(--on-solid);
 }
 
 .toolDock__separator {
@@ -660,16 +678,16 @@ body {
 }
 
 .toolDock__eraser:focus-visible {
-  border-color: #fecaca;
-  background: #fef2f2;
-  color: #dc2626;
+  border-color: var(--danger-soft-border);
+  background: var(--danger-soft-bg);
+  color: var(--danger);
 }
 
 @media (hover: hover) {
   .toolDock__eraser:hover {
-    border-color: #fecaca;
-    background: #fef2f2;
-    color: #dc2626;
+    border-color: var(--danger-soft-border);
+    background: var(--danger-soft-bg);
+    color: var(--danger);
   }
 }
 
@@ -734,7 +752,7 @@ body {
   padding: 4px 7px;
   border-radius: 5px;
   background: #0f172a;
-  color: #fff;
+  color: var(--on-solid);
   font-size: 11px;
   line-height: 1.2;
   white-space: nowrap;
@@ -747,8 +765,8 @@ body {
 .picker__quickButton:hover,
 .picker__quickButton:focus-visible,
 .picker__quickButton[data-active="true"] {
-  border-color: #bae6fd;
-  background: #e0f2fe;
+  border-color: var(--accent-soft-border);
+  background: var(--accent-soft-bg);
   color: var(--accent);
   outline: none;
 }
@@ -778,24 +796,24 @@ body {
 .picker__quickSlot:hover,
 .picker__quickSlot:focus-visible {
   border-style: solid;
-  border-color: #bae6fd;
-  background: #e0f2fe;
+  border-color: var(--accent-soft-border);
+  background: var(--accent-soft-bg);
   color: var(--accent);
 }
 
 .picker__deleteButton {
-  color: #dc2626;
+  color: var(--danger);
 }
 
 .picker__deleteButton:hover,
 .picker__deleteButton:focus-visible {
-  border-color: #fecaca;
-  background: #fef2f2;
+  border-color: var(--danger-soft-border);
+  background: var(--danger-soft-bg);
 }
 
 .picker__moreButton[data-active="true"] {
   border-color: #7dd3fc;
-  background: #e0f2fe;
+  background: var(--accent-soft-bg);
   color: var(--accent);
 }
 
@@ -850,7 +868,7 @@ body {
 
 .picker__moreList .picker__item:hover,
 .picker__moreList .picker__item:focus-visible {
-  background: #e0f2fe;
+  background: var(--accent-soft-bg);
   outline: none;
 }
 
@@ -886,7 +904,7 @@ body {
   padding: 4px 7px;
   border-radius: 5px;
   background: #0f172a;
-  color: #fff;
+  color: var(--on-solid);
   font-size: 11px;
   line-height: 1.2;
   white-space: nowrap;
@@ -898,8 +916,8 @@ body {
 
 .picker__selectionBubbles button:hover,
 .picker__selectionBubbles button:focus-visible {
-  border-color: #bae6fd;
-  background: #e0f2fe;
+  border-color: var(--accent-soft-border);
+  background: var(--accent-soft-bg);
   color: var(--accent);
   outline: none;
 }
@@ -949,7 +967,7 @@ body {
   padding: 0;
   border: 1px solid var(--border);
   border-radius: 7px;
-  background: #fff;
+  background: var(--bg);
   color: var(--text);
   font: inherit;
   font-size: 10px;
@@ -969,8 +987,8 @@ body {
 
 .selectionActions button:hover:not(:disabled),
 .selectionActions button:focus-visible {
-  border-color: #bae6fd;
-  background: #e0f2fe;
+  border-color: var(--accent-soft-border);
+  background: var(--accent-soft-bg);
   color: var(--accent);
   outline: none;
 }
@@ -981,14 +999,14 @@ body {
 }
 
 .selectionActions .selectionActions__delete {
-  color: #dc2626;
+  color: var(--danger);
 }
 
 .selectionActions .selectionActions__delete:hover,
 .selectionActions .selectionActions__delete:focus-visible {
-  border-color: #fecaca;
-  background: #fef2f2;
-  color: #dc2626;
+  border-color: var(--danger-soft-border);
+  background: var(--danger-soft-bg);
+  color: var(--danger);
 }
 
 .picker__searchButton {
@@ -1005,7 +1023,7 @@ body {
   overflow: hidden;
   border: 1px solid #7dd3fc;
   border-radius: 7px;
-  background: #fff;
+  background: var(--bg);
   animation: picker-search-morph 140ms ease-out;
 }
 
@@ -1098,8 +1116,8 @@ body {
 }
 
 .picker__clear:hover {
-  color: #dc2626;
-  background: #fef2f2;
+  color: var(--danger);
+  background: var(--danger-soft-bg);
 }
 
 .picker__list {
@@ -1151,11 +1169,11 @@ body {
 .picker__results .picker__item:hover,
 .picker__results .picker__item[data-active="true"] {
   border-color: #7dd3fc;
-  background: #e0f2fe;
+  background: var(--accent-soft-bg);
 }
 
 .picker__item[data-active="true"] {
-  background: #e0f2fe;
+  background: var(--accent-soft-bg);
 }
 
 .picker__glyph {
@@ -1195,7 +1213,7 @@ body {
   padding: 1px 6px;
   border-radius: 999px;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-solid);
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
@@ -1240,7 +1258,7 @@ body {
 }
 
 .suggestReview__heading--unrecognized {
-  color: #dc2626;
+  color: var(--danger);
 }
 
 .suggestReview__row {
@@ -1414,8 +1432,8 @@ body {
 .glossaryModule__paletteButton:hover,
 .glossaryModule__paletteButton:focus-visible,
 .glossaryModule__paletteButton[data-on="true"] {
-  border-color: #bae6fd;
-  background: #e0f2fe;
+  border-color: var(--accent-soft-border);
+  background: var(--accent-soft-bg);
   color: var(--accent);
   outline: none;
 }
@@ -1589,7 +1607,7 @@ body {
 .glossarySearch__results button:hover,
 .glossarySearch__results button:focus-visible,
 .glossarySearch__results button[data-active="true"] {
-  background: #e0f2fe;
+  background: var(--accent-soft-bg);
   outline: none;
 }
 
@@ -1636,8 +1654,8 @@ body {
 .glossary__item:focus-within,
 .glossary__item[data-on="true"],
 .glossary__item[data-drag-over="true"] {
-  border-color: #bae6fd;
-  background: #e0f2fe;
+  border-color: var(--accent-soft-border);
+  background: var(--accent-soft-bg);
   outline: none;
 }
 
@@ -1742,7 +1760,7 @@ body {
   flex: none;
   border: 0;
   background: transparent;
-  color: #dc2626;
+  color: var(--danger);
   font: 600 10px/1 system-ui, sans-serif;
   cursor: pointer;
 }
@@ -1850,7 +1868,7 @@ body {
 
 .navigator__zoom button:hover,
 .navigator__zoom button:focus-visible {
-  background: #e0f2fe;
+  background: var(--accent-soft-bg);
   color: var(--accent);
   outline: none;
 }
@@ -1951,7 +1969,7 @@ body {
 
 .refpanel__iconButton[aria-pressed="true"] {
   border-color: var(--accent);
-  background: #e0f2fe;
+  background: var(--accent-soft-bg);
   color: var(--accent);
 }
 
@@ -2008,7 +2026,7 @@ body {
 
 /* A hint that's reporting a failed attempt, not just describing the mode. */
 .refpanel__hint--warn {
-  color: #dc2626;
+  color: var(--danger);
 }
 
 .refpanel__row {
@@ -2033,7 +2051,7 @@ body {
 .refpanel__error {
   margin: 0;
   padding: 0 12px 12px;
-  color: #dc2626;
+  color: var(--danger);
   font-size: 12px;
 }
 
@@ -2065,12 +2083,12 @@ body {
 .btn--primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--on-solid);
 }
 
 .btn--primary:hover:not(:disabled) {
   filter: brightness(1.08);
-  color: #fff;
+  color: var(--on-solid);
 }
 
 .btn--quiet {
@@ -2080,14 +2098,14 @@ body {
 }
 
 .btn--danger:hover:not(:disabled) {
-  border-color: #dc2626;
-  color: #dc2626;
+  border-color: var(--danger);
+  color: var(--danger);
 }
 
 .btn[data-on="true"] {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--on-solid);
 }
 
 /* ---- chart list -------------------------------------------------------- */
@@ -2126,7 +2144,7 @@ body {
   margin: 0 0 16px;
   padding: 8px 10px;
   border-radius: 6px;
-  background: #fef2f2;
+  background: var(--danger-soft-bg);
   color: #7f1d1d;
 }
 
@@ -2234,14 +2252,14 @@ body {
 }
 
 .confirmDialog__confirm {
-  background: #dc2626;
-  border-color: #dc2626;
-  color: #fff;
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--on-solid);
 }
 
 .confirmDialog__confirm:hover:not(:disabled) {
   filter: brightness(1.08);
-  color: #fff;
+  color: var(--on-solid);
 }
 
 /* ---- sign in ------------------------------------------------------- */
@@ -2278,7 +2296,7 @@ body {
   padding: 9px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: #fff;
+  background: var(--bg);
   color: var(--text);
   font: inherit;
   font-weight: 500;
@@ -2287,7 +2305,7 @@ body {
 
 .signIn__google:hover,
 .signIn__google:focus-visible {
-  border-color: #bae6fd;
+  border-color: var(--accent-soft-border);
   background: #f8fafc;
   outline: none;
 }
@@ -2351,7 +2369,7 @@ body {
   border: none;
   border-radius: 6px;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-solid);
   font: inherit;
   font-weight: 500;
   cursor: pointer;
@@ -2364,7 +2382,7 @@ body {
 
 .signIn__error {
   margin: 4px 0 0;
-  color: #dc2626;
+  color: var(--danger);
   font-size: 12px;
 }
 
@@ -2458,7 +2476,7 @@ body {
   flex: none;
   border-radius: 50%;
   background: #94a3b8;
-  color: #fff;
+  color: var(--on-solid);
   font-size: 11px;
   font-weight: 600;
 }
@@ -2500,7 +2518,7 @@ body {
 
 .glossary__reviewPreview--unrecognized {
   background: rgba(220, 38, 38, 0.08);
-  border: 1.5px dashed #dc2626;
+  border: 1.5px dashed var(--danger);
 }
 
 .glossary__reviewAction {
@@ -2519,8 +2537,8 @@ body {
 
 .glossary__reviewAction:hover:not(:disabled),
 .glossary__reviewAction:focus-visible {
-  border-color: #bae6fd;
-  background: #e0f2fe;
+  border-color: var(--accent-soft-border);
+  background: var(--accent-soft-bg);
   color: var(--accent);
   outline: none;
 }
@@ -2625,7 +2643,7 @@ body {
 }
 
 .markpop__shortcut[data-active="true"] {
-  background: #e0f2fe;
+  background: var(--accent-soft-bg);
 }
 
 .markpop__keypad {
@@ -2681,7 +2699,7 @@ body {
   border: 1px solid var(--accent);
   border-radius: 6px;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-solid);
   font: inherit;
   font-size: 12px;
   font-weight: 600;
@@ -2706,7 +2724,7 @@ body {
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: #dc2626;
+  color: var(--danger);
   font: inherit;
   font-size: 11px;
   cursor: pointer;
@@ -2714,7 +2732,7 @@ body {
 
 .markpop__clear:hover,
 .markpop__clear:focus-visible {
-  background: #fef2f2;
+  background: var(--danger-soft-bg);
   outline: none;
 }
 
@@ -2726,7 +2744,7 @@ body {
   height: 18px;
   border-radius: 50%;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-solid);
   font-size: 11px;
   font-weight: 600;
 }

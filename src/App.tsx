@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import { useSession } from "./auth/useSession";
 import { getSupabase } from "./supabase/client";
-import { createSupabaseDocStore } from "./storage/supabaseDocStore";
+import { createSupabaseChartStore } from "./storage/supabaseChartStore";
 import { setActiveChartStore } from "./storage/store";
 import { type Role, useUiStore } from "./state/uiStore";
 import { ChartEditor } from "./ui/ChartEditor";
@@ -63,7 +63,7 @@ function ChartRoutes({ role, qaEnabled }: { role: Role; qaEnabled: boolean }) {
  */
 function SignedIn({ userId, role }: { userId: string; role: Role }) {
   const [migrationDone, setMigrationDone] = useState(false);
-  const supabaseStore = useState(() => createSupabaseDocStore(getSupabase()))[0];
+  const supabaseStore = useState(() => createSupabaseChartStore(getSupabase()))[0];
 
   useEffect(() => {
     setActiveChartStore(supabaseStore);

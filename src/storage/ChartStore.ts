@@ -5,13 +5,13 @@ import type { DocMeta, Placement, ReferenceImage, RepeatDefinition } from "../mo
  *
  * One interface, three implementations: in-memory for tests, browser storage
  * for the first release, and Supabase once accounts exist. Every one of them
- * is held to the same contract suite (`docStore.contract.ts`), which is what
+ * is held to the same contract suite (`chartStore.contract.ts`), which is what
  * makes swapping the backend later a mechanical change rather than a leap.
  *
  * Callers deal in `Placement[]`; encoding to the compact stored form is the
  * store's business, so nothing upstream ever handles `StoredChart`.
  */
-export interface DocStore {
+export interface ChartStore {
   /** Most recently updated first. */
   list(): Promise<DocMeta[]>;
   create(name?: string): Promise<DocMeta>;

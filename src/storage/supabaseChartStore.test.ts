@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { createFakeChartsTable, createFakeSupabaseClient } from "./fakePostgrest";
-import { metaFromRow, createSupabaseDocStore } from "./supabaseDocStore";
-import { describeDocStoreContract } from "./docStore.contract";
+import { metaFromRow, createSupabaseChartStore } from "./supabaseChartStore";
+import { describeChartStoreContract } from "./chartStore.contract";
 
 const monotonicClock = () => {
   let t = Date.UTC(2026, 0, 1);
   return () => new Date((t += 1000));
 };
 
-describeDocStoreContract("supabase (fake postgrest)", () => {
+describeChartStoreContract("supabase (fake postgrest)", () => {
   const table = createFakeChartsTable();
   const client = createFakeSupabaseClient(table, monotonicClock());
-  return createSupabaseDocStore(client);
+  return createSupabaseChartStore(client);
 });
 
 describe("metaFromRow", () => {

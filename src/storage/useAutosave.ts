@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useDocStore } from "../state/docStore";
-import { ChartConflictError, StorageFullError, type DocStore } from "./DocStore";
+import { ChartConflictError, StorageFullError, type ChartStore } from "./ChartStore";
 
 const DEBOUNCE_MS = 800;
 
@@ -19,7 +19,7 @@ const DEBOUNCE_MS = 800;
  * if one landed - otherwise that edit would only get saved by coincidence,
  * whenever some later edit happens to schedule another pass.
  */
-export function useAutosave(store: DocStore): void {
+export function useAutosave(store: ChartStore): void {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inFlight = useRef(false);
   const missedWhileInFlight = useRef(false);

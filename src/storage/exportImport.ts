@@ -1,6 +1,6 @@
 import type { DocMeta, Placement, ReferenceImage, RepeatDefinition } from "../model/types";
 import { getSymbol } from "../symbols/registry";
-import { DEFAULT_CHART_NAME, type DocStore } from "./DocStore";
+import { DEFAULT_CHART_NAME, type ChartStore } from "./ChartStore";
 import { decode, encode, type StoredChart } from "./serialize";
 import { downloadBlob, safeFilename } from "./download";
 import { resolveReferenceImageUrl, uploadReferenceImage } from "./referenceImages";
@@ -91,7 +91,7 @@ export async function importChart(file: File): Promise<ImportedChart> {
  * `StorageFullError`), the just-created empty chart is removed rather than
  * left behind as an orphan the user never asked for and can't see yet.
  */
-export async function importChartIntoStore(store: DocStore, file: File): Promise<DocMeta> {
+export async function importChartIntoStore(store: ChartStore, file: File): Promise<DocMeta> {
   const { name, placements, repeats, referenceImage } = await importChart(file);
   const meta = await store.create(name);
   try {

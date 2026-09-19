@@ -1,4 +1,5 @@
 import { type RefObject, useEffect } from "react";
+import { registerListeners } from "./registerListeners";
 import { useUiStore } from "../state/uiStore";
 
 type Point = { x: number; y: number };
@@ -218,17 +219,16 @@ export function useTouchGestures(ref: RefObject<HTMLCanvasElement | null>): void
       }
     };
 
-    canvas.addEventListener("pointerdown", onPointerDown);
-    canvas.addEventListener("pointermove", onPointerMove);
-    canvas.addEventListener("pointerup", endGesture);
-    canvas.addEventListener("pointercancel", endGesture);
+    const unregister = registerListeners(canvas, [
+      ["pointerdown", onPointerDown],
+      ["pointermove", onPointerMove],
+      ["pointerup", endGesture],
+      ["pointercancel", endGesture],
+    ]);
 
     return () => {
       clearPending();
-      canvas.removeEventListener("pointerdown", onPointerDown);
-      canvas.removeEventListener("pointermove", onPointerMove);
-      canvas.removeEventListener("pointerup", endGesture);
-      canvas.removeEventListener("pointercancel", endGesture);
+      unregister();
     };
   }, [ref]);
 }

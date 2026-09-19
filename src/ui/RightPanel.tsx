@@ -13,6 +13,7 @@ import { SymbolGlyph } from "./SymbolGlyph";
 import { searchSymbols } from "./symbolSearch";
 import { tapActivate } from "./tapActivate";
 import { collectGlossarySymbols, countConfirmedStitches, loadGlossaryIds, symbolsWithAnyPlacement } from "./chartGlossary";
+import { CheckIcon, CloseIcon, CrossIcon } from "./icons";
 
 /**
  * Section order for the glossary search dropdown; anything uncategorized
@@ -325,7 +326,7 @@ export function RightPanel() {
             type="button"
             className="glossaryModule__paletteButton"
             data-on={traceMenuOpen || stitchHighlightOpacity > 0}
-            onClick={() => setTraceMenuOpen((open) => !open)}
+            {...tapActivate(() => setTraceMenuOpen((open) => !open))}
             aria-expanded={traceMenuOpen}
             aria-label="Canvas stitch colors"
             title="Canvas stitch colors"
@@ -439,9 +440,7 @@ export function RightPanel() {
                   aria-label="Accept all identified suggestions"
                   title="Accept all"
                 >
-                  <svg viewBox="0 0 20 20" aria-hidden="true">
-                    <path d="m4 10 3.5 3.5L16 5" />
-                  </svg>
+                  <CheckIcon />
                 </button>
                 <button
                   type="button"
@@ -450,9 +449,7 @@ export function RightPanel() {
                   aria-label="Dismiss all identified suggestions"
                   title="Dismiss all"
                 >
-                  <svg viewBox="0 0 20 20" aria-hidden="true">
-                    <path d="M4.5 4.5l11 11M15.5 4.5l-11 11" />
-                  </svg>
+                  <CrossIcon />
                 </button>
               </div>
             )}
@@ -473,9 +470,7 @@ export function RightPanel() {
                   aria-label="Dismiss all unidentified markers"
                   title="Dismiss all"
                 >
-                  <svg viewBox="0 0 20 20" aria-hidden="true">
-                    <path d="M4.5 4.5l11 11M15.5 4.5l-11 11" />
-                  </svg>
+                  <CrossIcon />
                 </button>
                 <button
                   type="button"
@@ -577,9 +572,7 @@ export function RightPanel() {
                       aria-label={`Remove ${symbol.label} from glossary`}
                       title="Remove from glossary"
                     >
-                      <svg viewBox="0 0 16 16" aria-hidden="true">
-                        <path d="M3.5 3.5l9 9m0-9-9 9" />
-                      </svg>
+                      <CloseIcon />
                     </button>
                   ) : (
                     <span className="glossary__removeSlot" aria-hidden="true" />
@@ -695,9 +688,7 @@ export function RightPanel() {
                     aria-label={`Remove ${symbol.label} from glossary`}
                     title="Remove from glossary"
                   >
-                    <svg viewBox="0 0 16 16" aria-hidden="true">
-                      <path d="M3.5 3.5l9 9m0-9-9 9" />
-                    </svg>
+                    <CloseIcon />
                   </button>
                 ) : (
                   <span className="glossary__removeSlot" aria-hidden="true" />

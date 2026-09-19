@@ -20,7 +20,7 @@ import {
   type Placement,
 } from "../model/types";
 import { newUuid } from "../uuid";
-import type { LoadedChart } from "../storage/DocStore";
+import type { LoadedChart } from "../storage/ChartStore";
 import { nextHistorySequence } from "./historySequence";
 import { useUiStore } from "./uiStore";
 

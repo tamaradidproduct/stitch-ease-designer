@@ -278,9 +278,9 @@ is there (a placed stitch, or the edit highlight sitting on top of one).
   `ops.ts`, which returns an inverse for undo.
 - **`src/state/`** — Zustand stores: `docStore` (placements + history + the
   open chart's save status), `uiStore` (camera, tool, picker).
-- **`src/storage/`** — the `DocStore` interface and three implementations
+- **`src/storage/`** — the `ChartStore` interface and three implementations
   behind it (in-memory for tests, browser storage, Supabase), all held to one
-  shared contract suite (`docStore.contract.ts`) so swapping the backend is a
+  shared contract suite (`chartStore.contract.ts`) so swapping the backend is a
   mechanical change. `serialize.ts` owns the compact stored format; a
   `Placement`'s id is never persisted, since it only keys the occupancy map
   and undo stack at runtime and is minted fresh on load.

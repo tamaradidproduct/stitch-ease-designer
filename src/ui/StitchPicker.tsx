@@ -9,6 +9,7 @@ import { useUiStore } from "../state/uiStore";
 import { insertTargetCol } from "../model/ops";
 import { SymbolGlyph } from "./SymbolGlyph";
 import { searchSymbols } from "./symbolSearch";
+import { CloseIcon } from "./icons";
 import { collectGlossarySymbols, loadGlossaryIds } from "./chartGlossary";
 
 const MENU_WIDTH = 284;
@@ -421,9 +422,7 @@ export function StitchPicker() {
         aria-label="Close"
         title="Close (Esc)"
       >
-        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-          <path d="M3.5 3.5l9 9m0-9-9 9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" fill="none" />
-        </svg>
+        <CloseIcon width={14} height={14} strokeWidth={1.6} />
       </button>
     </div>
   );
@@ -443,6 +442,8 @@ export function StitchPicker() {
         maxHeight: MAX_HEIGHT,
       }}
       onKeyDown={onKeyDown}
+      role="dialog"
+      aria-label={placeholder}
     >
       <div className="picker__quick" aria-label="Choose a recent stitch or search">
           {Array.from({ length: 5 }, (_, slot) => {

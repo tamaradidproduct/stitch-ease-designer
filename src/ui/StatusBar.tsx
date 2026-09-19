@@ -34,7 +34,7 @@ export function StatusBar() {
               : "Click to select · Shift-click to select multiple"
             : "space + drag to pan · ⌘ + scroll to zoom"}
       </span>
-      <button className="statusbar__zoom" onClick={resetView} title="Reset view (⌘0)">
+      <button type="button" className="statusbar__zoom" onClick={resetView} title="Reset view (⌘0)">
         {Math.round(zoom * 100)}%
       </button>
     </div>

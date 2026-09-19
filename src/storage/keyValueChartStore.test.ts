@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { StorageFullError } from "./DocStore";
-import { describeDocStoreContract } from "./docStore.contract";
-import { createLocalDocStore, createMemoryDocStore } from "./keyValueDocStore";
+import { StorageFullError } from "./ChartStore";
+import { describeChartStoreContract } from "./chartStore.contract";
+import { createLocalChartStore, createMemoryChartStore } from "./keyValueChartStore";
 
 /**
  * A clock that always moves forward.
@@ -24,21 +24,21 @@ const fakeStorage = () => {
   };
 };
 
-describeDocStoreContract("memory", () => createMemoryDocStore({ clock: monotonicClock() }));
+describeChartStoreContract("memory", () => createMemoryChartStore({ clock: monotonicClock() }));
 
-describeDocStoreContract("browser storage", () =>
-  createLocalDocStore(fakeStorage(), { clock: monotonicClock() }),
+describeChartStoreContract("browser storage", () =>
+  createLocalChartStore(fakeStorage(), { clock: monotonicClock() }),
 );
 
 describe("browser storage specifics", () => {
   it("persists across store instances over the same storage", async () => {
     const storage = fakeStorage();
-    const first = createLocalDocStore(storage, { clock: monotonicClock() });
+    const first = createLocalChartStore(storage, { clock: monotonicClock() });
     const created = await first.create("Peacock yoke");
     await first.save(created.id, [{ id: "t", symbolId: "knit", col: 3, row: 4 }], created.rev);
 
     // A fresh store, as if the page had been reloaded.
-    const second = createLocalDocStore(storage, { clock: monotonicClock() });
+    const second = createLocalChartStore(storage, { clock: monotonicClock() });
     const loaded = await second.load(created.id);
 
     expect(loaded.meta.name).toBe("Peacock yoke");
@@ -53,14 +53,14 @@ describe("browser storage specifics", () => {
         throw new DOMException("full", "QuotaExceededError");
       },
     };
-    const store = createLocalDocStore(storage, { clock: monotonicClock() });
+    const store = createLocalChartStore(storage, { clock: monotonicClock() });
     await expect(store.create()).rejects.toBeInstanceOf(StorageFullError);
   });
 
   it("survives a corrupt index instead of bricking the chart list", async () => {
     const storage = fakeStorage();
     storage.setItem("stitchease:charts", "{ this is not json");
-    const store = createLocalDocStore(storage, { clock: monotonicClock() });
+    const store = createLocalChartStore(storage, { clock: monotonicClock() });
 
     expect(await store.list()).toEqual([]);
     // ...and is still usable afterwards.
@@ -84,7 +84,7 @@ describe("browser storage specifics", () => {
         bad: { id: "bad", name: "Bad chart" },
       }),
     );
-    const store = createLocalDocStore(storage, { clock: monotonicClock() });
+    const store = createLocalChartStore(storage, { clock: monotonicClock() });
 
     const list = await store.list();
     expect(list.map((m) => m.id)).toEqual(["good"]);
@@ -103,7 +103,7 @@ describe("browser storage specifics", () => {
         real.setItem(key, value);
       },
     };
-    const store = createLocalDocStore(storage, { clock: monotonicClock() });
+    const store = createLocalChartStore(storage, { clock: monotonicClock() });
     const created = await store.create("Gansey");
 
     failNextIndexWrite = true;
