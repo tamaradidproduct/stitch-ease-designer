@@ -1,0 +1,71 @@
+name: Create staging QA run and collect sign-off
+
+on:
+  workflow_dispatch:
+    inputs:
+      staging_url:
+        description: Staging URL to test
+        required: true
+        type: string
+      run_name:
+        description: Optional release/test-run name
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  create_run:
+    runs-on: ubuntu-latest
+    outputs:
+      test_run_id: ${{ steps.run.outputs.test_run_id }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - id: run
+        name: Create Desktop and iPad test matrix
+        env:
+          SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          STAGING_URL: ${{ inputs.staging_url }}
+          QA_RUN_NAME: ${{ inputs.run_name || format('Staging QA {0}', github.sha) }}
+        run: node scripts/tcac/create-run.mjs | tee -a "$GITHUB_OUTPUT"
+
+  manual_signoff:
+    needs: create_run
+    runs-on: ubuntu-latest
+    # Configure required reviewers on this Environment in GitHub Settings.
+    # This job pauses after the test matrix exists and before it approves it.
+    environment:
+      name: staging
+      url: ${{ inputs.staging_url }}
+    steps:
+      - name: Confirm QA has completed the dashboard run
+        env:
+          SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          TEST_RUN_ID: ${{ needs.create_run.outputs.test_run_id }}
+        run: |
+          response="$(curl --fail --silent --show-error \
+            --header "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            --header "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            "$SUPABASE_URL/rest/v1/qa_test_results?test_run_id=eq.$TEST_RUN_ID&select=status")"
+          echo "$response" | jq .
+          test "$(echo "$response" | jq '[.[] | select(.status != "passed" and .status != "skipped")] | length')" = "0"
+
+      - name: Record approved release
+        env:
+          SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          TEST_RUN_ID: ${{ needs.create_run.outputs.test_run_id }}
+        run: |
+          curl --fail --silent --show-error --request PATCH \
+            --header "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            --header "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            --header "Content-Type: application/json" \
+            --header "Prefer: return=representation" \
+            "$SUPABASE_URL/rest/v1/qa_test_runs?id=eq.$TEST_RUN_ID" \
+            --data '{"status":"approved","approved_at":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"}'
