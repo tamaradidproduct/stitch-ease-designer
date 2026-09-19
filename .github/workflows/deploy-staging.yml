@@ -1,0 +1,43 @@
+name: Deploy staging site
+
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+
+      # public/CNAME belongs to the production site, so overwrite it in the
+      # generated staging artifact before publishing it to the separate site.
+      - run: printf '%s\n' 'staging.designer.stitch-ease.com' > dist/CNAME
+
+      - name: Publish to the staging Pages repository
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          personal_token: ${{ secrets.STAGING_PAGES_TOKEN }}
+          external_repository: tamaradidproduct/stitch-ease-designer-staging
+          publish_branch: gh-pages
+          publish_dir: dist
+          keep_files: false
