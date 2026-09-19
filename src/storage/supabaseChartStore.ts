@@ -19,6 +19,7 @@ type ChartRow = {
   created_at: string;
   updated_at: string;
 };
+const CHART_META_COLUMNS = "id, name, created_at, updated_at, rev";
 
 /**
  * Row -> DocMeta. Pulled out as a pure function so the field mapping (the
@@ -55,7 +56,7 @@ export function createSupabaseChartStore(client: SupabaseClient): ChartStore {
     async list(): Promise<DocMeta[]> {
       const { data, error } = await client
         .from("charts")
-        .select("id, name, created_at, updated_at, rev")
+        .select(CHART_META_COLUMNS)
         .order("updated_at", { ascending: false });
       if (error) throw error;
       return (data as ChartRow[]).map(metaFromRow);
@@ -65,7 +66,7 @@ export function createSupabaseChartStore(client: SupabaseClient): ChartStore {
       const { data, error } = await client
         .from("charts")
         .insert({ name, data: emptyChart() })
-        .select("id, name, created_at, updated_at, rev")
+        .select(CHART_META_COLUMNS)
         .single();
       if (error) throw error;
       return metaFromRow(data as ChartRow);
@@ -110,7 +111,7 @@ export function createSupabaseChartStore(client: SupabaseClient): ChartStore {
         .update({ data: encode(placements, repeats, referenceImage) })
         .eq("id", id)
         .eq("rev", expectedRev)
-        .select("id, name, created_at, updated_at, rev")
+        .select(CHART_META_COLUMNS)
         .maybeSingle();
       if (error) throw error;
       if (data) return metaFromRow(data as ChartRow);
@@ -133,7 +134,7 @@ export function createSupabaseChartStore(client: SupabaseClient): ChartStore {
         .from("charts")
         .update({ name })
         .eq("id", id)
-        .select("id, name, created_at, updated_at, rev")
+        .select(CHART_META_COLUMNS)
         .maybeSingle();
       if (error) throw error;
       if (!data) throw new ChartNotFoundError(id);

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CELL } from "../canvas/camera";
 import {
   scaleFromCalibrationMarks,
@@ -7,6 +7,7 @@ import {
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
 import { removeReferenceImageFile, uploadReferenceImage } from "../storage/referenceImages";
+import { tapActivate } from "./tapActivate";
 
 /**
  * Upload + transform controls for the chart's one reference image.
@@ -17,6 +18,8 @@ import { removeReferenceImageFile, uploadReferenceImage } from "../storage/refer
  * ever relevant.
  */
 export function ReferenceImagePanel() {
+  const [traceMenuOpen, setTraceMenuOpen] = useState(false);
+  const referenceImagePanelRef = useRef<HTMLElement | null>(null);
   const isAdmin = useUiStore((s) => s.role === "admin");
   const open = useUiStore((s) => s.referenceImagePanelOpen);
   const setOpen = useUiStore((s) => s.setReferenceImagePanelOpen);
@@ -30,6 +33,10 @@ export function ReferenceImagePanel() {
   const marking = useUiStore((s) => s.referenceImageMarking);
   const setActiveMark = useUiStore((s) => s.setReferenceImageActiveMark);
   const activeMark = useUiStore((s) => s.referenceImageActiveMark);
+  const stitchHighlightColor = useUiStore((s) => s.stitchHighlightColor);
+  const stitchHighlightOpacity = useUiStore((s) => s.stitchHighlightOpacity);
+  const setStitchHighlight = useUiStore((s) => s.setStitchHighlight);
+  const setStitchHighlightOpacity = useUiStore((s) => s.setStitchHighlightOpacity);
 
   const meta = useDocStore((s) => s.meta);
   const image = useDocStore((s) => s.referenceImage);
@@ -50,6 +57,24 @@ export function ReferenceImagePanel() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (!traceMenuOpen) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!referenceImagePanelRef.current?.contains(event.target as Node)) setTraceMenuOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.stopImmediatePropagation();
+      setTraceMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [traceMenuOpen]);
 
   const onFile = async (file: File) => {
     if (!meta) return;
@@ -94,31 +119,86 @@ export function ReferenceImagePanel() {
   if (!isAdmin) return null;
 
   return (
-    <section className="sideModule refpanel" data-editing={open && !!image}>
+    <section ref={referenceImagePanelRef} className="sideModule refpanel" data-editing={open && !!image}>
       <div className="sideModule__header refpanel__moduleHeader">
         <div>
           <h2>Reference image</h2>
           <span>{image ? (image.visible ? "Visible on canvas" : "Hidden") : "No image added"}</span>
         </div>
-        {image ? (
+        <div className="refpanel__headerControls">
           <button
             type="button"
-            className="btn btn--quiet refpanel__headerAction"
-            onClick={() => setOpen(!open)}
+            className="refpanel__paletteButton"
+            data-on={traceMenuOpen || stitchHighlightOpacity > 0}
+            {...tapActivate(() => setTraceMenuOpen((isOpen) => !isOpen))}
+            aria-expanded={traceMenuOpen}
+            aria-label="Canvas stitch colors"
+            title="Canvas stitch colors"
           >
-            {open ? "Save changes" : "Edit reference"}
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M10 3a7 7 0 1 0 0 14h1.2a1.6 1.6 0 0 0 0-3.2h-.5a1.2 1.2 0 0 1 0-2.4H13A4 4 0 0 0 17 7.5C17 5 14 3 10 3Z" />
+              <circle cx="6.5" cy="8" r=".8" /><circle cx="9" cy="5.8" r=".8" /><circle cx="13" cy="6.8" r=".8" />
+            </svg>
           </button>
-        ) : (
-          <button
-            type="button"
-            className="btn btn--quiet refpanel__headerAction"
-            disabled={busy || !meta}
-            onClick={() => fileInput.current?.click()}
-          >
-            {busy ? "Uploading…" : "Upload image"}
-          </button>
-        )}
+          {image ? (
+            <button
+              type="button"
+              className="btn btn--quiet refpanel__headerAction"
+              onClick={() => setOpen(!open)}
+            >
+              {open ? "Save changes" : "Edit reference"}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn btn--quiet refpanel__headerAction"
+              disabled={busy || !meta}
+              onClick={() => fileInput.current?.click()}
+            >
+              {busy ? "Uploading…" : "Upload image"}
+            </button>
+          )}
+        </div>
       </div>
+      {traceMenuOpen && (
+        <div className="traceColors refpanel__traceColors">
+          <div className="traceColors__label">
+            <span>Canvas stitch color</span>
+            <button type="button" onClick={() => setStitchHighlightOpacity(0)}>Off</button>
+          </div>
+          <div className="traceColors__presets" aria-label="Stitch highlight color">
+            {["#f59e0b", "#ec4899", "#8b5cf6", "#10b981", "#0284c7"].map((color) => (
+              <button
+                key={color}
+                type="button"
+                style={{ background: color }}
+                data-on={stitchHighlightColor === color && stitchHighlightOpacity > 0}
+                onClick={() => setStitchHighlight(color, stitchHighlightOpacity || 0.22)}
+                aria-label={`Use ${color} stitch highlight`}
+              />
+            ))}
+            <label className="traceColors__custom" title="Choose a custom color">
+              <input
+                type="color"
+                value={stitchHighlightColor}
+                onChange={(event) => setStitchHighlight(event.target.value, stitchHighlightOpacity || 0.22)}
+                aria-label="Custom stitch highlight color"
+              />
+            </label>
+          </div>
+          <label className="traceColors__intensity">
+            <span>Intensity</span>
+            <input
+              type="range"
+              min="0"
+              max="0.5"
+              step="0.05"
+              value={stitchHighlightOpacity}
+              onChange={(event) => setStitchHighlightOpacity(Number(event.target.value))}
+            />
+          </label>
+        </div>
+      )}
 
       {image && (!open || !image.visible) && (
         <div className="refpanel__quickControls" role="group" aria-label="Reference image quick controls">
