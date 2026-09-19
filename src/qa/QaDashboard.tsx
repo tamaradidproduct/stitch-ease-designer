@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { approveQaRun, createQaRun, loadQaDashboard, loadQaRun, platformLabel, updateQaResult } from "./testManagement";
-import type { QaResultStatus, QaRunGroup, QaTestCase, QaTestResult, QaTestRun } from "./types";
+import { addResultAttachment, addResultComment, approveQaRun, createQaIssue, createQaRun, getResultAttachmentUrl, loadQaDashboard, loadQaRun, loadResultFinding, platformLabel, syncQaIssueComment, updateQaResult } from "./testManagement";
+import type { QaRequirement, QaResultAttachment, QaResultComment, QaResultStatus, QaRunGroup, QaTestCase, QaTestCaseRequirement, QaTestResult, QaTestRun } from "./types";
 
 const completeStatuses: QaResultStatus[] = ["passed", "skipped"];
 
@@ -10,6 +10,8 @@ function resultLabel(status: QaResultStatus) {
 
 export function QaDashboard() {
   const [cases, setCases] = useState<QaTestCase[]>([]);
+  const [requirements, setRequirements] = useState<QaRequirement[]>([]);
+  const [links, setLinks] = useState<QaTestCaseRequirement[]>([]);
   const [runs, setRuns] = useState<QaTestRun[]>([]);
   const [selectedRun, setSelectedRun] = useState<QaTestRun | null>(null);
   const [groups, setGroups] = useState<QaRunGroup[]>([]);
@@ -22,6 +24,8 @@ export function QaDashboard() {
   const refresh = async () => {
     const next = await loadQaDashboard();
     setCases(next.cases);
+    setRequirements(next.requirements);
+    setLinks(next.links);
     setRuns(next.runs);
   };
 
@@ -43,6 +47,10 @@ export function QaDashboard() {
   useEffect(() => { void refresh().catch((caught: unknown) => setError(caught instanceof Error ? caught.message : "Could not load QA data")); }, []);
 
   const casesById = useMemo(() => new Map(cases.map((testCase) => [testCase.id, testCase])), [cases]);
+  const requirementsByCase = useMemo(() => links.reduce<Map<string, string[]>>((map, link) => {
+    map.set(link.test_case_id, [...(map.get(link.test_case_id) ?? []), link.requirement_id]);
+    return map;
+  }, new Map()), [links]);
   const readyForApproval = results.length > 0 && results.every((result) => !casesById.has(result.test_case_id) || completeStatuses.includes(result.status));
 
   const createRun = async (event: React.FormEvent) => {
@@ -100,6 +108,21 @@ export function QaDashboard() {
 
       {error && <p className="charts__error">{error}</p>}
 
+      <section className="qa__card qa__traceability">
+        <h2>Requirements</h2>
+        <p className="qa__hint">Synced from <code>docs/PRD.md</code>. Each FR/DNT item is a requirement row.</p>
+        <div className="qa__tableWrap"><table><thead><tr><th>ID</th><th>Feature</th><th>Requirement</th></tr></thead><tbody>
+          {requirements.map((requirement) => <tr key={requirement.id}><td>{requirement.id}</td><td>{requirement.feature}</td><td>{requirement.requirement_text}</td></tr>)}
+        </tbody></table></div>
+      </section>
+
+      <section className="qa__card qa__traceability">
+        <h2>Test cases</h2>
+        <div className="qa__tableWrap"><table><thead><tr><th>Feature</th><th>Preconditions</th><th>Steps</th><th>Expected Result</th><th>Modifier / Input</th></tr></thead><tbody>
+          {cases.map((testCase) => <tr key={testCase.id}><td>{testCase.component}<small>{testCase.id} · {testCase.title}</small><small>Requirements: {requirementsByCase.get(testCase.id)?.join(", ") || "Unlinked"}</small></td><td>{testCase.preconditions}</td><td>{testCase.steps}</td><td>{testCase.expected_result}</td><td>{testCase.modifier_input || "—"}</td></tr>)}
+        </tbody></table></div>
+      </section>
+
       <section className="qa__card">
         <h2>Create a staging run</h2>
         <form className="qa__create" onSubmit={(event) => void createRun(event)}>
@@ -152,8 +175,8 @@ function RunGroup({ group, results, casesById, busy, onStatus }: { group: QaRunG
       {groupResults.map((result) => {
         const testCase = casesById.get(result.test_case_id);
         if (!testCase) return null;
-        return <div className="qa__case" key={result.id}>
-          <div><strong>{testCase.id} · {testCase.title}</strong><small>{testCase.priority} · {testCase.component}</small></div>
+        return <div className="qa__case qa__case--result" key={result.id}>
+          <div><strong>{testCase.id} · {testCase.title}</strong><small>{testCase.priority} · {testCase.component}</small><ResultFinding result={result} disabled={busy} /></div>
           <div className="qa__resultActions">
             {(["passed", "failed", "blocked", "skipped"] as QaResultStatus[]).map((status) => <button key={status} type="button" disabled={busy} data-active={result.status === status} data-status={status} onClick={() => void onStatus(result, status)}>{resultLabel(status)}</button>)}
           </div>
@@ -162,4 +185,72 @@ function RunGroup({ group, results, casesById, busy, onStatus }: { group: QaRunG
       {!groupResults.length && <p className="qa__hint">No cases apply to this platform.</p>}
     </section>
   );
+}
+
+function ResultFinding({ result, disabled }: { result: QaTestResult; disabled: boolean }) {
+  const [comments, setComments] = useState<QaResultComment[]>([]);
+  const [attachments, setAttachments] = useState<QaResultAttachment[]>([]);
+  const [comment, setComment] = useState("");
+  const [expanded, setExpanded] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = async () => {
+    const finding = await loadResultFinding(result.id);
+    setComments(finding.comments);
+    setAttachments(finding.attachments);
+  };
+
+  const toggle = async () => {
+    setExpanded((value) => !value);
+    if (!expanded) {
+      try { await refresh(); } catch (caught) { setError(caught instanceof Error ? caught.message : "Could not load feedback"); }
+    }
+  };
+
+  const saveComment = async () => {
+    if (!comment.trim()) return;
+    setBusy(true); setError(null);
+    try {
+      const savedComment = comment.trim();
+      await addResultComment(result.id, savedComment);
+      if (result.github_issue_url) await syncQaIssueComment(result.id, savedComment);
+      setComment(""); await refresh();
+    }
+    catch (caught) { setError(caught instanceof Error ? caught.message : "Could not save comment"); }
+    finally { setBusy(false); }
+  };
+
+  const upload = async (file: File | undefined) => {
+    if (!file) return;
+    setBusy(true); setError(null);
+    try { await addResultAttachment(result.id, file); await refresh(); }
+    catch (caught) { setError(caught instanceof Error ? caught.message : "Could not attach file"); }
+    finally { setBusy(false); }
+  };
+
+  const openAttachment = async (attachment: QaResultAttachment) => {
+    try { window.open(await getResultAttachmentUrl(attachment.storage_path), "_blank", "noopener,noreferrer"); }
+    catch (caught) { setError(caught instanceof Error ? caught.message : "Could not open attachment"); }
+  };
+
+  const createIssue = async () => {
+    setBusy(true); setError(null);
+    try { window.open((await createQaIssue(result.id)).url, "_blank", "noopener,noreferrer"); }
+    catch (caught) { setError(caught instanceof Error ? caught.message : "Could not create GitHub issue"); }
+    finally { setBusy(false); }
+  };
+
+  return <div className="qa__finding">
+    <button type="button" className="qa__feedbackToggle" onClick={() => void toggle()}>{expanded ? "Hide feedback" : "Add feedback"}</button>
+    {expanded && <div className="qa__feedback">
+      {error && <small className="qa__feedbackError">{error}</small>}
+      {comments.map((item) => <p key={item.id} className="qa__comment">{item.body}</p>)}
+      <div className="qa__feedbackInput"><input value={comment} disabled={disabled || busy} onChange={(event) => setComment(event.target.value)} placeholder="Add a comment" /><button type="button" disabled={disabled || busy || !comment.trim()} onClick={() => void saveComment()}>Save</button></div>
+      <label className="qa__attachment">Attach file<input type="file" disabled={disabled || busy} accept="image/png,image/jpeg,image/webp,application/pdf" onChange={(event) => void upload(event.target.files?.[0])} /></label>
+      {attachments.map((attachment) => <button key={attachment.id} type="button" className="qa__attachmentLink" onClick={() => void openAttachment(attachment)}>{attachment.file_name}</button>)}
+      {(result.status === "failed" || result.status === "blocked") && !result.github_issue_url && <button type="button" className="qa__issue" disabled={disabled || busy} onClick={() => void createIssue()}>Create GitHub issue</button>}
+      {result.github_issue_url && <a href={result.github_issue_url} target="_blank" rel="noreferrer">GitHub issue #{result.github_issue_number}</a>}
+    </div>}
+  </div>;
 }

@@ -11,7 +11,16 @@ export type QaTestCase = {
   tags: string[];
   source_path: string;
   active: boolean;
+  preconditions: string;
+  steps: string;
+  expected_result: string;
+  modifier_input: string;
 };
+
+export type QaRequirement = { id: string; feature: string; requirement_text: string; active: boolean };
+export type QaTestCaseRequirement = { test_case_id: string; requirement_id: string };
+export type QaResultComment = { id: string; test_result_id: string; body: string; created_at: string };
+export type QaResultAttachment = { id: string; test_result_id: string; storage_path: string; file_name: string; mime_type: string; created_at: string };
 
 export type QaTestRun = {
   id: string;
@@ -40,5 +49,7 @@ export type QaTestResult = {
   status: QaResultStatus;
   notes: string;
   evidence_url: string | null;
+  github_issue_number: number | null;
+  github_issue_url: string | null;
   updated_at: string;
 };
