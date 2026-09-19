@@ -45,6 +45,7 @@ export function RightPanel() {
   const [activeGlossaryResult, setActiveGlossaryResult] = useState(0);
   const [draggingQuickId, setDraggingQuickId] = useState<string | null>(null);
   const [dragOverQuickId, setDragOverQuickId] = useState<string | null>(null);
+  const [dragOverQuickSlot, setDragOverQuickSlot] = useState<number | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [exportBusy, setExportBusy] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -434,6 +435,7 @@ export function RightPanel() {
                     if (draggedId && draggedId !== id) moveQuickSymbolTo(draggedId, slot);
                     setDraggingQuickId(null);
                     setDragOverQuickId(null);
+                    setDragOverQuickSlot(null);
                   }}
                 >
                   <button
@@ -448,6 +450,7 @@ export function RightPanel() {
                     onDragEnd={() => {
                       setDraggingQuickId(null);
                       setDragOverQuickId(null);
+                      setDragOverQuickSlot(null);
                     }}
                     aria-label={`Drag to reorder ${symbol.label}`}
                     title="Drag to reorder"
@@ -553,6 +556,25 @@ export function RightPanel() {
                   key={`empty:${slot}`}
                   type="button"
                   className="glossary__item glossary__item--empty"
+                  data-drag-over={dragOverQuickSlot === slot}
+                  onDragOver={(event) => {
+                    if (draggingQuickId) {
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = "move";
+                      setDragOverQuickSlot(slot);
+                    }
+                  }}
+                  onDragLeave={() =>
+                    setDragOverQuickSlot((current) => current === slot ? null : current)
+                  }
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    const draggedId = draggingQuickId;
+                    if (draggedId) moveQuickSymbolTo(draggedId, slot);
+                    setDraggingQuickId(null);
+                    setDragOverQuickId(null);
+                    setDragOverQuickSlot(null);
+                  }}
                   onClick={() => searchForQuickStitch(slot)}
                   title={slot < 5 ? `Choose a stitch for shortcut ${slot + 1}` : "Add another stitch"}
                 >

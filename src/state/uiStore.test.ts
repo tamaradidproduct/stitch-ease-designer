@@ -202,4 +202,8 @@ describe("moveQuickSymbolTo", () => {
   it("moves a stitch through the intervening slots so their shortcuts stay ordered", () => {
     expect(moveQuickSymbolTo(["knit", "purl", "yo"], "knit", 2)).toEqual(["purl", "yo", "knit"]);
   });
+
+  it("moves a stitch into an empty slot without renumbering the other shortcuts", () => {
+    expect(moveQuickSymbolTo(["knit", "purl"], "knit", 2)).toEqual(["purl", "", "knit"]);
+  });
 });
