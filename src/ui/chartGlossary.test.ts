@@ -1,6 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Placement } from "../model/types";
-import { collectGlossarySymbols, countConfirmedStitches, symbolsWithAnyPlacement } from "./chartGlossary";
+import {
+  collectGlossarySymbols,
+  countConfirmedStitches,
+  getGlossaryRevision,
+  loadGlossaryIds,
+  saveGlossaryIds,
+  symbolsWithAnyPlacement,
+} from "./chartGlossary";
 
 const stitch = (id: string, symbolId: string, suggested?: boolean): Placement => ({
   id,
@@ -8,6 +15,34 @@ const stitch = (id: string, symbolId: string, suggested?: boolean): Placement =>
   col: 0,
   row: 0,
   ...(suggested ? { suggested: true } : {}),
+});
+
+function mockStorage(): Storage {
+  const entries = new Map<string, string>();
+  return {
+    getItem: (key) => entries.get(key) ?? null,
+    setItem: (key, value) => {
+      entries.set(key, value);
+    },
+    removeItem: (key) => {
+      entries.delete(key);
+    },
+    clear: () => {
+      entries.clear();
+    },
+    key: (index) => [...entries.keys()][index] ?? null,
+    get length() {
+      return entries.size;
+    },
+  };
+}
+
+beforeEach(() => {
+  vi.stubGlobal("localStorage", mockStorage());
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 describe("collectGlossarySymbols", () => {
@@ -40,6 +75,35 @@ describe("countConfirmedStitches", () => {
     const after = countConfirmedStitches([stitch("a", "knit")]);
     expect(before.get("knit") ?? 0).toBe(0);
     expect(after.get("knit")).toBe(1);
+  });
+});
+
+describe("saveGlossaryIds", () => {
+  it("persists the glossary and bumps only that chart's revision", () => {
+    const chartId = "chart-saveGlossaryIds-primary";
+    const otherChartId = "chart-saveGlossaryIds-secondary";
+
+    expect(getGlossaryRevision(chartId)).toBe(0);
+    expect(getGlossaryRevision(otherChartId)).toBe(0);
+
+    saveGlossaryIds(chartId, ["yo", "knit"]);
+
+    expect(loadGlossaryIds(chartId)).toEqual(["yo", "knit"]);
+    expect(localStorage.getItem(`stitch-ease:glossary:${chartId}`)).toBe(JSON.stringify(["yo", "knit"]));
+    expect(getGlossaryRevision(chartId)).toBe(1);
+    expect(getGlossaryRevision(otherChartId)).toBe(0);
+  });
+
+  it("keeps the glossary available for this session if storage is unavailable", () => {
+    const chartId = "chart-saveGlossaryIds-storage-error";
+    vi.spyOn(localStorage, "setItem").mockImplementation(() => {
+      throw new Error("quota");
+    });
+
+    saveGlossaryIds(chartId, ["ssk"]);
+
+    expect(loadGlossaryIds(chartId)).toEqual(["ssk"]);
+    expect(getGlossaryRevision(chartId)).toBe(1);
   });
 });
 

@@ -10,7 +10,7 @@ import { insertTargetCol } from "../model/ops";
 import { SymbolGlyph } from "./SymbolGlyph";
 import { searchSymbols } from "./symbolSearch";
 import { CloseIcon } from "./icons";
-import { collectGlossarySymbols, loadGlossaryIds } from "./chartGlossary";
+import { collectGlossarySymbols, useGlossaryIds } from "./chartGlossary";
 
 const MENU_WIDTH = 284;
 const SEARCH_SLOT_WIDTH = 200;
@@ -57,6 +57,7 @@ export function StitchPicker() {
   const index = useDocStore((s) => s.index);
   const revision = useDocStore((s) => s.revision);
   const chartId = useDocStore((s) => s.meta?.id);
+  const addedGlossaryIds = useGlossaryIds(chartId);
 
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -101,11 +102,11 @@ export function StitchPicker() {
     return collectGlossarySymbols(
       // The right panel treats assigned quick slots as glossary rows too,
       // including slots beyond the five shown in this compact picker.
-      [...quickIds, ...loadGlossaryIds(chartId)],
+      [...quickIds, ...addedGlossaryIds],
       index.toArray().map((placement) => placement.symbolId),
     ).filter((symbol) =>
       !visibleIds.has(symbol.id) && (!selectionSpan || symbol.span === selectionSpan));
-  }, [quickSymbols, quickIds, chartId, index, selectionSpan, revision]);
+  }, [quickSymbols, quickIds, addedGlossaryIds, index, selectionSpan, revision]);
   const hasMore = moreSymbols.length > 0;
   const menuWidth = MENU_WIDTH + (hasMore ? 45 : 0) + (canDelete ? 45 : 0);
   const expandedMenuWidth = menuWidth + SEARCH_SLOT_WIDTH - 40;
