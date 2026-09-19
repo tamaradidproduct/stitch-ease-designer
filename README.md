@@ -104,9 +104,21 @@ permission, and save it in this repository as the `STAGING_PAGES_TOKEN` Actions
 secret. The staging workflow then builds and validates the app before it writes
 the generated files to the staging site's `gh-pages` branch.
 
-After validating a staging deployment through the current QA process, open a
-pull request from `staging` to `main`; the protected `production` environment
-pauses the final Pages deployment until the release is approved.
+After validating a staging deployment through the current QA process, open
+**Actions → Open staging promotion pull request**, choose **Run workflow**, and
+review the resulting `staging` → `main` pull request. The workflow reuses an
+existing open promotion pull request and stops with a clear error when staging
+has no new commits to promote. You can also create the same pull request
+manually from **Pull requests → New pull request**, choosing `main` as the base
+and `staging` as the compare branch.
+
+The automation uses the repository's built-in Actions token. In **Settings →
+Actions → General → Workflow permissions**, enable **Allow GitHub Actions to
+create and approve pull requests** before running it for the first time.
+
+Merging that pull request triggers the production workflow. The protected
+`production` environment pauses the final Pages deployment until the release
+is approved.
 
 The former test-cases-as-code dashboard and synchronization workflows are
 retired. Their database migrations remain in version control as historical
