@@ -38,6 +38,21 @@ export function shouldDismissSelectionBeforeDrawing(
   return !shiftKey && !targetOccupied && !!armedSymbolId && hasSelection;
 }
 
+/** Whether a live marquee should include empty cells as well as placements. */
+export type ModifierKeys = { metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey: boolean };
+
+export function includeEmptyCells(e: ModifierKeys): boolean {
+  return (e.metaKey || e.ctrlKey) && e.shiftKey && e.altKey;
+}
+
+/**
+ * Shift+Opt/Alt with no dismissible target is a no-op, except when Cmd/Ctrl
+ * is also held: that full chord belongs to empty-cell marquee selection.
+ */
+export function shouldBlockDismissGesture(e: ModifierKeys, mode: StrokeMode | null): boolean {
+  return e.shiftKey && e.altKey && !e.metaKey && !e.ctrlKey && !mode;
+}
+
 export type StraightAxis = "row" | "column";
 
 /** Choose the axis a Shift-constrained draw should follow. */
@@ -215,8 +230,8 @@ export function modeFor(
  *                                always lands a new selection there instead
  *   drag an existing selection       move it together, from any tool
  *   alt/opt + drag a selection       copy it instead of moving it, leaving the originals in place
- *   drag in Select               marquee-select every symbol in the rectangle; also every
- *                                empty cell, but only while Opt is additionally held
+ *   drag in Select               marquee-select every symbol in the rectangle; Cmd/Ctrl+
+ *                                Shift+Opt/Alt also picks up empty cells
  *   cmd/ctrl + click/drag        temporarily use Select - except hovering an actual pending
  *                                suggestion, which confirms it instead (see below)
  *   click/drag over a suggestion or needs-identification marker with a real stitch armed,
@@ -632,7 +647,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         // Same Dismiss no-op as the main flow below (FR-12) - Shift+Opt on
         // a cell it can't act on must not fall through to retargeting the
         // open picker via Shift's ordinary meaning here.
-        if (e.shiftKey && e.altKey && !modeHere) return;
+        if (shouldBlockDismissGesture(e, modeHere)) return;
 
         const modifierSelect = e.shiftKey || e.metaKey || e.ctrlKey;
         const modifierTarget = pickerCell
@@ -718,7 +733,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       // stitch, opening its picker). FR-12 promises Dismiss never touches
       // those cells; silently doing something else instead is just as
       // surprising as erasing them outright would have been.
-      if (e.shiftKey && e.altKey && !modeHere) return;
+      if (shouldBlockDismissGesture(e, modeHere)) return;
 
       // Shift has to be down before the gesture begins. Reading the store as
       // well as the pointer event keeps the canvas state and its cursor in
@@ -1022,16 +1037,15 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
           });
         const nextIds = [...new Set([...selectionBaseline, ...ids])];
 
-        // Empty cells join a marquee's results too, but only while Opt is
-        // also held (Cmd+Opt) - plain Cmd-drag stays exactly the marquee it
-        // always was, selecting only what it lands on. Opt is read live, so
-        // toggling it mid-drag adds or drops the empty cells without
-        // restarting the gesture, same as everywhere else Opt is live.
+        // Empty cells join a marquee only for the deliberate Cmd/Ctrl+
+        // Shift+Opt/Alt chord. Every modifier is read live, so adding or
+        // releasing one mid-drag adds or drops the empty cells without
+        // restarting the gesture.
         // Every other empty-cell path (a plain or Cmd click, replacing a
         // selection by clicking away) is intentionally NOT gated this way -
         // this restriction is specific to the drag/marquee tool.
         let nextEmptyCells = selectionEmptyBaseline;
-        if (e.altKey) {
+        if (includeEmptyCells(e)) {
           const emptyCells = new Map<string, Cell>(
             selectionEmptyBaseline.map((c) => [cellKey(c.col, c.row), c]),
           );
