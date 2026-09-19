@@ -43,7 +43,7 @@ export function QaDashboard() {
   useEffect(() => { void refresh().catch((caught: unknown) => setError(caught instanceof Error ? caught.message : "Could not load QA data")); }, []);
 
   const casesById = useMemo(() => new Map(cases.map((testCase) => [testCase.id, testCase])), [cases]);
-  const readyForApproval = results.length > 0 && results.every((result) => completeStatuses.includes(result.status));
+  const readyForApproval = results.length > 0 && results.every((result) => !casesById.has(result.test_case_id) || completeStatuses.includes(result.status));
 
   const createRun = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -115,7 +115,7 @@ export function QaDashboard() {
           <h2>Recent runs</h2>
           <div className="qa__runList">
             {runs.map((run) => (
-              <button key={run.id} type="button" className="qa__run" data-selected={selectedRun?.id === run.id} onClick={() => void selectRun(run)}>
+              <button key={run.id} type="button" className="qa__run" disabled={busy} data-selected={selectedRun?.id === run.id} onClick={() => void selectRun(run)}>
                 <span><strong>{run.name}</strong><small>{new Date(run.created_at).toLocaleString()}</small></span>
                 <span className="qa__status" data-status={run.status}>{run.status}</span>
               </button>
@@ -135,7 +135,7 @@ export function QaDashboard() {
                 </button>
               </div>
               {!readyForApproval && <p className="qa__hint">Every required case must be Passed or Skipped before sign-off.</p>}
-              {groups.map((group) => <RunGroup key={group.id} group={group} results={results} casesById={casesById} busy={busy} onStatus={setResultStatus} />)}
+              {groups.map((group) => <RunGroup key={group.id} group={group} results={results} casesById={casesById} busy={busy || selectedRun.status === "approved"} onStatus={setResultStatus} />)}
             </>
           )}
         </section>

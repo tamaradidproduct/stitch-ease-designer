@@ -20,11 +20,11 @@ async function markdownFiles(directory) {
 }
 
 function frontmatter(markdown, path) {
-  const match = markdown.match(/^---\n([\s\S]*?)\n---\n/);
+  const match = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n/);
   if (!match) throw new Error(`${path}: expected YAML frontmatter`);
   const values = {};
   let activeList = null;
-  for (const rawLine of match[1].split("\n")) {
+  for (const rawLine of match[1].split(/\r?\n/)) {
     const listItem = rawLine.match(/^\s+-\s+(.+)$/);
     if (listItem && activeList) {
       values[activeList].push(listItem[1].trim());
@@ -32,19 +32,26 @@ function frontmatter(markdown, path) {
     }
     const property = rawLine.match(/^([a-z_]+):\s*(.*)$/i);
     if (!property) continue;
-    const [, key, value] = property;
+    const [, key, rawValue] = property;
+    const value = rawValue.trim();
     activeList = value === "" ? key : null;
-    values[key] = value === "" ? [] : value.trim();
+    values[key] = value === "" ? [] : value;
   }
   for (const key of ["id", "title", "priority", "component"]) {
     if (!values[key] || Array.isArray(values[key])) throw new Error(`${path}: missing ${key}`);
   }
   if (!/^TC-[A-Z0-9-]+$/.test(values.id)) throw new Error(`${path}: invalid test id ${values.id}`);
+  if (!Array.isArray(values.platforms) || values.platforms.length === 0) {
+    throw new Error(`${path}: platforms must be a non-empty list`);
+  }
+  for (const platform of values.platforms) {
+    if (platform !== "desktop" && platform !== "ipad") throw new Error(`${path}: invalid platform ${platform}`);
+  }
   return values;
 }
 
 const cases = await Promise.all((await markdownFiles(root)).map(async (path) => {
-  const manual_markdown = await readFile(path, "utf8");
+  const manual_markdown = (await readFile(path, "utf8")).replace(/^\uFEFF/, "");
   const meta = frontmatter(manual_markdown, path);
   return {
     id: meta.id,
@@ -72,4 +79,15 @@ const response = await fetch(`${baseUrl}/rest/v1/qa_test_cases?on_conflict=id`, 
 });
 
 if (!response.ok) throw new Error(`Test case sync failed: ${await response.text()}`);
+const inactiveFilter = cases.length ? `?id=not.in.(${cases.map((testCase) => testCase.id).join(",")})` : "";
+const deactivateResponse = await fetch(`${baseUrl}/rest/v1/qa_test_cases${inactiveFilter}`, {
+  method: "PATCH",
+  headers: {
+    apikey: serviceKey,
+    Authorization: `Bearer ${serviceKey}`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({ active: false }),
+});
+if (!deactivateResponse.ok) throw new Error(`Test case deactivation failed: ${await deactivateResponse.text()}`);
 console.log(`Synced ${cases.length} manual test case(s).`);
