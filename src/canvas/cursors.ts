@@ -31,6 +31,9 @@ export const DUPLICATE_CURSOR = cursor(duplicateCursor, 12, 8, "copy");
 
 export const INSERT_BLOCKED_CURSOR = cursor(insertBlockedCursor, 3, 0, "not-allowed");
 export const INSERT_ADD_CURSOR = cursor(insertAddCursor, 3, 0, "default");
+const ARROW_BASE_SVG = `
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M0 16V0L11.6 11.6081H4.55353L4.40242 11.732L0 16Z" fill="#fff"/>
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M1 2.3V13.5L3.969 10.6309L4.129 10.4918L9.165 10.5L1 2.3Z" fill="#000"/>`;
 
 /**
  * Shown while Cmd/Ctrl hovers a pending suggestion - confirming it is what
@@ -43,8 +46,7 @@ export const INSERT_ADD_CURSOR = cursor(insertAddCursor, 3, 0, "default");
  */
 export const CONFIRM_SUGGESTION_CURSOR = cursor(
   svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
-    <path fill-rule="evenodd" clip-rule="evenodd" d="M0 16V0L11.6 11.6081H4.55353L4.40242 11.732L0 16Z" fill="#fff"/>
-    <path fill-rule="evenodd" clip-rule="evenodd" d="M1 2.3V13.5L3.969 10.6309L4.129 10.4918L9.165 10.5L1 2.3Z" fill="#000"/>
+${ARROW_BASE_SVG}
     <circle cx="17.5" cy="15.5" r="6.5" fill="#16a34a" stroke="#fff" stroke-width="1.5"/>
     <path d="M14.6 15.6l1.8 1.8 3.4-3.8" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
   </svg>`),
@@ -61,8 +63,7 @@ export const CONFIRM_SUGGESTION_CURSOR = cursor(
  */
 export const DISMISS_SUGGESTION_CURSOR = cursor(
   svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
-    <path fill-rule="evenodd" clip-rule="evenodd" d="M0 16V0L11.6 11.6081H4.55353L4.40242 11.732L0 16Z" fill="#fff"/>
-    <path fill-rule="evenodd" clip-rule="evenodd" d="M1 2.3V13.5L3.969 10.6309L4.129 10.4918L9.165 10.5L1 2.3Z" fill="#000"/>
+${ARROW_BASE_SVG}
     <circle cx="17.5" cy="15.5" r="6.5" fill="#dc2626" stroke="#fff" stroke-width="1.5"/>
     <path d="M15.2 13.2l4.6 4.6m0-4.6-4.6 4.6" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>
   </svg>`),
@@ -79,8 +80,7 @@ export const DISMISS_SUGGESTION_CURSOR = cursor(
  */
 export const SUGGEST_CURSOR = cursor(
   svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
-    <path fill-rule="evenodd" clip-rule="evenodd" d="M0 16V0L11.6 11.6081H4.55353L4.40242 11.732L0 16Z" fill="#fff"/>
-    <path fill-rule="evenodd" clip-rule="evenodd" d="M1 2.3V13.5L3.969 10.6309L4.129 10.4918L9.165 10.5L1 2.3Z" fill="#000"/>
+${ARROW_BASE_SVG}
     <circle cx="17.5" cy="15.5" r="6.5" fill="#9333ea" stroke="#fff" stroke-width="1.5"/>
     <path d="M14.7 18.3l4.6-4.6M18.2 13l.7 1.5 1.5.7-1.5.7-.7 1.5-.7-1.5-1.5-.7 1.5-.7Z" stroke="#fff" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" fill="#fff"/>
   </svg>`),
@@ -128,8 +128,7 @@ export function armedStitchCursor(symbolId: string): string {
     <defs><filter id="s" x="-20%" y="-20%" width="150%" height="150%"><feDropShadow dy="1" stdDeviation="0.9" flood-opacity="0.65"/></filter></defs>
     <g filter="url(#s)">
       <g transform="translate(4 16.5)">${preview.markup}</g>
-      <path fill-rule="evenodd" clip-rule="evenodd" d="M0 16V0L11.6 11.6081H4.55353L4.40242 11.732L0 16Z" fill="#fff"/>
-      <path fill-rule="evenodd" clip-rule="evenodd" d="M1 2.3V13.5L3.969 10.6309L4.129 10.4918L9.165 10.5L1 2.3Z" fill="#000"/>
+${ARROW_BASE_SVG}
     </g>
   </svg>`;
   const result = cursor(svgDataUrl(svg), 0, 0, "default");
