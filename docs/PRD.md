@@ -430,15 +430,15 @@ in `styles.css`.
 
 #### Storage
 
-**FR-22 (storage).** Mirrors how `suggested` is already stored — a sparse
+**FR-37.** Mirrors how `suggested` is already stored — a sparse
 list, not baked into every stitch tuple: `colorPalette?: string[]` (hex,
 first-seen order) + `colors?: [col, row, colorPaletteIndex][]` for only the
 colored cells. Purely additive; old charts decode unchanged. `STORED_VERSION`
 bumped to 3 (versions 1–2 still read fine — no colorwork fields at all reads
 as "no color, never customized").
 
-**Absent vs. empty (`glossaryIds`/`quickSymbolIds`).** A real three-state
-distinction:
+**FR-38 — absent vs. empty (`glossaryIds`/`quickSymbolIds`).** A real
+three-state distinction:
 - **Undefined** (key omitted) → chart never saved since colorwork shipped →
   decodes to `DEFAULT_STITCH_IDS` (knit, purl).
 - **Present, explicit array** (`[]` included) → decodes to exactly that,
@@ -465,7 +465,7 @@ symbol id that contains it.
 
 #### Rendering & counts
 
-**DNT-13.** A plain symbol's displayed placed-count excludes colored
+**DNT-12.** A plain symbol's displayed placed-count excludes colored
 placements of that symbol — a colored combo is a separate inventory line
 with its own count (`countConfirmedStitches` / `countConfirmedColoredStitches`
 in `src/ui/chartGlossary.ts`).
@@ -478,7 +478,7 @@ armed at once.
 
 #### Gotchas hit while building this (read before touching colorwork rendering)
 
-- **Bug — colored tiles rendered black-on-white.** The canvas renderer and
+- **G-11 — colored tiles rendered black-on-white.** The canvas renderer and
   the cursor preview got `colorId` from the start; `SymbolGlyph` (the
   component the picker's and glossary's tiles actually use) didn't, so a
   colored slot's icon still showed plain black-on-white even though the
@@ -486,7 +486,7 @@ armed at once.
   render site, easy to miss because the other three all worked and made the
   feature look "done." Fixed by threading `colorId` through `SymbolGlyph`
   too, at every call site that has a color to give.
-- **Bug — overflow glossary entries had no drag handle.** A colored combo
+- **G-12 — overflow glossary entries had no drag handle.** A colored combo
   that only ever arrived via a duplicate/paste or a file import (never an
   explicit arm/pick) landed in the unslotted overflow section with no way to
   promote it into a numbered quick slot or reorder it. Fixed with two new
@@ -494,7 +494,7 @@ armed at once.
   quick row before moving it) and `moveGlossaryIdTo` — and a matching drag
   handle on overflow rows. `moveQuickSymbolTo` now always goes through the
   promote path, so an already-slotted key still just reorders as before.
-- **Bug — glossary search dropdown clipped mid-list.** `.glossarySearch__results`
+- **G-13 — glossary search dropdown clipped mid-list.** `.glossarySearch__results`
   used `position: absolute` inside `.sideModule`, which sets
   `overflow: hidden` so the card can round its own corners — a dropdown
   extending past the card's bottom edge got cut off there instead of
@@ -511,7 +511,7 @@ armed at once.
 
 #### Do not touch (colorwork)
 
-- **DNT-11 mitigation, load-bearing.** Recoloring the currently-selected
+- **DNT-11 — load-bearing.** Recoloring the currently-selected
   stitch/pen may only rename its quick slot *in place* when nothing else on
   the chart still uses that slot's old (symbol, color) combo (scan excludes
   the placement(s) actually being recolored). Skipping this check is a real,
@@ -522,17 +522,18 @@ armed at once.
 - **Scope.** Named/managed palettes (rename, reorder into groups, per-chart
   named palettes beyond the quick row) are explicitly deferred — the
   quick-slot row *is* the palette for this pass. Suggest stays uncolored.
-- **Undo scope.** Glossary and quick-slot edits are **not** undoable —
-  Cmd/Ctrl+Z reverts placements, not a palette change. Deliberate: they're
-  chart settings, not document content, so they're mutated outside
-  `docStore`'s `commit()`/undo stack. Flagged as revisit-if-confusing, not
-  settled forever.
-- No native `<input type="color">`, no "more colors" escape hatch, no pure
-  white, no "no color" cell in the picker — a fixed 32-swatch grid (8 hue
-  columns × 4 lightness steps) so one click is always exactly one apply. A
-  native color input was tried and removed: it fires continuously as the
-  cursor moves, and applying a color used to close the popover, so the
-  first shade dragged over committed and the input unmounted mid-drag.
+- **DNT-13 — undo scope.** Glossary and quick-slot edits are **not**
+  undoable — Cmd/Ctrl+Z reverts placements, not a palette change.
+  Deliberate: they're chart settings, not document content, so they're
+  mutated outside `docStore`'s `commit()`/undo stack. Flagged as
+  revisit-if-confusing, not settled forever.
+- **DNT-14.** No native `<input type="color">`, no "more colors" escape
+  hatch, no pure white, no "no color" cell in the picker — a fixed
+  32-swatch grid (8 hue columns × 4 lightness steps) so one click is always
+  exactly one apply. A native color input was tried and removed: it fires
+  continuously as the cursor moves, and applying a color used to close the
+  popover, so the first shade dragged over committed and the input
+  unmounted mid-drag.
 
 #### File map
 
