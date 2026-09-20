@@ -11,6 +11,12 @@ export type Placement = {
   row: number;
   /** Independent repeat/group instance this placement belongs to. */
   groupId?: string;
+  /**
+   * Color is a property of a stitch, never a second kind of stitch (FR-22).
+   * Absent means uncolored - a chart that never uses color encodes
+   * byte-identically to the pre-colorwork format.
+   */
+  colorId?: string;
   /** Marked true if placed by auto-suggest template matching and awaiting confirmation. */
   suggested?: boolean;
   /**
@@ -23,7 +29,7 @@ export type Placement = {
   confidence?: number;
 };
 
-export type RepeatStitch = { symbolId: string; col: number; row: number };
+export type RepeatStitch = { symbolId: string; col: number; row: number; colorId?: string };
 
 /** A reusable stitch sequence stored only with the chart that created it. */
 export type RepeatDefinition = {

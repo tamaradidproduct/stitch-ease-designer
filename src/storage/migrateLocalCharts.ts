@@ -52,11 +52,11 @@ export async function migrateLocalCharts(
 
   for (const meta of charts) {
     try {
-      const { placements, repeats, referenceImage } = await source.load(meta.id);
+      const { placements, repeats, referenceImage, glossaryIds, quickSymbolIds } = await source.load(meta.id);
       const created = await target.create(meta.name);
       try {
         const migratedImage = referenceImage ? await migrateImage(created.id, referenceImage) : undefined;
-        await target.save(created.id, placements, created.rev, repeats, migratedImage);
+        await target.save(created.id, placements, created.rev, repeats, migratedImage, glossaryIds, quickSymbolIds);
       } catch (error) {
         // Otherwise a failure here - the image re-upload, or the save that
         // follows it - would leave an empty chart behind in the target

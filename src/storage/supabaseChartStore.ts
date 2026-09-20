@@ -86,7 +86,7 @@ export function createSupabaseChartStore(client: SupabaseClient): ChartStore {
       if (!data) throw new ChartNotFoundError(id);
 
       const row = data as ChartRow;
-      const { placements, repeats, referenceImage, unknownSymbolIds } = decode(
+      const { placements, repeats, referenceImage, glossaryIds, quickSymbolIds, unknownSymbolIds } = decode(
         row.data,
         knownSymbol,
       );
@@ -94,6 +94,8 @@ export function createSupabaseChartStore(client: SupabaseClient): ChartStore {
         meta: metaFromRow(row),
         placements,
         repeats,
+        glossaryIds,
+        quickSymbolIds,
         unknownSymbolIds,
         ...(referenceImage ? { referenceImage } : null),
       };
@@ -105,10 +107,12 @@ export function createSupabaseChartStore(client: SupabaseClient): ChartStore {
       expectedRev: string,
       repeats: RepeatDefinition[] = [],
       referenceImage?: ReferenceImage,
+      glossaryIds?: readonly string[],
+      quickSymbolIds?: readonly string[],
     ): Promise<DocMeta> {
       const { data, error } = await client
         .from("charts")
-        .update({ data: encode(placements, repeats, referenceImage) })
+        .update({ data: encode(placements, repeats, referenceImage, glossaryIds, quickSymbolIds) })
         .eq("id", id)
         .eq("rev", expectedRev)
         .select(CHART_META_COLUMNS)

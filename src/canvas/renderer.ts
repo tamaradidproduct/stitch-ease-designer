@@ -4,6 +4,7 @@ import { rowDirectionAt } from "../model/rowDirection";
 import { chartTopology, knittedRowNumbers, roundStitchNumbers } from "../model/stitchNumbers";
 import { CORNERS, cornerPoint, stitchBoxRect, type CalibrationMark, type ReferenceImage } from "../model/types";
 import { getSymbol } from "../symbols/registry";
+import { getSwatch, glyphInkFor } from "../model/colorPalette";
 import {
   CELL,
   type Camera,
@@ -208,6 +209,16 @@ function drawPlacements(ctx: CanvasRenderingContext2D, state: RenderState): void
       ctx.restore();
     }
 
+    // FR-28: a colored stitch renders as a cell background fill behind the
+    // glyph. Painted before the library's own per-cell tints, so a symbol's
+    // own tint (e.g. "no stitch" grey) overpaints the color rather than the
+    // reverse (FR-29's precedence rule, applied identically here).
+    const swatch = p.colorId ? getSwatch(p.colorId) : undefined;
+    if (swatch) {
+      ctx.fillStyle = swatch.hex;
+      ctx.fillRect(r.x, r.y, width, size);
+    }
+
     // Overpaint only the cells the library tints. "No stitch" is grey and
     // otherwise indistinguishable from knit, so this is meaning, not styling.
     const fills = symbol?.cellFills;
@@ -235,7 +246,8 @@ function drawPlacements(ctx: CanvasRenderingContext2D, state: RenderState): void
     // knit and empty are pure cell chrome in the library, so they have no
     // glyph to draw — the bordered cell above is the whole symbol.
     if (symbol) {
-      const sprite = sprites.get(symbol, size, theme.symbol);
+      const ink = glyphInkFor(p.colorId, theme.symbol);
+      const sprite = sprites.get(symbol, size, ink);
       if (sprite) ctx.drawImage(sprite, r.x, r.y, width, size);
     }
 

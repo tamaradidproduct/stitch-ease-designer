@@ -717,12 +717,101 @@ body {
   overflow: visible;
 }
 
+/* FR-31: a persistent label naming what the picker is currently editing. */
+.picker__context {
+  padding: 6px 10px 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .picker__quick {
   display: flex;
+  align-items: center;
   gap: 5px;
   padding: 7px;
   background: var(--bg);
   border-radius: 9px;
+}
+
+/* FR-30: separates the dynamic sixth tile from the five real, persisted slots. */
+.picker__quickDivider {
+  width: 1px;
+  align-self: stretch;
+  margin: 4px 1px;
+  background: var(--border);
+}
+
+.picker__quickButton[data-colored="true"] {
+  border-color: rgb(15 23 42 / 12%);
+}
+
+/*
+ * Shared color-chip affordance (FR-25/26/34 - see the colorwork spec's
+ * Consolidation section). `--recolor` is the restrictive, current-selection-
+ * only chip; `--add-only` is the permissive, mint-a-new-pen chip. Both share
+ * the small circular icon-button shell; only the inner glyph differs.
+ */
+.colorChip {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  z-index: 2;
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border: 1.5px solid var(--bg);
+  border-radius: 50%;
+  background: var(--bg);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.colorChip:hover,
+.colorChip:focus-visible,
+.colorChip[aria-expanded="true"] {
+  color: var(--accent);
+  outline: none;
+}
+
+.picker__quickColorChip {
+  right: -3px;
+  bottom: -3px;
+}
+
+.picker__itemColorChip,
+.glossary__colorChip {
+  position: static;
+  flex: none;
+  margin-left: auto;
+  border-color: transparent;
+}
+
+.colorPopover {
+  z-index: 30;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow:
+    0 8px 24px rgb(15 23 42 / 14%),
+    0 2px 6px rgb(15 23 42 / 8%);
+}
+
+.colorPopover__swatch {
+  border: 1px solid rgb(15 23 42 / 10%);
+  border-radius: 5px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.colorPopover__swatch:hover,
+.colorPopover__swatch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 .picker__quickButton,
@@ -861,15 +950,33 @@ body {
 }
 
 .picker__moreList .picker__item {
+  display: flex;
+  align-items: center;
   min-height: 40px;
   flex: none;
-  padding: 6px 8px;
+  padding: 0;
 }
 
 .picker__moreList .picker__item:hover,
-.picker__moreList .picker__item:focus-visible {
+.picker__moreList .picker__item:focus-within {
   background: var(--accent-soft-bg);
   outline: none;
+}
+
+.picker__itemMain {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
 }
 
 .picker__selectionBubbles {

@@ -1,123 +1,122 @@
-import { useMemo, useSyncExternalStore } from "react";
+import { useMemo } from "react";
 import { getSymbol } from "../symbols/registry";
 import type { StitchSymbol } from "../symbols/types";
 import type { Placement } from "../model/types";
+import { DEFAULT_STITCH_IDS, parseQuickSlotId, quickSlotKey } from "../model/quickSlots";
+import { useDocStore } from "../state/docStore";
 
 /** Every fresh pattern starts with the two foundational knit stitches. */
-export const DEFAULT_GLOSSARY_IDS = ["knit", "purl"];
-
-const sessionGlossaryIds = new Map<string, string[]>();
-const glossaryRevisions = new Map<string, number>();
-const glossaryListeners = new Set<() => void>();
-
-const glossaryKey = (chartId: string) => `stitch-ease:glossary:${chartId}`;
-
-function normalizeGlossaryIds(stored: unknown): string[] {
-  return Array.isArray(stored)
-    ? stored.filter((id): id is string => typeof id === "string")
-    : [...DEFAULT_GLOSSARY_IDS];
-}
-
-function notifyGlossaryChanged(chartId: string) {
-  glossaryRevisions.set(chartId, (glossaryRevisions.get(chartId) ?? 0) + 1);
-  glossaryListeners.forEach((listener) => listener());
-}
-
-function subscribeGlossaryChanges(listener: () => void) {
-  glossaryListeners.add(listener);
-  return () => glossaryListeners.delete(listener);
-}
-
-export function loadGlossaryIds(chartId?: string): string[] {
-  if (!chartId) return [];
-  const sessionIds = sessionGlossaryIds.get(chartId);
-  if (sessionIds) return [...sessionIds];
-  if (typeof localStorage === "undefined") return [...DEFAULT_GLOSSARY_IDS];
-  try {
-    const raw = localStorage.getItem(glossaryKey(chartId));
-    // No chart-specific glossary has been saved yet: start with the two
-    // stitches every pattern is likely to need. Once a designer removes one,
-    // their explicit stored list (including an empty one) takes precedence.
-    if (raw === null) return [...DEFAULT_GLOSSARY_IDS];
-    return normalizeGlossaryIds(JSON.parse(raw));
-  } catch {
-    return [...DEFAULT_GLOSSARY_IDS];
-  }
-}
-
-export function saveGlossaryIds(chartId: string | undefined, ids: readonly string[]): void {
-  if (!chartId) return;
-  const next = ids.filter((id): id is string => typeof id === "string");
-  sessionGlossaryIds.set(chartId, next);
-  try {
-    if (typeof localStorage !== "undefined") {
-      localStorage.setItem(glossaryKey(chartId), JSON.stringify(next));
-    }
-  } catch {
-    // The glossary remains available for this session if storage is unavailable.
-  }
-  notifyGlossaryChanged(chartId);
-}
-
-export function getGlossaryRevision(chartId?: string): number {
-  return chartId ? (glossaryRevisions.get(chartId) ?? 0) : 0;
-}
-
-export function useGlossaryRevision(chartId?: string): number {
-  return useSyncExternalStore(
-    subscribeGlossaryChanges,
-    () => getGlossaryRevision(chartId),
-    () => 0,
-  );
-}
-
-export function useGlossaryIds(chartId?: string): string[] {
-  const revision = useGlossaryRevision(chartId);
-  return useMemo(() => {
-    void revision;
-    return loadGlossaryIds(chartId);
-  }, [chartId, revision]);
-}
+export const DEFAULT_GLOSSARY_IDS = DEFAULT_STITCH_IDS;
 
 /**
- * Combines explicitly-added glossary stitches with stitches already placed
- * on the chart. Placement ids come second so the designer's glossary order
- * remains stable, and duplicates or unknown legacy ids are ignored.
+ * Chart-scoped, persisted with the chart itself (see `docStore`'s
+ * `glossaryIds`/`setGlossaryIds` and `serialize.ts`) - not a browser-local
+ * side channel. Kept as a small wrapper (rather than reading `useDocStore`
+ * directly at every call site) only so callers don't need to know the
+ * underlying store shape.
  */
+export function useGlossaryIds(): string[] {
+  return useDocStore((s) => s.glossaryIds);
+}
+
+export function saveGlossaryIds(_chartId: string | undefined, ids: readonly string[]): void {
+  useDocStore.getState().setGlossaryIds([...ids]);
+}
+
+/** One glossary/quick-row entry: a resolved (symbol, color) pen. */
+export type GlossaryEntry = {
+  /** Quick-slot key - `symbolId` or `symbolId::colorId`. */
+  key: string;
+  symbol: StitchSymbol;
+  colorId?: string;
+};
+
+/**
+ * Combines explicitly-added glossary keys with keys derived from placements
+ * already on the chart. Placement-derived keys come second so the
+ * designer's glossary order remains stable, and duplicates or unknown
+ * legacy ids are ignored (FR-24: a placed (symbol, color) combo becomes a
+ * glossary entry automatically, deduplicated by identity).
+ */
+export function collectColoredGlossaryEntries(
+  addedKeys: readonly string[],
+  placements: readonly Placement[],
+): GlossaryEntry[] {
+  const placementKeys = placements.map((p) => quickSlotKey(p.symbolId, p.colorId));
+  const seen = new Set<string>();
+  return [...addedKeys, ...placementKeys].flatMap((key) => {
+    if (seen.has(key)) return [];
+    seen.add(key);
+    const { symbolId, colorId } = parseQuickSlotId(key);
+    const symbol = getSymbol(symbolId);
+    if (!symbol) return [];
+    return [{ key, symbol, ...(colorId ? { colorId } : {}) }];
+  });
+}
+
+/** Back-compat plain-symbol view, for call sites that only need the symbol list. */
 export function collectGlossarySymbols(
   addedIds: readonly string[],
   placementIds: readonly string[],
 ): StitchSymbol[] {
   const seen = new Set<string>();
   return [...addedIds, ...placementIds].flatMap((id) => {
-    if (seen.has(id)) return [];
-    seen.add(id);
-    const symbol = getSymbol(id);
+    const { symbolId } = parseQuickSlotId(id);
+    if (seen.has(symbolId)) return [];
+    seen.add(symbolId);
+    const symbol = getSymbol(symbolId);
     return symbol ? [symbol] : [];
   });
 }
 
 /**
- * Per-symbol counts for the glossary's displayed count, excluding
- * still-pending suggestions - confirming one must visibly increment its
- * symbol's count by one, which it can't do if it was already counted the
- * moment Suggest guessed it (FR-13, Gotcha G-8).
+ * Per-symbol counts for a plain (uncolored) glossary row, excluding
+ * still-pending suggestions and, per DNT-13, excluding colored placements of
+ * that same symbol - a colored combo is a separate inventory line with its
+ * own count. Without this exclusion a plain "Purl" row can read "3" while
+ * zero actual uncolored purls exist, because every colored purl would be
+ * counted twice: once on its own colored row, once folded into the plain one.
  */
 export function countConfirmedStitches(placements: readonly Placement[]): Map<string, number> {
   const counts = new Map<string, number>();
   for (const placement of placements) {
-    if (placement.suggested) continue;
+    if (placement.suggested || placement.colorId) continue;
     counts.set(placement.symbolId, (counts.get(placement.symbolId) ?? 0) + 1);
   }
   return counts;
 }
 
+/** Per (symbol, color) combo counts, confirmed placements only - the colored counterpart of `countConfirmedStitches`. */
+export function countConfirmedColoredStitches(placements: readonly Placement[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const placement of placements) {
+    if (placement.suggested || !placement.colorId) continue;
+    const key = quickSlotKey(placement.symbolId, placement.colorId);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/** Stable identity for a colored glossary/quick-slot entry - alias of `quickSlotKey` for call sites in glossary/picker code. */
+export const coloredEntryKey = quickSlotKey;
+
 /**
- * Which symbols have any placement at all, confirmed or still-suggested -
- * the separate check "safe to remove from glossary" must use. Reusing
- * `countConfirmedStitches` for that decision would let a symbol with only a
- * pending suggestion look removable when it isn't (FR-14, Gotcha G-9).
+ * Which (symbol, color) combos have any placement at all, confirmed or
+ * still-suggested - the separate check "safe to remove from glossary" must
+ * use. Reusing the confirmed-only counts for that decision would let a combo
+ * with only a pending suggestion look removable when it isn't.
  */
 export function symbolsWithAnyPlacement(placements: readonly Placement[]): Set<string> {
-  return new Set(placements.map((placement) => placement.symbolId));
+  const keys = new Set<string>();
+  for (const placement of placements) {
+    keys.add(placement.symbolId);
+    keys.add(quickSlotKey(placement.symbolId, placement.colorId));
+  }
+  return keys;
+}
+
+/** Memoized glossary entries for the open chart - combines explicit + derived, dedup'd. */
+export function useColoredGlossary(placements: readonly Placement[]): GlossaryEntry[] {
+  const addedIds = useGlossaryIds();
+  return useMemo(() => collectColoredGlossaryEntries(addedIds, placements), [addedIds, placements]);
 }

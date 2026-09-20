@@ -23,6 +23,14 @@ import { newUuid } from "../uuid";
 import type { LoadedChart } from "../storage/ChartStore";
 import { nextHistorySequence } from "./historySequence";
 import { useUiStore } from "./uiStore";
+import {
+  DEFAULT_STITCH_IDS,
+  assignQuickSlot,
+  moveQuickSlotTo,
+  parseQuickSlotId,
+  removeQuickSlot,
+  renameQuickSlot,
+} from "../model/quickSlots";
 
 /**
  * Where the open chart stands with storage.
@@ -74,13 +82,34 @@ type DocState = {
   /** The pattern screenshot behind the chart, if one's been uploaded. Not undoable, like camera pan/zoom. */
   referenceImage: ReferenceImage | null;
 
+  /**
+   * Chart-scoped glossary/quick-row membership (FR-32) - entries are
+   * quick-slot keys (`symbolId` or `symbolId::colorId`, see `quickSlots.ts`).
+   * Chart settings, not document content: mutated outside `commit()`, so
+   * Cmd/Ctrl+Z never touches them (see §6 "Undo scope" in the colorwork spec).
+   */
+  glossaryIds: string[];
+  quickSymbolIds: string[];
+
   undoStack: HistoryEntry[];
   redoStack: HistoryEntry[];
   /** Changes accumulated during the current drag, merged into one entry. */
   stroke: Change[] | null;
 
-  /** `suggested`/`confidence` mark it as an unaccepted guess from auto-suggest - see `Placement`. */
-  place: (symbolId: string, col: number, row: number, suggested?: boolean, confidence?: number) => void;
+  /**
+   * `suggested`/`confidence` mark it as an unaccepted guess from auto-suggest
+   * - see `Placement`. `colorId` is null/undefined for an uncolored pen
+   * (DNT-8: every call site is responsible for passing its own color
+   * explicitly, never "whatever's active").
+   */
+  place: (
+    symbolId: string,
+    col: number,
+    row: number,
+    suggested?: boolean,
+    confidence?: number,
+    colorId?: string | null,
+  ) => void;
   erase: (col: number, row: number) => void;
   /**
    * Clears the suggested flag on suggested placements in one undoable step -
@@ -95,7 +124,7 @@ type DocState = {
    */
   dismissSuggestions: (ids?: string[]) => void;
   /** Returns the replaced placements' new ids, or the original `ids` unchanged if nothing was replaced. */
-  replacePlacements: (ids: string[], symbolId: string) => string[];
+  replacePlacements: (ids: string[], symbolId: string, colorId?: string | null) => string[];
   erasePlacements: (ids: string[]) => void;
   movePlacements: (ids: string[], deltaCol: number, deltaRow: number) => void;
   /** Whether `movePlacements` would actually move anything, without doing it. */
@@ -117,7 +146,37 @@ type DocState = {
    * everything further along the row in the knitting direction - out of the
    * way to make room, rather than overwriting it.
    */
-  insertPlacement: (symbolId: string, col: number, row: number) => void;
+  insertPlacement: (symbolId: string, col: number, row: number, colorId?: string | null) => void;
+  /**
+   * Recolors exactly `ids` (must currently share one (symbolId, colorId)
+   * combo - callers enforce FR-33's homogeneity rule) to `colorId`. A
+   * document edit like any other placement change, so it's undoable.
+   * Returns the recolored placements' new ids.
+   */
+  recolorPlacements: (ids: string[], colorId: string | null) => string[];
+  /** Replaces the whole glossary array. Not undoable - see the field's own doc comment. */
+  setGlossaryIds: (ids: string[]) => void;
+  /** Replaces the whole quick-row array. Not undoable - see the field's own doc comment. */
+  setQuickSymbolIds: (ids: string[]) => void;
+  /** Adds `id` to the glossary if it isn't already there. */
+  addGlossaryId: (id: string) => void;
+  /** Removes `id` from the glossary. */
+  removeGlossaryId: (id: string) => void;
+  /** Adds `key` to the next free quick slot without reordering. */
+  addQuickSlot: (key: string) => void;
+  /** Clears a quick-slot assignment without moving other slots. */
+  removeQuickSlot: (key: string) => void;
+  /** Reorders a quick slot, updating its number-key shortcut. */
+  moveQuickSlotTo: (key: string, targetSlot: number) => void;
+  /**
+   * DNT-12's rename-vs-mint recolor path: renaming `oldKey` to `newKey` in
+   * place is only safe when nothing else on the chart still uses `oldKey`'s
+   * (symbol, color) combo, excluding `excludingPlacementIds` (the placements
+   * actually being recolored). When siblings remain, mints (or reuses) a new
+   * slot for `newKey` instead of touching `oldKey`'s slot. Applies to both
+   * the quick row and the glossary, wherever `oldKey` is currently present.
+   */
+  recolorQuickSlot: (oldKey: string, newKey: string, excludingPlacementIds: string[]) => void;
   /** Sets or replaces the reference image outright (a fresh upload). */
   setReferenceImage: (image: ReferenceImage) => void;
   /** Patches the existing reference image's transform/visibility/lock - a no-op if none is set. */
@@ -230,9 +289,11 @@ export const useDocStore = create<DocState>((set, get) => {
     unknownSymbolIds: [],
     repeats: [],
     referenceImage: null,
+    glossaryIds: [...DEFAULT_STITCH_IDS],
+    quickSymbolIds: [...DEFAULT_STITCH_IDS],
 
-    place: (symbolId, col, row, suggested, confidence) =>
-      commit(placeChange(get().index, symbolId, col, row, suggested, confidence)),
+    place: (symbolId, col, row, suggested, confidence, colorId) =>
+      commit(placeChange(get().index, symbolId, col, row, suggested, confidence, colorId)),
     erase: (col, row) => commit(eraseChange(get().index, col, row)),
     acceptSuggestions: (ids) => {
       const idSet = ids ? new Set(ids) : null;
@@ -254,8 +315,86 @@ export const useDocStore = create<DocState>((set, get) => {
       commit({ added: [], removed: suggested });
     },
     canInsertAt: (col, row) => canInsertAtIndex(get().index, col, row),
-    insertPlacement: (symbolId, col, row) =>
-      commit(insertChange(get().index, symbolId, col, row)),
+    insertPlacement: (symbolId, col, row, colorId) =>
+      commit(insertChange(get().index, symbolId, col, row, colorId)),
+
+    recolorPlacements: (ids, colorId) => {
+      const selected = ids
+        .map((id) => get().index.placements.get(id))
+        .filter((p): p is NonNullable<typeof p> => !!p);
+      if (!selected.length) return ids;
+      if (selected.every((p) => (p.colorId ?? null) === (colorId ?? null))) return ids;
+      const added = selected.map((p) => {
+        const next: typeof p = { ...p, id: newPlacementId() };
+        if (colorId) next.colorId = colorId;
+        else delete next.colorId;
+        return next;
+      });
+      commit({ removed: selected, added });
+      return added.map((p) => p.id);
+    },
+
+    setGlossaryIds: (glossaryIds) => set((s) => ({ glossaryIds, revision: s.revision + 1 })),
+    setQuickSymbolIds: (quickSymbolIds) => set((s) => ({ quickSymbolIds, revision: s.revision + 1 })),
+    addGlossaryId: (id) => {
+      const current = get().glossaryIds;
+      if (current.includes(id)) return;
+      get().setGlossaryIds([...current, id]);
+    },
+    removeGlossaryId: (id) => {
+      const current = get().glossaryIds;
+      if (!current.includes(id)) return;
+      get().setGlossaryIds(current.filter((existing) => existing !== id));
+    },
+    addQuickSlot: (key) => {
+      const current = get().quickSymbolIds;
+      const next = assignQuickSlot(current, key);
+      if (next !== current) get().setQuickSymbolIds(next);
+    },
+    removeQuickSlot: (key) => {
+      const current = get().quickSymbolIds;
+      const next = removeQuickSlot(current, key);
+      if (next !== current) get().setQuickSymbolIds(next);
+    },
+    moveQuickSlotTo: (key, targetSlot) => {
+      const current = get().quickSymbolIds;
+      const next = moveQuickSlotTo(current, key, targetSlot);
+      if (next !== current) get().setQuickSymbolIds(next);
+    },
+    recolorQuickSlot: (oldKey, newKey, excludingPlacementIds) => {
+      if (oldKey === newKey) return;
+      const { symbolId, colorId } = parseQuickSlotId(oldKey);
+      const excluded = new Set(excludingPlacementIds);
+      // DNT-12: renaming in place is only safe when nothing else on the
+      // chart still uses the old combo.
+      const hasSibling = get().index.toArray().some(
+        (p) => !excluded.has(p.id) && p.symbolId === symbolId && (p.colorId ?? null) === (colorId ?? null),
+      );
+      const state = get();
+      if (hasSibling) {
+        // Siblings remain - mint (or reuse) a new slot for the new combo,
+        // leaving the old one untouched.
+        if (state.quickSymbolIds.includes(oldKey)) state.addQuickSlot(newKey);
+        if (state.glossaryIds.includes(oldKey)) state.addGlossaryId(newKey);
+        return;
+      }
+      // DNT-10: renaming in place must not silently create a duplicate slot
+      // when an *older* slot already holds this exact resulting pen -
+      // that older slot is emptied instead, rather than bailing out
+      // (bailing looks like the color simply didn't apply).
+      if (state.quickSymbolIds.includes(oldKey)) {
+        const withoutOlderDuplicate = state.quickSymbolIds.includes(newKey)
+          ? removeQuickSlot(state.quickSymbolIds, newKey)
+          : state.quickSymbolIds;
+        state.setQuickSymbolIds(renameQuickSlot(withoutOlderDuplicate, oldKey, newKey));
+      }
+      if (state.glossaryIds.includes(oldKey)) {
+        const withoutOlderDuplicate = state.glossaryIds.filter((id) => id !== newKey);
+        state.setGlossaryIds(
+          withoutOlderDuplicate.map((id) => (id === oldKey ? newKey : id)),
+        );
+      }
+    },
 
     // Reference-point edits are document changes, unlike camera movement, so
     // keep a compact before-image snapshot for Cmd/Ctrl+Z. This deliberately
@@ -307,21 +446,26 @@ export const useDocStore = create<DocState>((set, get) => {
     removeReferenceImage: () =>
       set((s) => (s.referenceImage ? { referenceImage: null, revision: s.revision + 1 } : {})),
 
-    replacePlacements: (ids, symbolId) => {
+    replacePlacements: (ids, symbolId, colorId) => {
       const selected = ids
         .map((id) => get().index.placements.get(id))
         .filter((p): p is NonNullable<typeof p> => !!p);
       if (!selected.length || selected.some((p) => get().index.spanOf(p) !== spanOf(symbolId))) return ids;
-      if (selected.every((p) => p.symbolId === symbolId)) return ids;
+      if (selected.every((p) => p.symbolId === symbolId && (p.colorId ?? null) === (colorId ?? null))) {
+        return ids;
+      }
       // Spread first: a replaced stitch keeps whatever group it belonged
       // to (a repeat instance, a duplicated cluster) rather than silently
       // dropping out of it. Choosing a replacement is a deliberate,
       // resolved answer, so it also drops any suggested/confidence
-      // flags - the same as accepting a suggestion outright.
-      const added = selected.map(({ suggested: _dropped, confidence: _score, ...rest }) => ({
+      // flags - the same as accepting a suggestion outright. `colorId`
+      // defaults to stripped (DNT-8): a plain pick is a whole new pen, never
+      // whatever color happened to be active.
+      const added = selected.map(({ suggested: _dropped, confidence: _score, colorId: _old, ...rest }) => ({
         ...rest,
         id: newPlacementId(),
         symbolId,
+        ...(colorId ? { colorId } : {}),
       }));
       commit({ removed: selected, added });
       return added.map((p) => p.id);
@@ -385,6 +529,7 @@ export const useDocStore = create<DocState>((set, get) => {
           symbolId: p.symbolId,
           col: p.col - minCol,
           row: p.row - minRow,
+          ...(p.colorId ? { colorId: p.colorId } : {}),
         })),
       };
       const groupId = newUuid("group_");
@@ -410,6 +555,7 @@ export const useDocStore = create<DocState>((set, get) => {
         col: col + stitch.col,
         row: row + stitch.row,
         groupId,
+        ...(stitch.colorId ? { colorId: stitch.colorId } : {}),
       }));
       for (const placement of added) {
         for (let offset = 0; offset < spanOf(placement.symbolId); offset++) {
@@ -617,7 +763,15 @@ export const useDocStore = create<DocState>((set, get) => {
       });
     },
 
-    openChart: ({ meta, placements, repeats = [], referenceImage = null, unknownSymbolIds }) => {
+    openChart: ({
+      meta,
+      placements,
+      repeats = [],
+      referenceImage = null,
+      glossaryIds = [...DEFAULT_STITCH_IDS],
+      quickSymbolIds = [...DEFAULT_STITCH_IDS],
+      unknownSymbolIds,
+    }) => {
       const revision = get().revision + 1;
       set({
         ...blank(),
@@ -632,6 +786,8 @@ export const useDocStore = create<DocState>((set, get) => {
         unknownSymbolIds,
         repeats,
         referenceImage,
+        glossaryIds,
+        quickSymbolIds,
       });
     },
 

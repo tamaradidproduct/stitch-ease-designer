@@ -2,6 +2,7 @@ import { newPlacementId } from "../model/ops";
 import { cellKey } from "../model/cellKey";
 import type { Placement, ReferenceImage, RepeatDefinition } from "../model/types";
 import { getSymbol } from "../symbols/registry";
+import { DEFAULT_STITCH_IDS } from "../model/quickSlots";
 
 /**
  * The stored form of a chart.
@@ -24,11 +25,25 @@ export type StoredChart = {
   stitches: ([number, number, number] | [number, number, number, number])[];
   groups?: string[];
   suggested?: [number, number][];
+  /** Colors used on this chart, hex, first-seen order. Mirrors `palette`. */
+  colorPalette?: string[];
+  /** [col, row, colorPaletteIndex] - sparse, only cells that have a color (FR-22). */
+  colors?: [number, number, number][];
+  /**
+   * Chart-scoped glossary/quick-row membership (FR-32). Omitted entirely
+   * only for a chart that has never been saved since this field existed -
+   * every save after that always writes a concrete array (possibly empty),
+   * which is what makes "never customized" (this key absent) distinguishable
+   * from "explicitly cleared" (`[]`) at decode time. Entries are quick-slot
+   * keys (`symbolId` or `symbolId::colorId` - see `quickSlots.ts`).
+   */
+  glossaryIds?: string[];
+  quickSymbolIds?: string[];
   repeats?: RepeatDefinition[];
   referenceImage?: ReferenceImage;
 };
 
-export const STORED_VERSION = 2;
+export const STORED_VERSION = 3;
 
 export const emptyChart = (): StoredChart => ({
   v: STORED_VERSION,
@@ -57,11 +72,19 @@ export class ChartFormatError extends Error {
  * requirements, but they make the output a pure function of the chart's
  * contents: re-encoding an unchanged chart produces byte-identical JSON, so
  * autosave can skip no-op writes and diffs stay readable.
+ *
+ * `glossaryIds`/`quickSymbolIds` are required, not optional, because they
+ * must always be written once a chart is saved at all (see the field's own
+ * doc comment on `StoredChart`) - a chart that's still uncustomized is saved
+ * with its current (possibly default) value, never omitted, once it's saved
+ * even once.
  */
 export function encode(
   placements: Iterable<Placement>,
   repeats: RepeatDefinition[] = [],
   referenceImage?: ReferenceImage,
+  glossaryIds: readonly string[] = DEFAULT_STITCH_IDS,
+  quickSymbolIds: readonly string[] = DEFAULT_STITCH_IDS,
 ): StoredChart {
   const sorted = [...placements].sort((a, b) => a.row - b.row || a.col - b.col);
 
@@ -71,6 +94,9 @@ export function encode(
   const groups: string[] = [];
   const groupIndex = new Map<string, number>();
   const suggested: [number, number][] = [];
+  const colorPalette: string[] = [];
+  const colorIndexOf = new Map<string, number>();
+  const colors: [number, number, number][] = [];
 
   for (const p of sorted) {
     if (p.suggested) suggested.push([p.col, p.row]);
@@ -79,6 +105,15 @@ export function encode(
       paletteIndex = palette.length;
       palette.push(p.symbolId);
       indexOf.set(p.symbolId, paletteIndex);
+    }
+    if (p.colorId) {
+      let colorIndex = colorIndexOf.get(p.colorId);
+      if (colorIndex === undefined) {
+        colorIndex = colorPalette.length;
+        colorPalette.push(p.colorId);
+        colorIndexOf.set(p.colorId, colorIndex);
+      }
+      colors.push([p.col, p.row, colorIndex]);
     }
     if (p.groupId) {
       let at = groupIndex.get(p.groupId);
@@ -99,12 +134,17 @@ export function encode(
     stitches,
     groups,
     repeats,
+    glossaryIds: [...glossaryIds],
+    quickSymbolIds: [...quickSymbolIds],
     ...(suggested.length ? { suggested } : null),
+    ...(colors.length ? { colorPalette, colors } : null),
     ...(referenceImage ? { referenceImage } : null),
   };
 }
 
 const isInteger = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n);
+const isStringArray = (v: unknown): v is string[] =>
+  Array.isArray(v) && v.every((s) => typeof s === "string");
 
 /**
  * `validate()`'s checks, split into one function per shape it inspects -
@@ -121,9 +161,11 @@ const isInteger = (n: unknown): n is number => typeof n === "number" && Number.i
 
 function validateVersion(chart: Partial<StoredChart>): void {
   if (!isInteger(chart.v)) throw new ChartFormatError("missing version");
-  if (chart.v !== 1 && chart.v !== STORED_VERSION) {
-    // The version field is the migration hook. There's nothing to migrate from
-    // yet, so anything else is either corrupt or from a newer build.
+  if (chart.v !== 1 && chart.v !== 2 && chart.v !== STORED_VERSION) {
+    // The version field is the migration hook. Versions 1-2 have no
+    // colorwork/glossary fields at all, which decode already treats as
+    // "never customized" / "no color" - nothing to migrate. Anything else is
+    // either corrupt or from a newer build.
     throw new ChartFormatError(
       `unsupported chart version ${chart.v} (this build reads ${STORED_VERSION})`,
     );
@@ -172,6 +214,41 @@ function validateSuggested(chart: Partial<StoredChart>): void {
   }
 }
 
+function validateColorPalette(chart: Partial<StoredChart>): void {
+  if (chart.colorPalette === undefined) return;
+  if (!isStringArray(chart.colorPalette)) {
+    throw new ChartFormatError("colorPalette must be an array of color ids");
+  }
+}
+
+function validateColors(chart: Partial<StoredChart>): void {
+  if (chart.colors === undefined) return;
+  if (
+    !Array.isArray(chart.colors) ||
+    chart.colors.some((cell) => !Array.isArray(cell) || cell.length !== 3 || !cell.every(isInteger))
+  ) {
+    throw new ChartFormatError("colors must be an array of [col, row, colorPaletteIndex] tuples");
+  }
+  const paletteLength = chart.colorPalette?.length ?? 0;
+  chart.colors.forEach(([, , colorIndex], i) => {
+    if (colorIndex < 0 || colorIndex >= paletteLength) {
+      throw new ChartFormatError(`colors entry ${i} references colorPalette index ${colorIndex}`);
+    }
+  });
+}
+
+function validateGlossaryIds(chart: Partial<StoredChart>): void {
+  if (chart.glossaryIds !== undefined && !isStringArray(chart.glossaryIds)) {
+    throw new ChartFormatError("glossaryIds must be an array of quick-slot ids");
+  }
+}
+
+function validateQuickSymbolIds(chart: Partial<StoredChart>): void {
+  if (chart.quickSymbolIds !== undefined && !isStringArray(chart.quickSymbolIds)) {
+    throw new ChartFormatError("quickSymbolIds must be an array of quick-slot ids");
+  }
+}
+
 /** Per-stitch group-index bounds - the second of the two stitch passes. */
 function validateStitchGroupReferences(chart: Partial<StoredChart>): void {
   chart.stitches!.forEach((stitch, i) => {
@@ -199,7 +276,8 @@ function validateRepeats(chart: Partial<StoredChart>): void {
           stitch === null ||
           typeof stitch.symbolId !== "string" ||
           !isInteger(stitch.col) ||
-          !isInteger(stitch.row),
+          !isInteger(stitch.row) ||
+          (stitch.colorId !== undefined && typeof stitch.colorId !== "string"),
       )
     ) {
       throw new ChartFormatError(`repeat ${i} is invalid`);
@@ -325,6 +403,10 @@ function validate(stored: unknown): StoredChart {
   validateGroups(chart);
   validateRepeatsIsArray(chart);
   validateSuggested(chart);
+  validateColorPalette(chart);
+  validateColors(chart);
+  validateGlossaryIds(chart);
+  validateQuickSymbolIds(chart);
   validateStitchGroupReferences(chart);
   validateRepeats(chart);
   validateReferenceImage(chart);
@@ -336,6 +418,13 @@ export type DecodedChart = {
   placements: Placement[];
   repeats: RepeatDefinition[];
   referenceImage?: ReferenceImage;
+  /**
+   * Chart-scoped glossary/quick-row membership. Always a concrete array -
+   * `DEFAULT_STITCH_IDS` when the stored chart never customized these (key
+   * absent), whatever was stored otherwise, `[]` included (FR-32).
+   */
+  glossaryIds: string[];
+  quickSymbolIds: string[];
   /**
    * Symbols the stored chart references that this build's library doesn't have
    * — a chart saved before a symbol was renamed or removed in Figma. They're
@@ -373,18 +462,29 @@ export function decode(stored: unknown, knownSymbol: (id: string) => boolean): D
   }
 
   const suggestedCells = new Set((chart.suggested ?? []).map(([col, row]) => cellKey(col, row)));
-  const placements = chart.stitches.map(([col, row, paletteIndex, groupIndex]) => ({
-    id: newPlacementId(),
-    symbolId: chart.palette[paletteIndex]!,
-    col,
-    row,
-    ...(groupIndex === undefined ? {} : { groupId: chart.groups![groupIndex] }),
-    ...(suggestedCells.has(cellKey(col, row)) ? { suggested: true } : {}),
-  }));
+  const colorByCell = new Map<string, string>();
+  for (const [col, row, colorIndex] of chart.colors ?? []) {
+    const colorId = chart.colorPalette?.[colorIndex];
+    if (colorId) colorByCell.set(cellKey(col, row), colorId);
+  }
+  const placements = chart.stitches.map(([col, row, paletteIndex, groupIndex]) => {
+    const colorId = colorByCell.get(cellKey(col, row));
+    return {
+      id: newPlacementId(),
+      symbolId: chart.palette[paletteIndex]!,
+      col,
+      row,
+      ...(groupIndex === undefined ? {} : { groupId: chart.groups![groupIndex] }),
+      ...(suggestedCells.has(cellKey(col, row)) ? { suggested: true } : {}),
+      ...(colorId ? { colorId } : {}),
+    };
+  });
 
   return {
     placements,
     repeats: chart.repeats!,
+    glossaryIds: chart.glossaryIds ?? [...DEFAULT_STITCH_IDS],
+    quickSymbolIds: chart.quickSymbolIds ?? [...DEFAULT_STITCH_IDS],
     unknownSymbolIds: [...unknown],
     ...(chart.referenceImage ? { referenceImage: chart.referenceImage } : null),
   };
