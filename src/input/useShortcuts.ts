@@ -60,6 +60,11 @@ export function useShortcuts(): void {
       if (ui.picker && !e.metaKey && !e.ctrlKey && !e.altKey && e.key.length === 1) return;
 
       const doc = useDocStore.getState();
+      const selectedPlacementsSnapshot = (): Placement[] =>
+        ui.selectedPlacementIds
+          .map((id) => doc.index.placements.get(id))
+          .filter((placement): placement is Placement => !!placement)
+          .map((placement) => ({ ...placement }));
 
       // The reference panel owns canvas input. Suppress the drawing-tool
       // shortcuts while it is engaged instead of quietly arming Draw behind
@@ -132,19 +137,13 @@ export function useShortcuts(): void {
 
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "c") {
         e.preventDefault();
-        ui.setClipboardPlacements(ui.selectedPlacementIds
-          .map((id) => doc.index.placements.get(id))
-          .filter((placement): placement is Placement => !!placement)
-          .map((placement) => ({ ...placement })));
+        ui.setClipboardPlacements(selectedPlacementsSnapshot());
         return;
       }
 
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "x") {
         e.preventDefault();
-        ui.setClipboardPlacements(ui.selectedPlacementIds
-          .map((id) => doc.index.placements.get(id))
-          .filter((placement): placement is Placement => !!placement)
-          .map((placement) => ({ ...placement })));
+        ui.setClipboardPlacements(selectedPlacementsSnapshot());
         if (ui.selectedPlacementIds.length) {
           doc.erasePlacements(ui.selectedPlacementIds);
           ui.clearSelection();
