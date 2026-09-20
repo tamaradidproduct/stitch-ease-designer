@@ -1,3 +1,4 @@
+import { FeedbackProvider } from "@fasterfixes/react";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
@@ -19,8 +20,16 @@ if (import.meta.env.DEV) {
 const root = document.getElementById("root");
 if (!root) throw new Error("#root not found");
 
+const app = <App />;
+const fasterFixesProjectId = import.meta.env.VITE_FASTERFIXES_PROJECT_ID;
+const feedbackApp = fasterFixesProjectId ? (
+  <FeedbackProvider projectId={fasterFixesProjectId}>{app}</FeedbackProvider>
+) : (
+  app
+);
+
 createRoot(root).render(
   <StrictMode>
-    <App />
+    {feedbackApp}
   </StrictMode>,
 );
