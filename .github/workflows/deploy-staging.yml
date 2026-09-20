@@ -28,6 +28,8 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_FASTERFIXES_HOSTNAME: ${{ vars.VITE_FASTERFIXES_HOSTNAME }}
+          VITE_FASTERFIXES_PROJECT_ID: ${{ vars.VITE_FASTERFIXES_PROJECT_ID }}
           VITE_GTM_ID: ${{ vars.VITE_GTM_ID }}
 
       # The source CNAME belongs to production. Override it only in the

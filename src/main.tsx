@@ -21,14 +21,19 @@ const root = document.getElementById("root");
 if (!root) throw new Error("#root not found");
 
 const app = <App />;
-const isStaging = window.location.hostname === "staging.designer.stitch-ease.com";
+const fasterFixesHostname = import.meta.env.VITE_FASTERFIXES_HOSTNAME;
+const fasterFixesProjectId = import.meta.env.VITE_FASTERFIXES_PROJECT_ID;
+const feedbackApp =
+  fasterFixesHostname &&
+  fasterFixesProjectId &&
+  window.location.hostname === fasterFixesHostname ? (
+    <FeedbackProvider projectId={fasterFixesProjectId}>{app}</FeedbackProvider>
+  ) : (
+    app
+  );
 
 createRoot(root).render(
   <StrictMode>
-    {isStaging ? (
-      <FeedbackProvider projectId="proj_c7111083a19bec66c299f6ff">{app}</FeedbackProvider>
-    ) : (
-      app
-    )}
+    {feedbackApp}
   </StrictMode>,
 );
