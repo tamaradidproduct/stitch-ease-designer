@@ -1,3 +1,4 @@
+import { FeedbackProvider } from "@fasterfixes/react";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
@@ -19,8 +20,15 @@ if (import.meta.env.DEV) {
 const root = document.getElementById("root");
 if (!root) throw new Error("#root not found");
 
+const app = <App />;
+const isStaging = window.location.hostname === "staging.designer.stitch-ease.com";
+
 createRoot(root).render(
   <StrictMode>
-    <App />
+    {isStaging ? (
+      <FeedbackProvider projectId="proj_c7111083a19bec66c299f6ff">{app}</FeedbackProvider>
+    ) : (
+      app
+    )}
   </StrictMode>,
 );
