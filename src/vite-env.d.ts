@@ -3,7 +3,6 @@
 interface ImportMetaEnv {
   readonly VITE_SUPABASE_URL: string;
   readonly VITE_SUPABASE_PUBLISHABLE_KEY: string;
-  readonly VITE_FASTERFIXES_HOSTNAME?: string;
   readonly VITE_FASTERFIXES_PROJECT_ID?: string;
   /** See DEV_SKIP_AUTH in src/auth/useSession.ts. */
   readonly VITE_DEV_SKIP_AUTH?: string;

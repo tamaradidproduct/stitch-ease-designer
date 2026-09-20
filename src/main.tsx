@@ -21,16 +21,12 @@ const root = document.getElementById("root");
 if (!root) throw new Error("#root not found");
 
 const app = <App />;
-const fasterFixesHostname = import.meta.env.VITE_FASTERFIXES_HOSTNAME;
 const fasterFixesProjectId = import.meta.env.VITE_FASTERFIXES_PROJECT_ID;
-const feedbackApp =
-  fasterFixesHostname &&
-  fasterFixesProjectId &&
-  window.location.hostname === fasterFixesHostname ? (
-    <FeedbackProvider projectId={fasterFixesProjectId}>{app}</FeedbackProvider>
-  ) : (
-    app
-  );
+const feedbackApp = fasterFixesProjectId ? (
+  <FeedbackProvider projectId={fasterFixesProjectId}>{app}</FeedbackProvider>
+) : (
+  app
+);
 
 createRoot(root).render(
   <StrictMode>

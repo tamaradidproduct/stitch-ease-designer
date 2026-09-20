@@ -46,9 +46,10 @@ protects the data, not secrecy of this key. The deploy workflow reads the
 same two names from repo variables (Settings → Secrets and variables →
 Actions → Variables), not repo secrets, for the same reason.
 
-The staging build also reads `VITE_FASTERFIXES_HOSTNAME` and
-`VITE_FASTERFIXES_PROJECT_ID` from repo variables so the feedback widget only
-wraps the app on the staging host without baking those values into the code.
+The staging build also reads `VITE_FASTERFIXES_PROJECT_ID` from repo
+variables so the feedback widget can wrap the app without baking the project
+ID into the code. If it is unset, the app renders normally with no feedback
+provider.
 
 Set `VITE_DEV_SKIP_AUTH=true` in `.env` to skip the magic-link round trip
 entirely while developing — charts save to browser storage instead of an
