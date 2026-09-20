@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import { useDocStore } from "./state/docStore";
 import { useUiStore } from "./state/uiStore";
+import { FasterFixesViewportGuard } from "./ui/FasterFixesViewportGuard";
 import "./styles.css";
 
 // Dev-only handle for driving the canvas deterministically from the console or
@@ -23,7 +24,13 @@ if (!root) throw new Error("#root not found");
 const app = <App />;
 const fasterFixesProjectId = import.meta.env.VITE_FASTERFIXES_PROJECT_ID;
 const feedbackApp = fasterFixesProjectId ? (
-  <FeedbackProvider projectId={fasterFixesProjectId}>{app}</FeedbackProvider>
+  <FeedbackProvider
+    projectId={fasterFixesProjectId}
+    classNames={{ popover: "stitch-ease-feedback-popover" }}
+  >
+    <FasterFixesViewportGuard />
+    {app}
+  </FeedbackProvider>
 ) : (
   app
 );

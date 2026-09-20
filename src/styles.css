@@ -55,6 +55,15 @@ body {
   overscroll-behavior: none;
 }
 
+/* Faster Fixes anchors its comment form to the selected element. Keep the
+   form usable on short viewports while the viewport guard corrects any
+   offscreen position produced for elements near an edge. */
+.stitch-ease-feedback-popover {
+  max-width: calc(100vw - 24px) !important;
+  max-height: calc(100dvh - 24px) !important;
+  overflow-y: auto !important;
+}
+
 /* Flex rather than fixed grid rows: banners appear and disappear above the
    stage, and a fixed row count would put the canvas in the wrong row. */
 .app {
