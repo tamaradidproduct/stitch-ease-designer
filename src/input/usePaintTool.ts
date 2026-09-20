@@ -1,7 +1,7 @@
 import { type RefObject, useEffect } from "react";
 import { type Cell, screenToCell, screenToInsertCell } from "../canvas/camera";
 import { RULER } from "../canvas/theme";
-import { DocIndex } from "../model/docIndex";
+import { type CellBounds, DocIndex } from "../model/docIndex";
 import { cellKey, parseCellKey } from "../model/cellKey";
 import { stitchGroups } from "../model/stitchNumbers";
 import { insertTargetCol } from "../model/ops";
@@ -96,6 +96,25 @@ export function strokeKey(mode: StrokeMode): string {
   if (mode.kind === "place") return `place:${mode.symbolId}`;
   if (mode.kind === "confirm") return `confirm:${mode.overrideSymbolId ?? ""}`;
   return mode.kind;
+}
+
+/**
+ * Expand queried placements to whole-group ids, resolving each group's
+ * membership once per call. If multiple queried placements belong to the same
+ * group, their shared members are returned each time; callers that need unique
+ * ids must dedupe afterward.
+ */
+export function resolveGroupIds(index: DocIndex, bounds: CellBounds): string[] {
+  const resolvedGroups = new Map<string, string[]>();
+  return index.query(bounds).flatMap((placement) => {
+    if (!placement.groupId) return [placement.id];
+    let members = resolvedGroups.get(placement.groupId);
+    if (!members) {
+      members = index.groupMembers(placement.groupId).map((member) => member.id);
+      resolvedGroups.set(placement.groupId, members);
+    }
+    return members;
+  });
 }
 
 /**
@@ -556,18 +575,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       const maxCol = Math.max(a.col, b.col);
       const minRow = Math.min(a.row, b.row);
       const maxRow = Math.max(a.row, b.row);
-      const resolvedGroups = new Map<string, string[]>();
-      const ids = doc()
-        .index.query({ minCol, maxCol, minRow, maxRow })
-        .flatMap((placement) => {
-          if (!placement.groupId) return [placement.id];
-          let members = resolvedGroups.get(placement.groupId);
-          if (!members) {
-            members = doc().index.groupMembers(placement.groupId).map((member) => member.id);
-            resolvedGroups.set(placement.groupId, members);
-          }
-          return members;
-        });
+      const ids = resolveGroupIds(doc().index, { minCol, maxCol, minRow, maxRow });
       const emptyCells: Cell[] = [];
       for (let col = minCol; col <= maxCol; col++) {
         for (let row = minRow; row <= maxRow; row++) {
@@ -1061,18 +1069,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         // once per matched placement: a marquee over many members of one
         // large group would otherwise re-walk that group's full membership
         // set once per member it happens to cross.
-        const resolvedGroups = new Map<string, string[]>();
-        const ids = doc()
-          .index.query({ minCol, maxCol, minRow, maxRow })
-          .flatMap((placement) => {
-            if (!placement.groupId) return [placement.id];
-            let members = resolvedGroups.get(placement.groupId);
-            if (!members) {
-              members = doc().index.groupMembers(placement.groupId).map((member) => member.id);
-              resolvedGroups.set(placement.groupId, members);
-            }
-            return members;
-          });
+        const ids = resolveGroupIds(doc().index, { minCol, maxCol, minRow, maxRow });
         const nextIds = [...new Set([...selectionBaseline, ...ids])];
 
         // Empty cells join a marquee only for the deliberate Cmd/Ctrl+

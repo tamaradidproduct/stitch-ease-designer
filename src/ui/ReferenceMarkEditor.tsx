@@ -139,11 +139,7 @@ export function ReferenceMarkEditor() {
             // Move straight to the next field in the transcription order so
             // they can continue without an extra click. Stitch is the last
             // field, so its shortcuts deliberately keep focus there.
-            if (activeField === "row") {
-              focusField("stitch");
-            } else {
-              focusField("stitch");
-            }
+            focusField("stitch");
           }}
         >
           {value}

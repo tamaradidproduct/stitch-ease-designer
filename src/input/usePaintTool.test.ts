@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { DocIndex } from "../model/docIndex";
 import { SUGGEST_SYMBOL_ID } from "../state/uiStore";
 import {
   constrainToStraightAxis,
   includeEmptyCells,
   isDismissable,
+  resolveGroupIds,
   modeFor,
   resolveSuggestAction,
   shouldBlockDismissGesture,
@@ -65,6 +67,19 @@ describe("includeEmptyCells", () => {
     expect(includeEmptyCells({ ...noMods, altKey: true })).toBe(false);
     expect(includeEmptyCells({ ...noMods, metaKey: true, altKey: true })).toBe(false);
     expect(includeEmptyCells({ ...noMods, ctrlKey: true, altKey: true })).toBe(false);
+  });
+});
+
+describe("resolveGroupIds", () => {
+  it("expands a touched group once while preserving ungrouped placements", () => {
+    const index = DocIndex.from([
+      { id: "group-left", symbolId: "knit", col: 1, row: 1, groupId: "group-1" },
+      { id: "group-right", symbolId: "purl", col: 2, row: 1, groupId: "group-1" },
+      { id: "solo", symbolId: "knit", col: 4, row: 1 },
+    ]);
+
+    expect(resolveGroupIds(index, { minCol: 1, maxCol: 4, minRow: 1, maxRow: 1 }))
+      .toEqual(["group-left", "group-right", "group-left", "group-right", "solo"]);
   });
 });
 
