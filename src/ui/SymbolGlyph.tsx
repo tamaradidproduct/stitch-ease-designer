@@ -76,10 +76,10 @@ export function SymbolGlyph({
               // Color fill first, the library's own per-cell tint after -
               // "no stitch" grey overpaints the pen's color, never the
               // reverse (FR-29).
-              ...(colorFill ? { background: colorFill } : null),
+            ...(colorFill ? { background: colorFill } : {}),
               ...(symbol.cellFills?.[i]
                 ? { background: symbol.cellFills[i] as string }
-                : null),
+              : {}),
             }}
           />
         ))}

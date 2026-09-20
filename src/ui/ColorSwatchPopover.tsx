@@ -49,13 +49,18 @@ export function ColorSwatchPopover({ anchorRect, onSelect, onClose }: ColorSwatc
       if (rootRef.current?.contains(e.target as Node)) return;
       onClose();
     };
+    const onScrollOrResize = () => onClose();
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("scroll", onScrollOrResize, true);
+    window.addEventListener("resize", onScrollOrResize);
     document.addEventListener("keydown", onKeyDown, true);
     return () => {
       document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("scroll", onScrollOrResize, true);
+      window.removeEventListener("resize", onScrollOrResize);
       document.removeEventListener("keydown", onKeyDown, true);
     };
   }, [onClose]);

@@ -336,12 +336,11 @@ export const useDocStore = create<DocState>((set, get) => {
         .filter((p): p is NonNullable<typeof p> => !!p);
       if (!selected.length) return ids;
       if (selected.every((p) => (p.colorId ?? null) === (colorId ?? null))) return ids;
-      const added = selected.map((p) => {
-        const next: typeof p = { ...p, id: newPlacementId() };
-        if (colorId) next.colorId = colorId;
-        else delete next.colorId;
-        return next;
-      });
+      const added = selected.map((p) => ({
+        ...p,
+        id: newPlacementId(),
+        ...(colorId ? { colorId } : {}),
+      }));
       commit({ removed: selected, added });
       return added.map((p) => p.id);
     },
@@ -400,9 +399,13 @@ export const useDocStore = create<DocState>((set, get) => {
       const excluded = new Set(excludingPlacementIds);
       // DNT-12: renaming in place is only safe when nothing else on the
       // chart still uses the old combo.
-      const hasSibling = get().index.toArray().some(
-        (p) => !excluded.has(p.id) && p.symbolId === symbolId && (p.colorId ?? null) === (colorId ?? null),
-      );
+      let hasSibling = false;
+      for (const p of get().index.placements.values()) {
+        if (!excluded.has(p.id) && p.symbolId === symbolId && (p.colorId ?? null) === (colorId ?? null)) {
+          hasSibling = true;
+          break;
+        }
+      }
       const state = get();
       if (hasSibling) {
         // Siblings remain - mint (or reuse) a new slot for the new combo,

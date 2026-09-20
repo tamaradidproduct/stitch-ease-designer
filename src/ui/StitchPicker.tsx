@@ -122,6 +122,7 @@ export function StitchPicker() {
     if (!symbol || (selectionSpan && symbol.span !== selectionSpan)) return null;
     return { key: currentSlot.key, symbol, ...(currentSlot.colorId ? { colorId: currentSlot.colorId } : {}) } satisfies QuickEntry;
   }, [currentSlot, quickSymbols, selectionSpan]);
+  const dynamicSwatch = dynamicSlot?.colorId ? getSwatch(dynamicSlot.colorId) : undefined;
   const moreSymbols = useMemo(() => {
     // The document mutates its index in place; its revision invalidates this
     // cached snapshot when placements change.
@@ -545,43 +546,40 @@ export function StitchPicker() {
               </button>
             );
           })}
-          {dynamicSlot && !(searchOpen && searchOrigin !== 5) && (() => {
-            const swatch = dynamicSlot.colorId ? getSwatch(dynamicSlot.colorId) : undefined;
-            return (
-              <>
-                <span className="picker__quickDivider" aria-hidden="true" />
-                <button
-                  key={`dynamic:${dynamicSlot.key}`}
-                  type="button"
-                  className="picker__quickButton"
-                  data-colored={!!dynamicSlot.colorId}
-                  style={swatch ? { background: swatch.hex } : undefined}
-                  onClick={() => choose(dynamicSlot.symbol, dynamicSlot.colorId)}
-                  title={dynamicSlot.symbol.label}
-                  aria-label={dynamicSlot.symbol.label}
-                  data-label={dynamicSlot.symbol.label}
-                >
-                  <SymbolGlyph
-                    symbol={dynamicSlot.symbol}
-                    cell={Math.max(7, Math.min(22, 58 / dynamicSlot.symbol.span))}
-                    colorId={dynamicSlot.colorId}
+          {dynamicSlot && !(searchOpen && searchOrigin !== 5) && (
+            <>
+              <span className="picker__quickDivider" aria-hidden="true" />
+              <button
+                key={`dynamic:${dynamicSlot.key}`}
+                type="button"
+                className="picker__quickButton"
+                data-colored={!!dynamicSlot.colorId}
+                style={dynamicSwatch ? { background: dynamicSwatch.hex } : undefined}
+                onClick={() => choose(dynamicSlot.symbol, dynamicSlot.colorId)}
+                title={dynamicSlot.symbol.label}
+                aria-label={dynamicSlot.symbol.label}
+                data-label={dynamicSlot.symbol.label}
+              >
+                <SymbolGlyph
+                  symbol={dynamicSlot.symbol}
+                  cell={Math.max(7, Math.min(22, 58 / dynamicSlot.symbol.span))}
+                  colorId={dynamicSlot.colorId}
+                />
+                {!dynamicSlot.colorId && currentSlot && (
+                  <ColorChip
+                    mode="recolor"
+                    label={`Color ${dynamicSlot.symbol.label}`}
+                    className="picker__quickColorChip"
+                    onSelect={(colorId) => {
+                      applyColorToSlot(currentSlot, colorId);
+                      closePicker();
+                    }}
                   />
-                  {!dynamicSlot.colorId && currentSlot && (
-                    <ColorChip
-                      mode="recolor"
-                      label={`Color ${dynamicSlot.symbol.label}`}
-                      className="picker__quickColorChip"
-                      onSelect={(colorId) => {
-                        applyColorToSlot(currentSlot, colorId);
-                        closePicker();
-                      }}
-                    />
-                  )}
-                </button>
-                <span className="picker__quickDivider" aria-hidden="true" />
-              </>
-            );
-          })()}
+                )}
+              </button>
+              <span className="picker__quickDivider" aria-hidden="true" />
+            </>
+          )}
           {searchOpen && searchOrigin === 5 ? renderSearchField("search:5") : (
             <button
               ref={searchButtonRef}

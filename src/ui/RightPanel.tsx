@@ -110,8 +110,17 @@ export function RightPanel() {
       setSearchResultsRect(null);
       return;
     }
-    const rect = inlineSearchRef.current?.getBoundingClientRect();
-    setSearchResultsRect(rect ? { left: rect.left, top: rect.bottom + 4, width: rect.width } : null);
+    const updateSearchResultsRect = () => {
+      const rect = inlineSearchRef.current?.getBoundingClientRect();
+      setSearchResultsRect(rect ? { left: rect.left, top: rect.bottom + 4, width: rect.width } : null);
+    };
+    updateSearchResultsRect();
+    document.addEventListener("scroll", updateSearchResultsRect, true);
+    window.addEventListener("resize", updateSearchResultsRect);
+    return () => {
+      document.removeEventListener("scroll", updateSearchResultsRect, true);
+      window.removeEventListener("resize", updateSearchResultsRect);
+    };
   }, [searchSlot]);
 
   // Search queries can remove the currently highlighted result. Start each

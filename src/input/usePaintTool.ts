@@ -619,7 +619,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         x: e.clientX - rect.left + 8,
         y: e.clientY - rect.top + 8,
         currentSymbolId: placement.symbolId,
-        ...(placement.colorId ? { currentColorId: placement.colorId } : null),
+        ...(placement.colorId ? { currentColorId: placement.colorId } : {}),
         selectionIds: ids,
         selectionSpan: doc().index.spanOf(placement),
         reviewingSuggestion: !!placement.suggested,
@@ -1318,8 +1318,8 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         row: cell.row,
         x: e.clientX - rect.left + 8,
         y: e.clientY - rect.top + 8,
-        ...(existing ? { currentSymbolId: existing.symbolId } : null),
-        ...(existing?.colorId ? { currentColorId: existing.colorId } : null),
+        ...(existing ? { currentSymbolId: existing.symbolId } : {}),
+        ...(existing?.colorId ? { currentColorId: existing.colorId } : {}),
       });
     };
 
