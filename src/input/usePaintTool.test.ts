@@ -166,7 +166,11 @@ describe("isDismissable", () => {
 
 describe("modeFor", () => {
   it("draws with the armed stitch when nothing is held", () => {
-    expect(modeFor(noMods, "purl", "suggest", undefined, false)).toEqual({ kind: "place", symbolId: "purl" });
+    expect(modeFor(noMods, "purl", "suggest", undefined, false)).toEqual({
+      kind: "place",
+      symbolId: "purl",
+      colorId: null,
+    });
   });
 
   it("is null when nothing is armed and no modifier is held", () => {
@@ -216,8 +220,16 @@ describe("modeFor", () => {
   });
 
   it("ignores the sticky default entirely once armed away from Suggest - a real armed stitch keeps drawing normally (Gotcha G-3)", () => {
-    expect(modeFor(noMods, "purl", "confirm", undefined, false)).toEqual({ kind: "place", symbolId: "purl" });
-    expect(modeFor(noMods, "purl", "dismiss", undefined, false)).toEqual({ kind: "place", symbolId: "purl" });
+    expect(modeFor(noMods, "purl", "confirm", undefined, false)).toEqual({
+      kind: "place",
+      symbolId: "purl",
+      colorId: null,
+    });
+    expect(modeFor(noMods, "purl", "dismiss", undefined, false)).toEqual({
+      kind: "place",
+      symbolId: "purl",
+      colorId: null,
+    });
   });
 
   it("lets a literally held modifier override the sticky default live, for the duration held", () => {

@@ -1,4 +1,5 @@
 import { getSymbol } from "../symbols/registry";
+import { getSwatch, glyphInkFor } from "../model/colorPalette";
 import addCursor from "./assets/cursors/add.png";
 import blockedMoveCursor from "./assets/cursors/blocked-move.png";
 import duplicateCursor from "./assets/cursors/duplicate.png";
@@ -95,18 +96,24 @@ function svgDataUrl(svg: string): string {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
-function symbolPreview(symbolId: string): { width: number; markup: string } | null {
+/**
+ * FR-29: fill precedence matches the canvas renderer - a symbol's own tint
+ * (e.g. "no stitch" grey) overpaints the pen's color, not the reverse.
+ */
+function symbolPreview(symbolId: string, colorId?: string | null): { width: number; markup: string } | null {
   const symbol = getSymbol(symbolId);
   if (!symbol) return null;
 
+  const colorFill = colorId ? getSwatch(colorId)?.hex : undefined;
   const width = Math.min(64, 18 * symbol.span);
   const cellWidth = width / symbol.span;
   const cells = Array.from({ length: symbol.span }, (_, index) => {
-    const fill = symbol.cellFills?.[index] ?? "#f2f6fa";
+    const fill = symbol.cellFills?.[index] ?? colorFill ?? "#f2f6fa";
     return `<rect x="${index * cellWidth}" width="${cellWidth}" height="18" fill="${fill}"/>`;
   }).join("");
+  const ink = glyphInkFor(colorId ?? undefined, "#475569");
   const glyph = symbol.hasGlyph
-    ? `<image href="${svgDataUrl(symbol.glyph.replaceAll("currentColor", "#475569"))}" width="${width}" height="18"/>`
+    ? `<image href="${svgDataUrl(symbol.glyph.replaceAll("currentColor", ink))}" width="${width}" height="18"/>`
     : "";
 
   return {
@@ -115,13 +122,13 @@ function symbolPreview(symbolId: string): { width: number; markup: string } | nu
   };
 }
 
-/** Figma's arrow cursor with the actual armed stitch rendered in its badge. */
-export function armedStitchCursor(symbolId: string): string {
-  const key = `draw:${symbolId}`;
+/** Figma's arrow cursor with the actual armed stitch rendered in its badge (FR-29: shows the pen's color). */
+export function armedStitchCursor(symbolId: string, colorId?: string | null): string {
+  const key = `draw:${symbolId}:${colorId ?? ""}`;
   const cached = armedCursorCache.get(key);
   if (cached) return cached;
 
-  const preview = symbolPreview(symbolId);
+  const preview = symbolPreview(symbolId, colorId);
   if (!preview) return ADD_CURSOR;
   const width = Math.max(12, preview.width + 4);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="35" viewBox="0 0 ${width} 35" fill="none">
@@ -137,12 +144,12 @@ ${ARROW_BASE_SVG}
 }
 
 /** Figma's insertion cursor with the actual armed stitch below the line. */
-export function insertStitchCursor(symbolId: string): string {
-  const key = `insert:${symbolId}`;
+export function insertStitchCursor(symbolId: string, colorId?: string | null): string {
+  const key = `insert:${symbolId}:${colorId ?? ""}`;
   const cached = armedCursorCache.get(key);
   if (cached) return cached;
 
-  const preview = symbolPreview(symbolId);
+  const preview = symbolPreview(symbolId, colorId);
   if (!preview) return INSERT_ADD_CURSOR;
   const width = Math.max(23, preview.width + 5);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="33" viewBox="0 0 ${width} 33" fill="none">

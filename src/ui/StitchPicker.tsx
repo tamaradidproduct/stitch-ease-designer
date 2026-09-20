@@ -11,6 +11,10 @@ import { SymbolGlyph } from "./SymbolGlyph";
 import { searchSymbols } from "./symbolSearch";
 import { CloseIcon } from "./icons";
 import { collectGlossarySymbols, useGlossaryIds } from "./chartGlossary";
+import { getSwatch } from "../model/colorPalette";
+import { parseQuickSlotId } from "../model/quickSlots";
+import { addColoredVariant, applyColorToSlot, currentSlotForPicker } from "./colorwork";
+import { ColorChip } from "./ColorChip";
 
 const MENU_WIDTH = 284;
 const SEARCH_SLOT_WIDTH = 200;
@@ -40,7 +44,9 @@ export function StitchPicker() {
   const setSelectedPlacementIds = useUiStore((s) => s.setSelectedPlacementIds);
   const setSelectedEmptyCells = useUiStore((s) => s.setSelectedEmptyCells);
   const setInsertAnimation = useUiStore((s) => s.setInsertAnimation);
-  const quickIds = useUiStore((s) => s.quickSymbolIds);
+  const quickIds = useDocStore((s) => s.quickSymbolIds);
+  const armedSymbolId = useUiStore((s) => s.armedSymbolId);
+  const activeColor = useUiStore((s) => s.activeColor);
   const camera = useUiStore((s) => s.camera);
   const viewport = useUiStore((s) => s.viewport);
   const place = useDocStore((s) => s.place);
@@ -56,8 +62,14 @@ export function StitchPicker() {
   const instantiateRepeat = useDocStore((s) => s.instantiateRepeat);
   const index = useDocStore((s) => s.index);
   const revision = useDocStore((s) => s.revision);
-  const chartId = useDocStore((s) => s.meta?.id);
-  const addedGlossaryIds = useGlossaryIds(chartId);
+  const addedGlossaryIds = useGlossaryIds();
+
+  // FR-25: one identity every consumer here reads - chip visibility, the
+  // recolor effect, and (via `key ===` checks below) tile highlighting.
+  const currentSlot = useMemo(
+    () => currentSlotForPicker(target, (id) => index.placements.get(id), armedSymbolId, activeColor),
+    [target, index, armedSymbolId, activeColor],
+  );
 
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -86,26 +98,43 @@ export function StitchPicker() {
       .filter((section) => section.symbols.length > 0);
   }, [query, selectionSpan]);
 
+  type QuickEntry = { key: string; symbol: StitchSymbol; colorId?: string };
   const quickSymbols = useMemo(
     () => quickIds
-      .map((id) => getSymbol(id))
-      .filter((symbol): symbol is StitchSymbol =>
-        !!symbol && (!selectionSpan || symbol.span === selectionSpan))
+      .map((key): QuickEntry | null => {
+        const { symbolId, colorId } = parseQuickSlotId(key);
+        const symbol = getSymbol(symbolId);
+        return symbol ? { key, symbol, ...(colorId ? { colorId } : {}) } : null;
+      })
+      .filter((entry): entry is QuickEntry =>
+        !!entry && (!selectionSpan || entry.symbol.span === selectionSpan))
       .slice(0, 5),
     [quickIds, selectionSpan],
   );
+  // FR-30: a sixth, dynamic tile when the current selection is a real
+  // stitch whose combo isn't already one of the five visible slots. Not
+  // persisted - just a view of `currentSlot`, gone the moment the picker
+  // moves elsewhere.
+  const dynamicSlot = useMemo(() => {
+    if (!currentSlot || !currentSlot.placementIds.length) return null;
+    if (quickSymbols.some((entry) => entry.key === currentSlot.key)) return null;
+    const symbol = getSymbol(currentSlot.symbolId);
+    if (!symbol || (selectionSpan && symbol.span !== selectionSpan)) return null;
+    return { key: currentSlot.key, symbol, ...(currentSlot.colorId ? { colorId: currentSlot.colorId } : {}) } satisfies QuickEntry;
+  }, [currentSlot, quickSymbols, selectionSpan]);
+  const dynamicSwatch = dynamicSlot?.colorId ? getSwatch(dynamicSlot.colorId) : undefined;
   const moreSymbols = useMemo(() => {
     // The document mutates its index in place; its revision invalidates this
     // cached snapshot when placements change.
     void revision;
-    const visibleIds = new Set(quickSymbols.map((symbol) => symbol.id));
+    const visibleKeys = new Set(quickSymbols.map((entry) => entry.key));
     return collectGlossarySymbols(
       // The right panel treats assigned quick slots as glossary rows too,
       // including slots beyond the five shown in this compact picker.
       [...quickIds, ...addedGlossaryIds],
       index.toArray().map((placement) => placement.symbolId),
     ).filter((symbol) =>
-      !visibleIds.has(symbol.id) && (!selectionSpan || symbol.span === selectionSpan));
+      !visibleKeys.has(symbol.id) && (!selectionSpan || symbol.span === selectionSpan));
   }, [quickSymbols, quickIds, addedGlossaryIds, index, selectionSpan, revision]);
   const hasMore = moreSymbols.length > 0;
   const menuWidth = MENU_WIDTH + (hasMore ? 45 : 0) + (canDelete ? 45 : 0);
@@ -276,16 +305,20 @@ export function StitchPicker() {
         ? `Replace ${currentSymbol.label} at col ${target.col}, row ${target.row}`
         : `Add a stitch at col ${target.col}, row ${target.row}`;
 
-  const choose = (symbol: StitchSymbol) => {
+  // `colorId` defaults to undefined (DNT-8): a plain pick from search or the
+  // drawer is always a whole new uncolored pen, never whatever color
+  // happened to be active. Only a quick-slot tile click passes its own
+  // combo's color explicitly.
+  const choose = (symbol: StitchSymbol, colorId?: string) => {
     if (target.armOnly) {
-      chooseSymbol(symbol.id);
+      chooseSymbol(symbol.id, undefined, undefined, colorId);
       return;
     }
     // Choosing a symbol from a multi-cell selection fills it and closes the
     // picker, same as a single-cell pick - but keeps the selection so the
     // designer can see (and act on) what they just filled.
     if (target.selectionIds) {
-      const newIds = replacePlacements(target.selectionIds, symbol.id);
+      const newIds = replacePlacements(target.selectionIds, symbol.id, colorId);
       setSelectedPlacementIds(newIds, false);
       // Same rule as the reviewingSuggestion checks below: resolving a
       // suggested placement shouldn't arm whatever was picked for it -
@@ -294,9 +327,9 @@ export function StitchPicker() {
       // other pick, though - only the arming (and the tool switch that
       // comes with it) is what a review resolve skips.
       if (target.reviewingSuggestion) {
-        useUiStore.getState().addQuickSymbol(symbol.id);
+        useUiStore.getState().addQuickSymbol(symbol.id, colorId);
       } else {
-        chooseSymbol(symbol.id, "stitch", true);
+        chooseSymbol(symbol.id, "stitch", true, colorId);
       }
       closePicker();
       return;
@@ -306,7 +339,7 @@ export function StitchPicker() {
       beginStroke();
       for (const cell of cells) {
         if (useDocStore.getState().index.placementAt(cell.col, cell.row)) continue;
-        place(symbol.id, cell.col, cell.row);
+        place(symbol.id, cell.col, cell.row, undefined, undefined, colorId);
       }
       endStroke();
       const newIds = [...new Set(cells
@@ -322,37 +355,37 @@ export function StitchPicker() {
       //
       // Clears every cell in this batch, not just `target.col,row` - a
       // single unrecognized-cell edit and "Replace all" (which fills every
-      // currently-unrecognized cell in one go) both land here, and both need
-      // every one of their markers cleared, not only the anchor cell's.
+      // currently-unrecognized cell in one go) both need every one of their
+      // markers cleared, not only the anchor cell's.
       if (target.reviewingSuggestion) {
         const setUnrecognized = useUiStore.getState().setReferenceImageUnrecognized;
         for (const cell of cells) setUnrecognized(cellKey(cell.col, cell.row), false);
-        useUiStore.getState().addQuickSymbol(symbol.id);
+        useUiStore.getState().addQuickSymbol(symbol.id, colorId);
       } else if (newIds.length) {
-        chooseSymbol(symbol.id, "stitch", true);
+        chooseSymbol(symbol.id, "stitch", true, colorId);
       }
       closePicker();
       return;
     }
     if (target.insert) {
       const insertedCol = insertTargetCol(index, symbol.id, target.col, target.row);
-      insertPlacement(symbol.id, target.col, target.row);
+      insertPlacement(symbol.id, target.col, target.row, colorId);
       if (insertedCol !== null) {
         setInsertAnimation({ col: insertedCol, row: target.row });
       }
     } else {
-      place(symbol.id, target.col, target.row);
+      place(symbol.id, target.col, target.row, undefined, undefined, colorId);
     }
     // Resolving a suggestion review (confirmed or unrecognized) shouldn't
     // arm whatever the designer just picked - Suggest stays armed so a
     // review pass can keep going cell by cell.
     if (target.reviewingSuggestion) {
       useUiStore.getState().setReferenceImageUnrecognized(cellKey(target.col, target.row), false);
-      useUiStore.getState().addQuickSymbol(symbol.id);
+      useUiStore.getState().addQuickSymbol(symbol.id, colorId);
       closePicker();
       return;
     }
-    chooseSymbol(symbol.id, target.insert ? "insert" : "stitch");
+    chooseSymbol(symbol.id, target.insert ? "insert" : "stitch", undefined, colorId);
   };
 
   const clear = () => {
@@ -446,21 +479,50 @@ export function StitchPicker() {
       role="dialog"
       aria-label={placeholder}
     >
+      {(target.currentSymbolId || target.selectionIds) && (
+        // FR-31: a persistent label whenever the picker is open on an
+        // existing stitch or selection, rather than buried in the search
+        // placeholder (an extra click to see, gone the moment you type).
+        // Direct mitigation for DNT-11: editing something specific with
+        // nothing on screen saying so is what made a correct recolor look
+        // like it landed on the wrong thing.
+        <div className="picker__context">{placeholder}</div>
+      )}
       <div className="picker__quick" aria-label="Choose a recent stitch or search">
           {Array.from({ length: 5 }, (_, slot) => {
             if (searchOpen && searchOrigin === slot) return renderSearchField(`search:${slot}`);
-            const symbol = quickSymbols[slot];
-            return symbol ? (
+            const entry = quickSymbols[slot];
+            const swatch = entry?.colorId ? getSwatch(entry.colorId) : undefined;
+            return entry ? (
               <button
-                key={symbol.id}
+                key={entry.key}
                 type="button"
                 className="picker__quickButton"
-                onClick={() => choose(symbol)}
-                title={symbol.label}
-                aria-label={symbol.label}
-                data-label={symbol.label}
+                data-colored={!!entry.colorId}
+                style={swatch ? { background: swatch.hex } : undefined}
+                onClick={() => choose(entry.symbol, entry.colorId)}
+                title={entry.symbol.label}
+                aria-label={entry.symbol.label}
+                data-label={entry.symbol.label}
               >
-                <SymbolGlyph symbol={symbol} cell={Math.max(7, Math.min(22, 58 / symbol.span))} />
+                <SymbolGlyph
+                  symbol={entry.symbol}
+                  cell={Math.max(7, Math.min(22, 58 / entry.symbol.span))}
+                  colorId={entry.colorId}
+                />
+                {/* FR-25: a colored slot's color is fixed - no chip. Only the
+                    current, uncolored slot gets one, and only this exact tile. */}
+                {!entry.colorId && currentSlot?.key === entry.key && (
+                  <ColorChip
+                    mode="recolor"
+                    label={`Color ${entry.symbol.label}`}
+                    className="picker__quickColorChip"
+                    onSelect={(colorId) => {
+                      applyColorToSlot(currentSlot, colorId);
+                      closePicker();
+                    }}
+                  />
+                )}
               </button>
             ) : (
               <button
@@ -484,6 +546,40 @@ export function StitchPicker() {
               </button>
             );
           })}
+          {dynamicSlot && !(searchOpen && searchOrigin !== 5) && (
+            <>
+              <span className="picker__quickDivider" aria-hidden="true" />
+              <button
+                key={`dynamic:${dynamicSlot.key}`}
+                type="button"
+                className="picker__quickButton"
+                data-colored={!!dynamicSlot.colorId}
+                style={dynamicSwatch ? { background: dynamicSwatch.hex } : undefined}
+                onClick={() => choose(dynamicSlot.symbol, dynamicSlot.colorId)}
+                title={dynamicSlot.symbol.label}
+                aria-label={dynamicSlot.symbol.label}
+                data-label={dynamicSlot.symbol.label}
+              >
+                <SymbolGlyph
+                  symbol={dynamicSlot.symbol}
+                  cell={Math.max(7, Math.min(22, 58 / dynamicSlot.symbol.span))}
+                  colorId={dynamicSlot.colorId}
+                />
+                {!dynamicSlot.colorId && currentSlot && (
+                  <ColorChip
+                    mode="recolor"
+                    label={`Color ${dynamicSlot.symbol.label}`}
+                    className="picker__quickColorChip"
+                    onSelect={(colorId) => {
+                      applyColorToSlot(currentSlot, colorId);
+                      closePicker();
+                    }}
+                  />
+                )}
+              </button>
+              <span className="picker__quickDivider" aria-hidden="true" />
+            </>
+          )}
           {searchOpen && searchOrigin === 5 ? renderSearchField("search:5") : (
             <button
               ref={searchButtonRef}
@@ -550,22 +646,35 @@ export function StitchPicker() {
             <div className="picker__moreHeader">This pattern</div>
             <div className="picker__moreList">
               {moreSymbols.map((symbol) => (
-                <button
-                  key={symbol.id}
-                  type="button"
-                  className="picker__item"
-                  onClick={() => choose(symbol)}
-                  title={symbol.label}
-                >
-                  <span className="picker__glyph">
-                    <SymbolGlyph symbol={symbol} cell={cellSizeFor(symbol)} />
-                  </span>
-                  <span className="picker__label">{symbol.label}</span>
-                  {symbol.id === target.currentSymbolId && (
-                    <span className="picker__current">current</span>
-                  )}
-                  {symbol.span > 1 && <span className="picker__span">{symbol.span} sts</span>}
-                </button>
+                <div key={symbol.id} className="picker__item">
+                  <button
+                    type="button"
+                    className="picker__itemMain"
+                    onClick={() => choose(symbol)}
+                    title={symbol.label}
+                  >
+                    <span className="picker__glyph">
+                      <SymbolGlyph symbol={symbol} cell={cellSizeFor(symbol)} />
+                    </span>
+                    <span className="picker__label">{symbol.label}</span>
+                    {symbol.id === target.currentSymbolId && (
+                      <span className="picker__current">current</span>
+                    )}
+                    {symbol.span > 1 && <span className="picker__span">{symbol.span} sts</span>}
+                  </button>
+                  {/* FR-34: add-only - picking a color here arms a new pen,
+                      never touches anything already placed, no matter how
+                      many plain instances of this symbol exist. */}
+                  <ColorChip
+                    mode="add-only"
+                    label={`Add a colored ${symbol.label}`}
+                    className="picker__itemColorChip"
+                    onSelect={(colorId) => {
+                      addColoredVariant(symbol.id, colorId);
+                      closePicker();
+                    }}
+                  />
+                </div>
               ))}
             </div>
           </div>

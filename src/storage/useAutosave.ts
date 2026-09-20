@@ -26,7 +26,7 @@ export function useAutosave(store: ChartStore): void {
 
   useEffect(() => {
     const save = async () => {
-      const { meta, index, repeats, referenceImage, revision, savedRevision, status } =
+      const { meta, index, repeats, referenceImage, glossaryIds, quickSymbolIds, revision, savedRevision, status } =
         useDocStore.getState();
 
       if (!meta || revision === savedRevision) return;
@@ -49,6 +49,8 @@ export function useAutosave(store: ChartStore): void {
           meta.rev,
           repeats,
           referenceImage ?? undefined,
+          glossaryIds,
+          quickSymbolIds,
         );
         // The route can change while this request is in flight. Applying a
         // result for chart A after chart B has loaded would attach A's fresh

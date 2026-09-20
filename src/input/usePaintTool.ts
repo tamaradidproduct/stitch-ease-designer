@@ -86,14 +86,14 @@ export function straightLineCells(from: Cell, to: Cell): Cell[] {
  * instead of each needing its own copy of it.
  */
 export type StrokeMode =
-  | { kind: "place"; symbolId: string }
+  | { kind: "place"; symbolId: string; colorId?: string | null }
   | { kind: "suggest" }
   | { kind: "confirm"; overrideSymbolId?: string }
   | { kind: "erase" };
 
 /** Identifies a mode for the "is this a continuation of the same stroke" check - see `lastDrawn`. */
 export function strokeKey(mode: StrokeMode): string {
-  if (mode.kind === "place") return `place:${mode.symbolId}`;
+  if (mode.kind === "place") return `place:${mode.symbolId}:${mode.colorId ?? ""}`;
   if (mode.kind === "confirm") return `confirm:${mode.overrideSymbolId ?? ""}`;
   return mode.kind;
 }
@@ -189,6 +189,7 @@ export function modeFor(
   suggestAction: SuggestAction,
   target: { suggested?: boolean } | undefined,
   unrecognized: boolean,
+  activeColor: string | null = null,
 ): StrokeMode | null {
   const targetIsSuggested = !!target?.suggested;
   const confirmHeld = e.metaKey || e.ctrlKey;
@@ -227,7 +228,7 @@ export function modeFor(
   if (effective === "confirm") return targetIsSuggested ? { kind: "confirm" } : null;
   if (effective === "dismiss") return isDismissable(target, unrecognized) ? { kind: "erase" } : null;
   if (armedSymbolId === SUGGEST_SYMBOL_ID) return { kind: "suggest" };
-  if (armedSymbolId) return { kind: "place", symbolId: armedSymbolId };
+  if (armedSymbolId) return { kind: "place", symbolId: armedSymbolId, colorId: activeColor };
   return null;
 }
 
@@ -478,7 +479,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
           // cell that already holds a placement (confirmed or suggested) -
           // it's skipped, and the rest of the drag keeps going.
           if (doc().index.placementAt(cell.col, cell.row)) return;
-          doc().place(mode.symbolId, cell.col, cell.row);
+          doc().place(mode.symbolId, cell.col, cell.row, undefined, undefined, mode.colorId);
           // An unreadable cell has no placement to trip the block above, so
           // a drag can land here too - clear the stale mark rather than
           // leaving it flagged as unread under a stitch that's now there.
@@ -618,6 +619,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         x: e.clientX - rect.left + 8,
         y: e.clientY - rect.top + 8,
         currentSymbolId: placement.symbolId,
+        ...(placement.colorId ? { currentColorId: placement.colorId } : {}),
         selectionIds: ids,
         selectionSpan: doc().index.spanOf(placement),
         reviewingSuggestion: !!placement.suggested,
@@ -661,6 +663,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
               ui().suggestAction,
               targetAtPickerCell,
               ui().referenceImageUnrecognized.has(cellKey(pickerCell.col, pickerCell.row)),
+              ui().activeColor,
             )
           : null;
 
@@ -756,6 +759,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         ui().suggestAction,
         existingAtCell,
         ui().referenceImageUnrecognized.has(cellKey(cell.col, cell.row)),
+        ui().activeColor,
       );
       const startsDismissStroke = shouldStartDismissStroke(e, ui().armedSymbolId, ui().suggestAction);
 
@@ -918,7 +922,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         const armed = ui().armedSymbolId;
         if (armed) {
           const insertedCol = insertTargetCol(doc().index, armed, target.col, target.row);
-          doc().insertPlacement(armed, target.col, target.row);
+          doc().insertPlacement(armed, target.col, target.row, ui().activeColor);
           if (insertedCol !== null) {
             ui().setInsertAnimation({ col: insertedCol, row: target.row });
           }
@@ -984,7 +988,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         last = null;
         constrainedStroke = canDrawStraight;
         straightAxis = null;
-        currentMode = { kind: "place", symbolId: unreadableOverride };
+        currentMode = { kind: "place", symbolId: unreadableOverride, colorId: ui().activeColor };
         canvas.setPointerCapture(e.pointerId);
         doc().beginStroke();
         paint(cell);
@@ -1112,6 +1116,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
           ui().suggestAction,
           targetHere,
           ui().referenceImageUnrecognized.has(cellKey(cell.col, cell.row)),
+          ui().activeColor,
         );
       }
       if (pendingShiftFill) {
@@ -1228,7 +1233,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
               if (armed === SUGGEST_SYMBOL_ID) {
                 applyMode({ kind: "suggest" }, start);
                 finishSuggestBatch();
-              } else if (armed) doc().place(armed, start.col, start.row);
+              } else if (armed) doc().place(armed, start.col, start.row, undefined, undefined, ui().activeColor);
               else {
                 ui().setSelectedEmptyCells([start]);
                 const rect = getRect();
@@ -1313,7 +1318,8 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         row: cell.row,
         x: e.clientX - rect.left + 8,
         y: e.clientY - rect.top + 8,
-        ...(existing ? { currentSymbolId: existing.symbolId } : null),
+        ...(existing ? { currentSymbolId: existing.symbolId } : {}),
+        ...(existing?.colorId ? { currentColorId: existing.colorId } : {}),
       });
     };
 

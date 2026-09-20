@@ -9,6 +9,7 @@ import {
   zoomAt,
 } from "../canvas/camera";
 import type { BoxHandle, Placement } from "../model/types";
+import { quickSlotKey } from "../model/quickSlots";
 import { useDocStore } from "./docStore";
 import { nextHistorySequence } from "./historySequence";
 
@@ -50,6 +51,8 @@ export type PickerTarget = {
   y: number;
   /** The stitch already occupying this cell, if any — the picker is editing it. */
   currentSymbolId?: string;
+  /** `currentSymbolId`'s color, if any (FR-25's `currentSlotKey` identity). */
+  currentColorId?: string;
   /** When present, choosing a symbol replaces this whole selection. */
   selectionIds?: string[];
   selectionSpan?: number;
@@ -89,77 +92,6 @@ export type SelectionHistoryEntry = {
  * moving it.
  */
 export type SelectionMove = { col: number; row: number; blocked: boolean; duplicating: boolean };
-
-/** Stable quick-access order; the first five entries also have number-key shortcuts. */
-const QUICK_SLOT_STORAGE_KEY = "stitch-ease:quick-symbols";
-
-export function assignQuickSymbol(slots: string[], id: string): string[] {
-  if (slots.includes(id)) return slots;
-  const openSlot = slots.indexOf("");
-  if (openSlot !== -1) {
-    return slots.map((slot, index) => (index === openSlot ? id : slot));
-  }
-  return [...slots, id];
-}
-
-/**
- * Swaps a quick stitch with its neighbouring slot. Empty slots deliberately
- * participate in the swap: moving into one changes the number-key shortcut
- * without renumbering the other stitches.
- */
-export function moveQuickSymbol(slots: string[], id: string, direction: -1 | 1): string[] {
-  const from = slots.indexOf(id);
-  const to = from + direction;
-  if (from === -1 || to < 0) return slots;
-
-  const next = [...slots];
-  while (next.length <= to) next.push("");
-  [next[from], next[to]] = [next[to]!, next[from]!];
-  return next;
-}
-
-/** Moves a stitch to a slot by walking it through its adjacent neighbours. */
-export function moveQuickSymbolTo(slots: string[], id: string, targetSlot: number): string[] {
-  const start = slots.indexOf(id);
-  if (start === -1 || start === targetSlot || targetSlot < 0) return slots;
-
-  let next = slots;
-  const direction: -1 | 1 = targetSlot < start ? -1 : 1;
-  for (let slot = start; slot !== targetSlot; slot += direction) {
-    next = moveQuickSymbol(next, id, direction);
-  }
-  return next;
-}
-
-function loadQuickSymbolIds(): string[] {
-  if (typeof localStorage === "undefined") return [];
-  try {
-    const stored: unknown = JSON.parse(localStorage.getItem(QUICK_SLOT_STORAGE_KEY) ?? "[]");
-    if (!Array.isArray(stored)) return [];
-    const seen = new Set<string>();
-    return stored.flatMap((id) => {
-      // Empty strings are deliberate vacant slots. Keep every one so a
-      // removed shortcut never causes its neighbours to slide into a new
-      // number after a reload.
-      if (id === "") return [id];
-      if (typeof id !== "string" || seen.has(id)) return [];
-      seen.add(id);
-      return [id];
-    });
-  } catch {
-    return [];
-  }
-}
-
-function saveQuickSymbolIds(ids: string[]): void {
-  if (typeof localStorage === "undefined") return;
-  try {
-    localStorage.setItem(QUICK_SLOT_STORAGE_KEY, JSON.stringify(ids));
-  } catch {
-    // Storage can be unavailable in private/restricted browser contexts;
-    // stable slots still work for the lifetime of the current app session.
-  }
-}
 
 type UiState = {
   camera: Camera;
@@ -208,10 +140,17 @@ type UiState = {
    * instead, which is the state the canvas starts in.
    */
   armedSymbolId: string | null;
+  /**
+   * The armed pen's color, alongside `armedSymbolId` - a quick slot is a
+   * complete (symbol, color) pen, never a symbol that inherits whatever
+   * color happens to be active (FR-26). Null for an uncolored pen. Every
+   * arming path sets this explicitly (DNT-8) - never left ambient.
+   */
+  activeColor: string | null;
+  setActiveColor: (color: string | null) => void;
   /** See `SuggestAction` - reset to "suggest" everywhere `armedSymbolId` moves away from the Suggest sentinel. */
   suggestAction: SuggestAction;
   setSuggestAction: (action: SuggestAction) => void;
-  quickSymbolIds: string[];
   picker: PickerTarget | null;
   selectedPlacementIds: string[];
   /** Empty cells selected the same way placed stitches are - see `selectedPlacementIds`. */
@@ -321,28 +260,36 @@ type UiState = {
   closeSuggestReview: () => void;
 
   setTool: (tool: Tool) => void;
-  setArmedSymbolId: (id: string | null) => void;
+  /** `colorId` defaults to null (DNT-8) - arming is always a whole pen, never "keep whatever was active". */
+  setArmedSymbolId: (id: string | null, colorId?: string | null) => void;
   /**
-   * Arms `id`; lands back on `tool` (Draw by default - Insert stays Insert).
-   * Normally starts fresh (clears the selection and closes the picker) -
-   * pass `preserveSelection` when the symbol was just chosen to fill the
-   * current selection, which stays selected with its picker open so it can
-   * be tweaked again immediately, armed for wherever the next click goes.
+   * Arms `id`/`colorId` together as one pen (FR-26); lands back on `tool`
+   * (Draw by default - Insert stays Insert). `colorId` defaults to null
+   * (DNT-8): a plain pick always clears whatever color was active. Normally
+   * starts fresh (clears the selection and closes the picker) - pass
+   * `preserveSelection` when the symbol was just chosen to fill the current
+   * selection, which stays selected with its picker open so it can be
+   * tweaked again immediately, armed for wherever the next click goes.
    */
-  chooseSymbol: (id: string, tool?: Tool, preserveSelection?: boolean) => void;
+  chooseSymbol: (
+    id: string,
+    tool?: Tool,
+    preserveSelection?: boolean,
+    colorId?: string | null,
+  ) => void;
   /**
-   * Adds `id` to the next free quick slot without arming it or touching the
-   * tool - the quick-access half of `chooseSymbol`, on its own. Used when
-   * resolving a suggestion review (an identified placement or an
-   * unrecognized marker): the stitch just picked belongs in the glossary
-   * and the quick row exactly like any other pick, but Suggest needs to
-   * stay armed so the rest of the review pass isn't interrupted.
+   * Adds the `id`/`colorId` pen to the next free quick slot without arming
+   * it or touching the tool - the quick-access half of `chooseSymbol`, on
+   * its own. Used when resolving a suggestion review (an identified
+   * placement or an unrecognized marker): the stitch just picked belongs in
+   * the glossary and the quick row exactly like any other pick, but Suggest
+   * needs to stay armed so the rest of the review pass isn't interrupted.
    */
-  addQuickSymbol: (id: string) => void;
-  /** Clears a stitch's quick-access assignment without moving other slots. */
-  removeQuickSymbol: (id: string) => void;
-  /** Reorders a quick stitch, updating the number-key shortcuts. */
-  moveQuickSymbolTo: (id: string, targetSlot: number) => void;
+  addQuickSymbol: (id: string, colorId?: string | null) => void;
+  /** Clears a quick-slot assignment (by its full quick-slot key) without moving other slots. */
+  removeQuickSymbol: (key: string) => void;
+  /** Reorders a quick slot (by its full quick-slot key), updating the number-key shortcuts. */
+  moveQuickSymbolTo: (key: string, targetSlot: number) => void;
   openPicker: (target: PickerTarget) => void;
   closePicker: () => void;
   selectPlacement: (id: string, additive: boolean) => void;
@@ -466,9 +413,10 @@ export const useUiStore = create<UiState>((set, get) => ({
 
   tool: "stitch",
   armedSymbolId: null,
+  activeColor: null,
+  setActiveColor: (activeColor) => set({ activeColor }),
   suggestAction: "suggest",
   setSuggestAction: (suggestAction) => set({ suggestAction }),
-  quickSymbolIds: loadQuickSymbolIds(),
   picker: null,
   selectedPlacementIds: [],
   selectedEmptyCells: [],
@@ -506,9 +454,10 @@ export const useUiStore = create<UiState>((set, get) => ({
       ...(tool === "select" ? {} : { selectedPlacementIds: [], selectedEmptyCells: [] }),
     }));
   },
-  setArmedSymbolId: (armedSymbolId) =>
+  setArmedSymbolId: (armedSymbolId, colorId = null) =>
     set({
       armedSymbolId,
+      activeColor: armedSymbolId ? colorId : null,
       // Disarming, arming a real stitch, and re-arming Suggest itself all
       // start the sticky default fresh - a stale Confirm/Dismiss default
       // surviving a re-arm is confusing and easy to miss (FR-2).
@@ -526,18 +475,16 @@ export const useUiStore = create<UiState>((set, get) => ({
       ...(armedSymbolId ? { panEnabled: false } : null),
     }),
 
-  /** Arm a symbol and assign it to the next free quick slot, without reordering. */
-  chooseSymbol: (id, tool = "stitch", preserveSelection = false) => {
-    const current = get().quickSymbolIds;
-    const quickSymbolIds = assignQuickSymbol(current, id);
-    if (quickSymbolIds !== current) saveQuickSymbolIds(quickSymbolIds);
+  /** Arm a symbol/color pen and assign it to the next free quick slot, without reordering (FR-26). */
+  chooseSymbol: (id, tool = "stitch", preserveSelection = false, colorId = null) => {
+    useDocStore.getState().addQuickSlot(quickSlotKey(id, colorId));
     set({
       armedSymbolId: id,
+      activeColor: colorId,
       // Arming a real stitch always moves away from the Suggest sentinel
       // (FR-2) - see setArmedSymbolId above.
       suggestAction: "suggest",
       tool,
-      quickSymbolIds,
       // Always an arm, never a disarm - see setArmedSymbolId above.
       panEnabled: false,
       ...(preserveSelection ? null : {
@@ -551,34 +498,25 @@ export const useUiStore = create<UiState>((set, get) => ({
     });
   },
 
-  addQuickSymbol: (id) => {
-    const current = get().quickSymbolIds;
-    const quickSymbolIds = assignQuickSymbol(current, id);
-    if (quickSymbolIds === current) return;
-    saveQuickSymbolIds(quickSymbolIds);
-    set({ quickSymbolIds });
+  addQuickSymbol: (id, colorId = null) => {
+    useDocStore.getState().addQuickSlot(quickSlotKey(id, colorId));
   },
 
-  removeQuickSymbol: (id) => {
+  removeQuickSymbol: (key) => {
     const state = get();
-    const slot = state.quickSymbolIds.indexOf(id);
-    if (slot === -1) return;
-    const quickSymbolIds = state.quickSymbolIds.map((symbolId, index) =>
-      index === slot ? "" : symbolId,
-    );
-    saveQuickSymbolIds(quickSymbolIds);
-    set({
-      quickSymbolIds,
-      ...(state.armedSymbolId === id ? { armedSymbolId: null } : {}),
-    });
+    useDocStore.getState().removeQuickSlot(key);
+    if (state.armedSymbolId && quickSlotKey(state.armedSymbolId, state.activeColor) === key) {
+      set({ armedSymbolId: null, activeColor: null });
+    }
   },
 
-  moveQuickSymbolTo: (id, targetSlot) => {
-    const current = get().quickSymbolIds;
-    const quickSymbolIds = moveQuickSymbolTo(current, id, targetSlot);
-    if (quickSymbolIds === current) return;
-    saveQuickSymbolIds(quickSymbolIds);
-    set({ quickSymbolIds });
+  moveQuickSymbolTo: (key, targetSlot) => {
+    // `promoteQuickSlot` adds `key` to the quick row first if it isn't
+    // already there, then moves it - so dragging a glossary entry that
+    // never got its own quick slot (e.g. one that only arrived via a
+    // duplicate/paste or an import) onto the row promotes it, while an
+    // already-slotted key just reorders exactly as before.
+    useDocStore.getState().promoteQuickSlot(key, targetSlot);
   },
 
   // Editing a single suggested/unidentified cell always wins over the batch
@@ -794,6 +732,7 @@ export const useUiStore = create<UiState>((set, get) => ({
     camera: defaultCamera(),
     tool: "stitch",
     armedSymbolId: null,
+    activeColor: null,
     suggestAction: "suggest",
     picker: null,
     suggestReview: null,

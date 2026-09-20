@@ -33,6 +33,8 @@ describe("encode", () => {
       ],
       groups: [],
       repeats: [],
+      glossaryIds: ["knit", "purl"],
+      quickSymbolIds: ["knit", "purl"],
     });
     // No trace of the runtime ids anywhere in the output.
     expect(JSON.stringify(stored)).not.toContain("seed_");
@@ -47,7 +49,15 @@ describe("encode", () => {
   });
 
   it("handles an empty chart", () => {
-    expect(encode([])).toEqual(emptyChart());
+    // `emptyChart()` (a chart that's never been saved) omits
+    // glossaryIds/quickSymbolIds entirely - `encode()` (an actual save)
+    // always writes concrete values, the seeded default here since nothing
+    // was customized. The two are deliberately not the same object anymore.
+    expect(encode([])).toEqual({
+      ...emptyChart(),
+      glossaryIds: ["knit", "purl"],
+      quickSymbolIds: ["knit", "purl"],
+    });
   });
 });
 
@@ -332,5 +342,64 @@ describe("validation", () => {
     const stored = encode([place(CABLE, -2, 5), place("purl", 0, 0)]);
     const reparsed = JSON.parse(JSON.stringify(stored));
     expect(encode(decode(reparsed, known).placements)).toEqual(stored);
+  });
+});
+
+describe("colorwork (FR-22 / storage §3)", () => {
+  const RED = "#e11d48";
+  const BLUE = "#0ea5e9";
+
+  it("an uncolored chart encodes without a colorPalette/colors key at all", () => {
+    const stored = encode([place("knit", 0, 0)]);
+    expect(stored.colorPalette).toBeUndefined();
+    expect(stored.colors).toBeUndefined();
+  });
+
+  it("stores color as a sparse list, not baked into every stitch tuple", () => {
+    const colored = { ...place("knit", 0, 0), colorId: RED };
+    const stored = encode([colored, place("purl", 1, 0)]);
+    expect(stored.colorPalette).toEqual([RED]);
+    expect(stored.colors).toEqual([[0, 0, 0]]);
+  });
+
+  it("round-trips colorId through encode/decode", () => {
+    const colored = { ...place("knit", 0, 0), colorId: RED };
+    const other = { ...place("purl", 1, 0), colorId: BLUE };
+    const stored = encode([colored, other]);
+    const decoded = decode(stored, known);
+    expect(decoded.placements.find((p) => p.col === 0)?.colorId).toBe(RED);
+    expect(decoded.placements.find((p) => p.col === 1)?.colorId).toBe(BLUE);
+  });
+
+  it("rejects a colors entry that references an out-of-bounds colorPalette index", () => {
+    const bad = { ...encode([place("knit", 0, 0)]), colorPalette: [RED], colors: [[0, 0, 5]] };
+    expect(() => decode(bad, known)).toThrow(ChartFormatError);
+  });
+});
+
+describe("glossaryIds/quickSymbolIds absent-vs-empty (storage §3)", () => {
+  it("emptyChart (never saved) omits both keys entirely", () => {
+    expect(emptyChart().glossaryIds).toBeUndefined();
+    expect(emptyChart().quickSymbolIds).toBeUndefined();
+  });
+
+  it("decode falls back to the default seed when the key is absent (a pre-colorwork chart)", () => {
+    const legacy = { v: 2, palette: [], stitches: [], groups: [], repeats: [] };
+    const decoded = decode(legacy, known);
+    expect(decoded.glossaryIds).toEqual(["knit", "purl"]);
+    expect(decoded.quickSymbolIds).toEqual(["knit", "purl"]);
+  });
+
+  it("decode preserves an explicit empty array as a deliberate clear, not the default", () => {
+    const stored = { ...emptyChart(), glossaryIds: [], quickSymbolIds: [] };
+    const decoded = decode(stored, known);
+    expect(decoded.glossaryIds).toEqual([]);
+    expect(decoded.quickSymbolIds).toEqual([]);
+  });
+
+  it("encode always writes concrete arrays once a chart is saved at all, never omitting them", () => {
+    const stored = encode([], [], undefined, [], []);
+    expect(stored.glossaryIds).toEqual([]);
+    expect(stored.quickSymbolIds).toEqual([]);
   });
 });

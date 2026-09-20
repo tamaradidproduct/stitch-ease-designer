@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef } from "react";
 import type { StitchSymbol } from "../symbols/types";
+import { getSwatch, glyphInkFor } from "../model/colorPalette";
 
 /**
  * A symbol drawn as it appears on the chart: bordered cells, any meaningful
@@ -7,17 +8,28 @@ import type { StitchSymbol } from "../symbols/types";
  * toolbar so what you choose looks like what you'll get.
  *
  * The markup comes from our own build-time Figma export, not from user input.
+ *
+ * FR-28: a colored stitch renders as a cell background fill behind the
+ * glyph, with ink adapting to the fill - applied identically at all four
+ * render sites (canvas, cursor preview, and this component, which is what
+ * both the picker's and the glossary's tiles use). FR-29's precedence: the
+ * symbol's own tint (e.g. "no stitch" grey) overpaints the color, not the
+ * reverse - the color fill is painted first, `cellFills` after.
  */
 export function SymbolGlyph({
   symbol,
   cell = 22,
   chrome = true,
+  colorId,
 }: {
   symbol: StitchSymbol;
   /** Size of one cell in px. Cables shrink this to fit their tile. */
   cell?: number;
   chrome?: boolean;
+  colorId?: string | null | undefined;
 }) {
+  const colorFill = colorId ? getSwatch(colorId)?.hex : undefined;
+  const ink = glyphInkFor(colorId ?? undefined, "currentColor");
   const width = cell * symbol.span;
   const svgRef = useRef<HTMLSpanElement>(null);
 
@@ -51,7 +63,7 @@ export function SymbolGlyph({
   }, [symbol.glyph]);
 
   return (
-    <span className="glyph" style={{ width, height: cell }}>
+    <span className="glyph" style={{ width, height: cell, color: ink }}>
       {chrome &&
         Array.from({ length: symbol.span }, (_, i) => (
           <span
@@ -61,9 +73,13 @@ export function SymbolGlyph({
               left: i * cell,
               width: cell,
               height: cell,
+              // Color fill first, the library's own per-cell tint after -
+              // "no stitch" grey overpaints the pen's color, never the
+              // reverse (FR-29).
+            ...(colorFill ? { background: colorFill } : {}),
               ...(symbol.cellFills?.[i]
                 ? { background: symbol.cellFills[i] as string }
-                : null),
+              : {}),
             }}
           />
         ))}

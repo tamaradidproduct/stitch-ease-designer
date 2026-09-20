@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { CELL, cellToScreenRect } from "../canvas/camera";
 import type { Placement } from "../model/types";
 import { patchCalibrationMark } from "../model/referenceCalibration";
+import { parseQuickSlotId } from "../model/quickSlots";
 import { registerListeners } from "./registerListeners";
 import { useDocStore } from "../state/docStore";
 import { redoLatest, undoLatest } from "../state/editorHistory";
@@ -81,10 +82,11 @@ export function useShortcuts(): void {
       }
 
       if (/^[1-5]$/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
-        const symbolId = ui.quickSymbolIds[Number(e.key) - 1];
-        if (symbolId) {
+        const key = useDocStore.getState().quickSymbolIds[Number(e.key) - 1];
+        if (key) {
           e.preventDefault();
-          ui.chooseSymbol(symbolId);
+          const { symbolId, colorId } = parseQuickSlotId(key);
+          ui.chooseSymbol(symbolId, undefined, undefined, colorId);
         }
         return;
       }
@@ -165,6 +167,9 @@ export function useShortcuts(): void {
             placement.symbolId,
             placement.col + deltaCol,
             placement.row + deltaRow,
+            undefined,
+            undefined,
+            placement.colorId,
           );
         }
         doc.endStroke();

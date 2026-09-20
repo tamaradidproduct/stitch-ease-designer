@@ -37,9 +37,17 @@ export async function exportChart(
   placements: Iterable<Placement>,
   repeats: RepeatDefinition[] = [],
   referenceImage?: ReferenceImage,
+  glossaryIds?: readonly string[],
+  quickSymbolIds?: readonly string[],
 ): Promise<void> {
   const file: ChartFile = {
-    ...encode(placements, repeats, await exportableReferenceImage(referenceImage)),
+    ...encode(
+      placements,
+      repeats,
+      await exportableReferenceImage(referenceImage),
+      glossaryIds,
+      quickSymbolIds,
+    ),
     name,
     exportedAt: new Date().toISOString(),
   };
@@ -55,6 +63,8 @@ export type ImportedChart = {
   placements: Placement[];
   repeats: RepeatDefinition[];
   referenceImage?: ReferenceImage;
+  glossaryIds: string[];
+  quickSymbolIds: string[];
   unknownSymbolIds: string[];
 };
 
@@ -66,7 +76,10 @@ export type ImportedChart = {
 export async function importChart(file: File): Promise<ImportedChart> {
   const text = await file.text();
   const parsed: unknown = JSON.parse(text);
-  const { placements, repeats, referenceImage, unknownSymbolIds } = decode(parsed, (id) => !!getSymbol(id));
+  const { placements, repeats, referenceImage, glossaryIds, quickSymbolIds, unknownSymbolIds } = decode(
+    parsed,
+    (id) => !!getSymbol(id),
+  );
 
   const fromFile = file.name.replace(/\.stitchchart\.json$|\.json$/i, "").trim();
   const name =
@@ -79,6 +92,8 @@ export async function importChart(file: File): Promise<ImportedChart> {
     placements,
     repeats,
     ...(referenceImage ? { referenceImage } : {}),
+    glossaryIds,
+    quickSymbolIds,
     unknownSymbolIds,
   };
 }
@@ -92,7 +107,7 @@ export async function importChart(file: File): Promise<ImportedChart> {
  * left behind as an orphan the user never asked for and can't see yet.
  */
 export async function importChartIntoStore(store: ChartStore, file: File): Promise<DocMeta> {
-  const { name, placements, repeats, referenceImage } = await importChart(file);
+  const { name, placements, repeats, referenceImage, glossaryIds, quickSymbolIds } = await importChart(file);
   const meta = await store.create(name);
   try {
     let importedImage: ReferenceImage | undefined;
@@ -105,7 +120,7 @@ export async function importChartIntoStore(store: ChartStore, file: File): Promi
       );
       importedImage = { ...referenceImage, ...uploaded };
     }
-    await store.save(meta.id, placements, meta.rev, repeats, importedImage);
+    await store.save(meta.id, placements, meta.rev, repeats, importedImage, glossaryIds, quickSymbolIds);
   } catch (error) {
     await store.remove(meta.id).catch(() => {});
     throw error;
