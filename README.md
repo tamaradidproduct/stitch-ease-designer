@@ -88,8 +88,8 @@ to anyone who opens the site.
 Every push to `main` builds and publishes to GitHub Pages via
 `.github/workflows/deploy.yml`. The deploy is gated on typecheck and the test
 suite, then pauses for the protected `production` environment approval. This
-is what the group uses, and a broken build reaching them is worse than a late
-one.
+publishes `https://designer.stitch-ease.com`; a broken build reaching the group
+is worse than a late one.
 
 ### Staging release flow
 
@@ -102,7 +102,9 @@ To enable the staging publisher, create a fine-grained GitHub personal access
 token limited to the staging repository with **Contents: Read and write**
 permission, and save it in this repository as the `STAGING_PAGES_TOKEN` Actions
 secret. The staging workflow then builds and validates the app before it writes
-the generated files to the staging site's `gh-pages` branch.
+the generated files to the staging site's `gh-pages` branch. The committed
+`public/CNAME` remains the production domain; the staging workflow replaces it
+inside `dist/` so the two Pages sites cannot claim each other's hostnames.
 
 After validating a staging deployment through the current QA process, open
 **Actions → Open staging promotion pull request**, choose **Run workflow**, and
