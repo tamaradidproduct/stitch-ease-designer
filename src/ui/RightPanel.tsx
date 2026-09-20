@@ -20,7 +20,6 @@ import {
   symbolsWithAnyPlacement,
   useGlossaryIds,
 } from "./chartGlossary";
-import { getSwatch } from "../model/colorPalette";
 import { parseQuickSlotId, quickSlotKey } from "../model/quickSlots";
 import { addColoredVariant } from "./colorwork";
 import { ColorChip } from "./ColorChip";
@@ -450,7 +449,6 @@ export function RightPanel() {
               const key = quickSymbolIds[slot];
               const parsed = key ? parseQuickSlotId(key) : undefined;
               const symbol = parsed ? getSymbol(parsed.symbolId) : undefined;
-              const swatch = parsed?.colorId ? getSwatch(parsed.colorId) : undefined;
               const armed = !!key && key === quickSlotKey(armedSymbolId ?? "", activeColor) && !!armedSymbolId;
               const count = parsed?.colorId
                 ? (coloredCounts.get(key!) ?? 0)
@@ -461,7 +459,6 @@ export function RightPanel() {
                   className="glossary__item"
                   data-on={armed && tool === "stitch"}
                   data-drag-over={dragOverQuickId === key}
-                  style={swatch ? { background: swatch.hex } : undefined}
                   onDragOver={(event) => {
                     if (draggingQuickId && draggingQuickId !== key) {
                       event.preventDefault();
@@ -648,7 +645,6 @@ export function RightPanel() {
             })}
             {remainingGlossary.map((entry) => {
               const { symbol, colorId, key } = entry;
-              const swatch = colorId ? getSwatch(colorId) : undefined;
               const armed = key === quickSlotKey(armedSymbolId ?? "", activeColor) && !!armedSymbolId;
               const count = colorId ? (coloredCounts.get(key) ?? 0) : (stitchCounts.get(symbol.id) ?? 0);
               return (
@@ -657,7 +653,6 @@ export function RightPanel() {
                   className="glossary__item"
                   data-on={armed && tool === "stitch"}
                   data-drag-over={dragOverQuickId === key}
-                  style={swatch ? { background: swatch.hex } : undefined}
                   onDragOver={(event) => {
                     if (draggingQuickId && draggingQuickId !== key) {
                       event.preventDefault();
