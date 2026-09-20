@@ -511,7 +511,12 @@ export const useUiStore = create<UiState>((set, get) => ({
   },
 
   moveQuickSymbolTo: (key, targetSlot) => {
-    useDocStore.getState().moveQuickSlotTo(key, targetSlot);
+    // `promoteQuickSlot` adds `key` to the quick row first if it isn't
+    // already there, then moves it - so dragging a glossary entry that
+    // never got its own quick slot (e.g. one that only arrived via a
+    // duplicate/paste or an import) onto the row promotes it, while an
+    // already-slotted key just reorders exactly as before.
+    useDocStore.getState().promoteQuickSlot(key, targetSlot);
   },
 
   // Editing a single suggested/unidentified cell always wins over the batch

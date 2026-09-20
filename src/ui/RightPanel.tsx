@@ -627,8 +627,49 @@ export function RightPanel() {
                   key={key}
                   className="glossary__item"
                   data-on={armed && tool === "stitch"}
+                  data-drag-over={dragOverQuickId === key}
                   style={swatch ? { background: swatch.hex } : undefined}
+                  onDragOver={(event) => {
+                    if (draggingQuickId && draggingQuickId !== key) {
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = "move";
+                      setDragOverQuickId(key);
+                    }
+                  }}
+                  onDragLeave={() => setDragOverQuickId((current) => current === key ? null : current)}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    const draggedKey = draggingQuickId;
+                    resetDragState();
+                    if (!draggedKey || draggedKey === key) return;
+                    // Reordering within the overflow list only - promoting a
+                    // slotted item out of the quick row isn't supported here
+                    // (it wouldn't render in this list to begin with).
+                    if (quickSymbolIds.includes(draggedKey)) return;
+                    const targetIndex = remainingGlossary.findIndex((candidate) => candidate.key === key);
+                    useDocStore.getState().moveGlossaryIdTo(draggedKey, targetIndex);
+                  }}
                 >
+                  <button
+                    type="button"
+                    draggable
+                    className="glossary__dragHandle"
+                    onDragStart={(event) => {
+                      event.dataTransfer.effectAllowed = "move";
+                      event.dataTransfer.setData("text/plain", key);
+                      setDraggingQuickId(key);
+                    }}
+                    onDragEnd={resetDragState}
+                    aria-label={`Drag to reorder ${symbol.label}`}
+                    title="Drag to reorder, or onto a numbered slot above to pin it there"
+                  >
+                    <svg viewBox="0 0 16 16" aria-hidden="true">
+                      <circle cx="5" cy="3.5" r="1" /><circle cx="11" cy="3.5" r="1" />
+                      <circle cx="5" cy="8" r="1" /><circle cx="11" cy="8" r="1" />
+                      <circle cx="5" cy="12.5" r="1" /><circle cx="11" cy="12.5" r="1" />
+                    </svg>
+                  </button>
+                  <span className="glossary__shortcutSpacer" />
                   <button
                     type="button"
                     className="glossary__arm"

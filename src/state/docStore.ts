@@ -169,6 +169,18 @@ type DocState = {
   /** Reorders a quick slot, updating its number-key shortcut. */
   moveQuickSlotTo: (key: string, targetSlot: number) => void;
   /**
+   * Moves `key` into the quick row at `targetSlot`, adding it first if it
+   * isn't already a quick slot - the drag-and-drop path for promoting a
+   * glossary entry that didn't make it into a quick slot (e.g. one that only
+   * arrived via a duplicate/paste or an import, never an explicit arm/pick)
+   * up into the row where it can get a keyboard shortcut and be reordered
+   * like any other slot. A no-op move for an already-slotted key is
+   * unaffected - this only adds the "insert if missing" step in front of it.
+   */
+  promoteQuickSlot: (key: string, targetSlot: number) => void;
+  /** Reorders a glossary entry (adding it to the explicit list first if it was only placement-derived). */
+  moveGlossaryIdTo: (key: string, targetIndex: number) => void;
+  /**
    * DNT-12's rename-vs-mint recolor path: renaming `oldKey` to `newKey` in
    * place is only safe when nothing else on the chart still uses `oldKey`'s
    * (symbol, color) combo, excluding `excludingPlacementIds` (the placements
@@ -360,6 +372,27 @@ export const useDocStore = create<DocState>((set, get) => {
       const current = get().quickSymbolIds;
       const next = moveQuickSlotTo(current, key, targetSlot);
       if (next !== current) get().setQuickSymbolIds(next);
+    },
+    promoteQuickSlot: (key, targetSlot) => {
+      const state = get();
+      if (!state.quickSymbolIds.includes(key)) state.addQuickSlot(key);
+      get().moveQuickSlotTo(key, targetSlot);
+    },
+    moveGlossaryIdTo: (key, targetIndex) => {
+      const state = get();
+      const current = state.glossaryIds.includes(key)
+        ? state.glossaryIds
+        : [...state.glossaryIds, key];
+      const from = current.indexOf(key);
+      const clampedTarget = Math.max(0, Math.min(targetIndex, current.length - 1));
+      if (from === clampedTarget && current === state.glossaryIds) return;
+      const without = current.filter((id) => id !== key);
+      const next = [
+        ...without.slice(0, clampedTarget),
+        key,
+        ...without.slice(clampedTarget),
+      ];
+      state.setGlossaryIds(next);
     },
     recolorQuickSlot: (oldKey, newKey, excludingPlacementIds) => {
       if (oldKey === newKey) return;

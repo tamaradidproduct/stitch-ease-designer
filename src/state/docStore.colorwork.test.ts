@@ -120,3 +120,37 @@ describe("chart-scoped glossary/quick-row are not undoable (§6)", () => {
     expect(useDocStore.getState().undoStack.length).toBe(before);
   });
 });
+
+describe("promoteQuickSlot", () => {
+  it("moves an already-slotted key without duplicating it (same as moveQuickSlotTo)", () => {
+    useDocStore.getState().setQuickSymbolIds(["knit", "purl", "yo"]);
+    useDocStore.getState().promoteQuickSlot("yo", 0);
+    expect(useDocStore.getState().quickSymbolIds).toEqual(["yo", "knit", "purl"]);
+  });
+
+  it("adds a glossary-only key (e.g. one that only arrived via paste/import) before moving it into place", () => {
+    // "purl::RED" has real placements and a glossary entry, but was never
+    // an explicit quick pick - exactly the state an imported chart or a
+    // duplicate/paste of an older placement can leave behind.
+    useDocStore.getState().setQuickSymbolIds(["knit", "purl"]);
+    expect(useDocStore.getState().quickSymbolIds).not.toContain("purl::" + RED);
+
+    useDocStore.getState().promoteQuickSlot("purl::" + RED, 2);
+
+    expect(useDocStore.getState().quickSymbolIds).toEqual(["knit", "purl", "purl::" + RED]);
+  });
+});
+
+describe("moveGlossaryIdTo", () => {
+  it("reorders an existing glossary entry", () => {
+    useDocStore.getState().setGlossaryIds(["knit", "purl", "yo"]);
+    useDocStore.getState().moveGlossaryIdTo("yo", 0);
+    expect(useDocStore.getState().glossaryIds).toEqual(["yo", "knit", "purl"]);
+  });
+
+  it("inserts a placement-derived entry that was never explicitly added to the glossary list", () => {
+    useDocStore.getState().setGlossaryIds(["knit", "purl"]);
+    useDocStore.getState().moveGlossaryIdTo("purl::" + BLUE, 1);
+    expect(useDocStore.getState().glossaryIds).toEqual(["knit", "purl::" + BLUE, "purl"]);
+  });
+});
