@@ -96,6 +96,25 @@ export function RightPanel() {
     if (searchSlot !== null) glossarySearchRef.current?.focus();
   }, [searchSlot]);
 
+  // The results dropdown anchors via a measured rect rather than plain CSS
+  // `position: absolute`, which is what let it render clipped away here:
+  // `.sideModule` (the "Stitch glossary" card) sets `overflow: hidden` so it
+  // can round its own corners, and an absolutely-positioned dropdown that
+  // extends past the card's bottom edge was cut off there instead of
+  // floating over the rest of the sidebar - the exact class of bug the
+  // picker's drawer popover already hit once (see ColorSwatchPopover's own
+  // doc comment). `position: fixed` escapes that ancestor's clipping
+  // entirely.
+  const [searchResultsRect, setSearchResultsRect] = useState<{ left: number; top: number; width: number } | null>(null);
+  useLayoutEffect(() => {
+    if (searchSlot === null) {
+      setSearchResultsRect(null);
+      return;
+    }
+    const rect = inlineSearchRef.current?.getBoundingClientRect();
+    setSearchResultsRect(rect ? { left: rect.left, top: rect.bottom + 4, width: rect.width } : null);
+  }, [searchSlot]);
+
   // Search queries can remove the currently highlighted result. Start each
   // new query at its first visible match so Arrow navigation always has a
   // predictable target.
@@ -545,10 +564,20 @@ export function RightPanel() {
                         : undefined
                     }
                   />
-                  {glossaryResults.length > 0 && (() => {
+                  {glossaryResults.length > 0 && searchResultsRect && (() => {
                     let resultIndex = -1;
                     return (
-                      <div id="glossary-search-results" className="glossarySearch__results" role="listbox">
+                      <div
+                        id="glossary-search-results"
+                        className="glossarySearch__results"
+                        role="listbox"
+                        style={{
+                          position: "fixed",
+                          left: searchResultsRect.left,
+                          top: searchResultsRect.top,
+                          width: searchResultsRect.width,
+                        }}
+                      >
                         {glossarySections.map((section) => (
                           <div key={section.key}>
                             <div className="glossarySearch__heading">{section.title}</div>

@@ -1664,11 +1664,12 @@ body {
 }
 
 .glossarySearch__results {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  left: 0;
-  z-index: 5;
+  /* `position`/`left`/`top`/`width` are set inline from a measured rect
+     (see RightPanel.tsx) - `position: fixed` there is what escapes
+     `.sideModule`'s `overflow: hidden`, which otherwise clips this dropdown
+     at the glossary card's own bottom edge instead of floating it over the
+     rest of the sidebar. */
+  z-index: 30;
   display: flex;
   flex-direction: column;
   gap: 3px;
