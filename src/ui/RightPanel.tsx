@@ -491,7 +491,7 @@ export function RightPanel() {
                     title={`Draw with ${symbol.label} (${slot + 1}) - tap again to stop drawing`}
                   >
                     <span className="glossary__glyph">
-                      <SymbolGlyph symbol={symbol} cell={Math.max(7, Math.min(20, 54 / symbol.span))} />
+                      <SymbolGlyph symbol={symbol} cell={Math.max(7, Math.min(20, 54 / symbol.span))} colorId={parsed?.colorId} />
                     </span>
                     <span className="glossary__label">{symbol.label}</span>
                     <span className="glossary__count" title={`${count} placed`}>
@@ -640,7 +640,7 @@ export function RightPanel() {
                     title={`Draw with ${symbol.label} - tap again to stop drawing`}
                   >
                     <span className="glossary__glyph">
-                      <SymbolGlyph symbol={symbol} cell={Math.max(7, Math.min(20, 54 / symbol.span))} />
+                      <SymbolGlyph symbol={symbol} cell={Math.max(7, Math.min(20, 54 / symbol.span))} colorId={colorId} />
                     </span>
                     <span className="glossary__label">{symbol.label}</span>
                     <span className="glossary__count" title={`${count} placed`}>

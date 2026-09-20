@@ -504,7 +504,11 @@ export function StitchPicker() {
                 aria-label={entry.symbol.label}
                 data-label={entry.symbol.label}
               >
-                <SymbolGlyph symbol={entry.symbol} cell={Math.max(7, Math.min(22, 58 / entry.symbol.span))} />
+                <SymbolGlyph
+                  symbol={entry.symbol}
+                  cell={Math.max(7, Math.min(22, 58 / entry.symbol.span))}
+                  colorId={entry.colorId}
+                />
                 {/* FR-25: a colored slot's color is fixed - no chip. Only the
                     current, uncolored slot gets one, and only this exact tile. */}
                 {!entry.colorId && currentSlot?.key === entry.key && (
@@ -557,7 +561,11 @@ export function StitchPicker() {
                   aria-label={dynamicSlot.symbol.label}
                   data-label={dynamicSlot.symbol.label}
                 >
-                  <SymbolGlyph symbol={dynamicSlot.symbol} cell={Math.max(7, Math.min(22, 58 / dynamicSlot.symbol.span))} />
+                  <SymbolGlyph
+                    symbol={dynamicSlot.symbol}
+                    cell={Math.max(7, Math.min(22, 58 / dynamicSlot.symbol.span))}
+                    colorId={dynamicSlot.colorId}
+                  />
                   {!dynamicSlot.colorId && currentSlot && (
                     <ColorChip
                       mode="recolor"
