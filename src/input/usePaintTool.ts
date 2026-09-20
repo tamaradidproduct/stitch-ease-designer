@@ -98,7 +98,12 @@ export function strokeKey(mode: StrokeMode): string {
   return mode.kind;
 }
 
-/** Expand queried placements to whole-group ids, resolving each group once. */
+/**
+ * Expand queried placements to whole-group ids, resolving each group's
+ * membership once per call. If multiple queried placements belong to the same
+ * group, their shared members are returned each time; callers that need unique
+ * ids must dedupe afterward.
+ */
 export function resolveGroupIds(index: DocIndex, bounds: CellBounds): string[] {
   const resolvedGroups = new Map<string, string[]>();
   return index.query(bounds).flatMap((placement) => {
