@@ -1,5 +1,5 @@
 # Product Requirements Document (PRD)
-*Last Updated: 2026-09-18*
+*Last Updated: 2026-09-20*
 
 ## Core App Overview
 
@@ -300,7 +300,7 @@ incidental `Opt`/`Alt` tap could trigger during an otherwise-ordinary
 marquee drag. See `includeEmptyCells` in `usePaintTool.ts`'s
 `onPointerMove`.
 
-#### Do not touch
+#### Do not touch (Suggest)
 
 - **DNT-2.** Suggest's own template-matching internals (confidence thresholds, exemplar
   matching) — this feature only adds review actions on top of results
@@ -334,6 +334,226 @@ marquee drag. See `includeEmptyCells` in `usePaintTool.ts`'s
 | `src/styles.css` | Purple on-state styling for the toolDock's Suggest/Confirm/Dismiss buttons |
 | `src/ui/chartGlossary.ts` | `countConfirmedStitches`, `symbolsWithAnyPlacement` (pure, tested) |
 | `src/ui/RightPanel.tsx` | Consumes the above two for the glossary's displayed counts and remove-eligibility |
+
+---
+
+### Multicolor stitches (colorwork)
+
+**Context.** Lets a designer chart colorwork on top of the existing texture-stitch
+system. Built ground-up on `colorwork/multicolor-stitches` (branched from
+`main`, which had no prior colorwork code) — [PR #194](https://github.com/tamaradidproduct/stitch-ease-designer/pull/194).
+
+#### Data model
+
+**FR-22.** Color is a property of a stitch, never a second kind of stitch.
+`Placement.colorId` is an optional hex string. An uncolored placement carries
+no `colorId` at all; a chart that never uses color encodes byte-identically
+to the pre-colorwork format.
+
+**FR-23.** Choosing a glossary/quick-slot tile arms the symbol and its color
+together as a single pen — no separate "now pick a color" step.
+
+**FR-24.** The moment a (symbol, color) combo is first used it becomes a
+glossary tile automatically, deduplicated by identity — the same mechanism a
+plain symbol already uses to become glossary-eligible by being placed.
+
+**FR-32.** Knit and Purl are always seeded into both the glossary and the
+quick-access row, for every chart (`DEFAULT_STITCH_IDS` in
+`src/model/quickSlots.ts`). Removable and reorderable like any other entry;
+the seed is only the starting state. **Chart-scoped**, not a browser-local
+side channel — persists with the chart (`docStore.glossaryIds` /
+`quickSymbolIds`) and travels through export/import.
+
+#### Interaction
+
+**FR-25.** The color chip lives on whichever tile is *currently selected* —
+the actual placement the picker is open on, or, only when there's nothing to
+look up yet, the armed pen itself. One identity (`currentSlotForPicker` in
+`src/ui/colorwork.ts`) feeds chip visibility, the recolor effect, and tile
+highlighting — every consumer reads that single value rather than
+independently reading `armedSymbolId`/`activeColor`.
+
+**FR-26.** A quick slot is symbol *and* color together (`chooseSymbol(id,
+tool, preserveSelection, colorId)`), not a symbol that inherits whatever
+color happens to be active. A plain pick clears the active color.
+
+**FR-27.** Clicking a color acts on the current selection only: recolors the
+placement(s) if any, recolors its quick slot, arms the result, closes the
+color menu and the picker.
+
+**FR-28.** A colored stitch renders as a cell background fill behind the
+glyph, with glyph ink adapting to the fill. Ink is a fixed, tagged property
+of each of the 32 swatches (`ColorSwatch.ink` in `src/model/colorPalette.ts`,
+hand-authored per hue rather than computed from luminance at paint time — a
+single numeric cutoff doesn't sort every hue's dark step correctly).
+Applied identically at **four** render sites: the canvas renderer, the
+armed-stitch cursor preview, and — the one that shipped incomplete the first
+time (see Gotchas) — `SymbolGlyph`, which both the picker's and the
+glossary's tiles use.
+
+**FR-29.** Fill precedence: a symbol's own tint (e.g. "no stitch" grey)
+overpaints the pen's color, never the reverse.
+
+**FR-30.** A sixth, dynamic tile appears in the picker's quick row exactly
+when the current selection is a real stitch whose combo isn't already one of
+the five visible slots. Not persisted, divider-separated from the five real
+slots.
+
+**FR-31.** The picker shows a persistent context label ("Replace Purl at col
+4, row 4," "Replace 3 selected stitches") whenever open on an existing
+stitch or selection — not buried in the search placeholder.
+
+**FR-33.** "Currently selected" extends to a multi-selection only when every
+member already shares the same (symbol, color) combo. A mixed selection
+shows no chip; recoloring it is reachable only by picking a different pen
+outright.
+
+**FR-34.** A symbol that isn't currently armed can still get a new colored
+variant without painting anything, from the picker's "more stitches" drawer
+or the glossary panel — each plain row (slotted or not) gets a small
+add-only color chip. Picking a color there is strictly additive: arms a new
+pen and gives it a quick slot, never recolors anything already on the
+chart. A colored row never gets this chip.
+
+**FR-35 (added this session).** The add-only and recolor chips share one
+palette icon (reused from the reference-image panel's "canvas stitch
+colors" button) rather than a bare circle+line/circle+plus pair — the
+original abstract icon didn't read as "color" at a glance. The add-only
+variant keeps a small "+" badge so the two still look distinct.
+
+**FR-36 (added this session).** A colored glossary row tints only its small
+glyph swatch, not the whole row. A full-row background wash was tried first
+and rejected on review — it made the label hard to read, especially layered
+under the existing armed/hover/drag-over highlight — see `SymbolGlyph`'s
+`colorId` prop (`src/ui/SymbolGlyph.tsx`) and `.glossary__glyph .glyph__cell`
+in `styles.css`.
+
+#### Storage
+
+**FR-22 (storage).** Mirrors how `suggested` is already stored — a sparse
+list, not baked into every stitch tuple: `colorPalette?: string[]` (hex,
+first-seen order) + `colors?: [col, row, colorPaletteIndex][]` for only the
+colored cells. Purely additive; old charts decode unchanged. `STORED_VERSION`
+bumped to 3 (versions 1–2 still read fine — no colorwork fields at all reads
+as "no color, never customized").
+
+**Absent vs. empty (`glossaryIds`/`quickSymbolIds`).** A real three-state
+distinction:
+- **Undefined** (key omitted) → chart never saved since colorwork shipped →
+  decodes to `DEFAULT_STITCH_IDS` (knit, purl).
+- **Present, explicit array** (`[]` included) → decodes to exactly that,
+  no fallback.
+
+Unlike `suggested`/`colors`, these two fields are always written once a
+chart is saved at all (`encode()` in `src/storage/serialize.ts`) — that's
+what makes "never customized" distinguishable from "customized to empty."
+`emptyChart()` (a chart that hasn't been saved yet) is the one place that
+still omits them.
+
+**DNT-10.** Recoloring a slot that collides with an *older* slot already
+holding the same resulting pen empties that older slot rather than bailing
+out — bailing looks like the color simply didn't apply. Handled in
+`docStore.recolorQuickSlot`'s rename-in-place path.
+
+**Quick-slot keys.** Composite id `symbolId::colorId` (bare `symbolId` when
+uncolored), defined once in `src/model/quickSlots.ts`
+(`quickSlotKey`/`parseQuickSlotId`), imported everywhere else rather than
+rebuilt inline.
+
+**DNT-9.** `parseQuickSlotId` splits on the first `::`. Don't introduce a
+symbol id that contains it.
+
+#### Rendering & counts
+
+**DNT-13.** A plain symbol's displayed placed-count excludes colored
+placements of that symbol — a colored combo is a separate inventory line
+with its own count (`countConfirmedStitches` / `countConfirmedColoredStitches`
+in `src/ui/chartGlossary.ts`).
+
+**DNT-8.** Every pick is a whole pen: `place`/`chooseSymbol`'s `colorId`
+parameter defaults to `null`/clears, never "leave whatever was active." A
+plain glossary row checks `activeColor === null` before rendering itself as
+armed, so a plain row and a colored row of the same symbol can't both show
+armed at once.
+
+#### Gotchas hit while building this (read before touching colorwork rendering)
+
+- **Bug — colored tiles rendered black-on-white.** The canvas renderer and
+  the cursor preview got `colorId` from the start; `SymbolGlyph` (the
+  component the picker's and glossary's tiles actually use) didn't, so a
+  colored slot's icon still showed plain black-on-white even though the
+  underlying data and the canvas were correct. This was FR-28's fourth
+  render site, easy to miss because the other three all worked and made the
+  feature look "done." Fixed by threading `colorId` through `SymbolGlyph`
+  too, at every call site that has a color to give.
+- **Bug — overflow glossary entries had no drag handle.** A colored combo
+  that only ever arrived via a duplicate/paste or a file import (never an
+  explicit arm/pick) landed in the unslotted overflow section with no way to
+  promote it into a numbered quick slot or reorder it. Fixed with two new
+  `docStore` actions — `promoteQuickSlot` (adds a glossary-only key to the
+  quick row before moving it) and `moveGlossaryIdTo` — and a matching drag
+  handle on overflow rows. `moveQuickSymbolTo` now always goes through the
+  promote path, so an already-slotted key still just reorders as before.
+- **Bug — glossary search dropdown clipped mid-list.** `.glossarySearch__results`
+  used `position: absolute` inside `.sideModule`, which sets
+  `overflow: hidden` so the card can round its own corners — a dropdown
+  extending past the card's bottom edge got cut off there instead of
+  floating over the rest of the sidebar. Same class of bug as the picker's
+  "more stitches" drawer popover (see `ColorSwatchPopover`'s own doc
+  comment) and fixed the same way: anchor via a measured rect with
+  `position: fixed`, which escapes the clipping ancestor entirely instead of
+  relying on CSS containing-block luck.
+- **Design revision — full-row color wash was too intense.** Shipped once
+  tinting the whole `.glossary__item` background; on review this made the
+  label hard to read and looked especially harsh combined with the
+  pre-existing armed/hover/drag-over highlight. Reverted to swatch-only
+  (FR-36).
+
+#### Do not touch (colorwork)
+
+- **DNT-11 mitigation, load-bearing.** Recoloring the currently-selected
+  stitch/pen may only rename its quick slot *in place* when nothing else on
+  the chart still uses that slot's old (symbol, color) combo (scan excludes
+  the placement(s) actually being recolored). Skipping this check is a real,
+  previously-shipped bug: recoloring one placed stitch renamed the *whole*
+  shared quick slot in place, silently orphaning every other plain instance
+  on the chart. When siblings remain, mint (or reuse) a new slot instead.
+  Implemented in `docStore.recolorQuickSlot`.
+- **Scope.** Named/managed palettes (rename, reorder into groups, per-chart
+  named palettes beyond the quick row) are explicitly deferred — the
+  quick-slot row *is* the palette for this pass. Suggest stays uncolored.
+- **Undo scope.** Glossary and quick-slot edits are **not** undoable —
+  Cmd/Ctrl+Z reverts placements, not a palette change. Deliberate: they're
+  chart settings, not document content, so they're mutated outside
+  `docStore`'s `commit()`/undo stack. Flagged as revisit-if-confusing, not
+  settled forever.
+- No native `<input type="color">`, no "more colors" escape hatch, no pure
+  white, no "no color" cell in the picker — a fixed 32-swatch grid (8 hue
+  columns × 4 lightness steps) so one click is always exactly one apply. A
+  native color input was tried and removed: it fires continuously as the
+  cursor moves, and applying a color used to close the popover, so the
+  first shade dragged over committed and the input unmounted mid-drag.
+
+#### File map
+
+| File | Owns |
+|---|---|
+| `src/model/types.ts` | `Placement.colorId`, `RepeatStitch.colorId` |
+| `src/model/quickSlots.ts` | `quickSlotKey`/`parseQuickSlotId` (single source of truth), `DEFAULT_STITCH_IDS`, quick-slot array helpers |
+| `src/model/colorPalette.ts` | `COLOR_GRID` (32 swatches, each tagged ink), `getSwatch`/`glyphInkFor` |
+| `src/model/ops.ts` | `colorId` threaded through `placeChange`/`insertChange` |
+| `src/state/docStore.ts` | `colorId` threaded through `place`/`insertPlacement`; `recolorPlacements`, `recolorQuickSlot` (DNT-10/11), `promoteQuickSlot`, `moveGlossaryIdTo`; `glossaryIds`/`quickSymbolIds` state + actions (not undoable) |
+| `src/state/uiStore.ts` | `activeColor`/`setActiveColor`; `chooseSymbol`'s `colorId` param |
+| `src/storage/serialize.ts` | `colorPalette`/`colors` (sparse); `glossaryIds`/`quickSymbolIds` absent-vs-empty encode/decode; `STORED_VERSION` 3 |
+| `src/storage/ChartStore.ts`, `keyValueChartStore.ts`, `supabaseChartStore.ts`, `exportImport.ts`, `migrateLocalCharts.ts`, `useAutosave.ts` | Thread `glossaryIds`/`quickSymbolIds` through load/save/export/import/migration |
+| `src/canvas/renderer.ts` | Cell background fill for `colorId`; glyph ink lookup |
+| `src/canvas/cursors.ts` | Armed-stitch cursor preview carries the pen's color |
+| `src/ui/SymbolGlyph.tsx` | `colorId` prop — the fourth FR-28 render site (see Gotchas) |
+| `src/ui/colorwork.ts` | `currentSlotForPicker` (FR-25 identity), `applyColorToSlot`, `addColoredVariant` |
+| `src/ui/ColorChip.tsx`, `ColorSwatchPopover.tsx` | Shared chip + popover, consolidated across all three call sites from the start |
+| `src/ui/StitchPicker.tsx` | `currentSlot`; quick tiles + dynamic sixth; drawer chip; FR-31 context label |
+| `src/ui/RightPanel.tsx` | Quick-slot rows, glossary rows (slotted + overflow), drag/promote, search dropdown |
+| `src/ui/chartGlossary.ts` | `collectColoredGlossaryEntries`, `countConfirmedStitches`/`countConfirmedColoredStitches` (DNT-13), `symbolsWithAnyPlacement` |
 
 ## Known Platform Limitations (Desktop vs iPad)
 
