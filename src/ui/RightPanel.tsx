@@ -23,7 +23,7 @@ import {
 import { parseQuickSlotId, quickSlotKey } from "../model/quickSlots";
 import { addColoredVariant } from "./colorwork";
 import { ColorChip } from "./ColorChip";
-import { CheckIcon, CloseIcon, CrossIcon } from "./icons";
+import { CheckIcon, CloseIcon, CrossIcon, DragHandleIcon } from "./icons";
 
 /**
  * Section order for the glossary search dropdown; anything uncategorized
@@ -496,11 +496,7 @@ export function RightPanel() {
                     aria-label={`Drag to reorder ${symbol.label}`}
                     title="Drag to reorder"
                   >
-                    <svg viewBox="0 0 16 16" aria-hidden="true">
-                      <circle cx="5" cy="3.5" r="1" /><circle cx="11" cy="3.5" r="1" />
-                      <circle cx="5" cy="8" r="1" /><circle cx="11" cy="8" r="1" />
-                      <circle cx="5" cy="12.5" r="1" /><circle cx="11" cy="12.5" r="1" />
-                    </svg>
+                  <DragHandleIcon />
                   </button>
                   {slot < 5 ? (
                     <kbd className="glossary__shortcut" aria-label={`Shortcut ${slot + 1}`}>{slot + 1}</kbd>
@@ -640,11 +636,7 @@ export function RightPanel() {
                   title={slot < 5 ? `Choose a stitch for shortcut ${slot + 1}` : "Add another stitch"}
                 >
                   <span className="glossary__dragHandle glossary__dragHandle--empty" aria-hidden="true">
-                    <svg viewBox="0 0 16 16">
-                      <circle cx="5" cy="3.5" r="1" /><circle cx="11" cy="3.5" r="1" />
-                      <circle cx="5" cy="8" r="1" /><circle cx="11" cy="8" r="1" />
-                      <circle cx="5" cy="12.5" r="1" /><circle cx="11" cy="12.5" r="1" />
-                    </svg>
+                    <DragHandleIcon />
                   </span>
                   {slot < 5 ? <kbd className="glossary__shortcut">{slot + 1}</kbd> : <span className="glossary__shortcutSpacer" />}
                   <span className="glossary__emptyGlyph" aria-hidden="true">+</span>
@@ -696,12 +688,8 @@ export function RightPanel() {
                     aria-label={`Drag to reorder ${symbol.label}`}
                     title="Drag to reorder, or onto a numbered slot above to pin it there"
                   >
-                    <svg viewBox="0 0 16 16" aria-hidden="true">
-                      <circle cx="5" cy="3.5" r="1" /><circle cx="11" cy="3.5" r="1" />
-                      <circle cx="5" cy="8" r="1" /><circle cx="11" cy="8" r="1" />
-                      <circle cx="5" cy="12.5" r="1" /><circle cx="11" cy="12.5" r="1" />
-                    </svg>
-                  </button>
+                      <DragHandleIcon />
+                    </button>
                   <span className="glossary__shortcutSpacer" />
                   <button
                     type="button"
