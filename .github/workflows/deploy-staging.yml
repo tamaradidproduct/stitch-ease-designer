@@ -2,7 +2,7 @@ name: Deploy staging site
 
 on:
   push:
-    branches: [staging]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
