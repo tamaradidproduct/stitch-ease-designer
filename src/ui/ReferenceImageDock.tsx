@@ -22,6 +22,7 @@ export function ReferenceImageDock() {
   const setCalibrating = useUiStore((s) => s.setReferenceImageCalibrating);
   const setGridAlignmentStatus = useUiStore((s) => s.setReferenceImageGridAlignmentStatus);
   const setCalibrationRejected = useUiStore((s) => s.setReferenceImageCalibrationRejected);
+  const setPanelOpen = useUiStore((s) => s.setReferenceImagePanelOpen);
   const quickDockRef = useRef<HTMLDivElement>(null);
   const [availableLane, setAvailableLane] = useState<{ left: number; width: number } | null>(null);
   const hasImage = image !== null;
@@ -106,6 +107,17 @@ export function ReferenceImageDock() {
           onPointerDown={stopCanvasGesture}
           onClick={stopCanvasGesture}
         >
+      <button
+        type="button"
+        className="toolDock__button"
+        {...tapActivate(() => setPanelOpen(false))}
+        title="Save reference image changes"
+      >
+        <svg viewBox="0 0 20 20" aria-hidden="true">
+          <path d="m4 10 4 4 8-8" />
+        </svg>
+        <span>Save changes</span>
+      </button>
       <button
         type="button"
         className={marking ? "toolDock__button referenceDock__cancel" : "toolDock__button"}

@@ -141,13 +141,15 @@ export function ReferenceImagePanel() {
             </svg>
           </button>
           {image ? (
-            <button
-              type="button"
-              className="btn btn--quiet refpanel__headerAction"
-              onClick={() => setOpen(!open)}
-            >
-              {open ? "Save changes" : "Edit reference"}
-            </button>
+            !open && (
+              <button
+                type="button"
+                className="btn btn--quiet refpanel__headerAction"
+                onClick={() => setOpen(true)}
+              >
+                Edit reference
+              </button>
+            )
           ) : (
             <button
               type="button"
