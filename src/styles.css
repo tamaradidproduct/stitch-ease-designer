@@ -766,6 +766,7 @@ body {
   place-items: center;
   border: 1.5px solid var(--bg);
   border-radius: 50%;
+  padding: 0;
   background: var(--bg);
   color: var(--text-muted);
   cursor: pointer;
@@ -1635,7 +1636,7 @@ body {
   flex: 1;
 }
 
-.glossary__inlineSearch svg {
+.glossary__inlineSearch > svg {
   width: 14px;
   height: 14px;
   flex: none;
