@@ -823,6 +823,11 @@ body {
   border-radius: 7px;
 }
 
+.picker__quickTile {
+  position: relative;
+  flex: none;
+}
+
 .picker__quickButton {
   position: relative;
   padding: 0;
