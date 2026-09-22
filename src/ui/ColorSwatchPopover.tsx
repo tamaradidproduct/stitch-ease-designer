@@ -1,9 +1,13 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { COLOR_GRID } from "../model/colorPalette";
+import { handleColorSwatchClick, resolveColorPopoverPosition } from "./colorSwatchPopoverPosition";
 
 export type ColorSwatchPopoverProps = {
   /** The chip's own rect, measured live rather than relying on CSS containing-block luck (see the file's own doc comment). */
   anchorRect: DOMRect;
+  /** Optional panel rect this popover should clear (used by floating picker chips). */
+  boundaryRect?: DOMRect | null;
+  placement?: "below-first" | "above-first";
   onSelect: (colorId: string) => void;
   onClose: () => void;
 };
@@ -13,6 +17,7 @@ const GAP = 3;
 const PAD = 8;
 const COLUMNS = 8;
 const ROWS = 4;
+const OFFSET = 6;
 
 /**
  * The color grid popover shared by every "open a color menu" affordance
@@ -29,20 +34,29 @@ const ROWS = 4;
  * no "more colors" escape hatch, no "no color" cell. One click is always
  * exactly one apply.
  */
-export function ColorSwatchPopover({ anchorRect, onSelect, onClose }: ColorSwatchPopoverProps) {
+export function ColorSwatchPopover({
+  anchorRect,
+  boundaryRect,
+  placement = "below-first",
+  onSelect,
+  onClose,
+}: ColorSwatchPopoverProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const width = COLUMNS * SWATCH + (COLUMNS - 1) * GAP + PAD * 2;
   const height = ROWS * SWATCH + (ROWS - 1) * GAP + PAD * 2;
-  const [pos, setPos] = useState({ left: anchorRect.left, top: anchorRect.bottom + 6 });
+  const [pos, setPos] = useState({ left: anchorRect.left, top: anchorRect.bottom + OFFSET });
 
   useLayoutEffect(() => {
-    const left = Math.max(8, Math.min(anchorRect.left, window.innerWidth - width - 8));
-    const belowFits = anchorRect.bottom + 6 + height <= window.innerHeight - 8;
-    const top = belowFits
-      ? anchorRect.bottom + 6
-      : Math.max(8, anchorRect.top - height - 6);
-    setPos({ left, top });
-  }, [anchorRect, width, height]);
+    setPos(resolveColorPopoverPosition({
+      anchorRect,
+      boundaryRect: boundaryRect ?? null,
+      placement,
+      width,
+      height,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+    }));
+  }, [anchorRect, boundaryRect, placement, width, height]);
 
   useLayoutEffect(() => {
     const onPointerDown = (e: PointerEvent) => {
@@ -90,7 +104,7 @@ export function ColorSwatchPopover({ anchorRect, onSelect, onClose }: ColorSwatc
           style={{ width: SWATCH, height: SWATCH, background: swatch.hex }}
           aria-label={`${swatch.hue} ${swatch.step + 1}`}
           title={swatch.hex}
-          onClick={() => onSelect(swatch.id)}
+          onClick={(event) => handleColorSwatchClick(event, onSelect, swatch.id)}
         />
       ))}
     </div>

@@ -494,22 +494,23 @@ export function StitchPicker() {
             const entry = quickSymbols[slot];
             const swatch = entry?.colorId ? getSwatch(entry.colorId) : undefined;
             return entry ? (
-              <button
-                key={entry.key}
-                type="button"
-                className="picker__quickButton"
-                data-colored={!!entry.colorId}
-                style={swatch ? { background: swatch.hex } : undefined}
-                onClick={() => choose(entry.symbol, entry.colorId)}
-                title={entry.symbol.label}
-                aria-label={entry.symbol.label}
-                data-label={entry.symbol.label}
-              >
-                <SymbolGlyph
-                  symbol={entry.symbol}
-                  cell={Math.max(7, Math.min(22, 58 / entry.symbol.span))}
-                  colorId={entry.colorId}
-                />
+              <div key={entry.key} className="picker__quickTile">
+                <button
+                  type="button"
+                  className="picker__quickButton"
+                  data-colored={!!entry.colorId}
+                  style={swatch ? { background: swatch.hex } : undefined}
+                  onClick={() => choose(entry.symbol, entry.colorId)}
+                  title={entry.symbol.label}
+                  aria-label={entry.symbol.label}
+                  data-label={entry.symbol.label}
+                >
+                  <SymbolGlyph
+                    symbol={entry.symbol}
+                    cell={Math.max(7, Math.min(22, 58 / entry.symbol.span))}
+                    colorId={entry.colorId}
+                  />
+                </button>
                 {/* FR-25: a colored slot's color is fixed - no chip. Only the
                     current, uncolored slot gets one, and only this exact tile. */}
                 {!entry.colorId && currentSlot?.key === entry.key && (
@@ -517,13 +518,15 @@ export function StitchPicker() {
                     mode="recolor"
                     label={`Color ${entry.symbol.label}`}
                     className="picker__quickColorChip"
+                    popoverPlacement="above-first"
+                    getPopoverBoundaryRect={() => rootRef.current?.getBoundingClientRect() ?? null}
                     onSelect={(colorId) => {
                       applyColorToSlot(currentSlot, colorId);
                       closePicker();
                     }}
                   />
                 )}
-              </button>
+              </div>
             ) : (
               <button
                 key={`empty:${slot}`}
@@ -549,34 +552,37 @@ export function StitchPicker() {
           {dynamicSlot && !(searchOpen && searchOrigin !== 5) && (
             <>
               <span className="picker__quickDivider" aria-hidden="true" />
-              <button
-                key={`dynamic:${dynamicSlot.key}`}
-                type="button"
-                className="picker__quickButton"
-                data-colored={!!dynamicSlot.colorId}
-                style={dynamicSwatch ? { background: dynamicSwatch.hex } : undefined}
-                onClick={() => choose(dynamicSlot.symbol, dynamicSlot.colorId)}
-                title={dynamicSlot.symbol.label}
-                aria-label={dynamicSlot.symbol.label}
-                data-label={dynamicSlot.symbol.label}
-              >
-                <SymbolGlyph
-                  symbol={dynamicSlot.symbol}
-                  cell={Math.max(7, Math.min(22, 58 / dynamicSlot.symbol.span))}
-                  colorId={dynamicSlot.colorId}
-                />
+              <div key={`dynamic:${dynamicSlot.key}`} className="picker__quickTile">
+                <button
+                  type="button"
+                  className="picker__quickButton"
+                  data-colored={!!dynamicSlot.colorId}
+                  style={dynamicSwatch ? { background: dynamicSwatch.hex } : undefined}
+                  onClick={() => choose(dynamicSlot.symbol, dynamicSlot.colorId)}
+                  title={dynamicSlot.symbol.label}
+                  aria-label={dynamicSlot.symbol.label}
+                  data-label={dynamicSlot.symbol.label}
+                >
+                  <SymbolGlyph
+                    symbol={dynamicSlot.symbol}
+                    cell={Math.max(7, Math.min(22, 58 / dynamicSlot.symbol.span))}
+                    colorId={dynamicSlot.colorId}
+                  />
+                </button>
                 {!dynamicSlot.colorId && currentSlot && (
                   <ColorChip
                     mode="recolor"
                     label={`Color ${dynamicSlot.symbol.label}`}
                     className="picker__quickColorChip"
+                    popoverPlacement="above-first"
+                    getPopoverBoundaryRect={() => rootRef.current?.getBoundingClientRect() ?? null}
                     onSelect={(colorId) => {
                       applyColorToSlot(currentSlot, colorId);
                       closePicker();
                     }}
                   />
                 )}
-              </button>
+              </div>
               <span className="picker__quickDivider" aria-hidden="true" />
             </>
           )}
