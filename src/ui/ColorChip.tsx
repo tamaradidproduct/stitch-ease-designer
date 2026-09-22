@@ -18,15 +18,26 @@ export type ColorChipProps = {
   onSelect: (colorId: string) => void;
   label: string;
   className?: string;
+  popoverPlacement?: "below-first" | "above-first";
+  getPopoverBoundaryRect?: () => DOMRect | null;
 };
 
-export function ColorChip({ mode, onSelect, label, className }: ColorChipProps) {
+export function ColorChip({
+  mode,
+  onSelect,
+  label,
+  className,
+  popoverPlacement = "below-first",
+  getPopoverBoundaryRect,
+}: ColorChipProps) {
   const [open, setOpen] = useState(false);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
+  const [boundaryRect, setBoundaryRect] = useState<DOMRect | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
 
   const openPopover = () => {
     setAnchorRect(buttonRef.current?.getBoundingClientRect() ?? null);
+    setBoundaryRect(getPopoverBoundaryRect?.() ?? null);
     setOpen(true);
   };
 
@@ -68,6 +79,8 @@ export function ColorChip({ mode, onSelect, label, className }: ColorChipProps) 
       {open && anchorRect && (
         <ColorSwatchPopover
           anchorRect={anchorRect}
+          boundaryRect={boundaryRect}
+          placement={popoverPlacement}
           onSelect={(colorId) => {
             setOpen(false);
             onSelect(colorId);
