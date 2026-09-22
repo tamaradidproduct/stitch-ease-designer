@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { handleColorSwatchClick, resolveColorPopoverPosition } from "./ColorSwatchPopover";
+import { handleColorSwatchClick, resolveColorPopoverPosition } from "./colorSwatchPopoverPosition";
 
 const rect = (left: number, top: number, right: number, bottom: number): DOMRect => ({
   left,

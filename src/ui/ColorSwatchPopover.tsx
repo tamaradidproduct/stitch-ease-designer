@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { COLOR_GRID } from "../model/colorPalette";
+import { handleColorSwatchClick, resolveColorPopoverPosition } from "./colorSwatchPopoverPosition";
 
 export type ColorSwatchPopoverProps = {
   /** The chip's own rect, measured live rather than relying on CSS containing-block luck (see the file's own doc comment). */
@@ -16,61 +17,7 @@ const GAP = 3;
 const PAD = 8;
 const COLUMNS = 8;
 const ROWS = 4;
-const EDGE = 8;
 const OFFSET = 6;
-
-type PopoverPositionInput = {
-  anchorRect: DOMRect;
-  boundaryRect?: DOMRect | null;
-  placement: "below-first" | "above-first";
-  width: number;
-  height: number;
-  viewportWidth: number;
-  viewportHeight: number;
-};
-
-const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(value, max));
-
-export function resolveColorPopoverPosition({
-  anchorRect,
-  boundaryRect,
-  placement,
-  width,
-  height,
-  viewportWidth,
-  viewportHeight,
-}: PopoverPositionInput) {
-  const minTop = EDGE;
-  const maxTop = viewportHeight - height - EDGE;
-  const left = clamp(anchorRect.left, EDGE, viewportWidth - width - EDGE);
-  const topAnchor = boundaryRect?.top ?? anchorRect.top;
-  const bottomAnchor = boundaryRect?.bottom ?? anchorRect.bottom;
-  const above = topAnchor - height - OFFSET;
-  const below = bottomAnchor + OFFSET;
-  const aboveFits = above >= minTop;
-  const belowFits = below <= maxTop;
-  const top = placement === "above-first"
-    ? aboveFits
-      ? above
-      : belowFits
-        ? below
-        : clamp(above, minTop, maxTop)
-    : belowFits
-      ? below
-      : aboveFits
-        ? above
-        : clamp(below, minTop, maxTop);
-  return { left, top };
-}
-
-export function handleColorSwatchClick(
-  event: { stopPropagation: () => void },
-  onSelect: (colorId: string) => void,
-  colorId: string,
-) {
-  event.stopPropagation();
-  onSelect(colorId);
-}
 
 /**
  * The color grid popover shared by every "open a color menu" affordance
@@ -102,7 +49,7 @@ export function ColorSwatchPopover({
   useLayoutEffect(() => {
     setPos(resolveColorPopoverPosition({
       anchorRect,
-      boundaryRect,
+      boundaryRect: boundaryRect ?? null,
       placement,
       width,
       height,
