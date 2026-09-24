@@ -1,5 +1,5 @@
 # Product Requirements Document (PRD)
-*Last Updated: 2026-09-20*
+*Last Updated: 2026-09-23*
 
 ## Core App Overview
 
@@ -555,6 +555,39 @@ armed at once.
 | `src/ui/StitchPicker.tsx` | `currentSlot`; quick tiles + dynamic sixth; drawer chip; FR-31 context label |
 | `src/ui/RightPanel.tsx` | Quick-slot rows, glossary rows (slotted + overflow), drag/promote, search dropdown |
 | `src/ui/chartGlossary.ts` | `collectColoredGlossaryEntries`, `countConfirmedStitches`/`countConfirmedColoredStitches` (DNT-13), `symbolsWithAnyPlacement` |
+
+### Color-aware Suggest, quick slots, and glossary selection
+
+**FR-39. Suggest preserves a confirmed swatch identity.** Reference-image
+exemplars are grouped by `(symbolId, colorId)`, not symbol alone. A successful
+Suggest match places the complete taught swatch, including its color.
+
+**FR-40. Quick slots promote active swatches.** A newly placed uncolored
+stitch, or a newly colored swatch, moves ahead of unplaced plain defaults in
+the quick row. Existing placed plain stitches retain their relative priority.
+
+**FR-41. Choosing from the stitch picker clears the resolved selection.** After
+placing or replacing through the picker, the resulting stitch is deselected so
+the next canvas click acts directly on the next target. During Suggest review,
+changing a resolved stitch color must leave Suggest armed.
+
+**FR-42. Every placed glossary swatch exposes Select all.** The `All (count)`
+action selects only confirmed placements with that exact `(symbolId, colorId)`
+identity. Pending suggestions remain in the review workflow. Numbered quick
+slots and overflow glossary rows use the same visible action.
+
+**FR-43. Stitch library additions.** The Figma library entries for Slip stitch
+with yarn front (`sl_wyif`) and Slip stitch with yarn in back (`sl_wyib`) are
+searchable, rendered, and checked in as both generated registry entries and
+SVG assets.
+
+**Deferred note — color-sensitive Suggest matching.** Suggest currently stores
+color with an exemplar but compares binary glyph shapes. Same-shape swatches
+in different colors therefore remain ambiguous rather than receiving a random
+color assignment. Adding color features to the matcher is intentionally
+deferred.
+
+---
 
 ## Known Platform Limitations (Desktop vs iPad)
 

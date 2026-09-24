@@ -1,6 +1,6 @@
 import { quickSlotKey } from "../model/quickSlots";
 import { useDocStore } from "../state/docStore";
-import { useUiStore, type PickerTarget } from "../state/uiStore";
+import { SUGGEST_SYMBOL_ID, useUiStore, type PickerTarget } from "../state/uiStore";
 import type { Placement } from "../model/types";
 
 /**
@@ -70,8 +70,9 @@ export function currentSlotForPicker(
 
 /**
  * Applies `colorId` to `slot` (FR-27): recolors the placement(s) if there
- * are any, recolors its quick slot (DNT-12's rename-vs-mint check), arms the
- * result, and closes both the color menu and the floating picker (the
+ * are any, recolors its quick slot (DNT-12's rename-vs-mint check), and
+ * normally arms the result. When Suggest is already armed, it stays armed so
+ * a color correction during a review pass does not interrupt that pass. The
  * caller does the closing - this only performs the state change).
  */
 export function applyColorToSlot(slot: CurrentSlot, colorId: string): void {
@@ -84,7 +85,9 @@ export function applyColorToSlot(slot: CurrentSlot, colorId: string): void {
   if (slot.placementIds.length) {
     doc.recolorPlacements(slot.placementIds, colorId);
   }
-  ui.setArmedSymbolId(slot.symbolId, colorId);
+  if (ui.armedSymbolId !== SUGGEST_SYMBOL_ID) {
+    ui.setArmedSymbolId(slot.symbolId, colorId);
+  }
 }
 
 /**

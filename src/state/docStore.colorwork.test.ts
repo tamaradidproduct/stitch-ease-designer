@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { DocIndex } from "../model/docIndex";
 import { useDocStore } from "./docStore";
+import { SUGGEST_SYMBOL_ID, useUiStore } from "./uiStore";
+import { applyColorToSlot } from "../ui/colorwork";
 
 const RED = "#e11d48";
 const BLUE = "#0ea5e9";
@@ -30,6 +32,34 @@ describe("place with colorId (FR-22)", () => {
     useDocStore.getState().place("knit", 0, 0, undefined, undefined, RED);
     const placement = [...useDocStore.getState().index.placements.values()][0]!;
     expect(placement.colorId).toBe(RED);
+  });
+});
+
+describe("colored quick-slot promotion", () => {
+  it("moves a newly placed uncolored stitch ahead of unplaced defaults", () => {
+    useDocStore.getState().place("sl_wyif", 0, 0);
+    useDocStore.getState().addQuickSlot("sl_wyif");
+
+    expect(useDocStore.getState().quickSymbolIds).toEqual(["sl_wyif", "knit", "purl"]);
+  });
+
+  it("moves a new colored swatch ahead of unplaced default stitches", () => {
+    useDocStore.getState().addQuickSlot("knit::" + RED);
+
+    expect(useDocStore.getState().quickSymbolIds).toEqual(["knit::" + RED, "knit", "purl"]);
+  });
+
+  it("does not displace a plain stitch that is already placed", () => {
+    useDocStore.getState().place("knit", 0, 0);
+    useDocStore.getState().addQuickSlot("purl::" + RED);
+
+    expect(useDocStore.getState().quickSymbolIds).toEqual(["knit", "purl::" + RED, "purl"]);
+  });
+
+  it("promotes a recolored unplaced default stitch too", () => {
+    useDocStore.getState().recolorQuickSlot("purl", "purl::" + RED, []);
+
+    expect(useDocStore.getState().quickSymbolIds).toEqual(["purl::" + RED, "knit"]);
   });
 });
 
@@ -90,6 +120,20 @@ describe("recolorQuickSlot (DNT-12 - load-bearing)", () => {
     useDocStore.getState().recolorQuickSlot("purl", "purl::" + BLUE, [placement!.id]);
 
     expect(useDocStore.getState().glossaryIds).toEqual(["purl::" + BLUE]);
+  });
+});
+
+describe("recolor during Suggest review", () => {
+  it("keeps Suggest armed after recoloring a stitch resolved from a suggestion", () => {
+    useDocStore.getState().place("knit", 0, 0);
+    const placement = useDocStore.getState().index.placementAt(0, 0)!;
+    useUiStore.setState({ armedSymbolId: SUGGEST_SYMBOL_ID, activeColor: null, tool: "stitch" });
+
+    applyColorToSlot({ key: "knit", symbolId: "knit", placementIds: [placement.id] }, RED);
+
+    expect(useDocStore.getState().index.placementAt(0, 0)?.colorId).toBe(RED);
+    expect(useUiStore.getState().armedSymbolId).toBe(SUGGEST_SYMBOL_ID);
+    expect(useUiStore.getState().activeColor).toBeNull();
   });
 });
 

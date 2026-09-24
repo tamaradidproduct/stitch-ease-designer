@@ -77,6 +77,16 @@ export function collectGlossarySymbols(
  * zero actual uncolored purls exist, because every colored purl would be
  * counted twice: once on its own colored row, once folded into the plain one.
  */
+/** The confirmed placements for one stitch-and-color glossary swatch. */
+export function selectableGlossaryEntryPlacementIds(
+  placements: readonly Placement[],
+  key: string,
+): string[] {
+  return placements
+    .filter((placement) => !placement.suggested && quickSlotKey(placement.symbolId, placement.colorId) === key)
+    .map((placement) => placement.id);
+}
+
 export function countConfirmedStitches(placements: readonly Placement[]): Map<string, number> {
   const counts = new Map<string, number>();
   for (const placement of placements) {

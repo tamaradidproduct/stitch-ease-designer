@@ -421,7 +421,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       const key = cellKey(cell.col, cell.row);
 
       if (match.symbolId) {
-        doc().place(match.symbolId, cell.col, cell.row, true, match.confidence);
+        doc().place(match.symbolId, cell.col, cell.row, true, match.confidence, match.colorId);
         ui().setReferenceImageUnrecognized(key, false);
       } else {
         ui().setReferenceImageUnrecognized(key, true);

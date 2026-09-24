@@ -42,7 +42,6 @@ export function StitchPicker() {
   const chooseSymbol = useUiStore((s) => s.chooseSymbol);
   const clearSelection = useUiStore((s) => s.clearSelection);
   const setSelectedPlacementIds = useUiStore((s) => s.setSelectedPlacementIds);
-  const setSelectedEmptyCells = useUiStore((s) => s.setSelectedEmptyCells);
   const setInsertAnimation = useUiStore((s) => s.setInsertAnimation);
   const quickIds = useDocStore((s) => s.quickSymbolIds);
   const armedSymbolId = useUiStore((s) => s.armedSymbolId);
@@ -137,7 +136,7 @@ export function StitchPicker() {
       !visibleKeys.has(symbol.id) && (!selectionSpan || symbol.span === selectionSpan));
   }, [quickSymbols, quickIds, addedGlossaryIds, index, selectionSpan, revision]);
   const hasMore = moreSymbols.length > 0;
-  const menuWidth = MENU_WIDTH + (hasMore ? 45 : 0) + (canDelete ? 45 : 0);
+  const menuWidth = MENU_WIDTH + (dynamicSlot ? 45 : 0) + (hasMore ? 45 : 0) + (canDelete ? 45 : 0);
   const expandedMenuWidth = menuWidth + SEARCH_SLOT_WIDTH - 40;
 
   // Flat order is what the arrow keys walk, so it must match render order.
@@ -314,12 +313,11 @@ export function StitchPicker() {
       chooseSymbol(symbol.id, undefined, undefined, colorId);
       return;
     }
-    // Choosing a symbol from a multi-cell selection fills it and closes the
-    // picker, same as a single-cell pick - but keeps the selection so the
-    // designer can see (and act on) what they just filled.
+    // Choosing a symbol resolves the current selection, then clears it so
+    // the next canvas click acts on the next stitch immediately.
     if (target.selectionIds) {
-      const newIds = replacePlacements(target.selectionIds, symbol.id, colorId);
-      setSelectedPlacementIds(newIds, false);
+      replacePlacements(target.selectionIds, symbol.id, colorId);
+      clearSelection();
       // Same rule as the reviewingSuggestion checks below: resolving a
       // suggested placement shouldn't arm whatever was picked for it -
       // Suggest stays armed so a review pass can keep going cell by cell.
@@ -329,7 +327,7 @@ export function StitchPicker() {
       if (target.reviewingSuggestion) {
         useUiStore.getState().addQuickSymbol(symbol.id, colorId);
       } else {
-        chooseSymbol(symbol.id, "stitch", true, colorId);
+        chooseSymbol(symbol.id, "stitch", undefined, colorId);
       }
       closePicker();
       return;
@@ -345,8 +343,7 @@ export function StitchPicker() {
       const newIds = [...new Set(cells
         .map((cell) => useDocStore.getState().index.placementAt(cell.col, cell.row)?.id)
         .filter((id): id is string => !!id))];
-      setSelectedEmptyCells([]);
-      setSelectedPlacementIds(newIds, false);
+      clearSelection();
       // Same rule as the reviewingSuggestion check further down: resolving
       // an unrecognized cell shouldn't arm whatever was picked for it -
       // this branch used to return before ever reaching that check, so
@@ -362,7 +359,7 @@ export function StitchPicker() {
         for (const cell of cells) setUnrecognized(cellKey(cell.col, cell.row), false);
         useUiStore.getState().addQuickSymbol(symbol.id, colorId);
       } else if (newIds.length) {
-        chooseSymbol(symbol.id, "stitch", true, colorId);
+        chooseSymbol(symbol.id, "stitch", undefined, colorId);
       }
       closePicker();
       return;

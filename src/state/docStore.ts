@@ -28,6 +28,7 @@ import {
   assignQuickSlot,
   moveQuickSlotTo,
   parseQuickSlotId,
+  quickSlotKey,
   removeQuickSlot,
   renameQuickSlot,
 } from "../model/quickSlots";
@@ -162,7 +163,7 @@ type DocState = {
   addGlossaryId: (id: string) => void;
   /** Removes `id` from the glossary. */
   removeGlossaryId: (id: string) => void;
-  /** Adds `key` to the next free quick slot without reordering. */
+  /** Adds `key` to the next free quick slot; newly placed or colored swatches move ahead of unplaced plain slots. */
   addQuickSlot: (key: string) => void;
   /** Clears a quick-slot assignment without moving other slots. */
   removeQuickSlot: (key: string) => void;
@@ -224,6 +225,28 @@ export const selectIsDirty = (s: DocState): boolean => s.revision !== s.savedRev
  * wholesale on every switch, so comparing ids here is enough to catch it.
  */
 export const isChartOpen = (id: string): boolean => useDocStore.getState().meta?.id === id;
+
+function promoteQuickSlotOverUnplacedPlainSlots(
+  slots: readonly string[],
+  index: DocIndex,
+  key: string,
+): string[] {
+  const { colorId: keyColorId } = parseQuickSlotId(key);
+  const placements = [...index.placements.values()];
+  const placedSwatches = new Set(
+    placements.map((placement) => quickSlotKey(placement.symbolId, placement.colorId)),
+  );
+  const placedPlainSymbols = new Set(
+    placements.filter((placement) => !placement.colorId).map((placement) => placement.symbolId),
+  );
+  if (!keyColorId && !placedSwatches.has(key)) return [...slots];
+  const targetSlot = slots.findIndex((slot) => {
+    if (!slot) return false;
+    const { symbolId, colorId } = parseQuickSlotId(slot);
+    return !colorId && !placedPlainSymbols.has(symbolId);
+  });
+  return targetSlot === -1 ? [...slots] : moveQuickSlotTo(slots, key, targetSlot);
+}
 
 export const useDocStore = create<DocState>((set, get) => {
   // Kept in the store closure rather than rendered state: it is only a
@@ -358,9 +381,10 @@ export const useDocStore = create<DocState>((set, get) => {
       get().setGlossaryIds(current.filter((existing) => existing !== id));
     },
     addQuickSlot: (key) => {
-      const current = get().quickSymbolIds;
-      const next = assignQuickSlot(current, key);
-      if (next !== current) get().setQuickSymbolIds(next);
+      const state = get();
+      const assigned = assignQuickSlot(state.quickSymbolIds, key);
+      const next = promoteQuickSlotOverUnplacedPlainSlots(assigned, state.index, key);
+      if (next !== state.quickSymbolIds) state.setQuickSymbolIds(next);
     },
     removeQuickSlot: (key) => {
       const current = get().quickSymbolIds;
@@ -422,7 +446,10 @@ export const useDocStore = create<DocState>((set, get) => {
         const withoutOlderDuplicate = state.quickSymbolIds.includes(newKey)
           ? removeQuickSlot(state.quickSymbolIds, newKey)
           : state.quickSymbolIds;
-        state.setQuickSymbolIds(renameQuickSlot(withoutOlderDuplicate, oldKey, newKey));
+        const renamed = renameQuickSlot(withoutOlderDuplicate, oldKey, newKey);
+        state.setQuickSymbolIds(
+          promoteQuickSlotOverUnplacedPlainSlots(renamed, state.index, newKey),
+        );
       }
       if (state.glossaryIds.includes(oldKey)) {
         const withoutOlderDuplicate = state.glossaryIds.filter((id) => id !== newKey);
