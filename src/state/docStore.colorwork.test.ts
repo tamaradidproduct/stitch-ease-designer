@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { DocIndex } from "../model/docIndex";
 import { useDocStore } from "./docStore";
+import { SUGGEST_SYMBOL_ID, useUiStore } from "./uiStore";
+import { applyColorToSlot } from "../ui/colorwork";
 
 const RED = "#e11d48";
 const BLUE = "#0ea5e9";
@@ -30,6 +32,64 @@ describe("place with colorId (FR-22)", () => {
     useDocStore.getState().place("knit", 0, 0, undefined, undefined, RED);
     const placement = [...useDocStore.getState().index.placements.values()][0]!;
     expect(placement.colorId).toBe(RED);
+  });
+});
+
+describe("colored quick-slot promotion", () => {
+  it("moves a newly placed uncolored stitch ahead of unplaced defaults", () => {
+    useDocStore.getState().place("sl_wyif", 0, 0);
+    useDocStore.getState().addQuickSlot("sl_wyif");
+
+    expect(useDocStore.getState().quickSymbolIds).toEqual(["sl_wyif", "knit", "purl"]);
+  });
+
+  it("moves a new colored swatch ahead of unplaced default stitches", () => {
+    useDocStore.getState().addQuickSlot("knit::" + RED);
+
+    expect(useDocStore.getState().quickSymbolIds).toEqual(["knit::" + RED, "knit", "purl"]);
+  });
+
+  it("does not displace a plain stitch that is already placed", () => {
+    useDocStore.getState().place("knit", 0, 0);
+    useDocStore.getState().addQuickSlot("purl::" + RED);
+
+    expect(useDocStore.getState().quickSymbolIds).toEqual(["knit", "purl::" + RED, "purl"]);
+  });
+
+  it("promotes a recolored unplaced default stitch too", () => {
+    useDocStore.getState().recolorQuickSlot("purl", "purl::" + RED, []);
+
+    expect(useDocStore.getState().quickSymbolIds).toEqual(["purl::" + RED, "knit"]);
+  });
+
+  it("keeps an already-promoted swatch in place instead of demoting it past the default it passed", () => {
+    // Place, promote (as above), then color the same placement - the
+    // completely normal next step after placing a new stitch.
+    useDocStore.getState().place("sl_wyif", 0, 0);
+    useDocStore.getState().addQuickSlot("sl_wyif");
+    expect(useDocStore.getState().quickSymbolIds).toEqual(["sl_wyif", "knit", "purl"]);
+    const placement = useDocStore.getState().index.placementAt(0, 0)!;
+
+    applyColorToSlot({ key: "sl_wyif", symbolId: "sl_wyif", placementIds: [placement.id] }, RED);
+
+    // sl_wyif::RED must stay ahead of "knit", the unplaced default it was
+    // already ahead of - not get walked past it to slot 0's target index.
+    expect(useDocStore.getState().quickSymbolIds).toEqual(["sl_wyif::" + RED, "knit", "purl"]);
+  });
+
+  it("does not let a still-pending Suggest guess block a genuinely placed stitch from promoting", () => {
+    // A pending (unconfirmed) suggestion of "knit" - never reviewed.
+    useDocStore.getState().place("knit", 3, 3, true);
+    // A real, confirmed placement of a brand new stitch.
+    useDocStore.getState().place("sl_wyif", 0, 0);
+
+    useDocStore.getState().addQuickSlot("sl_wyif");
+
+    // Matches the no-pending-suggestion case above: a pending guess isn't
+    // something the designer has actually drawn, so it must not count as
+    // "placed" for promotion purposes (consistent with countConfirmedStitches
+    // and selectableGlossaryEntryPlacementIds elsewhere in the glossary).
+    expect(useDocStore.getState().quickSymbolIds).toEqual(["sl_wyif", "knit", "purl"]);
   });
 });
 
@@ -90,6 +150,20 @@ describe("recolorQuickSlot (DNT-12 - load-bearing)", () => {
     useDocStore.getState().recolorQuickSlot("purl", "purl::" + BLUE, [placement!.id]);
 
     expect(useDocStore.getState().glossaryIds).toEqual(["purl::" + BLUE]);
+  });
+});
+
+describe("recolor during Suggest review", () => {
+  it("keeps Suggest armed after recoloring a stitch resolved from a suggestion", () => {
+    useDocStore.getState().place("knit", 0, 0);
+    const placement = useDocStore.getState().index.placementAt(0, 0)!;
+    useUiStore.setState({ armedSymbolId: SUGGEST_SYMBOL_ID, activeColor: null, tool: "stitch" });
+
+    applyColorToSlot({ key: "knit", symbolId: "knit", placementIds: [placement.id] }, RED);
+
+    expect(useDocStore.getState().index.placementAt(0, 0)?.colorId).toBe(RED);
+    expect(useUiStore.getState().armedSymbolId).toBe(SUGGEST_SYMBOL_ID);
+    expect(useUiStore.getState().activeColor).toBeNull();
   });
 });
 

@@ -81,6 +81,35 @@ export type DocMeta = {
 /** A chart as the app holds it: metadata plus live placements. */
 export type DocSnapshot = DocMeta & { placements: Placement[] };
 
+/** Whether every row is knit the same way (round) or alternates RS/WS (flat). */
+export type Worked = "flat" | "round";
+
+export const WORKED_MODES: readonly Worked[] = ["flat", "round"];
+
+/** Which side of the fabric the first row is worked from. Only meaningful when `worked` is "flat". */
+export type FirstRowSide = "RS" | "WS";
+
+export const FIRST_ROW_SIDES: readonly FirstRowSide[] = ["RS", "WS"];
+
+/**
+ * Facts about a pattern that a designer states once so a preview (or export)
+ * can fill them in instead of asking - none of them are derivable from the
+ * placements themselves.
+ *
+ * Grouped into one type, rather than four loose fields threaded separately
+ * through `encode`/`decode`/`ChartStore`, purely to keep those signatures
+ * from growing a parameter per field; `StoredChart` itself still stores them
+ * as plain top-level keys, unnested, matching every other per-chart setting.
+ */
+export type PatternInfo = {
+  worked?: Worked;
+  firstRow?: FirstRowSide;
+  /** Which grid corner the first stitch sits at (see `Corner`). */
+  firstStitch?: Corner;
+  /** Hex color (a `colorId`/`ColorSwatch.id`) to the designer's own name for it, e.g. `{ "#d3f3d0": "MC" }`. */
+  colorNames?: Record<string, string>;
+};
+
 /**
  * A pattern screenshot placed behind the chart to trace against.
  *

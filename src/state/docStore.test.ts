@@ -65,6 +65,55 @@ describe("openChart", () => {
     const { revision, savedRevision } = useDocStore.getState();
     expect(revision).toBe(savedRevision);
   });
+
+  it("defaults patternInfo to an empty object when the loaded chart never set it", () => {
+    useDocStore.getState().openChart(chart("a"));
+    expect(useDocStore.getState().patternInfo).toEqual({});
+  });
+
+  it("carries a loaded chart's patternInfo into the store", () => {
+    useDocStore.getState().openChart({
+      ...chart("a"),
+      patternInfo: { worked: "round", firstStitch: "tr" },
+    });
+    expect(useDocStore.getState().patternInfo).toEqual({ worked: "round", firstStitch: "tr" });
+  });
+});
+
+describe("pattern info", () => {
+  beforeEach(() => {
+    useDocStore.getState().openChart(chart("a"));
+  });
+
+  it("setPatternInfo merges into the existing patternInfo, bumping revision", () => {
+    const before = useDocStore.getState().revision;
+    useDocStore.getState().setPatternInfo({ worked: "flat" });
+    useDocStore.getState().setPatternInfo({ firstRow: "RS" });
+    expect(useDocStore.getState().patternInfo).toEqual({ worked: "flat", firstRow: "RS" });
+    expect(useDocStore.getState().revision).toBeGreaterThan(before);
+  });
+
+  it("setColorName adds a name for a color", () => {
+    useDocStore.getState().setColorName("#d3f3d0", "MC");
+    expect(useDocStore.getState().patternInfo.colorNames).toEqual({ "#d3f3d0": "MC" });
+  });
+
+  it("setColorName trims whitespace", () => {
+    useDocStore.getState().setColorName("#d3f3d0", "  MC  ");
+    expect(useDocStore.getState().patternInfo.colorNames).toEqual({ "#d3f3d0": "MC" });
+  });
+
+  it("setColorName with a blank name removes that color's entry", () => {
+    useDocStore.getState().setColorName("#d3f3d0", "MC");
+    useDocStore.getState().setColorName("#e11d48", "CC");
+    useDocStore.getState().setColorName("#d3f3d0", "   ");
+    expect(useDocStore.getState().patternInfo.colorNames).toEqual({ "#e11d48": "CC" });
+  });
+
+  it("is not undoable - see the field's own doc comment", () => {
+    useDocStore.getState().setPatternInfo({ worked: "flat" });
+    expect(useDocStore.getState().undoStack).toHaveLength(0);
+  });
 });
 
 describe("selection edits", () => {

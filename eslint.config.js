@@ -5,7 +5,7 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist", "src/symbols/symbols.generated.ts", ".worktrees"] },
+  { ignores: ["dist", "src/symbols/symbols.generated.ts", ".worktrees", ".claude/worktrees"] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],
