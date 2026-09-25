@@ -66,10 +66,19 @@ export function StitchPicker() {
 
   // FR-25: one identity every consumer here reads - chip visibility, the
   // recolor effect, and (via `key ===` checks below) tile highlighting.
-  const currentSlot = useMemo(
-    () => currentSlotForPicker(target, (id) => index.placements.get(id), armedSymbolId, activeColor),
-    [target, index, armedSymbolId, activeColor],
-  );
+  // FR-40's "every instance" check needs the full placement list, which
+  // the document mutates in place - `revision` (unread otherwise) is this
+  // memo's real invalidation signal, same as `moreSymbols` below.
+  const currentSlot = useMemo(() => {
+    void revision;
+    return currentSlotForPicker(
+      target,
+      (id) => index.placements.get(id),
+      armedSymbolId,
+      activeColor,
+      index.toArray(),
+    );
+  }, [target, index, armedSymbolId, activeColor, revision]);
 
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
