@@ -28,6 +28,7 @@ import {
   assignQuickSlot,
   moveQuickSlotTo,
   parseQuickSlotId,
+  quickSlotKey,
   removeQuickSlot,
   renameQuickSlot,
 } from "../model/quickSlots";
@@ -162,7 +163,7 @@ type DocState = {
   addGlossaryId: (id: string) => void;
   /** Removes `id` from the glossary. */
   removeGlossaryId: (id: string) => void;
-  /** Adds `key` to the next free quick slot without reordering. */
+  /** Adds `key` to the next free quick slot; newly placed or colored swatches move ahead of unplaced plain slots. */
   addQuickSlot: (key: string) => void;
   /** Clears a quick-slot assignment without moving other slots. */
   removeQuickSlot: (key: string) => void;
@@ -224,6 +225,39 @@ export const selectIsDirty = (s: DocState): boolean => s.revision !== s.savedRev
  * wholesale on every switch, so comparing ids here is enough to catch it.
  */
 export const isChartOpen = (id: string): boolean => useDocStore.getState().meta?.id === id;
+
+function promoteQuickSlotOverUnplacedPlainSlots(
+  slots: readonly string[],
+  index: DocIndex,
+  key: string,
+): string[] {
+  const { colorId: keyColorId } = parseQuickSlotId(key);
+  // Confirmed placements only, matching countConfirmedStitches/
+  // selectableGlossaryEntryPlacementIds elsewhere in the glossary: a
+  // still-pending Suggest guess isn't something the designer has actually
+  // drawn, so it must not block a genuinely-placed stitch from promoting.
+  const placedSwatches = new Set<string>();
+  const placedPlainSymbols = new Set<string>();
+  for (const placement of index.placements.values()) {
+    if (placement.suggested) continue;
+    placedSwatches.add(quickSlotKey(placement.symbolId, placement.colorId));
+    if (!placement.colorId) placedPlainSymbols.add(placement.symbolId);
+  }
+  if (!keyColorId && !placedSwatches.has(key)) return [...slots];
+  const targetSlot = slots.findIndex((slot) => {
+    if (!slot) return false;
+    const { symbolId, colorId } = parseQuickSlotId(slot);
+    return !colorId && !placedPlainSymbols.has(symbolId);
+  });
+  if (targetSlot === -1) return [...slots];
+  // Only move left: `key` may already sit ahead of `targetSlot` (nothing to
+  // promote past), and moveQuickSlotTo walks it *to* that index regardless
+  // of direction - asking it to move right would demote an already-promoted
+  // swatch past the very unplaced default it's supposed to stay ahead of.
+  const currentIndex = slots.indexOf(key);
+  if (currentIndex !== -1 && currentIndex <= targetSlot) return [...slots];
+  return moveQuickSlotTo(slots, key, targetSlot);
+}
 
 export const useDocStore = create<DocState>((set, get) => {
   // Kept in the store closure rather than rendered state: it is only a
@@ -358,9 +392,10 @@ export const useDocStore = create<DocState>((set, get) => {
       get().setGlossaryIds(current.filter((existing) => existing !== id));
     },
     addQuickSlot: (key) => {
-      const current = get().quickSymbolIds;
-      const next = assignQuickSlot(current, key);
-      if (next !== current) get().setQuickSymbolIds(next);
+      const state = get();
+      const assigned = assignQuickSlot(state.quickSymbolIds, key);
+      const next = promoteQuickSlotOverUnplacedPlainSlots(assigned, state.index, key);
+      if (next !== state.quickSymbolIds) state.setQuickSymbolIds(next);
     },
     removeQuickSlot: (key) => {
       const current = get().quickSymbolIds;
@@ -422,7 +457,10 @@ export const useDocStore = create<DocState>((set, get) => {
         const withoutOlderDuplicate = state.quickSymbolIds.includes(newKey)
           ? removeQuickSlot(state.quickSymbolIds, newKey)
           : state.quickSymbolIds;
-        state.setQuickSymbolIds(renameQuickSlot(withoutOlderDuplicate, oldKey, newKey));
+        const renamed = renameQuickSlot(withoutOlderDuplicate, oldKey, newKey);
+        state.setQuickSymbolIds(
+          promoteQuickSlotOverUnplacedPlainSlots(renamed, state.index, newKey),
+        );
       }
       if (state.glossaryIds.includes(oldKey)) {
         const withoutOlderDuplicate = state.glossaryIds.filter((id) => id !== newKey);

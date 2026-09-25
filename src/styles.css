@@ -1866,6 +1866,25 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.glossary__selectEntry {
+  padding: 0 5px;
+  border: 0;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.glossary__selectEntry:hover:not(:disabled),
+.glossary__selectEntry:focus-visible {
+  background: var(--accent-soft-bg);
+  color: var(--accent);
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.glossary__selectEntry:disabled {
+  cursor: default;
+}
+
 .glossary__item:hover .glossary__count,
 .glossary__item:focus-within .glossary__count {
   background: var(--bg);

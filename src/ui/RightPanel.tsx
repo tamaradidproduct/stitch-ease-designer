@@ -17,6 +17,7 @@ import {
   countConfirmedColoredStitches,
   countConfirmedStitches,
   saveGlossaryIds,
+  selectableGlossaryEntryPlacementIds,
   symbolsWithAnyPlacement,
   useGlossaryIds,
 } from "./chartGlossary";
@@ -78,6 +79,7 @@ export function RightPanel() {
   const centerViewAt100 = useUiStore((state) => state.centerViewAt100);
   const referenceImageUnrecognized = useUiStore((state) => state.referenceImageUnrecognized);
   const clearReferenceImageUnrecognized = useUiStore((state) => state.clearReferenceImageUnrecognized);
+  const setSelection = useUiStore((state) => state.setSelection);
   const addedGlossaryIds = useGlossaryIds();
 
   const resetDragState = () => {
@@ -462,6 +464,7 @@ export function RightPanel() {
               const count = parsed?.colorId
                 ? (coloredCounts.get(key!) ?? 0)
                 : (stitchCounts.get(symbol?.id ?? "") ?? 0);
+              const selectAllLabel = `Select all ${count} placed ${symbol?.label} stitches`;
               return key && symbol ? (
                 <div
                   key={key}
@@ -515,9 +518,16 @@ export function RightPanel() {
                       <SymbolGlyph symbol={symbol} cell={Math.max(7, Math.min(20, 54 / symbol.span))} colorId={parsed?.colorId} />
                     </span>
                     <span className="glossary__label">{symbol.label}</span>
-                    <span className="glossary__count" title={`${count} placed`}>
-                      {count}
-                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="glossary__count glossary__selectEntry"
+                    disabled={!count}
+                    onClick={() => setSelection(selectableGlossaryEntryPlacementIds(placements, key), [], true)}
+                    aria-label={selectAllLabel}
+                    title={selectAllLabel}
+                  >
+                    All ({count})
                   </button>
                   {/* FR-34/Bug 8: the add-only chip belongs on every plain
                       row, slotted or not - a colored row never gets it. */}
@@ -648,6 +658,7 @@ export function RightPanel() {
               const { symbol, colorId, key } = entry;
               const armed = key === quickSlotKey(armedSymbolId ?? "", activeColor) && !!armedSymbolId;
               const count = colorId ? (coloredCounts.get(key) ?? 0) : (stitchCounts.get(symbol.id) ?? 0);
+              const selectAllLabel = `Select all ${count} placed ${symbol.label} stitches`;
               return (
                 <div
                   key={key}
@@ -705,9 +716,16 @@ export function RightPanel() {
                       <SymbolGlyph symbol={symbol} cell={Math.max(7, Math.min(20, 54 / symbol.span))} colorId={colorId} />
                     </span>
                     <span className="glossary__label">{symbol.label}</span>
-                    <span className="glossary__count" title={`${count} placed`}>
-                      {count}
-                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="glossary__count glossary__selectEntry"
+                    disabled={!count}
+                    onClick={() => setSelection(selectableGlossaryEntryPlacementIds(placements, key), [], true)}
+                    aria-label={selectAllLabel}
+                    title={selectAllLabel}
+                  >
+                    All ({count})
                   </button>
                   {!colorId && (
                     <ColorChip

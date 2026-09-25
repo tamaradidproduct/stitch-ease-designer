@@ -1,5 +1,6 @@
 import { cellWithinReferenceImage, cropReferenceImageCell } from "../canvas/referenceImageCrop";
 import type { DocIndex } from "./docIndex";
+import { parseQuickSlotId, quickSlotKey } from "./quickSlots";
 import type { ReferenceImage } from "./types";
 
 export type BinaryGrid = {
@@ -14,6 +15,8 @@ export type BinaryGrid = {
 export type MatchResult = {
   /** The identified symbol ID, or null if no exemplar exceeded minConfidence. */
   symbolId: string | null;
+  /** The color taught with the matched stitch, when it had one. */
+  colorId?: string;
   /** 0 to 1 confidence score (maximum translation-tolerant IoU). */
   confidence: number;
   /** True if the cell had negligible ink and was classified as an empty/knit cell. */
@@ -186,9 +189,12 @@ export function matchCandidateStitch(
   // exemplar ever being consulted. Blank is now a fallback for when nothing
   // else fits, not a shortcut that runs before matching gets a turn.
 
-  // Best score per symbol, not per exemplar - several exemplars of the same
-  // symbol competing with each other isn't a tie worth flagging, only two
-  // *different* symbols scoring close together is.
+  // Best score per swatch, not per exemplar - several samples of the same
+  // stitch-and-color identity competing with each other are not a tie worth
+  // flagging; different swatches scoring close together are.
+  // TODO(colorwork): BinaryGrid intentionally compares shape only. Two same-shape
+  // swatches in different colors therefore remain ambiguous until matching also
+  // carries a color feature.
   //
   // Which symbol a blank-looking cell should become isn't fixed to "knit" -
   // some charts draw knit as a mark and leave purl as the blank square (or
@@ -197,14 +203,14 @@ export function matchCandidateStitch(
   // for whichever symbol they were confirmed under, so a blank candidate
   // naturally scores 1.0 against a blank exemplar of the right symbol here,
   // with no special-casing needed.
-  const bestBySymbol = new Map<string, number>();
-  for (const [symbolId, grids] of exemplars.entries()) {
+  const bestBySlot = new Map<string, number>();
+  for (const [slotKey, grids] of exemplars.entries()) {
     let best = 0;
     for (const grid of grids) best = Math.max(best, computeGridSimilarity(candidate, grid));
-    if (best > 0) bestBySymbol.set(symbolId, best);
+    if (best > 0) bestBySlot.set(slotKey, best);
   }
 
-  const ranked = [...bestBySymbol.entries()].sort((a, b) => b[1] - a[1]);
+  const ranked = [...bestBySlot.entries()].sort((a, b) => b[1] - a[1]);
   const isBlank = isCellBlank(candidate);
   const defaultBlankToKnit = () =>
     isBlank ? { symbolId: "knit", confidence: DEFAULT_BLANK_KNIT_CONFIDENCE, isBlank: true } : null;
@@ -216,7 +222,7 @@ export function matchCandidateStitch(
   // scored 1.0 and therefore would not reach this fallback.
   if (ranked.length === 0) return defaultBlankToKnit() ?? { symbolId: null, confidence: 0, isBlank };
 
-  const [topSymbolId, topScore] = ranked[0]!;
+  const [topSlotKey, topScore] = ranked[0]!;
   const runnerUpScore = ranked[1]?.[1] ?? 0;
 
   if (topScore < minConfidence) {
@@ -228,7 +234,8 @@ export function matchCandidateStitch(
     return { symbolId: null, confidence: topScore, isBlank: false };
   }
 
-  return { symbolId: topSymbolId, confidence: topScore, isBlank: false };
+  const { symbolId, colorId } = parseQuickSlotId(topSlotKey);
+  return { symbolId, ...(colorId ? { colorId } : {}), confidence: topScore, isBlank: false };
 }
 
 /**
@@ -236,18 +243,18 @@ export function matchCandidateStitch(
  * within the reference image boundary.
  */
 /**
- * Most exemplars kept per symbol. Matching takes the *best* score across a
- * symbol's exemplars (see `matchCandidateStitch`), so more of them only ever
+ * Most exemplars kept per stitch-and-color swatch. Matching takes the *best* score across a
+ * swatch's exemplars (see `matchCandidateStitch`), so more of them only ever
  * helps by covering real variation the photo actually has - different
  * lighting or a slight tilt in one corner of the chart, say. Past a handful
- * that stops paying for itself: exemplars of one symbol drawn consistently
+ * that stops paying for itself: exemplars of one swatch drawn consistently
  * add nothing once one of them is already a good match, and every one of
  * them is re-cropped and re-binarized on every cell scanned (mitigated by
  * the cache below, but still real work). Six is enough room to cover a
- * symbol confirmed in a few different regions of the photo without a
+ * swatch confirmed in a few different regions of the photo without a
  * heavily-traced chart making every scan slower for no matching benefit.
  */
-export const MAX_EXEMPLARS_PER_SYMBOL = 6;
+export const MAX_EXEMPLARS_PER_SWATCH = 6;
 
 /**
  * Picks up to `cap` of `items`, preferring ones spread apart over ones
@@ -305,7 +312,7 @@ export function extractExemplars(
   void revision;
   const confirmedPlacements = index.toArray().filter((p) => !p.suggested);
   const fingerprint = confirmedPlacements
-    .map((p) => `${p.id}:${p.symbolId}:${p.col}:${p.row}`)
+    .map((p) => `${p.id}:${p.symbolId}:${p.colorId ?? ""}:${p.col}:${p.row}`)
     .join("|");
   const imageGeometry = [
     referenceImage.x,
@@ -324,17 +331,18 @@ export function extractExemplars(
     return cachedExemplars;
   }
 
-  const bySymbol = new Map<string, Array<{ col: number; row: number }>>();
+  const bySlot = new Map<string, Array<{ col: number; row: number }>>();
   for (const p of confirmedPlacements) {
     if (!cellWithinReferenceImage(referenceImage, p.col, p.row)) continue;
-    const list = bySymbol.get(p.symbolId) ?? [];
+    const slotKey = quickSlotKey(p.symbolId, p.colorId);
+    const list = bySlot.get(slotKey) ?? [];
     list.push({ col: p.col, row: p.row });
-    bySymbol.set(p.symbolId, list);
+    bySlot.set(slotKey, list);
   }
 
   const map = new Map<string, BinaryGrid[]>();
-  for (const [symbolId, positions] of bySymbol.entries()) {
-    const chosen = selectDiverseExemplars(positions, MAX_EXEMPLARS_PER_SYMBOL);
+  for (const [slotKey, positions] of bySlot.entries()) {
+    const chosen = selectDiverseExemplars(positions, MAX_EXEMPLARS_PER_SWATCH);
     const grids: BinaryGrid[] = [];
     for (const { col, row } of chosen) {
       const crop = cropReferenceImageCell(referenceImage, imageElement, col, row, 32);
@@ -345,7 +353,7 @@ export function extractExemplars(
       // would silently refuse to learn it.
       grids.push(grid);
     }
-    if (grids.length) map.set(symbolId, grids);
+    if (grids.length) map.set(slotKey, grids);
   }
 
   const imageLoaded =
