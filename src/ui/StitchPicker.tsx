@@ -71,12 +71,17 @@ export function StitchPicker() {
   // memo's real invalidation signal, same as `moreSymbols` below.
   const currentSlot = useMemo(() => {
     void revision;
+    // FR-40's "every instance" check only runs inside the selection branch,
+    // so skip the O(n) snapshot the rest of the time (StitchPicker stays
+    // mounted and this memo re-evaluates on every document revision, active
+    // drawing/dragging included).
+    const allPlacements = target?.selectionIds?.length ? index.toArray() : [];
     return currentSlotForPicker(
       target,
       (id) => index.placements.get(id),
       armedSymbolId,
       activeColor,
-      index.toArray(),
+      allPlacements,
     );
   }, [target, index, armedSymbolId, activeColor, revision]);
 
