@@ -15,6 +15,7 @@ import {
   isEmptyChange,
   type Change,
   type DocMeta,
+  type PatternInfo,
   type ReferenceImage,
   type RepeatDefinition,
   type Placement,
@@ -92,6 +93,13 @@ type DocState = {
   glossaryIds: string[];
   quickSymbolIds: string[];
 
+  /**
+   * See `PatternInfo`. Chart settings, not document content - like
+   * `glossaryIds`/`quickSymbolIds` above, mutated outside `commit()` so
+   * Cmd/Ctrl+Z never touches it.
+   */
+  patternInfo: PatternInfo;
+
   undoStack: HistoryEntry[];
   redoStack: HistoryEntry[];
   /** Changes accumulated during the current drag, merged into one entry. */
@@ -155,6 +163,10 @@ type DocState = {
    * Returns the recolored placements' new ids.
    */
   recolorPlacements: (ids: string[], colorId: string | null) => string[];
+  /** Merges a patch into `patternInfo`. Not undoable - see the field's own doc comment. */
+  setPatternInfo: (patch: Partial<PatternInfo>) => void;
+  /** Names (or renames) one color; an empty/blank name removes its entry. */
+  setColorName: (colorId: string, name: string) => void;
   /** Replaces the whole glossary array. Not undoable - see the field's own doc comment. */
   setGlossaryIds: (ids: string[]) => void;
   /** Replaces the whole quick-row array. Not undoable - see the field's own doc comment. */
@@ -337,6 +349,7 @@ export const useDocStore = create<DocState>((set, get) => {
     referenceImage: null,
     glossaryIds: [...DEFAULT_STITCH_IDS],
     quickSymbolIds: [...DEFAULT_STITCH_IDS],
+    patternInfo: {},
 
     place: (symbolId, col, row, suggested, confidence, colorId) =>
       commit(placeChange(get().index, symbolId, col, row, suggested, confidence, colorId)),
@@ -379,6 +392,19 @@ export const useDocStore = create<DocState>((set, get) => {
       return added.map((p) => p.id);
     },
 
+    setPatternInfo: (patch) =>
+      set((s) => ({ patternInfo: { ...s.patternInfo, ...patch }, revision: s.revision + 1 })),
+    setColorName: (colorId, name) => {
+      const trimmed = name.trim();
+      const { colorNames } = get().patternInfo;
+      const next = { ...colorNames };
+      if (trimmed) {
+        next[colorId] = trimmed;
+      } else {
+        delete next[colorId];
+      }
+      get().setPatternInfo({ colorNames: next });
+    },
     setGlossaryIds: (glossaryIds) => set((s) => ({ glossaryIds, revision: s.revision + 1 })),
     setQuickSymbolIds: (quickSymbolIds) => set((s) => ({ quickSymbolIds, revision: s.revision + 1 })),
     addGlossaryId: (id) => {
@@ -844,6 +870,7 @@ export const useDocStore = create<DocState>((set, get) => {
       referenceImage = null,
       glossaryIds = [...DEFAULT_STITCH_IDS],
       quickSymbolIds = [...DEFAULT_STITCH_IDS],
+      patternInfo = {},
       unknownSymbolIds,
     }) => {
       const revision = get().revision + 1;
@@ -862,6 +889,7 @@ export const useDocStore = create<DocState>((set, get) => {
         referenceImage,
         glossaryIds,
         quickSymbolIds,
+        patternInfo,
       });
     },
 

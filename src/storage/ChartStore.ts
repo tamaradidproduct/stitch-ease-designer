@@ -1,4 +1,4 @@
-import type { DocMeta, Placement, ReferenceImage, RepeatDefinition } from "../model/types";
+import type { DocMeta, PatternInfo, Placement, ReferenceImage, RepeatDefinition } from "../model/types";
 
 /**
  * Where charts live.
@@ -28,6 +28,7 @@ export interface ChartStore {
     referenceImage?: ReferenceImage,
     glossaryIds?: readonly string[],
     quickSymbolIds?: readonly string[],
+    patternInfo?: PatternInfo,
   ): Promise<DocMeta>;
   rename(id: string, name: string): Promise<DocMeta>;
   remove(id: string): Promise<void>;
@@ -46,6 +47,8 @@ export type LoadedChart = {
    */
   glossaryIds?: string[];
   quickSymbolIds?: string[];
+  /** See `PatternInfo`. Same "optional only for test fixtures" note as the fields above. */
+  patternInfo?: PatternInfo;
   /** Symbols this build's library no longer has. See `decode` in serialize.ts. */
   unknownSymbolIds: string[];
 };

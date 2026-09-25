@@ -1,5 +1,5 @@
 # Product Requirements Document (PRD)
-*Last Updated: 2026-09-23*
+*Last Updated: 2026-09-24*
 
 ## Core App Overview
 
@@ -9,8 +9,12 @@ it is a chart editor: an infinite canvas that is itself a grid of square
 cells, where each cell can hold a stitch (some stitches span several cells).
 Clicking any cell places a stitch from the Figma symbol library.
 
-v1 is the working drawing interface only — no chart frames, RS/WS handling,
-repeat boxes, stitch counts, or project-management side yet. Two features are
+v1 is the working drawing interface only — no chart frames, repeat boxes,
+stitch counts, or project-management side yet. A chart can record `worked`
+(flat/round) and `firstRow` (RS/WS) as plain metadata for a preview to read
+(see "Pattern info fields..." below), but the chart itself still renders
+every row right-to-left regardless of these — RS/WS-driven row direction and
+stitch numbering are still deferred. Two features are
 gated to an `admin` role while still experimental: the reference-image tracer
 and **Suggest**, which runs template matching against a reference image and
 places guesses for the designer to confirm or dismiss. Everyone else
@@ -586,6 +590,107 @@ color with an exemplar but compares binary glyph shapes. Same-shape swatches
 in different colors therefore remain ambiguous rather than receiving a random
 color assignment. Adding color features to the matcher is intentionally
 deferred.
+
+---
+
+### Pattern info fields, reference-image export option, and export-format rectangle fill
+
+**Context.** A preview consumer needs a handful of facts about a pattern
+stated once rather than asked each time, plus two changes to what a
+`.stitchchart.json` export actually contains. See
+`docs/conversations/2026-09-24-pattern-info-and-export-format.md` for the
+full discussion and alternatives considered.
+
+#### Pattern info data model
+
+**FR-44.** `PatternInfo` (`src/model/types.ts`) groups four optional,
+per-chart facts: `worked: "flat" | "round"`, `firstRow: "RS" | "WS"`,
+`firstStitch: Corner` (reuses the existing `"bl" | "br" | "tl" | "tr"` corner
+vocabulary already used for reference-image resize handles — no new
+vocabulary invented), and `colorNames: Record<hexColorId, string>` (e.g.
+`{ "#d3f3d0": "MC" }`, keyed by the same hex `colorId` values already used
+everywhere else). Grouped into one type — rather than threaded as four
+separate parameters through `encode`/`decode`/`ChartStore.save` — purely to
+keep those signatures from growing a positional argument per field;
+`StoredChart` itself still stores the four as flat top-level keys, matching
+every other per-chart setting (`glossaryIds`, `referenceImage`, etc).
+
+**FR-45.** Like `glossaryIds`/`quickSymbolIds` (FR-32/DNT-13), `patternInfo`
+edits are chart settings, not document content — mutated outside
+`docStore`'s `commit()`, so Cmd/Ctrl+Z never touches them.
+
+**Implementation.**
+- `src/model/types.ts` — `Worked`, `WORKED_MODES`, `FirstRowSide`,
+  `FIRST_ROW_SIDES`, `PatternInfo`.
+- `src/storage/serialize.ts` — `StoredChart.worked`/`firstRow`/`firstStitch`/
+  `colorNames`, `validateWorked`/`validateFirstRow`/`validateFirstStitch`/
+  `validateColorNames` (hex-keyed, non-empty-string values), threaded through
+  `encode()`/`decode()` via a single grouped `patternInfo` parameter.
+  `decode()`'s `DecodedChart.patternInfo` is always a concrete (possibly
+  empty) object, never absent — same "optional only for test fixtures"
+  pattern as `glossaryIds`/`quickSymbolIds` on `ChartStore.LoadedChart`.
+- `src/storage/ChartStore.ts`, `keyValueChartStore.ts`,
+  `supabaseChartStore.ts`, `migrateLocalCharts.ts` — `patternInfo` threaded
+  through `load`/`save` exactly like `glossaryIds`/`quickSymbolIds`.
+- `src/state/docStore.ts` — `patternInfo` state, `setPatternInfo` (merges a
+  patch), `setColorName` (adds/renames/removes one color's name; a
+  blank/whitespace-only name removes the entry). Defaulted in `openChart`.
+- `src/storage/useAutosave.ts` — `patternInfo` included in the autosave
+  `store.save()` call.
+
+#### Pattern info settings UI
+
+**FR-46.** A collapsible **Pattern info** section in `RightPanel.tsx`
+(same pattern as Export/Help) exposes: a Worked flat/round toggle; a First
+row RS/WS toggle (hidden when Worked is "round" — RS/WS is a flat-only
+concept); a 2×2 first-stitch corner-grid picker; and, only once at least one
+colored stitch exists on the chart, a swatch + text-input row per color
+actually in use, wired to `setColorName`.
+
+#### Export: leave out the reference image
+
+**FR-47.** `exportChart()` (`src/storage/exportImport.ts`) takes an
+`includeReferenceImage` flag (default `true`); `false` skips inlining the
+reference image into the export entirely. Surfaced as a checkbox in the
+RightPanel Export section, shown only when the open chart actually has a
+reference image — lets a designer share a chart file without carrying along
+a (potentially copyrighted or personal) source photo.
+
+#### Export format (v3): rectangle fill, drop pending suggestions
+
+**FR-48.** Two changes scoped to `exportChart()` specifically — **not** the
+general `encode()` used by autosave, so in-app storage stays lean and this
+stays a pure export-time transform. `v` stays `3`; every other field/format
+is unchanged.
+- Every cell inside the bounding rectangle of the chart's *confirmed*
+  (non-suggested) placements that isn't already covered by a stitch (spans
+  included) is backfilled with a `"no_stitch"` palette entry, appended as
+  the palette's **last** index (so no other stitch's palette index shifts).
+  Only added if at least one cell actually needs it. No `colors` entry is
+  ever written for a no-stitch cell.
+- Unconfirmed Suggest guesses (`placement.suggested === true`) are dropped
+  entirely from the export: not listed in `stitches`, not counted toward the
+  rectangle, and the `suggested` key is never written. Export-only — autosave
+  still persists pending suggestions as before, so an in-progress review
+  survives a reload untouched.
+
+**Implementation.** `noStitchCells()`/`fillNoStitchCells()` in
+`src/storage/exportImport.ts` (the latter exported for direct unit testing
+against a plain `StoredChart`, without exercising the browser-only download
+side effect); `exportChart()` filters `placement.suggested` out before
+calling `encode()`, then pipes its output through `fillNoStitchCells()`.
+
+#### File map
+
+| File | Owns |
+|---|---|
+| `src/model/types.ts` | `Worked`, `FirstRowSide`, `PatternInfo` |
+| `src/storage/serialize.ts` | `StoredChart` pattern-info fields + validators; `encode`/`decode`'s `patternInfo` param |
+| `src/storage/ChartStore.ts`, `keyValueChartStore.ts`, `supabaseChartStore.ts`, `migrateLocalCharts.ts` | Thread `patternInfo` through load/save/migration |
+| `src/state/docStore.ts` | `patternInfo` state, `setPatternInfo`, `setColorName` (not undoable) |
+| `src/storage/useAutosave.ts` | `patternInfo` in the autosave save call |
+| `src/ui/RightPanel.tsx` | Pattern info settings section; Export section's "Include reference image" checkbox |
+| `src/storage/exportImport.ts` | `includeReferenceImage`; `noStitchCells`/`fillNoStitchCells`; suggested-placement exclusion |
 
 ---
 
