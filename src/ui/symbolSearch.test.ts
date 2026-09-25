@@ -32,6 +32,11 @@ describe("searchSymbols", () => {
     );
   });
 
+  it("finds the yarn-front and yarn-back slip stitches by their Figma labels", () => {
+    expect(ids("slip yarn front")).toEqual(["sl_wyif"]);
+    expect(ids("slip yarn back")).toEqual(["sl_wyib"]);
+  });
+
   it("is case insensitive and matches labels as well as ids", () => {
     expect(ids("K2TOG")).toContain("k2tog");
     // label is "Central double decrease"

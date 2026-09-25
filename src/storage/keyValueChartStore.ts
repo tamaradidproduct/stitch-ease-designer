@@ -1,4 +1,4 @@
-import type { DocMeta, Placement, ReferenceImage } from "../model/types";
+import type { DocMeta, PatternInfo, Placement, ReferenceImage } from "../model/types";
 import { getSymbol } from "../symbols/registry";
 import { newUuid } from "../uuid";
 import {
@@ -118,7 +118,7 @@ export function createKeyValueChartStore(
       const meta = requireMeta(readIndex(), id);
       const raw = backend.read(chartKey(id));
       if (raw === null) throw new ChartNotFoundError(id);
-      const { placements, repeats, referenceImage, glossaryIds, quickSymbolIds, unknownSymbolIds } = decode(
+      const { placements, repeats, referenceImage, glossaryIds, quickSymbolIds, patternInfo, unknownSymbolIds } = decode(
         JSON.parse(raw),
         knownSymbol,
       );
@@ -128,6 +128,7 @@ export function createKeyValueChartStore(
         repeats,
         glossaryIds,
         quickSymbolIds,
+        patternInfo,
         unknownSymbolIds,
         ...(referenceImage ? { referenceImage } : null),
       };
@@ -141,6 +142,7 @@ export function createKeyValueChartStore(
       referenceImage?: ReferenceImage,
       glossaryIds?: readonly string[],
       quickSymbolIds?: readonly string[],
+      patternInfo?: PatternInfo,
     ): Promise<DocMeta> {
       const index = readIndex();
       const current = requireMeta(index, id);
@@ -153,7 +155,7 @@ export function createKeyValueChartStore(
       const previousBody = backend.read(chartKey(id));
       backend.write(
         chartKey(id),
-        JSON.stringify(encode(placements, repeats, referenceImage, glossaryIds, quickSymbolIds)),
+        JSON.stringify(encode(placements, repeats, referenceImage, glossaryIds, quickSymbolIds, patternInfo)),
       );
 
       const meta: DocMeta = { ...current, updatedAt: stamp(), rev: newUuid("rev_") };

@@ -403,3 +403,43 @@ describe("glossaryIds/quickSymbolIds absent-vs-empty (storage §3)", () => {
     expect(stored.quickSymbolIds).toEqual([]);
   });
 });
+
+describe("pattern info (worked/firstRow/firstStitch/colorNames)", () => {
+  it("an unset chart encodes without any of the four keys", () => {
+    const stored = encode([place("knit", 0, 0)]);
+    expect(stored.worked).toBeUndefined();
+    expect(stored.firstRow).toBeUndefined();
+    expect(stored.firstStitch).toBeUndefined();
+    expect(stored.colorNames).toBeUndefined();
+  });
+
+  it("round-trips worked/firstRow/firstStitch/colorNames through encode/decode", () => {
+    const patternInfo = {
+      worked: "flat" as const,
+      firstRow: "RS" as const,
+      firstStitch: "bl" as const,
+      colorNames: { "#d3f3d0": "MC", "#e11d48": "CC" },
+    };
+    const stored = encode([place("knit", 0, 0)], [], undefined, [], [], patternInfo);
+    expect(stored.worked).toBe("flat");
+    expect(stored.firstRow).toBe("RS");
+    expect(stored.firstStitch).toBe("bl");
+    expect(stored.colorNames).toEqual(patternInfo.colorNames);
+
+    const decoded = decode(stored, known);
+    expect(decoded.patternInfo).toEqual(patternInfo);
+  });
+
+  it("decode returns an empty patternInfo object, never undefined, when nothing was ever set", () => {
+    expect(decode(encode([place("knit", 0, 0)]), known).patternInfo).toEqual({});
+  });
+
+  it("rejects an invalid worked, firstRow, firstStitch, or colorNames", () => {
+    expect(() => decode({ ...encode([]), worked: "sideways" }, known)).toThrow(ChartFormatError);
+    expect(() => decode({ ...encode([]), firstRow: "front" }, known)).toThrow(ChartFormatError);
+    expect(() => decode({ ...encode([]), firstStitch: "middle" }, known)).toThrow(ChartFormatError);
+    expect(() => decode({ ...encode([]), colorNames: { notahex: "MC" } }, known)).toThrow(ChartFormatError);
+    expect(() => decode({ ...encode([]), colorNames: { "#d3f3d0": "" } }, known)).toThrow(ChartFormatError);
+    expect(() => decode({ ...encode([]), colorNames: "nope" }, known)).toThrow(ChartFormatError);
+  });
+});

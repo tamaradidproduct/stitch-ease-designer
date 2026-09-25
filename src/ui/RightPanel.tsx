@@ -6,6 +6,14 @@ import { type ImageFormat, exportChartImage } from "../storage/exportImage";
 import { exportChart } from "../storage/exportImport";
 import { cellWithinReferenceImage } from "../canvas/referenceImageCrop";
 import { unoccupiedCellsFromKeys } from "../model/cellKey";
+import { getSwatch } from "../model/colorPalette";
+import {
+  FIRST_ROW_SIDES,
+  WORKED_MODES,
+  type Corner,
+  type FirstRowSide,
+  type Worked,
+} from "../model/types";
 import { useDocStore } from "../state/docStore";
 import { SUGGEST_SYMBOL_ID, useUiStore } from "../state/uiStore";
 import { ReferenceImagePanel } from "./ReferenceImagePanel";
@@ -17,6 +25,7 @@ import {
   countConfirmedColoredStitches,
   countConfirmedStitches,
   saveGlossaryIds,
+  selectableGlossaryEntryPlacementIds,
   symbolsWithAnyPlacement,
   useGlossaryIds,
 } from "./chartGlossary";
@@ -42,6 +51,15 @@ const CATEGORY_LABELS: Record<string, string> = {
   special: "Special",
 };
 
+/** Grid layout order (top row, then bottom row) for the first-stitch corner picker. */
+const CORNER_GRID_ORDER: Corner[] = ["tl", "tr", "bl", "br"];
+const CORNER_LABELS: Record<Corner, string> = {
+  tl: "Top left",
+  tr: "Top right",
+  bl: "Bottom left",
+  br: "Bottom right",
+};
+
 export function RightPanel() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [glossaryQuery, setGlossaryQuery] = useState("");
@@ -50,15 +68,20 @@ export function RightPanel() {
   const [draggingQuickId, setDraggingQuickId] = useState<string | null>(null);
   const [dragOverQuickId, setDragOverQuickId] = useState<string | null>(null);
   const [dragOverQuickSlot, setDragOverQuickSlot] = useState<number | null>(null);
+  const [patternInfoOpen, setPatternInfoOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [exportBusy, setExportBusy] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [includeReferenceImage, setIncludeReferenceImage] = useState(true);
   const glossarySearchRef = useRef<HTMLInputElement | null>(null);
   const inlineSearchRef = useRef<HTMLDivElement | null>(null);
   const meta = useDocStore((state) => state.meta);
   const index = useDocStore((state) => state.index);
   const repeats = useDocStore((state) => state.repeats);
   const referenceImage = useDocStore((state) => state.referenceImage);
+  const patternInfo = useDocStore((state) => state.patternInfo);
+  const setPatternInfo = useDocStore((state) => state.setPatternInfo);
+  const setColorName = useDocStore((state) => state.setColorName);
   const revision = useDocStore((state) => state.revision);
   const acceptSuggestions = useDocStore((state) => state.acceptSuggestions);
   const dismissSuggestions = useDocStore((state) => state.dismissSuggestions);
@@ -78,6 +101,7 @@ export function RightPanel() {
   const centerViewAt100 = useUiStore((state) => state.centerViewAt100);
   const referenceImageUnrecognized = useUiStore((state) => state.referenceImageUnrecognized);
   const clearReferenceImageUnrecognized = useUiStore((state) => state.clearReferenceImageUnrecognized);
+  const setSelection = useUiStore((state) => state.setSelection);
   const addedGlossaryIds = useGlossaryIds();
 
   const resetDragState = () => {
@@ -176,15 +200,24 @@ export function RightPanel() {
     </button>
   );
 
-  const { placements, glossary, plainGlossaryIds, stitchCounts, coloredCounts, symbolsPlaced } = useMemo(() => {
+  const { placements, glossary, plainGlossaryIds, stitchCounts, coloredCounts, symbolsPlaced, usedColorIds } = useMemo(() => {
     // The document mutates its index in place; its revision invalidates this
     // cached snapshot when placements change.
     void revision;
     const chartPlacements = index.toArray();
     const chartGlossary = collectColoredGlossaryEntries(addedGlossaryIds, chartPlacements);
+    const colorIds: string[] = [];
+    const seenColorIds = new Set<string>();
+    for (const p of chartPlacements) {
+      if (p.colorId && !seenColorIds.has(p.colorId)) {
+        seenColorIds.add(p.colorId);
+        colorIds.push(p.colorId);
+      }
+    }
     return {
       placements: chartPlacements,
       glossary: chartGlossary,
+      usedColorIds: colorIds,
       // Which *plain* symbols already have a glossary row - what the
       // search-to-add dropdown (always a plain add) needs to exclude.
       plainGlossaryIds: new Set(
@@ -459,6 +492,7 @@ export function RightPanel() {
               const count = parsed?.colorId
                 ? (coloredCounts.get(key!) ?? 0)
                 : (stitchCounts.get(symbol?.id ?? "") ?? 0);
+              const selectAllLabel = `Select all ${count} placed ${symbol?.label} stitches`;
               return key && symbol ? (
                 <div
                   key={key}
@@ -512,9 +546,16 @@ export function RightPanel() {
                       <SymbolGlyph symbol={symbol} cell={Math.max(7, Math.min(20, 54 / symbol.span))} colorId={parsed?.colorId} />
                     </span>
                     <span className="glossary__label">{symbol.label}</span>
-                    <span className="glossary__count" title={`${count} placed`}>
-                      {count}
-                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="glossary__count glossary__selectEntry"
+                    disabled={!count}
+                    onClick={() => setSelection(selectableGlossaryEntryPlacementIds(placements, key), [], true)}
+                    aria-label={selectAllLabel}
+                    title={selectAllLabel}
+                  >
+                    All ({count})
                   </button>
                   {/* FR-34/Bug 8: the add-only chip belongs on every plain
                       row, slotted or not - a colored row never gets it. */}
@@ -645,6 +686,7 @@ export function RightPanel() {
               const { symbol, colorId, key } = entry;
               const armed = key === quickSlotKey(armedSymbolId ?? "", activeColor) && !!armedSymbolId;
               const count = colorId ? (coloredCounts.get(key) ?? 0) : (stitchCounts.get(symbol.id) ?? 0);
+              const selectAllLabel = `Select all ${count} placed ${symbol.label} stitches`;
               return (
                 <div
                   key={key}
@@ -702,9 +744,16 @@ export function RightPanel() {
                       <SymbolGlyph symbol={symbol} cell={Math.max(7, Math.min(20, 54 / symbol.span))} colorId={colorId} />
                     </span>
                     <span className="glossary__label">{symbol.label}</span>
-                    <span className="glossary__count" title={`${count} placed`}>
-                      {count}
-                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="glossary__count glossary__selectEntry"
+                    disabled={!count}
+                    onClick={() => setSelection(selectableGlossaryEntryPlacementIds(placements, key), [], true)}
+                    aria-label={selectAllLabel}
+                    title={selectAllLabel}
+                  >
+                    All ({count})
                   </button>
                   {!colorId && (
                     <ColorChip
@@ -743,6 +792,106 @@ export function RightPanel() {
         <button
           type="button"
           className="sideModule__header sideModule__toggle"
+          onClick={() => setPatternInfoOpen((open) => !open)}
+          aria-expanded={patternInfoOpen}
+        >
+          <div>
+            <h2>Pattern info</h2>
+            <span>Fill in details for the preview instead of asking</span>
+          </div>
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" data-open={patternInfoOpen}>
+            <path d="m4 6 4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+          </svg>
+        </button>
+        {patternInfoOpen && (
+          <div className="sideModule__body patternInfo">
+            <div className="patternInfo__field">
+              <span className="patternInfo__label">Worked</span>
+              <div className="patternInfo__toggle" role="radiogroup" aria-label="Worked flat or in the round">
+                {WORKED_MODES.map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    role="radio"
+                    aria-checked={patternInfo.worked === mode}
+                    data-on={patternInfo.worked === mode}
+                    onClick={() => setPatternInfo({ worked: mode as Worked })}
+                  >
+                    {mode === "flat" ? "Flat" : "Round"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {patternInfo.worked !== "round" && (
+              <div className="patternInfo__field">
+                <span className="patternInfo__label">First row</span>
+                <div className="patternInfo__toggle" role="radiogroup" aria-label="First row RS or WS">
+                  {FIRST_ROW_SIDES.map((side) => (
+                    <button
+                      key={side}
+                      type="button"
+                      role="radio"
+                      aria-checked={patternInfo.firstRow === side}
+                      data-on={patternInfo.firstRow === side}
+                      onClick={() => setPatternInfo({ firstRow: side as FirstRowSide })}
+                    >
+                      {side}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="patternInfo__field">
+              <span className="patternInfo__label">First stitch</span>
+              <div className="patternInfo__corners" role="radiogroup" aria-label="Which corner the first stitch is at">
+                {CORNER_GRID_ORDER.map((corner) => (
+                  <button
+                    key={corner}
+                    type="button"
+                    role="radio"
+                    aria-checked={patternInfo.firstStitch === corner}
+                    data-on={patternInfo.firstStitch === corner}
+                    aria-label={CORNER_LABELS[corner]}
+                    title={CORNER_LABELS[corner]}
+                    onClick={() => setPatternInfo({ firstStitch: corner })}
+                  />
+                ))}
+              </div>
+            </div>
+            {usedColorIds.length > 0 && (
+              <div className="patternInfo__field">
+                <span className="patternInfo__label">Color names</span>
+                <div className="patternInfo__colorNames">
+                  {usedColorIds.map((colorId) => {
+                    const swatch = getSwatch(colorId);
+                    return (
+                      <label key={colorId} className="patternInfo__colorName">
+                        <span
+                          className="patternInfo__swatch"
+                          style={{ background: swatch?.hex ?? colorId }}
+                          aria-hidden="true"
+                        />
+                        <input
+                          type="text"
+                          defaultValue={patternInfo.colorNames?.[colorId] ?? ""}
+                          placeholder={swatch ? `${swatch.hue} ${swatch.step + 1}` : "Name"}
+                          aria-label={`Name for this color`}
+                          onBlur={(event) => setColorName(colorId, event.target.value)}
+                        />
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+
+      <section className="sideModule">
+        <button
+          type="button"
+          className="sideModule__header sideModule__toggle"
           onClick={() => setExportOpen((open) => !open)}
           aria-expanded={exportOpen}
         >
@@ -756,6 +905,16 @@ export function RightPanel() {
         </button>
         {exportOpen && (
           <div className="sideModule__body">
+            {referenceImage && (
+              <label className="refpanel__checkbox">
+                <input
+                  type="checkbox"
+                  checked={includeReferenceImage}
+                  onChange={(event) => setIncludeReferenceImage(event.target.checked)}
+                />
+                Include reference image
+              </label>
+            )}
             <div className="refpanel__actions">
               <button
                 type="button"
@@ -770,6 +929,8 @@ export function RightPanel() {
                       referenceImage ?? undefined,
                       addedGlossaryIds,
                       quickSymbolIds,
+                      patternInfo,
+                      includeReferenceImage,
                     );
                   }
                 }}
