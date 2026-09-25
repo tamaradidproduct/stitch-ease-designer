@@ -310,6 +310,20 @@ incidental `Opt`/`Alt` tap could trigger during an otherwise-ordinary
 marquee drag. See `includeEmptyCells` in `usePaintTool.ts`'s
 `onPointerMove`.
 
+**FR-41 (added this session, #225).** Suggest armed, pointerdown landing on
+its own still-pending guess, no selection modifier held: the gesture is
+ambiguous between reviewing it (a click) and painting a new Suggest stroke
+across it (a drag), so the decision is deferred to the first real movement
+instead of immediately starting a move. No movement by pointerup → open the
+suggestion for review, same as before. Real movement → run a normal Suggest
+paint stroke starting from the origin cell (a no-op there, since Suggest
+already never overwrites an existing placement) through the cells the drag
+actually crosses. Every other combination — a real stitch armed and landing
+on a suggestion (FR-11's override), Shift's additive selection toggle, a
+drag starting on a confirmed/hand-drawn stitch — is unaffected; this only
+changes what starting a gesture on a *pending* suggestion while Suggest
+itself is armed does. See `isSuggestReviewCandidate` in `usePaintTool.ts`.
+
 #### Do not touch (Suggest)
 
 - **DNT-2.** Suggest's own template-matching internals (confidence thresholds, exemplar
