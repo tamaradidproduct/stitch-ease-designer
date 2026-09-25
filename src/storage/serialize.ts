@@ -13,6 +13,7 @@ import { getSymbol } from "../symbols/registry";
 import { DEFAULT_STITCH_IDS } from "../model/quickSlots";
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+const NO_STITCH_ID = "no_stitch";
 
 /**
  * The stored form of a chart.
@@ -503,9 +504,11 @@ export type DecodedChart = {
 
 export function decode(stored: unknown, knownSymbol: (id: string) => boolean): DecodedChart {
   const chart = validate(stored);
+  const stitches = chart.stitches.filter(([, , paletteIndex]) => chart.palette[paletteIndex] !== NO_STITCH_ID);
 
   const unknown = new Set<string>();
   for (const id of chart.palette) {
+    if (id === NO_STITCH_ID) continue;
     if (!knownSymbol(id)) unknown.add(id);
   }
 
@@ -515,8 +518,9 @@ export function decode(stored: unknown, knownSymbol: (id: string) => boolean): D
   // retain the renderer's one-cell fallback, because their original span is
   // unavailable in this version of the library.
   const occupied = new Set<string>();
-  for (const [col, row, paletteIndex] of chart.stitches) {
+  for (const [col, row, paletteIndex] of stitches) {
     const symbolId = chart.palette[paletteIndex]!;
+    if (symbolId === NO_STITCH_ID) continue;
     const span = knownSymbol(symbolId) ? (getSymbol(symbolId)?.span ?? 1) : 1;
     for (let cell = col; cell < col + span; cell++) {
       const key = `${cell},${row}`;
@@ -533,7 +537,7 @@ export function decode(stored: unknown, knownSymbol: (id: string) => boolean): D
     const colorId = chart.colorPalette?.[colorIndex];
     if (colorId) colorByCell.set(cellKey(col, row), colorId);
   }
-  const placements = chart.stitches.map(([col, row, paletteIndex, groupIndex]) => {
+  const placements = stitches.map(([col, row, paletteIndex, groupIndex]) => {
     const colorId = colorByCell.get(cellKey(col, row));
     return {
       id: newPlacementId(),

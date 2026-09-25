@@ -154,4 +154,30 @@ describe("fillNoStitchCells", () => {
     // The rectangle is just the single confirmed stitch - no gaps to fill.
     expect(stored.palette).not.toContain("no_stitch");
   });
+
+  it("round-trips a filled export back into the original placements instead of inventing no_stitch stitches", async () => {
+    const confirmed = [place("knit", 0, 0), place("purl", 2, 1)];
+    const stored = fillNoStitchCells(encode(confirmed), confirmed);
+    const file = jsonFile("filled.stitchchart.json", { ...stored, name: "Filled", exportedAt: new Date().toISOString() });
+
+    const imported = await importChart(file);
+    expect(
+      imported.placements.map(({ symbolId, col, row, suggested, colorId }) => ({
+        symbolId,
+        col,
+        row,
+        suggested,
+        colorId,
+      })),
+    ).toEqual(
+      confirmed.map(({ symbolId, col, row, suggested, colorId }) => ({
+        symbolId,
+        col,
+        row,
+        suggested,
+        colorId,
+      })),
+    );
+    expect(imported.unknownSymbolIds).not.toContain("no_stitch");
+  });
 });
