@@ -1,8 +1,19 @@
 import { newPlacementId } from "../model/ops";
 import { cellKey } from "../model/cellKey";
-import type { Placement, ReferenceImage, RepeatDefinition } from "../model/types";
+import {
+  CORNERS,
+  FIRST_ROW_SIDES,
+  WORKED_MODES,
+  type Placement,
+  type PatternInfo,
+  type ReferenceImage,
+  type RepeatDefinition,
+} from "../model/types";
 import { getSymbol } from "../symbols/registry";
 import { DEFAULT_STITCH_IDS } from "../model/quickSlots";
+
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+const NO_STITCH_ID = "no_stitch";
 
 /**
  * The stored form of a chart.
@@ -41,6 +52,11 @@ export type StoredChart = {
   quickSymbolIds?: string[];
   repeats?: RepeatDefinition[];
   referenceImage?: ReferenceImage;
+  /** See `PatternInfo` - stored flat, like every other per-chart setting here. */
+  worked?: PatternInfo["worked"];
+  firstRow?: PatternInfo["firstRow"];
+  firstStitch?: PatternInfo["firstStitch"];
+  colorNames?: PatternInfo["colorNames"];
 };
 
 export const STORED_VERSION = 3;
@@ -85,6 +101,7 @@ export function encode(
   referenceImage?: ReferenceImage,
   glossaryIds: readonly string[] = DEFAULT_STITCH_IDS,
   quickSymbolIds: readonly string[] = DEFAULT_STITCH_IDS,
+  patternInfo: PatternInfo = {},
 ): StoredChart {
   const sorted = [...placements].sort((a, b) => a.row - b.row || a.col - b.col);
 
@@ -139,6 +156,12 @@ export function encode(
     ...(suggested.length ? { suggested } : null),
     ...(colors.length ? { colorPalette, colors } : null),
     ...(referenceImage ? { referenceImage } : null),
+    ...(patternInfo.worked ? { worked: patternInfo.worked } : null),
+    ...(patternInfo.firstRow ? { firstRow: patternInfo.firstRow } : null),
+    ...(patternInfo.firstStitch ? { firstStitch: patternInfo.firstStitch } : null),
+    ...(patternInfo.colorNames && Object.keys(patternInfo.colorNames).length
+      ? { colorNames: patternInfo.colorNames }
+      : null),
   };
 }
 
@@ -246,6 +269,39 @@ function validateGlossaryIds(chart: Partial<StoredChart>): void {
 function validateQuickSymbolIds(chart: Partial<StoredChart>): void {
   if (chart.quickSymbolIds !== undefined && !isStringArray(chart.quickSymbolIds)) {
     throw new ChartFormatError("quickSymbolIds must be an array of quick-slot ids");
+  }
+}
+
+function validateWorked(chart: Partial<StoredChart>): void {
+  if (chart.worked !== undefined && !WORKED_MODES.includes(chart.worked)) {
+    throw new ChartFormatError('worked must be "flat" or "round"');
+  }
+}
+
+function validateFirstRow(chart: Partial<StoredChart>): void {
+  if (chart.firstRow !== undefined && !FIRST_ROW_SIDES.includes(chart.firstRow)) {
+    throw new ChartFormatError('firstRow must be "RS" or "WS"');
+  }
+}
+
+function validateFirstStitch(chart: Partial<StoredChart>): void {
+  if (chart.firstStitch !== undefined && !CORNERS.includes(chart.firstStitch)) {
+    throw new ChartFormatError("firstStitch must be a grid corner");
+  }
+}
+
+function validateColorNames(chart: Partial<StoredChart>): void {
+  if (chart.colorNames === undefined) return;
+  const names = chart.colorNames;
+  if (
+    typeof names !== "object" ||
+    names === null ||
+    Array.isArray(names) ||
+    Object.entries(names).some(
+      ([colorId, label]) => !HEX_COLOR.test(colorId) || typeof label !== "string" || !label.trim(),
+    )
+  ) {
+    throw new ChartFormatError("colorNames must map hex color ids to non-empty names");
   }
 }
 
@@ -410,6 +466,10 @@ function validate(stored: unknown): StoredChart {
   validateStitchGroupReferences(chart);
   validateRepeats(chart);
   validateReferenceImage(chart);
+  validateWorked(chart);
+  validateFirstRow(chart);
+  validateFirstStitch(chart);
+  validateColorNames(chart);
 
   return chart as StoredChart;
 }
@@ -426,6 +486,13 @@ export type DecodedChart = {
   glossaryIds: string[];
   quickSymbolIds: string[];
   /**
+   * See `PatternInfo`. Always a concrete (possibly empty) object, never
+   * absent, so callers can destructure its fields without an extra
+   * existence check - each individual field stays optional/undefined when
+   * the stored chart never set it.
+   */
+  patternInfo: PatternInfo;
+  /**
    * Symbols the stored chart references that this build's library doesn't have
    * — a chart saved before a symbol was renamed or removed in Figma. They're
    * kept as placements rather than dropped, so the data survives for whoever
@@ -437,9 +504,11 @@ export type DecodedChart = {
 
 export function decode(stored: unknown, knownSymbol: (id: string) => boolean): DecodedChart {
   const chart = validate(stored);
+  const stitches = chart.stitches.filter(([, , paletteIndex]) => chart.palette[paletteIndex] !== NO_STITCH_ID);
 
   const unknown = new Set<string>();
   for (const id of chart.palette) {
+    if (id === NO_STITCH_ID) continue;
     if (!knownSymbol(id)) unknown.add(id);
   }
 
@@ -449,8 +518,9 @@ export function decode(stored: unknown, knownSymbol: (id: string) => boolean): D
   // retain the renderer's one-cell fallback, because their original span is
   // unavailable in this version of the library.
   const occupied = new Set<string>();
-  for (const [col, row, paletteIndex] of chart.stitches) {
+  for (const [col, row, paletteIndex] of stitches) {
     const symbolId = chart.palette[paletteIndex]!;
+    if (symbolId === NO_STITCH_ID) continue;
     const span = knownSymbol(symbolId) ? (getSymbol(symbolId)?.span ?? 1) : 1;
     for (let cell = col; cell < col + span; cell++) {
       const key = `${cell},${row}`;
@@ -467,7 +537,7 @@ export function decode(stored: unknown, knownSymbol: (id: string) => boolean): D
     const colorId = chart.colorPalette?.[colorIndex];
     if (colorId) colorByCell.set(cellKey(col, row), colorId);
   }
-  const placements = chart.stitches.map(([col, row, paletteIndex, groupIndex]) => {
+  const placements = stitches.map(([col, row, paletteIndex, groupIndex]) => {
     const colorId = colorByCell.get(cellKey(col, row));
     return {
       id: newPlacementId(),
@@ -485,6 +555,12 @@ export function decode(stored: unknown, knownSymbol: (id: string) => boolean): D
     repeats: chart.repeats!,
     glossaryIds: chart.glossaryIds ?? [...DEFAULT_STITCH_IDS],
     quickSymbolIds: chart.quickSymbolIds ?? [...DEFAULT_STITCH_IDS],
+    patternInfo: {
+      ...(chart.worked ? { worked: chart.worked } : null),
+      ...(chart.firstRow ? { firstRow: chart.firstRow } : null),
+      ...(chart.firstStitch ? { firstStitch: chart.firstStitch } : null),
+      ...(chart.colorNames ? { colorNames: chart.colorNames } : null),
+    },
     unknownSymbolIds: [...unknown],
     ...(chart.referenceImage ? { referenceImage: chart.referenceImage } : null),
   };

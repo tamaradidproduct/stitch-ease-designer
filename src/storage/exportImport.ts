@@ -1,9 +1,69 @@
-import type { DocMeta, Placement, ReferenceImage, RepeatDefinition } from "../model/types";
-import { getSymbol } from "../symbols/registry";
+import { chartBounds } from "../model/chartBounds";
+import { cellKey } from "../model/cellKey";
+import type { DocMeta, PatternInfo, Placement, ReferenceImage, RepeatDefinition } from "../model/types";
+import { getSymbol, spanOf } from "../symbols/registry";
 import { DEFAULT_CHART_NAME, type ChartStore } from "./ChartStore";
 import { decode, encode, type StoredChart } from "./serialize";
 import { downloadBlob, safeFilename } from "./download";
 import { resolveReferenceImageUrl, uploadReferenceImage } from "./referenceImages";
+
+/** The palette id for a cell inside the chart's rectangle where nothing was placed. */
+const NO_STITCH_ID = "no_stitch";
+
+/**
+ * Every cell in the confirmed-placement rectangle that isn't covered by a
+ * placement (span included) - what an export has to backfill with
+ * `NO_STITCH_ID`, since the importer reads a chart as a rectangle where every
+ * cell is listed explicitly. `placements` must already exclude suggestions
+ * (see `exportChart`) - an unconfirmed guess neither counts toward the
+ * rectangle nor blocks a cell from needing a fill.
+ */
+function noStitchCells(placements: readonly Placement[]): [number, number][] {
+  const bounds = chartBounds(placements);
+  if (!bounds) return [];
+
+  const covered = new Set<string>();
+  for (const p of placements) {
+    const span = spanOf(p.symbolId);
+    for (let col = p.col; col < p.col + span; col++) covered.add(cellKey(col, p.row));
+  }
+
+  const missing: [number, number][] = [];
+  for (let row = bounds.minRow; row <= bounds.maxRow; row++) {
+    for (let col = bounds.minCol; col <= bounds.maxCol; col++) {
+      if (!covered.has(cellKey(col, row))) missing.push([col, row]);
+    }
+  }
+  return missing;
+}
+
+/**
+ * Fills every unstitched cell of `stored`'s rectangle with `NO_STITCH_ID`,
+ * added as the palette's last entry (only if at least one cell needs it) so
+ * every other stitch keeps its existing palette index.
+ *
+ * Exported so the fill logic is testable directly against a plain
+ * `StoredChart`, without going through `exportChart`'s browser-only download
+ * side effect.
+ */
+export function fillNoStitchCells(stored: StoredChart, confirmedPlacements: readonly Placement[]): StoredChart {
+  const missing = noStitchCells(confirmedPlacements);
+  if (!missing.length) return stored;
+
+  const noStitchIndex = stored.palette.length;
+  const stitches = [...stored.stitches, ...missing.map(([col, row]): [number, number, number] => [
+    col,
+    row,
+    noStitchIndex,
+  ])];
+  stitches.sort(([colA, rowA], [colB, rowB]) => rowA - rowB || colA - colB);
+
+  return {
+    ...stored,
+    palette: [...stored.palette, NO_STITCH_ID],
+    stitches,
+  };
+}
 
 /**
  * Export and import a chart as a file.
@@ -39,15 +99,27 @@ export async function exportChart(
   referenceImage?: ReferenceImage,
   glossaryIds?: readonly string[],
   quickSymbolIds?: readonly string[],
+  patternInfo?: PatternInfo,
+  /** False drops the reference image from the export - e.g. before sharing a chart publicly. */
+  includeReferenceImage = true,
 ): Promise<void> {
+  // A chart is exported finished: an unconfirmed suggestion is a guess the
+  // designer hasn't signed off on, not a real stitch, so it's dropped
+  // entirely rather than exported as one - and never counts toward the
+  // rectangle `fillNoStitchCells` backfills below.
+  const confirmed = [...placements].filter((p) => !p.suggested);
+
+  const stored = encode(
+    confirmed,
+    repeats,
+    includeReferenceImage ? await exportableReferenceImage(referenceImage) : undefined,
+    glossaryIds,
+    quickSymbolIds,
+    patternInfo,
+  );
+
   const file: ChartFile = {
-    ...encode(
-      placements,
-      repeats,
-      await exportableReferenceImage(referenceImage),
-      glossaryIds,
-      quickSymbolIds,
-    ),
+    ...fillNoStitchCells(stored, confirmed),
     name,
     exportedAt: new Date().toISOString(),
   };
@@ -65,6 +137,7 @@ export type ImportedChart = {
   referenceImage?: ReferenceImage;
   glossaryIds: string[];
   quickSymbolIds: string[];
+  patternInfo: PatternInfo;
   unknownSymbolIds: string[];
 };
 
@@ -76,7 +149,7 @@ export type ImportedChart = {
 export async function importChart(file: File): Promise<ImportedChart> {
   const text = await file.text();
   const parsed: unknown = JSON.parse(text);
-  const { placements, repeats, referenceImage, glossaryIds, quickSymbolIds, unknownSymbolIds } = decode(
+  const { placements, repeats, referenceImage, glossaryIds, quickSymbolIds, patternInfo, unknownSymbolIds } = decode(
     parsed,
     (id) => !!getSymbol(id),
   );
@@ -94,6 +167,7 @@ export async function importChart(file: File): Promise<ImportedChart> {
     ...(referenceImage ? { referenceImage } : {}),
     glossaryIds,
     quickSymbolIds,
+    patternInfo,
     unknownSymbolIds,
   };
 }
@@ -107,7 +181,8 @@ export async function importChart(file: File): Promise<ImportedChart> {
  * left behind as an orphan the user never asked for and can't see yet.
  */
 export async function importChartIntoStore(store: ChartStore, file: File): Promise<DocMeta> {
-  const { name, placements, repeats, referenceImage, glossaryIds, quickSymbolIds } = await importChart(file);
+  const { name, placements, repeats, referenceImage, glossaryIds, quickSymbolIds, patternInfo } =
+    await importChart(file);
   const meta = await store.create(name);
   try {
     let importedImage: ReferenceImage | undefined;
@@ -120,7 +195,16 @@ export async function importChartIntoStore(store: ChartStore, file: File): Promi
       );
       importedImage = { ...referenceImage, ...uploaded };
     }
-    await store.save(meta.id, placements, meta.rev, repeats, importedImage, glossaryIds, quickSymbolIds);
+    await store.save(
+      meta.id,
+      placements,
+      meta.rev,
+      repeats,
+      importedImage,
+      glossaryIds,
+      quickSymbolIds,
+      patternInfo,
+    );
   } catch (error) {
     await store.remove(meta.id).catch(() => {});
     throw error;
