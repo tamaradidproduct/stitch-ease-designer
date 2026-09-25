@@ -61,6 +61,36 @@ describe("colored quick-slot promotion", () => {
 
     expect(useDocStore.getState().quickSymbolIds).toEqual(["purl::" + RED, "knit"]);
   });
+
+  it("keeps an already-promoted swatch in place instead of demoting it past the default it passed", () => {
+    // Place, promote (as above), then color the same placement - the
+    // completely normal next step after placing a new stitch.
+    useDocStore.getState().place("sl_wyif", 0, 0);
+    useDocStore.getState().addQuickSlot("sl_wyif");
+    expect(useDocStore.getState().quickSymbolIds).toEqual(["sl_wyif", "knit", "purl"]);
+    const placement = useDocStore.getState().index.placementAt(0, 0)!;
+
+    applyColorToSlot({ key: "sl_wyif", symbolId: "sl_wyif", placementIds: [placement.id] }, RED);
+
+    // sl_wyif::RED must stay ahead of "knit", the unplaced default it was
+    // already ahead of - not get walked past it to slot 0's target index.
+    expect(useDocStore.getState().quickSymbolIds).toEqual(["sl_wyif::" + RED, "knit", "purl"]);
+  });
+
+  it("does not let a still-pending Suggest guess block a genuinely placed stitch from promoting", () => {
+    // A pending (unconfirmed) suggestion of "knit" - never reviewed.
+    useDocStore.getState().place("knit", 3, 3, true);
+    // A real, confirmed placement of a brand new stitch.
+    useDocStore.getState().place("sl_wyif", 0, 0);
+
+    useDocStore.getState().addQuickSlot("sl_wyif");
+
+    // Matches the no-pending-suggestion case above: a pending guess isn't
+    // something the designer has actually drawn, so it must not count as
+    // "placed" for promotion purposes (consistent with countConfirmedStitches
+    // and selectableGlossaryEntryPlacementIds elsewhere in the glossary).
+    expect(useDocStore.getState().quickSymbolIds).toEqual(["sl_wyif", "knit", "purl"]);
+  });
 });
 
 describe("recolorQuickSlot (DNT-12 - load-bearing)", () => {

@@ -69,14 +69,6 @@ export function collectGlossarySymbols(
   });
 }
 
-/**
- * Per-symbol counts for a plain (uncolored) glossary row, excluding
- * still-pending suggestions and, per DNT-13, excluding colored placements of
- * that same symbol - a colored combo is a separate inventory line with its
- * own count. Without this exclusion a plain "Purl" row can read "3" while
- * zero actual uncolored purls exist, because every colored purl would be
- * counted twice: once on its own colored row, once folded into the plain one.
- */
 /** The confirmed placements for one stitch-and-color glossary swatch. */
 export function selectableGlossaryEntryPlacementIds(
   placements: readonly Placement[],
@@ -87,6 +79,14 @@ export function selectableGlossaryEntryPlacementIds(
     .map((placement) => placement.id);
 }
 
+/**
+ * Per-symbol counts for a plain (uncolored) glossary row, excluding
+ * still-pending suggestions and, per DNT-13, excluding colored placements of
+ * that same symbol - a colored combo is a separate inventory line with its
+ * own count. Without this exclusion a plain "Purl" row can read "3" while
+ * zero actual uncolored purls exist, because every colored purl would be
+ * counted twice: once on its own colored row, once folded into the plain one.
+ */
 export function countConfirmedStitches(placements: readonly Placement[]): Map<string, number> {
   const counts = new Map<string, number>();
   for (const placement of placements) {

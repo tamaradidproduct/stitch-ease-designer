@@ -232,20 +232,31 @@ function promoteQuickSlotOverUnplacedPlainSlots(
   key: string,
 ): string[] {
   const { colorId: keyColorId } = parseQuickSlotId(key);
-  const placements = [...index.placements.values()];
-  const placedSwatches = new Set(
-    placements.map((placement) => quickSlotKey(placement.symbolId, placement.colorId)),
-  );
-  const placedPlainSymbols = new Set(
-    placements.filter((placement) => !placement.colorId).map((placement) => placement.symbolId),
-  );
+  // Confirmed placements only, matching countConfirmedStitches/
+  // selectableGlossaryEntryPlacementIds elsewhere in the glossary: a
+  // still-pending Suggest guess isn't something the designer has actually
+  // drawn, so it must not block a genuinely-placed stitch from promoting.
+  const placedSwatches = new Set<string>();
+  const placedPlainSymbols = new Set<string>();
+  for (const placement of index.placements.values()) {
+    if (placement.suggested) continue;
+    placedSwatches.add(quickSlotKey(placement.symbolId, placement.colorId));
+    if (!placement.colorId) placedPlainSymbols.add(placement.symbolId);
+  }
   if (!keyColorId && !placedSwatches.has(key)) return [...slots];
   const targetSlot = slots.findIndex((slot) => {
     if (!slot) return false;
     const { symbolId, colorId } = parseQuickSlotId(slot);
     return !colorId && !placedPlainSymbols.has(symbolId);
   });
-  return targetSlot === -1 ? [...slots] : moveQuickSlotTo(slots, key, targetSlot);
+  if (targetSlot === -1) return [...slots];
+  // Only move left: `key` may already sit ahead of `targetSlot` (nothing to
+  // promote past), and moveQuickSlotTo walks it *to* that index regardless
+  // of direction - asking it to move right would demote an already-promoted
+  // swatch past the very unplaced default it's supposed to stay ahead of.
+  const currentIndex = slots.indexOf(key);
+  if (currentIndex !== -1 && currentIndex <= targetSlot) return [...slots];
+  return moveQuickSlotTo(slots, key, targetSlot);
 }
 
 export const useDocStore = create<DocState>((set, get) => {

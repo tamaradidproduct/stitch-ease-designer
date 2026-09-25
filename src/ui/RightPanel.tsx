@@ -464,6 +464,7 @@ export function RightPanel() {
               const count = parsed?.colorId
                 ? (coloredCounts.get(key!) ?? 0)
                 : (stitchCounts.get(symbol?.id ?? "") ?? 0);
+              const selectAllLabel = `Select all ${count} placed ${symbol?.label} stitches`;
               return key && symbol ? (
                 <div
                   key={key}
@@ -523,8 +524,8 @@ export function RightPanel() {
                     className="glossary__count glossary__selectEntry"
                     disabled={!count}
                     onClick={() => setSelection(selectableGlossaryEntryPlacementIds(placements, key), [], true)}
-                    aria-label={"Select all " + count + " placed " + symbol.label + " stitches"}
-                    title={"Select all " + count + " placed " + symbol.label + " stitches"}
+                    aria-label={selectAllLabel}
+                    title={selectAllLabel}
                   >
                     All ({count})
                   </button>
@@ -657,6 +658,7 @@ export function RightPanel() {
               const { symbol, colorId, key } = entry;
               const armed = key === quickSlotKey(armedSymbolId ?? "", activeColor) && !!armedSymbolId;
               const count = colorId ? (coloredCounts.get(key) ?? 0) : (stitchCounts.get(symbol.id) ?? 0);
+              const selectAllLabel = `Select all ${count} placed ${symbol.label} stitches`;
               return (
                 <div
                   key={key}
@@ -720,8 +722,8 @@ export function RightPanel() {
                     className="glossary__count glossary__selectEntry"
                     disabled={!count}
                     onClick={() => setSelection(selectableGlossaryEntryPlacementIds(placements, key), [], true)}
-                    aria-label={"Select all " + count + " placed " + symbol.label + " stitches"}
-                    title={"Select all " + count + " placed " + symbol.label + " stitches"}
+                    aria-label={selectAllLabel}
+                    title={selectAllLabel}
                   >
                     All ({count})
                   </button>
