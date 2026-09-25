@@ -256,6 +256,22 @@ export function shouldStartDismissStroke(
 }
 
 /**
+ * FR-41 (#225): whether a pointerdown on `existing` should be deferred as a
+ * review-vs-drag candidate rather than immediately starting a move. Only
+ * Suggest armed, landing on its own still-pending guess, with no selection
+ * modifier held - every other combination (a real stitch armed and
+ * confirming it, Shift's additive toggle, a confirmed/hand-drawn stitch)
+ * keeps the existing move-or-open-picker behavior untouched.
+ */
+export function isSuggestReviewCandidate(
+  armedSymbolId: string | null,
+  existing: { suggested?: boolean } | undefined,
+  shiftKey: boolean,
+): boolean {
+  return armedSymbolId === SUGGEST_SYMBOL_ID && !!existing?.suggested && !shiftKey;
+}
+
+/**
  * Placing, selecting, moving, and inserting stitches.
  *
  *   click empty cell (Draw)     select it and open the picker, or place the armed stitch if one's armed
@@ -334,6 +350,12 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
     let selectionPointerDown: { x: number; y: number } | null = null;
     const DRAG_THRESHOLD_PX = 5;
     let movingSelection = false;
+    // A pointerdown on a pending Suggest guess is ambiguous until the
+    // gesture resolves: a click reviews it, a drag paints a fresh Suggest
+    // stroke across it. Deferred here instead of immediately becoming a
+    // move (see FR-41) - the bug #225 fixed, where dragging across a
+    // suggestion silently relocated it instead of leaving it in place.
+    let suggestReviewCandidate: { id: string; start: Cell; mode: StrokeMode | null } | null = null;
     let constrainedStroke = false;
     let straightAxis: StraightAxis | null = null;
     let lastDrawn: { cell: Cell; key: string } | null = null;
@@ -947,6 +969,18 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         return;
       }
 
+      // Suggest armed, landing on its own pending guess (FR-41): a plain
+      // move-on-drag here would silently relocate the suggestion instead of
+      // painting a new Suggest stroke across the cells the pointer actually
+      // crosses. Defer to the first real movement instead of deciding now.
+      if (existing && isSuggestReviewCandidate(ui().armedSymbolId, existing, e.shiftKey)) {
+        e.preventDefault();
+        suggestReviewCandidate = { id: existing.id, start: cell, mode: modeHere };
+        last = cell;
+        canvas.setPointerCapture(e.pointerId);
+        return;
+      }
+
       // A single selected stitch is the edit target: keep its selection
       // visible underneath the picker. Treat pointerdown as a provisional
       // move so the picker opens only after a click is confirmed on pointerup
@@ -1049,6 +1083,34 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
     };
 
     const onPointerMove = (e: PointerEvent) => {
+      if (suggestReviewCandidate) {
+        const cell = cellAt(e);
+        if (!cell) return;
+        const { start, mode } = suggestReviewCandidate;
+        if (cell.col === start.col && cell.row === start.row) return;
+        // Real movement resolves the ambiguity as a Suggest stroke (#225):
+        // paint from the origin cell - a no-op there, since Suggest never
+        // overwrites an existing placement - through wherever the pointer
+        // has reached so far.
+        suggestReviewCandidate = null;
+        painting = true;
+        last = null;
+        constrainedStroke = false;
+        straightAxis = null;
+        currentMode = mode;
+        doc().beginStroke();
+        paint(start);
+        currentMode = modeFor(
+          e,
+          ui().armedSymbolId,
+          ui().suggestAction,
+          doc().index.placementAt(cell.col, cell.row),
+          ui().referenceImageUnrecognized.has(cellKey(cell.col, cell.row)),
+          ui().activeColor,
+        );
+        paint(cell);
+        return;
+      }
       if (movingSelection) {
         const cell = cellAt(e);
         if (!cell || !selectionStart) return;
@@ -1153,6 +1215,17 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
     };
 
     const endStroke = (e: PointerEvent) => {
+      if (suggestReviewCandidate) {
+        const candidate = suggestReviewCandidate;
+        suggestReviewCandidate = null;
+        last = null;
+        if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
+        // Never moved - a genuine click on the suggestion, so open it for
+        // review instead of the Suggest stroke a real drag would have been.
+        const ids = selectExisting(candidate.id, false);
+        openPickerForSingleSelection(ids, e, false);
+        return;
+      }
       if (movingSelection) {
         const move = ui().selectionMove;
         const moved = !!move && (move.col !== 0 || move.row !== 0);

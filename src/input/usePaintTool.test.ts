@@ -5,6 +5,7 @@ import {
   constrainToStraightAxis,
   includeEmptyCells,
   isDismissable,
+  isSuggestReviewCandidate,
   resolveGroupIds,
   modeFor,
   resolveSuggestAction,
@@ -270,6 +271,26 @@ describe("shouldStartDismissStroke", () => {
   it("does not claim a normal Suggest stroke or a real armed stitch without live Dismiss", () => {
     expect(shouldStartDismissStroke(noMods, SUGGEST_SYMBOL_ID, "suggest")).toBe(false);
     expect(shouldStartDismissStroke(noMods, "purl", "dismiss")).toBe(false);
+  });
+});
+
+describe("isSuggestReviewCandidate", () => {
+  it("defers a plain pointerdown on a pending suggestion while Suggest is armed", () => {
+    expect(isSuggestReviewCandidate(SUGGEST_SYMBOL_ID, suggested, false)).toBe(true);
+  });
+
+  it("does not defer when the target isn't a pending suggestion", () => {
+    expect(isSuggestReviewCandidate(SUGGEST_SYMBOL_ID, confirmed, false)).toBe(false);
+    expect(isSuggestReviewCandidate(SUGGEST_SYMBOL_ID, undefined, false)).toBe(false);
+  });
+
+  it("does not defer when Suggest itself isn't armed", () => {
+    expect(isSuggestReviewCandidate("purl", suggested, false)).toBe(false);
+    expect(isSuggestReviewCandidate(null, suggested, false)).toBe(false);
+  });
+
+  it("does not defer a Shift-click, which keeps its own additive-selection meaning", () => {
+    expect(isSuggestReviewCandidate(SUGGEST_SYMBOL_ID, suggested, true)).toBe(false);
   });
 });
 

@@ -14,6 +14,12 @@ import type { Placement } from "../model/types";
  * nothing to look up yet (a fresh pen with nothing under the cursor), the
  * armed pen itself. A mixed multi-selection (more than one distinct combo)
  * has no current slot at all.
+ *
+ * FR-40: a homogeneous selection only counts as "currently selected" when
+ * it accounts for every confirmed placement of that (symbol, color) combo on
+ * the whole chart - not just within the selection. Leaving one matching
+ * stitch unselected elsewhere on the canvas hides the chip, since coloring
+ * it would otherwise silently leave that other stitch a mismatched outlier.
  */
 export type CurrentSlot = {
   key: string;
@@ -29,6 +35,7 @@ export function currentSlotForPicker(
   placementsById: (id: string) => Placement | undefined,
   armedSymbolId: string | null,
   activeColor: string | null,
+  allPlacements: readonly Placement[],
 ): CurrentSlot | null {
   if (target?.selectionIds?.length) {
     const placements = target.selectionIds.flatMap((id) => {
@@ -37,10 +44,17 @@ export function currentSlotForPicker(
     });
     if (!placements.length) return null;
     const first = placements[0]!;
-    const homogeneous = placements.every(
-      (p) => p.symbolId === first.symbolId && (p.colorId ?? null) === (first.colorId ?? null),
-    );
+    const sameCombo = (p: Placement) =>
+      p.symbolId === first.symbolId && (p.colorId ?? null) === (first.colorId ?? null);
+    const homogeneous = placements.every(sameCombo);
     if (!homogeneous) return null;
+    // FR-40: every other confirmed placement sharing this combo must
+    // already be part of the selection.
+    const selectedIds = new Set(target.selectionIds);
+    const missesAnInstance = allPlacements.some(
+      (p) => !p.suggested && sameCombo(p) && !selectedIds.has(p.id),
+    );
+    if (missesAnInstance) return null;
     return {
       key: quickSlotKey(first.symbolId, first.colorId),
       symbolId: first.symbolId,

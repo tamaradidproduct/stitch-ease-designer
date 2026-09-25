@@ -402,16 +402,13 @@ export function RightPanel() {
                       />
                     </svg>
                   </span>
-                  <span className="glossary__label">Suggest</span>
-                  <span
-                    className="glossary__count"
-                    title={
-                      suggestTaughtCount > 0
-                        ? `Recognizes ${suggestTaughtCount} stitch type${suggestTaughtCount === 1 ? "" : "s"} you've confirmed over the reference image`
-                        : "Confirm at least one stitch over the reference image first"
-                    }
-                  >
-                    {suggestTaughtCount}
+                  <span className="glossary__labelGroup">
+                    <span className="glossary__label">Suggest</span>
+                    <span className="glossary__subtitle">
+                      {suggestTaughtCount > 0
+                        ? `Recognizes ${suggestTaughtCount} stitch type${suggestTaughtCount === 1 ? "" : "s"}`
+                        : "Confirm a stitch to enable Suggest"}
+                    </span>
                   </span>
                 </button>
                 {armedSymbolId === SUGGEST_SYMBOL_ID && tool === "stitch" ? (

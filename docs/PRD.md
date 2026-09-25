@@ -193,6 +193,12 @@ no toolDock button highlighted, stroke is a no-op.
   symbol with only a pending suggestion look removable when it isn't.
   Implemented as `symbolsWithAnyPlacement(placements)` in
   `src/ui/chartGlossary.ts`.
+- **FR-39 (added this session, #199).** The Suggest glossary row shows a
+  short subtitle under the "Suggest" label instead of a bare numeric badge —
+  "Confirm a stitch to enable Suggest" at zero, "Recognizes 1 stitch type" at
+  one, "Recognizes N stitch types" otherwise. Same underlying count
+  (`suggestTaughtCount`) as before; only its presentation changed, since the
+  numeric badge alone wasn't discoverable without hovering its tooltip.
 
 #### Gotchas hit while building this (read before touching modifier logic)
 
@@ -304,6 +310,20 @@ incidental `Opt`/`Alt` tap could trigger during an otherwise-ordinary
 marquee drag. See `includeEmptyCells` in `usePaintTool.ts`'s
 `onPointerMove`.
 
+**FR-41 (added this session, #225).** Suggest armed, pointerdown landing on
+its own still-pending guess, no selection modifier held: the gesture is
+ambiguous between reviewing it (a click) and painting a new Suggest stroke
+across it (a drag), so the decision is deferred to the first real movement
+instead of immediately starting a move. No movement by pointerup → open the
+suggestion for review, same as before. Real movement → run a normal Suggest
+paint stroke starting from the origin cell (a no-op there, since Suggest
+already never overwrites an existing placement) through the cells the drag
+actually crosses. Every other combination — a real stitch armed and landing
+on a suggestion (FR-11's override), Shift's additive selection toggle, a
+drag starting on a confirmed/hand-drawn stitch — is unaffected; this only
+changes what starting a gesture on a *pending* suggestion while Suggest
+itself is armed does. See `isSuggestReviewCandidate` in `usePaintTool.ts`.
+
 #### Do not touch (Suggest)
 
 - **DNT-2.** Suggest's own template-matching internals (confidence thresholds, exemplar
@@ -411,6 +431,17 @@ stitch or selection — not buried in the search placeholder.
 member already shares the same (symbol, color) combo. A mixed selection
 shows no chip; recoloring it is reachable only by picking a different pen
 outright.
+
+**FR-40 (added this session, #211/#224, narrows FR-33).** A homogeneous
+selection only counts as "currently selected" for chip purposes when it also
+covers *every* confirmed placement of that (symbol, color) combo on the
+chart — not just a homogeneous subset. Leaving one matching stitch outside
+the selection hides the chip entirely, rather than letting a subset recolor
+happen and leave that other stitch a mismatched outlier. A still-`.suggested`
+placement (pending Suggest review) doesn't count as an "other instance" for
+this check. This replaces the subset-recolor workflow FR-33 previously
+allowed; FR-34's add-only chips are unaffected, since they never touch
+existing placements regardless of how many plain instances exist.
 
 **FR-34.** A symbol that isn't currently armed can still get a new colored
 variant without painting anything, from the picker's "more stitches" drawer
