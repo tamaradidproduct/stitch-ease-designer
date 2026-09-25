@@ -418,6 +418,17 @@ member already shares the same (symbol, color) combo. A mixed selection
 shows no chip; recoloring it is reachable only by picking a different pen
 outright.
 
+**FR-40 (added this session, #211/#224, narrows FR-33).** A homogeneous
+selection only counts as "currently selected" for chip purposes when it also
+covers *every* confirmed placement of that (symbol, color) combo on the
+chart — not just a homogeneous subset. Leaving one matching stitch outside
+the selection hides the chip entirely, rather than letting a subset recolor
+happen and leave that other stitch a mismatched outlier. A still-`.suggested`
+placement (pending Suggest review) doesn't count as an "other instance" for
+this check. This replaces the subset-recolor workflow FR-33 previously
+allowed; FR-34's add-only chips are unaffected, since they never touch
+existing placements regardless of how many plain instances exist.
+
 **FR-34.** A symbol that isn't currently armed can still get a new colored
 variant without painting anything, from the picker's "more stitches" drawer
 or the glossary panel — each plain row (slotted or not) gets a small
