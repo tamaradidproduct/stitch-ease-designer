@@ -46,8 +46,11 @@ const MIN_CALIBRATION_PX = 5;
 
 type Rect = { x: number; y: number; width: number; height: number };
 
+/** Which image a gesture targets, carried on every `Drag` variant below - captured once, at pointerdown, rather than re-read from "whichever image is active" every frame. */
+type DragTarget = { imageId: string };
+
 type Drag =
-  | {
+  | (DragTarget & {
       mode: "move";
       startWorldX: number;
       startWorldY: number;
@@ -58,8 +61,8 @@ type Drag =
       height: number;
       /** Null when uncalibrated, which is also when there's nothing to snap. */
       pin: { u: number; v: number } | null;
-    }
-  | {
+    })
+  | (DragTarget & {
       mode: "scale";
       handle: BoxHandle;
       startWorld: Point;
@@ -71,8 +74,8 @@ type Drag =
        * case the drag anchors the corner opposite the one being dragged.
        */
       pin: { point: Point; u: number; v: number } | null;
-    }
-  | {
+    })
+  | (DragTarget & {
       /**
        * Resizing the calibrated stitch box itself, which is really a
        * recalibration: the image is rescaled so the box the user is dragging
@@ -84,9 +87,9 @@ type Drag =
       anchorWorld: Point;
       /** ...and as a fraction of the image, which the rescale preserves. */
       anchorFrac: { x: number; y: number };
-    }
-  | { mode: "calibrate"; start: Point }
-  | {
+    })
+  | (DragTarget & { mode: "calibrate"; start: Point })
+  | (DragTarget & {
       /**
        * Sliding an already-boxed stitch onto the right one. Boxes are a few
        * dozen source pixels across, so being able to correct one without
@@ -97,21 +100,24 @@ type Drag =
       /** Grab offset within the box, so it doesn't jump to the cursor. */
       grabU: number;
       grabV: number;
-    }
-  | {
+    })
+  | (DragTarget & {
       /** Dragging out a new box around a stitch, exactly as calibration does. */
       mode: "markDraw";
       start: Point;
-    };
+    });
 
-// One entry, keyed by ref: adding a numbered reference point calls this
-// again for every mark (up to four), and re-decoding a large photo each
-// time is expensive enough to visibly lag the marking flow. The image
-// itself never changes mid-calibration, so the same decode can be reused.
-let cachedReferencePixels: { ref: string; data: ImageData } | null = null;
+// One entry per ref: adding a numbered reference point calls this again for
+// every mark (up to four), and re-decoding a large photo each time is
+// expensive enough to visibly lag the marking flow. An image's pixels never
+// change mid-calibration, so the same decode can be reused - keyed rather
+// than a single slot so calibrating one image doesn't evict another's
+// already-decoded pixels.
+const referencePixelsCache = new Map<string, ImageData>();
 
 async function loadReferencePixels(ref: string): Promise<ImageData> {
-  if (cachedReferencePixels?.ref === ref) return cachedReferencePixels.data;
+  const cached = referencePixelsCache.get(ref);
+  if (cached) return cached;
   const url = await resolveReferenceImageUrl(ref);
   const element = new Image();
   element.crossOrigin = "anonymous";
@@ -124,7 +130,7 @@ async function loadReferencePixels(ref: string): Promise<ImageData> {
   if (!context) throw new Error("Could not inspect the reference image");
   context.drawImage(element, 0, 0);
   const data = context.getImageData(0, 0, canvas.width, canvas.height);
-  cachedReferencePixels = { ref, data };
+  referencePixelsCache.set(ref, data);
   return data;
 }
 
@@ -371,6 +377,11 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
 
     let drag: Drag | null = null;
 
+    const getActiveImage = (): ReferenceImage | null =>
+      useDocStore
+        .getState()
+        .referenceImages.find((img) => img.id === useUiStore.getState().activeReferenceImageId) ?? null;
+
     const worldAt = (e: PointerEvent) => {
       const rect = getRect();
       const { camera, viewport } = useUiStore.getState();
@@ -384,7 +395,7 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
       // returning here lets the subsequently registered pan handler take
       // the same pointerdown and move the canvas instead.
       if (useUiStore.getState().spaceHeld || useUiStore.getState().panEnabled) return;
-      const image = useDocStore.getState().referenceImage;
+      const image = getActiveImage();
       if (!image) return;
 
       const w = worldAt(e);
@@ -395,7 +406,7 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
       if (useUiStore.getState().referenceImageCalibrating) {
         e.preventDefault();
         e.stopImmediatePropagation();
-        drag = { mode: "calibrate", start: w };
+        drag = { mode: "calibrate", start: w, imageId: image.id };
         useUiStore.getState().setReferenceImageCalibrationRejected(false);
         useUiStore.getState().setReferenceImageCalibrationBox({ start: w, current: w });
         canvas.setPointerCapture(e.pointerId);
@@ -427,15 +438,16 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
             id: existing.id,
             grabU: (w.x - image.x) / image.width - existing.u,
             grabV: (w.y - image.y) / image.height - existing.v,
+            imageId: image.id,
           };
-          useDocStore.getState().beginReferenceImageEdit();
+          useDocStore.getState().beginReferenceImageEdit(image.id);
           canvas.setPointerCapture(e.pointerId);
           return;
         }
 
         // Otherwise draw a new box, the same gesture as "Set stitch size".
         useUiStore.getState().setReferenceImageActiveMark(null);
-        drag = { mode: "markDraw", start: w };
+        drag = { mode: "markDraw", start: w, imageId: image.id };
         useUiStore.getState().setReferenceImageCalibrationBox({ start: w, current: w });
         canvas.setPointerCapture(e.pointerId);
         return;
@@ -477,6 +489,7 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
             x: (anchor.x - image.x) / image.width,
             y: (anchor.y - image.y) / image.height,
           },
+          imageId: image.id,
         };
       } else if (handle) {
         drag = {
@@ -488,6 +501,7 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
             stitch && image.stitchPin
               ? { point: { x: stitch.x, y: stitch.y }, u: image.stitchPin.u, v: image.stitchPin.v }
               : null,
+          imageId: image.id,
         };
       } else {
         drag = {
@@ -499,11 +513,12 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
           width: image.width,
           height: image.height,
           pin: image.stitchPin ? { ...image.stitchPin } : null,
+          imageId: image.id,
         };
       }
       canvas.setPointerCapture(e.pointerId);
       if (drag.mode === "move" || drag.mode === "scale" || drag.mode === "stitchResize") {
-        useDocStore.getState().beginReferenceImageEdit();
+        useDocStore.getState().beginReferenceImageEdit(image.id);
       }
     };
 
@@ -515,7 +530,7 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
      */
     const syncHandleHover = (e: PointerEvent) => {
       const ui = useUiStore.getState();
-      const image = useDocStore.getState().referenceImage;
+      const image = getActiveImage();
       const next =
         ui.referenceImagePanelOpen && !ui.referenceImageCalibrating && image?.visible
           ? handleAt(image, worldAt(e), ui.camera.zoom)
@@ -542,6 +557,7 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
         useDocStore
           .getState()
           .updateReferenceImage(
+            drag.imageId,
             drag.pin && !e.altKey ? snapImageToGrid(x, y, drag, drag.pin) : { x, y },
           );
       } else if (drag.mode === "scale") {
@@ -568,7 +584,7 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
           // Once calibrated, the boxed stitch is what holds still whichever
           // handle you grab - so a chart that's been lined up with the grid
           // doesn't come unaligned just because it was resized.
-          useDocStore.getState().updateReferenceImage({
+          useDocStore.getState().updateReferenceImage(drag.imageId, {
             width,
             height,
             x: drag.pin.point.x - drag.pin.u * width,
@@ -577,7 +593,7 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
         } else {
           // Uncalibrated, the opposite side stays put - ordinary resize
           // behaviour. An axis the handle doesn't touch keeps its origin.
-          useDocStore.getState().updateReferenceImage({
+          useDocStore.getState().updateReferenceImage(drag.imageId, {
             width,
             height,
             x: sx === -1 ? drag.start.x + drag.start.width - width : drag.start.x,
@@ -592,15 +608,15 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
           w,
           useUiStore.getState().camera.zoom,
         );
-        if (next) useDocStore.getState().updateReferenceImage(next);
+        if (next) useDocStore.getState().updateReferenceImage(drag.imageId, next);
       } else if (drag.mode === "markMove") {
         // Bound to a const so the narrowing survives into the callback -
         // `drag` is reassignable, so TypeScript widens it again inside one.
-        const { id, grabU, grabV } = drag;
-        const img = useDocStore.getState().referenceImage;
+        const { id, grabU, grabV, imageId } = drag;
+        const img = useDocStore.getState().referenceImages.find((i) => i.id === imageId);
         const mark = img?.calibrationMarks?.find((m) => m.id === id);
         if (!img || !mark) return;
-        useDocStore.getState().updateReferenceImage({
+        useDocStore.getState().updateReferenceImage(imageId, {
           calibrationMarks: patchCalibrationMark(img.calibrationMarks, id, {
             u: Math.max(0, Math.min(1 - mark.w, (w.x - img.x) / img.width - grabU)),
             v: Math.max(0, Math.min(1 - mark.h, (w.y - img.y) / img.height - grabV)),
@@ -639,7 +655,7 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
         // Pixel inspection may be unavailable for a cross-origin image. The
         // hand-drawn box remains a valid reference point in that case.
       }
-      const current = useDocStore.getState().referenceImage;
+      const current = useDocStore.getState().referenceImages.find((img) => img.id === sourceImage.id);
       if (!current || current.ref !== sourceImage.ref) return;
       const box = detectedBox ? pixelBoxToWorld(current, detectedBox) : roughBox;
       ui.setReferenceImageGridAlignmentStatus(detectedBox ? "idle" : "failed");
@@ -666,7 +682,7 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
           snapped = snapImageToGrid(aligned.x, aligned.y, aligned, aligned.stitchPin);
         }
       }
-      useDocStore.getState().updateReferenceImage({
+      useDocStore.getState().updateReferenceImage(current.id, {
         ...initialScale,
         ...snapped,
         calibrationMarks: addCalibrationMark(current.calibrationMarks, mark),
@@ -683,15 +699,16 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
         drag.mode === "stitchResize" ||
         drag.mode === "markMove";
       e.stopImmediatePropagation();
+      const draggedImageId = drag.imageId;
       if (drag.mode === "calibrate") {
         const box = useUiStore.getState().referenceImageCalibrationBox;
-        const image = useDocStore.getState().referenceImage;
+        const image = useDocStore.getState().referenceImages.find((img) => img.id === draggedImageId);
         const transform =
           box && image
             ? calibrationTransform(image, box, useUiStore.getState().camera.zoom)
             : null;
-        if (transform) {
-          useDocStore.getState().updateReferenceImage(transform);
+        if (transform && image) {
+          useDocStore.getState().updateReferenceImage(image.id, transform);
           useUiStore.getState().setReferenceImageCalibrating(false);
         } else {
           // Stay armed and say so, rather than dropping out of the mode with
@@ -702,7 +719,7 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
         useUiStore.getState().setReferenceImageCalibrationBox(null);
       } else if (drag.mode === "markDraw") {
         const box = useUiStore.getState().referenceImageCalibrationBox;
-        const image = useDocStore.getState().referenceImage;
+        const image = useDocStore.getState().referenceImages.find((img) => img.id === draggedImageId);
         useUiStore.getState().setReferenceImageCalibrationBox(null);
         if (box && image) {
           void addReferenceMark(box, image, useUiStore.getState().camera.zoom);

@@ -28,6 +28,7 @@ export const RENDER_UI_FIELDS = [
   "stitchHighlightOpacity",
   "selectionBox",
   "selectionMove",
+  "activeReferenceImageId",
   "referenceImagePanelOpen",
   "referenceImageCalibrating",
   "referenceImageCalibrationBox",
@@ -50,7 +51,7 @@ type RenderStateUiKeys = Exclude<
   | "index"
   | "revision"
   | "sprites"
-  | "referenceImage"
+  | "referenceImages"
   | "referenceImageCache"
   | "referenceImageMarks"
   | "pickerTarget"

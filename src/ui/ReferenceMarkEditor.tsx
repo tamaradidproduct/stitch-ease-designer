@@ -25,7 +25,8 @@ export function ReferenceMarkEditor() {
   const marking = useUiStore((s) => s.referenceImageMarking);
   const camera = useUiStore((s) => s.camera);
   const viewport = useUiStore((s) => s.viewport);
-  const image = useDocStore((s) => s.referenceImage);
+  const activeImageId = useUiStore((s) => s.activeReferenceImageId);
+  const image = useDocStore((s) => s.referenceImages.find((img) => img.id === activeImageId) ?? null);
   const updateReferenceImage = useDocStore((s) => s.updateReferenceImage);
   const rowInput = useRef<HTMLButtonElement | null>(null);
   const stitchInput = useRef<HTMLButtonElement | null>(null);
@@ -74,12 +75,12 @@ export function ReferenceMarkEditor() {
   const left = squareRight.x + GAP;
 
   const set = (patch: { stitch?: number | null; row?: number | null }) =>
-    updateReferenceImage({
+    updateReferenceImage(image.id, {
       calibrationMarks: patchCalibrationMark(image.calibrationMarks, point.id, patch),
     });
 
   const remove = () => {
-    updateReferenceImage({
+    updateReferenceImage(image.id, {
       calibrationMarks: withoutCalibrationMark(image.calibrationMarks, point.id),
     });
     setActive(null);

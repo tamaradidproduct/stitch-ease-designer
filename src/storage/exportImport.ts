@@ -5,7 +5,7 @@ import { getSymbol, spanOf } from "../symbols/registry";
 import { DEFAULT_CHART_NAME, type ChartStore } from "./ChartStore";
 import { decode, encode, type StoredChart } from "./serialize";
 import { downloadBlob, safeFilename } from "./download";
-import { resolveReferenceImageUrl, uploadReferenceImage } from "./referenceImages";
+import { removeReferenceImageFile, resolveReferenceImageUrl, uploadReferenceImage } from "./referenceImages";
 
 /** The palette id for a cell inside the chart's rectangle where nothing was placed. */
 const NO_STITCH_ID = "no_stitch";
@@ -85,8 +85,8 @@ const dataUrlFor = (blob: Blob): Promise<string> =>
     reader.readAsDataURL(blob);
   });
 
-async function exportableReferenceImage(image?: ReferenceImage): Promise<ReferenceImage | undefined> {
-  if (!image || image.ref.startsWith("data:")) return image;
+async function exportableReferenceImage(image: ReferenceImage): Promise<ReferenceImage> {
+  if (image.ref.startsWith("data:")) return image;
   const response = await fetch(await resolveReferenceImageUrl(image.ref));
   if (!response.ok) throw new Error("Could not include reference image in export");
   return { ...image, ref: await dataUrlFor(await response.blob()) };
@@ -96,11 +96,11 @@ export async function exportChart(
   name: string,
   placements: Iterable<Placement>,
   repeats: RepeatDefinition[] = [],
-  referenceImage?: ReferenceImage,
+  referenceImages: ReferenceImage[] = [],
   glossaryIds?: readonly string[],
   quickSymbolIds?: readonly string[],
   patternInfo?: PatternInfo,
-  /** False drops the reference image from the export - e.g. before sharing a chart publicly. */
+  /** False drops every reference image from the export - e.g. before sharing a chart publicly. */
   includeReferenceImage = true,
 ): Promise<void> {
   // A chart is exported finished: an unconfirmed suggestion is a guess the
@@ -112,7 +112,7 @@ export async function exportChart(
   const stored = encode(
     confirmed,
     repeats,
-    includeReferenceImage ? await exportableReferenceImage(referenceImage) : undefined,
+    includeReferenceImage ? await Promise.all(referenceImages.map(exportableReferenceImage)) : [],
     glossaryIds,
     quickSymbolIds,
     patternInfo,
@@ -134,7 +134,7 @@ export type ImportedChart = {
   name: string;
   placements: Placement[];
   repeats: RepeatDefinition[];
-  referenceImage?: ReferenceImage;
+  referenceImages: ReferenceImage[];
   glossaryIds: string[];
   quickSymbolIds: string[];
   patternInfo: PatternInfo;
@@ -149,7 +149,7 @@ export type ImportedChart = {
 export async function importChart(file: File): Promise<ImportedChart> {
   const text = await file.text();
   const parsed: unknown = JSON.parse(text);
-  const { placements, repeats, referenceImage, glossaryIds, quickSymbolIds, patternInfo, unknownSymbolIds } = decode(
+  const { placements, repeats, referenceImages, glossaryIds, quickSymbolIds, patternInfo, unknownSymbolIds } = decode(
     parsed,
     (id) => !!getSymbol(id),
   );
@@ -164,7 +164,7 @@ export async function importChart(file: File): Promise<ImportedChart> {
     name,
     placements,
     repeats,
-    ...(referenceImage ? { referenceImage } : {}),
+    referenceImages,
     glossaryIds,
     quickSymbolIds,
     patternInfo,
@@ -181,31 +181,44 @@ export async function importChart(file: File): Promise<ImportedChart> {
  * left behind as an orphan the user never asked for and can't see yet.
  */
 export async function importChartIntoStore(store: ChartStore, file: File): Promise<DocMeta> {
-  const { name, placements, repeats, referenceImage, glossaryIds, quickSymbolIds, patternInfo } =
+  const { name, placements, repeats, referenceImages, glossaryIds, quickSymbolIds, patternInfo } =
     await importChart(file);
   const meta = await store.create(name);
+  const importedImages: ReferenceImage[] = [];
   try {
-    let importedImage: ReferenceImage | undefined;
-    if (referenceImage?.ref.startsWith("data:")) {
-      const response = await fetch(referenceImage.ref);
+    for (const image of referenceImages) {
+      if (!image.ref.startsWith("data:")) {
+        importedImages.push(image);
+        continue;
+      }
+      const response = await fetch(image.ref);
       const blob = await response.blob();
       const uploaded = await uploadReferenceImage(
         meta.id,
         new File([blob], "reference-image", { type: blob.type || "image/png" }),
+        image.id,
       );
-      importedImage = { ...referenceImage, ...uploaded };
+      importedImages.push({ ...image, ...uploaded });
     }
     await store.save(
       meta.id,
       placements,
       meta.rev,
       repeats,
-      importedImage,
+      importedImages,
       glossaryIds,
       quickSymbolIds,
       patternInfo,
     );
   } catch (error) {
+    // Clean up whichever images already finished uploading before the
+    // failure, so a partial import doesn't orphan Storage files that the
+    // about-to-be-removed chart can no longer reference.
+    await Promise.all(
+      importedImages
+        .filter((image) => !image.ref.startsWith("data:"))
+        .map((image) => removeReferenceImageFile(image.ref).catch(() => {})),
+    );
     await store.remove(meta.id).catch(() => {});
     throw error;
   }

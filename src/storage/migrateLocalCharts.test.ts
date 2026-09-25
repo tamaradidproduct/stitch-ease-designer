@@ -5,6 +5,8 @@ import { createMemoryChartStore } from "./keyValueChartStore";
 import { migrateLocalCharts } from "./migrateLocalCharts";
 
 const referenceImage: ReferenceImage = {
+  id: "image-1",
+  number: 1,
   ref: "data:image/png;base64,AAAA",
   x: 0,
   y: 0,
@@ -101,7 +103,7 @@ describe("migrateLocalCharts", () => {
   it("carries a chart's reference image over to the target, re-uploaded rather than reused as-is", async () => {
     const source = createMemoryChartStore();
     const meta = await source.create("Peacock yoke");
-    await source.save(meta.id, [], meta.rev, [], referenceImage);
+    await source.save(meta.id, [], meta.rev, [], [referenceImage]);
 
     const target = createMemoryChartStore();
     const calls: { targetChartId: string; image: ReferenceImage }[] = [];
@@ -120,13 +122,36 @@ describe("migrateLocalCharts", () => {
     expect(calls).toEqual([{ targetChartId: targetMeta.id, image: referenceImage }]);
 
     const migratedChart = await target.load(targetMeta.id);
-    expect(migratedChart.referenceImage).toEqual(migratedRef);
+    expect(migratedChart.referenceImages).toEqual([migratedRef]);
+  });
+
+  it("re-uploads every reference image on a chart with more than one", async () => {
+    const source = createMemoryChartStore();
+    const meta = await source.create("Peacock yoke");
+    const second: ReferenceImage = { ...referenceImage, id: "image-2", ref: "data:image/png;base64,BBBB" };
+    await source.save(meta.id, [], meta.rev, [], [referenceImage, second]);
+
+    const target = createMemoryChartStore();
+    const calls: { targetChartId: string; image: ReferenceImage }[] = [];
+    const migrateImage = async (targetChartId: string, image: ReferenceImage) => {
+      calls.push({ targetChartId, image });
+      return { ...image, ref: `uid/new-chart-id/${image.id}.png` };
+    };
+
+    const result = await migrateLocalCharts(source, target, migrateImage);
+
+    expect(result.failed).toEqual([]);
+    const targetMeta = (await target.list())[0]!;
+    expect(calls.map((c) => c.image.id)).toEqual(["image-1", "image-2"]);
+
+    const migratedChart = await target.load(targetMeta.id);
+    expect(migratedChart.referenceImages).toHaveLength(2);
   });
 
   it("leaves a chart with a reference image in the source when re-uploading the image fails", async () => {
     const source = createMemoryChartStore();
     const meta = await source.create("Peacock yoke");
-    await source.save(meta.id, [], meta.rev, [], referenceImage);
+    await source.save(meta.id, [], meta.rev, [], [referenceImage]);
 
     const target = createMemoryChartStore();
     const migrateImage = async () => {
@@ -146,7 +171,7 @@ describe("migrateLocalCharts", () => {
   it("removes the just-created target chart if the save after a successful image migration fails", async () => {
     const source = createMemoryChartStore();
     const meta = await source.create("Peacock yoke");
-    await source.save(meta.id, [], meta.rev, [], referenceImage);
+    await source.save(meta.id, [], meta.rev, [], [referenceImage]);
 
     const target = createMemoryChartStore();
     const flakyTarget: ChartStore = {

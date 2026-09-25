@@ -108,6 +108,35 @@ export function scaleFromCalibrationMarks(
 const clamp01 = (n: number): number => Math.max(0, Math.min(1, n));
 
 /**
+ * The rectangle, in image-fraction space (0..1, same units as a mark's own
+ * `u`/`v`/`w`/`h`), spanning every *named* mark on the image - the stitches
+ * the designer has boxed and typed a row/stitch number for, not just boxed.
+ * An unnamed box isn't a confirmed corner yet, so it's excluded the same way
+ * `scaleFromCalibrationMarks` excludes it from the fit.
+ *
+ * Null when nothing is named yet - an image with no confirmed stitches has
+ * no known region to crop to.
+ */
+export function calibratedImageBounds(
+  marks: CalibrationMark[],
+): { minU: number; maxU: number; minV: number; maxV: number } | null {
+  const named = marks.filter((m) => m.stitch !== null && m.row !== null);
+  if (!named.length) return null;
+
+  let minU = Infinity;
+  let maxU = -Infinity;
+  let minV = Infinity;
+  let maxV = -Infinity;
+  for (const m of named) {
+    minU = Math.min(minU, m.u);
+    maxU = Math.max(maxU, m.u + m.w);
+    minV = Math.min(minV, m.v);
+    maxV = Math.max(maxV, m.v + m.h);
+  }
+  return { minU, maxU, minV, maxV };
+}
+
+/**
  * Nudges a candidate image position so the calibrated stitch lands squarely
  * on a grid cell.
  *

@@ -2,6 +2,7 @@ import type { DocIndex } from "../model/docIndex";
 import { canInsertAt } from "../model/ops";
 import { rowDirectionAt } from "../model/rowDirection";
 import { chartTopology, knittedRowNumbers, roundStitchNumbers } from "../model/stitchNumbers";
+import { calibratedImageBounds } from "../model/referenceCalibration";
 import { CORNERS, cornerPoint, stitchBoxRect, type CalibrationMark, type ReferenceImage } from "../model/types";
 import { getSymbol } from "../symbols/registry";
 import { getSwatch, glyphInkFor } from "../model/colorPalette";
@@ -32,7 +33,9 @@ export type RenderState = {
   index: DocIndex;
   revision: number;
   sprites: SpriteCache;
-  referenceImage: ReferenceImage | null;
+  referenceImages: ReferenceImage[];
+  /** Which image the panel/tool/overlay currently target - only one is ever interactively edited at a time. */
+  activeReferenceImageId: string | null;
   referenceImageCache: ReferenceImageCache;
   /**
    * While the reference-image panel is open, it owns the canvas: every
@@ -638,9 +641,13 @@ function drawUnrecognizedCells(ctx: CanvasRenderingContext2D, state: RenderState
 }
 
 function drawReferenceImageOverlay(ctx: CanvasRenderingContext2D, state: RenderState): void {
-  const { referenceImagePanelOpen, referenceImage, referenceImageCalibrationBox, referenceImageMarks, referenceImageActiveMark, referenceImageMarking, camera: cam, viewport: vp } =
+  const { referenceImagePanelOpen, referenceImages, activeReferenceImageId, referenceImageCalibrationBox, referenceImageMarks, referenceImageActiveMark, referenceImageMarking, camera: cam, viewport: vp } =
     state;
   if (!referenceImagePanelOpen) return;
+
+  // Handles, the calibrated stitch box, and marks all target whichever
+  // image is active - only one image is ever interactively edited at a time.
+  const referenceImage = referenceImages.find((img) => img.id === activeReferenceImageId) ?? null;
 
   if (referenceImage?.visible) {
     const topLeft = worldToScreen(referenceImage.x, referenceImage.y + referenceImage.height, cam, vp);
@@ -861,18 +868,55 @@ function drawHover(ctx: CanvasRenderingContext2D, state: RenderState): void {
  * chart itself grows upward); `width`/`height` are independent so the image
  * can be stretched to match a source chart whose stitches aren't square.
  */
-function drawReferenceImage(ctx: CanvasRenderingContext2D, state: RenderState): void {
-  const { referenceImage, referenceImageCache, camera: cam, viewport: vp } = state;
-  if (!referenceImage || !referenceImage.visible) return;
+function drawReferenceImage(
+  ctx: CanvasRenderingContext2D,
+  image: ReferenceImage,
+  cache: ReferenceImageCache,
+  cam: Camera,
+  vp: Viewport,
+): void {
+  if (!image.visible) return;
 
-  const img = referenceImageCache.get(referenceImage.ref);
+  const img = cache.get(image.ref);
   if (!img) return;
 
-  const { x, y, width, height, opacity } = referenceImage;
+  const { x, y, width, height, opacity } = image;
   const topLeft = worldToScreen(x, y + height, cam, vp);
   const bottomRight = worldToScreen(x + width, y, cam, vp);
 
   ctx.save();
+  // Clips the *drawing* only - x/y/width/height above are untouched, so
+  // turning this off always shows the whole image again. Keyed off this
+  // image's own named calibration marks, not the chart's placements -
+  // those live in a different coordinate space entirely, and an image can
+  // be calibrated before a single stitch is placed. Silently a no-op until
+  // at least one mark is named, rather than clipping to an empty rectangle
+  // and hiding the image entirely.
+  const calibratedBounds = image.cropToCalibration
+    ? calibratedImageBounds(image.calibrationMarks ?? [])
+    : null;
+  if (calibratedBounds) {
+    const clipTopLeft = worldToScreen(
+      x + calibratedBounds.minU * width,
+      y + calibratedBounds.maxV * height,
+      cam,
+      vp,
+    );
+    const clipBottomRight = worldToScreen(
+      x + calibratedBounds.maxU * width,
+      y + calibratedBounds.minV * height,
+      cam,
+      vp,
+    );
+    ctx.beginPath();
+    ctx.rect(
+      clipTopLeft.x,
+      clipTopLeft.y,
+      clipBottomRight.x - clipTopLeft.x,
+      clipBottomRight.y - clipTopLeft.y,
+    );
+    ctx.clip();
+  }
   ctx.globalAlpha = opacity;
   ctx.drawImage(
     img,
@@ -891,17 +935,22 @@ export function render(ctx: CanvasRenderingContext2D, state: RenderState): void 
   ctx.fillRect(0, 0, vp.width, vp.height);
 
   // During scale setup, the chart grid and placed stitches must stay visible
-  // even if this image normally sits in front. Otherwise a pale or opaque
+  // even if an image normally sits in front. Otherwise a pale or opaque
   // chart scan can turn the whole canvas into a blank-looking sheet as soon
   // as a reference-point button is pressed.
-  const imageInFront = !!state.referenceImage?.inFront && !state.referenceImageMarking;
+  const forceBehind = state.referenceImageMarking;
   // Behind the chart by default; in front when the designer wants to check
   // their stitches against the source by eye (then it's a statement about
-  // the photo rather than about the chart).
-  if (!imageInFront) drawReferenceImage(ctx, state);
+  // the photo rather than about the chart). Drawn in array order within
+  // each group, so a later-added image layers on top of an earlier one.
+  for (const image of state.referenceImages) {
+    if (!image.inFront || forceBehind) drawReferenceImage(ctx, image, state.referenceImageCache, state.camera, vp);
+  }
   drawGrid(ctx, state.camera, vp, theme);
   drawPlacements(ctx, state);
-  if (imageInFront) drawReferenceImage(ctx, state);
+  for (const image of state.referenceImages) {
+    if (image.inFront && !forceBehind) drawReferenceImage(ctx, image, state.referenceImageCache, state.camera, vp);
+  }
   drawGroupNumbering(ctx, state);
   drawInsertAnimation(ctx, state);
   drawSelection(ctx, state);

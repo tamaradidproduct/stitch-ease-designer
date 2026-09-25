@@ -64,7 +64,9 @@ export function CanvasView() {
       if (s.referenceImageCalibrating || s.referenceImageMarking) {
         return "crosshair";
       }
-      const image = useDocStore.getState().referenceImage;
+      const image = useDocStore
+        .getState()
+        .referenceImages.find((img) => img.id === s.activeReferenceImageId);
       // An expanded module isn't itself a canvas mode. Only an editable,
       // visible image takes over the cursor; otherwise the chosen stitch
       // tool below (including Erase) remains in control.
@@ -235,7 +237,8 @@ export function CanvasView() {
       dirty.current = false;
 
       const { picker, ...renderUiFields } = pickRenderUiFields(useUiStore.getState());
-      const { index, revision, referenceImage } = useDocStore.getState();
+      const { index, revision, referenceImages: docReferenceImages } = useDocStore.getState();
+      const activeImage = docReferenceImages.find((img) => img.id === renderUiFields.activeReferenceImageId);
       const dpr = window.devicePixelRatio || 1;
 
       ctx.save();
@@ -246,9 +249,9 @@ export function CanvasView() {
         index,
         revision,
         sprites,
-        referenceImage,
+        referenceImages: docReferenceImages,
         referenceImageCache: referenceImages,
-        referenceImageMarks: referenceImage?.calibrationMarks ?? [],
+        referenceImageMarks: activeImage?.calibrationMarks ?? [],
         pickerTarget: picker,
       });
       ctx.restore();

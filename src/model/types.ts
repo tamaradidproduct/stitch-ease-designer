@@ -111,14 +111,32 @@ export type PatternInfo = {
 };
 
 /**
- * A pattern screenshot placed behind the chart to trace against.
+ * A pattern screenshot placed behind (or in front of) the chart to trace
+ * against. A chart can hold several of these, e.g. one per scanned page.
  *
  * Position and size are in world units (the same space as a placement's
  * `col`/`row` times `CELL`), anchored at the image's bottom-left corner —
  * the natural anchor here, matching how a chart itself grows upward from
- * its bottom-left. Not part of undo/redo, same as camera pan/zoom.
+ * its bottom-left.
  */
 export type ReferenceImage = {
+  /**
+   * Stable identity for this image within the chart's `referenceImages`
+   * list - doubles as its Storage path segment at upload time, so there's
+   * a single source of truth rather than separate id/path bookkeeping.
+   */
+  id: string;
+  /**
+   * The number shown in its "Image N" label, assigned once when it's
+   * uploaded and never reused or reassigned afterward - deleting an image
+   * doesn't renumber the ones that are left, and a later upload always gets
+   * a number higher than any that currently exists, never one a deleted
+   * image happens to have freed up. Distinct from `id` (an opaque identity
+   * with no display meaning) purely so the label a designer sees stays
+   * stable across deletions - array position alone can't do that, since it
+   * shifts whenever an earlier image is removed.
+   */
+  number: number;
   /**
    * Either a `data:` URL (a locally-stored chart, not signed in) or a path
    * within the `reference-images` Supabase Storage bucket (resolved to a
@@ -158,6 +176,22 @@ export type ReferenceImage = {
    * charts stored before this existed still load: absent means behind.
    */
   inFront?: boolean;
+  /**
+   * Clip this image's *drawing* to the region spanned by its own named
+   * calibration marks (the stitches the designer boxed and typed a row/
+   * stitch number for) rather than showing its full extent - reference
+   * photos routinely carry their own grid past where the actual pattern
+   * ends, and that grid fighting the app's own grid outside the real chart
+   * is exactly the visual noise this is for. Deliberately keyed off this
+   * image's *own* calibration, not off wherever the chart's placements
+   * happen to sit - the two live in unrelated coordinate spaces, and an
+   * image can be calibrated before a single stitch is ever placed. Display-
+   * only: it never touches `x`/`y`/`width`/`height`, so it's freely
+   * reversible even if the marked corners later turn out wrong (e.g. a
+   * corner never got worked) - turning it off always shows the whole image
+   * again, nothing lost. A no-op until at least one mark is named.
+   */
+  cropToCalibration?: boolean;
   /**
    * The bottom-left corner of the one stitch the designer boxed with "Set
    * stitch size", kept after calibration rather than discarded - it's what

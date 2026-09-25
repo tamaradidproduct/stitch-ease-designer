@@ -63,6 +63,11 @@ jobs:
           fi
 
           short_sha="${DEPLOYED_COMMIT_SHA:0:7}"
+          # Commit messages for this push, read from the event payload file
+          # (never interpolated via ${{ }}) so commit text can't be executed
+          # as shell. Empty for workflow_dispatch runs (no .commits array).
+          commit_messages="$(jq -c '[.commits[].message]' "$GITHUB_EVENT_PATH" 2>/dev/null || echo '[]')"
+
           jq -n \
             --arg deployment "staging · $short_sha" \
             --arg commit_sha "$DEPLOYED_COMMIT_SHA" \
@@ -71,7 +76,8 @@ jobs:
             --arg github_run_url "$GITHUB_RUN_URL" \
             --arg deployed_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --arg workflow_run_id "$WORKFLOW_RUN_ID" \
-            '{deployment: $deployment, commit_sha: $commit_sha, branch: $branch, deployment_url: $deployment_url, github_run_url: $github_run_url, deployed_at: $deployed_at, workflow_run_id: $workflow_run_id}' \
+            --argjson commit_messages "$commit_messages" \
+            '{deployment: $deployment, commit_sha: $commit_sha, branch: $branch, deployment_url: $deployment_url, github_run_url: $github_run_url, deployed_at: $deployed_at, workflow_run_id: $workflow_run_id, commit_messages: $commit_messages}' \
           | curl --fail --silent --show-error --retry 3 \
               --header 'Content-Type: application/json' \
               --data-binary @- \

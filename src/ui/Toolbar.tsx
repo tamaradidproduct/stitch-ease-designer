@@ -8,7 +8,7 @@ import { CheckIcon, CrossIcon } from "./icons";
 
 export function Toolbar() {
   const referenceImagePanelOpen = useUiStore((s) => s.referenceImagePanelOpen);
-  const hasReferenceImage = useDocStore((s) => !!s.referenceImage);
+  const hasReferenceImage = useDocStore((s) => s.referenceImages.length > 0);
   const tool = useUiStore((s) => s.tool);
   const panEnabled = useUiStore((s) => s.panEnabled);
   const selectHeld = useUiStore((s) => s.selectHeld);

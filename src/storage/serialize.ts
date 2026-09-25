@@ -1,5 +1,6 @@
 import { newPlacementId } from "../model/ops";
 import { cellKey } from "../model/cellKey";
+import { newUuid } from "../uuid";
 import {
   CORNERS,
   FIRST_ROW_SIDES,
@@ -51,6 +52,12 @@ export type StoredChart = {
   glossaryIds?: string[];
   quickSymbolIds?: string[];
   repeats?: RepeatDefinition[];
+  referenceImages?: ReferenceImage[];
+  /**
+   * Legacy singular form, from before a chart could hold more than one
+   * reference image. Only ever read (by `decode`, which lifts it into a
+   * one-element `referenceImages`) - `encode` never writes it again.
+   */
   referenceImage?: ReferenceImage;
   /** See `PatternInfo` - stored flat, like every other per-chart setting here. */
   worked?: PatternInfo["worked"];
@@ -98,7 +105,7 @@ export class ChartFormatError extends Error {
 export function encode(
   placements: Iterable<Placement>,
   repeats: RepeatDefinition[] = [],
-  referenceImage?: ReferenceImage,
+  referenceImages: ReferenceImage[] = [],
   glossaryIds: readonly string[] = DEFAULT_STITCH_IDS,
   quickSymbolIds: readonly string[] = DEFAULT_STITCH_IDS,
   patternInfo: PatternInfo = {},
@@ -155,7 +162,7 @@ export function encode(
     quickSymbolIds: [...quickSymbolIds],
     ...(suggested.length ? { suggested } : null),
     ...(colors.length ? { colorPalette, colors } : null),
-    ...(referenceImage ? { referenceImage } : null),
+    ...(referenceImages.length ? { referenceImages } : null),
     ...(patternInfo.worked ? { worked: patternInfo.worked } : null),
     ...(patternInfo.firstRow ? { firstRow: patternInfo.firstRow } : null),
     ...(patternInfo.firstStitch ? { firstStitch: patternInfo.firstStitch } : null),
@@ -416,32 +423,55 @@ function validateStitchPin(img: Partial<ReferenceImage>): void {
   }
 }
 
-function validateReferenceImage(chart: Partial<StoredChart>): void {
-  if (chart.referenceImage === undefined) return;
-  const img = chart.referenceImage as Partial<ReferenceImage> | null;
+/**
+ * Validates one image's shape, under `label` for the error message. `id` is
+ * deliberately not required here — a legacy singular `referenceImage` never
+ * had one, and `decode` mints one for it, same as it does for any element of
+ * `referenceImages` that's somehow missing one too.
+ */
+function validateOneReferenceImage(img: unknown, label: string): void {
+  const candidate = img as Partial<ReferenceImage> | null;
   if (
-    typeof img !== "object" ||
-    img === null ||
-    typeof img.ref !== "string" ||
-    typeof img.x !== "number" ||
-    typeof img.y !== "number" ||
-    typeof img.width !== "number" ||
-    !(img.width > 0) ||
-    typeof img.height !== "number" ||
-    !(img.height > 0) ||
-    typeof img.naturalWidth !== "number" ||
-    !(img.naturalWidth > 0) ||
-    typeof img.naturalHeight !== "number" ||
-    !(img.naturalHeight > 0) ||
-    typeof img.opacity !== "number" ||
-    typeof img.visible !== "boolean" ||
-    typeof img.locked !== "boolean" ||
-    (img.inFront !== undefined && typeof img.inFront !== "boolean")
+    typeof candidate !== "object" ||
+    candidate === null ||
+    typeof candidate.ref !== "string" ||
+    typeof candidate.x !== "number" ||
+    typeof candidate.y !== "number" ||
+    typeof candidate.width !== "number" ||
+    !(candidate.width > 0) ||
+    typeof candidate.height !== "number" ||
+    !(candidate.height > 0) ||
+    typeof candidate.naturalWidth !== "number" ||
+    !(candidate.naturalWidth > 0) ||
+    typeof candidate.naturalHeight !== "number" ||
+    !(candidate.naturalHeight > 0) ||
+    typeof candidate.opacity !== "number" ||
+    typeof candidate.visible !== "boolean" ||
+    typeof candidate.locked !== "boolean" ||
+    (candidate.inFront !== undefined && typeof candidate.inFront !== "boolean") ||
+    (candidate.cropToCalibration !== undefined && typeof candidate.cropToCalibration !== "boolean") ||
+    (candidate.id !== undefined && typeof candidate.id !== "string") ||
+    (candidate.number !== undefined && typeof candidate.number !== "number")
   ) {
-    throw new ChartFormatError("referenceImage is invalid");
+    throw new ChartFormatError(`${label} is invalid`);
   }
-  validateCalibrationMarks(img);
-  validateStitchPin(img);
+  validateCalibrationMarks(candidate);
+  validateStitchPin(candidate);
+}
+
+function validateReferenceImages(chart: Partial<StoredChart>): void {
+  if (chart.referenceImages !== undefined) {
+    if (!Array.isArray(chart.referenceImages)) {
+      throw new ChartFormatError("referenceImages must be an array");
+    }
+    chart.referenceImages.forEach((img, i) => validateOneReferenceImage(img, `referenceImages[${i}]`));
+    return;
+  }
+  // Legacy singular form - only present on a chart saved before this field
+  // existed, never alongside the array above.
+  if (chart.referenceImage !== undefined) {
+    validateOneReferenceImage(chart.referenceImage, "referenceImage");
+  }
 }
 
 function validate(stored: unknown): StoredChart {
@@ -465,7 +495,7 @@ function validate(stored: unknown): StoredChart {
   validateQuickSymbolIds(chart);
   validateStitchGroupReferences(chart);
   validateRepeats(chart);
-  validateReferenceImage(chart);
+  validateReferenceImages(chart);
   validateWorked(chart);
   validateFirstRow(chart);
   validateFirstStitch(chart);
@@ -477,7 +507,7 @@ function validate(stored: unknown): StoredChart {
 export type DecodedChart = {
   placements: Placement[];
   repeats: RepeatDefinition[];
-  referenceImage?: ReferenceImage;
+  referenceImages: ReferenceImage[];
   /**
    * Chart-scoped glossary/quick-row membership. Always a concrete array -
    * `DEFAULT_STITCH_IDS` when the stored chart never customized these (key
@@ -562,6 +592,14 @@ export function decode(stored: unknown, knownSymbol: (id: string) => boolean): D
       ...(chart.colorNames ? { colorNames: chart.colorNames } : null),
     },
     unknownSymbolIds: [...unknown],
-    ...(chart.referenceImage ? { referenceImage: chart.referenceImage } : null),
+    referenceImages: (chart.referenceImages ?? (chart.referenceImage ? [chart.referenceImage] : []))
+      .map((img, i) => ({
+        ...img,
+        ...(img.id ? null : { id: newUuid() }),
+        // Charts saved before `number` existed (including every legacy
+        // singular `referenceImage`) get one minted from position - a
+        // one-time backfill, never touched again once assigned.
+        ...(img.number ? null : { number: i + 1 }),
+      })),
   };
 }

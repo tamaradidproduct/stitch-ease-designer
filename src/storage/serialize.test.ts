@@ -139,8 +139,10 @@ describe("round trip", () => {
   });
 });
 
-describe("referenceImage", () => {
+describe("referenceImages", () => {
   const image: ReferenceImage = {
+    id: "image-1",
+    number: 1,
     ref: "user-1/chart-1/reference.png",
     x: -10,
     y: 5,
@@ -154,16 +156,22 @@ describe("referenceImage", () => {
   };
 
   it("round-trips unchanged", () => {
-    const stored = encode([place("knit", 0, 0)], [], image);
-    expect(stored.referenceImage).toEqual(image);
+    const stored = encode([place("knit", 0, 0)], [], [image]);
+    expect(stored.referenceImages).toEqual([image]);
     const decoded = decode(stored, known);
-    expect(decoded.referenceImage).toEqual(image);
+    expect(decoded.referenceImages).toEqual([image]);
+  });
+
+  it("round-trips several images, each independently", () => {
+    const second: ReferenceImage = { ...image, id: "image-2", ref: "user-1/chart-1/image-2.png", inFront: true };
+    const stored = encode([place("knit", 0, 0)], [], [image, second]);
+    expect(decode(stored, known).referenceImages).toEqual([image, second]);
   });
 
   it("round-trips the calibrated stitch pin, so alignment survives a reload", () => {
     const calibrated = { ...image, stitchPin: { u: 0.25, v: 0.5 } };
-    const stored = encode([place("knit", 0, 0)], [], calibrated);
-    expect(decode(stored, known).referenceImage).toEqual(calibrated);
+    const stored = encode([place("knit", 0, 0)], [], [calibrated]);
+    expect(decode(stored, known).referenceImages).toEqual([calibrated]);
   });
 
   it("round-trips calibration marks, so placing four survives a reload", () => {
@@ -176,17 +184,25 @@ describe("referenceImage", () => {
         { id: "m2", u: 0.4, v: 0.1, w: 0.02, h: 0.03, stitch: 30, row: null },
       ],
     };
-    const stored = encode([place("knit", 0, 0)], [], marked);
-    expect(decode(stored, known).referenceImage).toEqual(marked);
+    const stored = encode([place("knit", 0, 0)], [], [marked]);
+    expect(decode(stored, known).referenceImages).toEqual([marked]);
   });
 
-  it("is omitted entirely when there isn't one, not stored as null/undefined", () => {
+  it("is omitted entirely when there aren't any, not stored as an empty array", () => {
     const stored = encode([place("knit", 0, 0)]);
-    expect(stored).not.toHaveProperty("referenceImage");
-    expect(decode(stored, known)).not.toHaveProperty("referenceImage");
+    expect(stored).not.toHaveProperty("referenceImages");
+    expect(decode(stored, known).referenceImages).toEqual([]);
   });
 
-  it("rejects a malformed referenceImage", () => {
+  it("lifts a legacy singular referenceImage into a one-element array, minting an id and a number", () => {
+    const legacy = { ...image, id: undefined, number: undefined };
+    const stored = { ...encode([place("knit", 0, 0)]), referenceImage: legacy };
+    const decoded = decode(stored, known);
+    expect(decoded.referenceImages).toHaveLength(1);
+    expect(decoded.referenceImages[0]).toMatchObject({ ...image, id: expect.any(String), number: 1 });
+  });
+
+  it("rejects a malformed reference image", () => {
     const bad: Record<string, unknown> = {
       "missing ref": { ...image, ref: undefined },
       "zero width": { ...image, width: 0 },
@@ -217,7 +233,7 @@ describe("referenceImage", () => {
       },
     };
     for (const referenceImage of Object.values(bad)) {
-      const stored = { ...encode([]), referenceImage };
+      const stored = { ...encode([]), referenceImages: [referenceImage] };
       expect(() => decode(stored, known)).toThrow(ChartFormatError);
     }
   });
