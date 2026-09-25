@@ -189,6 +189,12 @@ no toolDock button highlighted, stroke is a no-op.
   symbol with only a pending suggestion look removable when it isn't.
   Implemented as `symbolsWithAnyPlacement(placements)` in
   `src/ui/chartGlossary.ts`.
+- **FR-39 (added this session, #199).** The Suggest glossary row shows a
+  short subtitle under the "Suggest" label instead of a bare numeric badge —
+  "Confirm a stitch to enable Suggest" at zero, "Recognizes 1 stitch type" at
+  one, "Recognizes N stitch types" otherwise. Same underlying count
+  (`suggestTaughtCount`) as before; only its presentation changed, since the
+  numeric badge alone wasn't discoverable without hovering its tooltip.
 
 #### Gotchas hit while building this (read before touching modifier logic)
 

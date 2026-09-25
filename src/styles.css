@@ -1853,6 +1853,26 @@ body {
   white-space: nowrap;
 }
 
+.glossary__labelGroup {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.glossary__labelGroup .glossary__label {
+  flex: none;
+}
+
+.glossary__subtitle {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .glossary__count {
   display: grid;
   min-width: 22px;
