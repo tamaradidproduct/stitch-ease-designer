@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   type BinaryGrid,
-  MAX_EXEMPLARS_PER_SYMBOL,
+  MAX_EXEMPLARS_PER_SWATCH,
   binarizeCrop,
   computeGridSimilarity,
   isCellBlank,
@@ -154,6 +154,18 @@ describe("templateMatch", () => {
       const result = matchCandidateStitch(backslash, exemplars, 0.6);
       expect(result.symbolId).toBe("skpo");
       expect(result.confidence).toBe(1.0);
+    });
+
+    it("retains the color taught with a matched stitch", () => {
+      const colored = new Map<string, BinaryGrid[]>([
+        ["k2tog::#2563eb", [slash]],
+        ["skpo", [backslash]],
+      ]);
+
+      const result = matchCandidateStitch(slashShifted, colored, 0.6);
+
+      expect(result.symbolId).toBe("k2tog");
+      expect(result.colorId).toBe("#2563eb");
     });
 
     it("defaults an unmatched empty cell to Knit", () => {
@@ -341,8 +353,8 @@ describe("selectDiverseExemplars", () => {
 
   it("never returns more than the cap even with many candidates", () => {
     const many = Array.from({ length: 50 }, (_, i) => ({ col: i, row: i * 2 }));
-    expect(selectDiverseExemplars(many, MAX_EXEMPLARS_PER_SYMBOL)).toHaveLength(
-      MAX_EXEMPLARS_PER_SYMBOL,
+    expect(selectDiverseExemplars(many, MAX_EXEMPLARS_PER_SWATCH)).toHaveLength(
+      MAX_EXEMPLARS_PER_SWATCH,
     );
   });
 

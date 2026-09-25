@@ -69,6 +69,16 @@ export function collectGlossarySymbols(
   });
 }
 
+/** The confirmed placements for one stitch-and-color glossary swatch. */
+export function selectableGlossaryEntryPlacementIds(
+  placements: readonly Placement[],
+  key: string,
+): string[] {
+  return placements
+    .filter((placement) => !placement.suggested && quickSlotKey(placement.symbolId, placement.colorId) === key)
+    .map((placement) => placement.id);
+}
+
 /**
  * Per-symbol counts for a plain (uncolored) glossary row, excluding
  * still-pending suggestions and, per DNT-13, excluding colored placements of

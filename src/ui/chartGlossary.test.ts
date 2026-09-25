@@ -7,6 +7,7 @@ import {
   countConfirmedColoredStitches,
   countConfirmedStitches,
   saveGlossaryIds,
+  selectableGlossaryEntryPlacementIds,
   symbolsWithAnyPlacement,
 } from "./chartGlossary";
 
@@ -52,6 +53,19 @@ describe("collectColoredGlossaryEntries", () => {
       [stitch("a", "knit", { colorId: "#e11d48" }), stitch("b", "knit", { colorId: "#e11d48" })],
     );
     expect(entries).toHaveLength(1);
+  });
+});
+
+describe("selectableGlossaryEntryPlacementIds", () => {
+  it("selects only the matching stitch-and-color swatch", () => {
+    const placements = [
+      stitch("plain-knit", "knit"),
+      stitch("red-knit", "knit", { colorId: "#e11d48" }),
+      stitch("plain-purl", "purl"),
+      stitch("pending-red-knit", "knit", { colorId: "#e11d48", suggested: true }),
+    ];
+    expect(selectableGlossaryEntryPlacementIds(placements, "knit")).toEqual(["plain-knit"]);
+    expect(selectableGlossaryEntryPlacementIds(placements, "knit::#e11d48")).toEqual(["red-knit"]);
   });
 });
 

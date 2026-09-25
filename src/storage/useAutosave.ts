@@ -26,8 +26,18 @@ export function useAutosave(store: ChartStore): void {
 
   useEffect(() => {
     const save = async () => {
-      const { meta, index, repeats, referenceImage, glossaryIds, quickSymbolIds, revision, savedRevision, status } =
-        useDocStore.getState();
+      const {
+        meta,
+        index,
+        repeats,
+        referenceImage,
+        glossaryIds,
+        quickSymbolIds,
+        patternInfo,
+        revision,
+        savedRevision,
+        status,
+      } = useDocStore.getState();
 
       if (!meta || revision === savedRevision) return;
       // A conflict is unresolved until the user says otherwise; writing anyway
@@ -51,6 +61,7 @@ export function useAutosave(store: ChartStore): void {
           referenceImage ?? undefined,
           glossaryIds,
           quickSymbolIds,
+          patternInfo,
         );
         // The route can change while this request is in flight. Applying a
         // result for chart A after chart B has loaded would attach A's fresh
