@@ -4,6 +4,7 @@ import { unoccupiedCellsFromKeys } from "../model/cellKey";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
 import { CheckIcon, CrossIcon } from "./icons";
+import { clamp } from "./utils";
 
 /**
  * The compact menu that appears once after a Suggest stroke finishes,
@@ -59,8 +60,8 @@ export function SuggestReviewMenu() {
     const width = root.offsetWidth;
     const height = root.offsetHeight;
     setPos({
-      left: Math.max(8, Math.min(anchorX - width / 2, window.innerWidth - width - 8)),
-      top: Math.max(8, Math.min(anchorTop - height - 10, window.innerHeight - height - 8)),
+      left: clamp(anchorX - width / 2, 8, window.innerWidth - width - 8),
+      top: clamp(anchorTop - height - 10, 8, window.innerHeight - height - 8),
     });
   }, [open, bounds, camera, viewport, identified.length, unrecognizedCells.length]);
 
