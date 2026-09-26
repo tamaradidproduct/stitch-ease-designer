@@ -487,7 +487,7 @@ export const useDocStore = create<DocState>((set, get) => {
       // routing it through addQuickSlot's first-vacant-slot placement
       // followed by a chain of adjacent swaps back to the real target would
       // only disturb slots the drop never touched.
-      if (isNewKey && !state.quickSymbolIds[targetSlot]) {
+      if (isNewKey && targetSlot >= 0 && !state.quickSymbolIds[targetSlot]) {
         const next = [...state.quickSymbolIds];
         while (next.length <= targetSlot) next.push("");
         next[targetSlot] = key;
