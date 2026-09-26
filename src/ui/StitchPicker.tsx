@@ -12,6 +12,7 @@ import { searchSymbols } from "./symbolSearch";
 import { CloseIcon } from "./icons";
 import { collectColoredGlossaryEntries, useGlossaryIds } from "./chartGlossary";
 import { getSwatch } from "../model/colorPalette";
+import { clamp } from "./colorSwatchPopoverPosition";
 import { parseQuickSlotId } from "../model/quickSlots";
 import { addColoredVariant, applyColorToSlot, currentSlotForPicker } from "./colorwork";
 import { ColorChip } from "./ColorChip";
@@ -211,8 +212,8 @@ export function StitchPicker() {
       const anchorY = dockRect?.top ?? window.innerHeight - 100;
       const width = searchOpen ? expandedMenuWidth : menuWidth;
       setPos({
-        compactLeft: Math.max(8, Math.min(anchorX - menuWidth / 2, window.innerWidth - menuWidth - 8)),
-        searchLeft: Math.max(8, Math.min(anchorX - width / 2, window.innerWidth - width - 8)),
+        compactLeft: clamp(anchorX - menuWidth / 2, 8, window.innerWidth - menuWidth - 8),
+        searchLeft: clamp(anchorX - width / 2, 8, window.innerWidth - width - 8),
         top: Math.max(8, anchorY - root.offsetHeight - 10),
       });
       return;
@@ -249,19 +250,21 @@ export function StitchPicker() {
     const anchorX = (canvasRect?.left ?? 0) + (leftEdge.x + rightEdge.x) / 2;
     const anchorY = (canvasRect?.top ?? 0) + (hasMultiCellSelection ? leftEdge.y : cell.y);
     const height = root.offsetHeight;
-    const compactLeft = Math.max(8, Math.min(
+    const compactLeft = clamp(
       anchorX - menuWidth / 2,
+      8,
       window.innerWidth - menuWidth - 8,
-    ));
+    );
     const searchFieldOffset = 7 + searchOrigin * 45;
-    const searchLeft = Math.max(8, Math.min(
+    const searchLeft = clamp(
       anchorX - SEARCH_SLOT_WIDTH / 2 - searchFieldOffset,
+      8,
       window.innerWidth - expandedMenuWidth - 8,
-    ));
+    );
     setPos({
       compactLeft,
       searchLeft,
-      top: Math.max(8, Math.min(anchorY - height - 14, window.innerHeight - height - 8)),
+      top: clamp(anchorY - height - 14, 8, window.innerHeight - height - 8),
     });
   }, [target, camera, viewport, index, searchOpen, searchOrigin, menuWidth, expandedMenuWidth]);
 
