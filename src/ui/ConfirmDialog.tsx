@@ -24,6 +24,7 @@ export function ConfirmDialog({
   onCancel,
 }: ConfirmDialogProps) {
   const confirmRef = useRef<HTMLButtonElement | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     confirmRef.current?.focus();
@@ -31,7 +32,28 @@ export function ConfirmDialog({
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCancel();
+      if (e.key === "Escape") {
+        onCancel();
+        return;
+      }
+      if (e.key === "Tab") {
+        const focusable = dialogRef.current?.querySelectorAll("button");
+        if (!focusable || focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (!first || !last) return;
+        if (e.shiftKey) {
+          if (document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      }
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
@@ -39,7 +61,7 @@ export function ConfirmDialog({
 
   return (
     <div className="confirmDialog__overlay" onPointerDown={(e) => { if (e.target === e.currentTarget) onCancel(); }}>
-      <div className="confirmDialog" role="alertdialog" aria-modal="true" aria-label={message}>
+      <div ref={dialogRef} className="confirmDialog" role="alertdialog" aria-modal="true" aria-label={message}>
         <p className="confirmDialog__message">{message}</p>
         <div className="confirmDialog__actions">
           <button type="button" className="btn btn--quiet" onClick={onCancel}>
