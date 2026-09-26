@@ -15,4 +15,5 @@ __pycache__/
 gha-creds-*.json
 
 .worktrees/
+.claude/worktrees/
 exported-crops/
