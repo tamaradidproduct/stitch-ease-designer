@@ -12,7 +12,7 @@ import { searchSymbols } from "./symbolSearch";
 import { CloseIcon } from "./icons";
 import { collectColoredGlossaryEntries, useGlossaryIds } from "./chartGlossary";
 import { getSwatch } from "../model/colorPalette";
-import { clamp } from "./colorSwatchPopoverPosition";
+import { clamp } from "./utils";
 import { parseQuickSlotId } from "../model/quickSlots";
 import { addColoredVariant, applyColorToSlot, currentSlotForPicker } from "./colorwork";
 import { ColorChip } from "./ColorChip";

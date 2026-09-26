@@ -4,7 +4,7 @@ import { unoccupiedCellsFromKeys } from "../model/cellKey";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
 import { CheckIcon, CrossIcon } from "./icons";
-import { clamp } from "./colorSwatchPopoverPosition";
+import { clamp } from "./utils";
 
 /**
  * The compact menu that appears once after a Suggest stroke finishes,

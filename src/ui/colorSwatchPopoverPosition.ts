@@ -1,3 +1,5 @@
+import { clamp } from "./utils";
+
 export type PopoverPositionInput = {
   anchorRect: DOMRect;
   boundaryRect?: DOMRect | null;
@@ -10,8 +12,6 @@ export type PopoverPositionInput = {
 
 const EDGE = 8;
 const OFFSET = 6;
-
-export const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(value, max));
 
 export function resolveColorPopoverPosition({
   anchorRect,
