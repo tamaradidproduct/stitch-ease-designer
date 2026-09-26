@@ -64,8 +64,9 @@ jobs:
 
           short_sha="${DEPLOYED_COMMIT_SHA:0:7}"
           # Commit messages for this push, read from the event payload file
-          # (never interpolated via ${{ }}) so commit text can't be executed
-          # as shell. Empty for workflow_dispatch runs (no .commits array).
+          # (never interpolated into this script as a GitHub Actions
+          # expression) so commit text can't be executed as shell. Empty for
+          # workflow_dispatch runs (no .commits array).
           commit_messages="$(jq -c '[.commits[].message]' "$GITHUB_EVENT_PATH" 2>/dev/null || echo '[]')"
 
           jq -n \
