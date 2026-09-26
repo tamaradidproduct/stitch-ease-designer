@@ -251,14 +251,14 @@ export function RightPanel() {
   // flat, so browsing the full library reads as a glossary instead of a wall
   // of stitches. Array.prototype.sort is stable, so search relevance order
   // (when there's a query) survives within each category bucket.
-  const glossaryResults = searchSlot === null
-    ? []
-    : (glossaryQuery.trim()
-        // A typed query should surface matches even if they're already in
-        // the glossary - selecting one just switches to its existing chip
-        // (see chooseSearchResult/addToGlossary) rather than duplicating it.
-        ? searchSymbols(allSymbols(), glossaryQuery)
-        : allSymbols().filter((symbol) => !plainGlossaryIds.has(symbol.id)))
+  const glossaryResults = useMemo(() => {
+    if (searchSlot === null) return [];
+    return (glossaryQuery.trim()
+      // A typed query should surface matches even if they're already in
+      // the glossary - selecting one just switches to its existing chip
+      // (see chooseSearchResult/addToGlossary) rather than duplicating it.
+      ? searchSymbols(allSymbols(), glossaryQuery)
+      : allSymbols().filter((symbol) => !plainGlossaryIds.has(symbol.id)))
       .sort((a, b) => {
         const ai = GLOSSARY_CATEGORY_ORDER.indexOf(a.category);
         const bi = GLOSSARY_CATEGORY_ORDER.indexOf(b.category);
@@ -267,6 +267,7 @@ export function RightPanel() {
           (bi === -1 ? GLOSSARY_CATEGORY_ORDER.length : bi)
         );
       });
+  }, [searchSlot, glossaryQuery, plainGlossaryIds]);
   const glossarySections: { key: string; title: string; symbols: typeof glossaryResults }[] = [];
   for (const symbol of glossaryResults) {
     const current = glossarySections[glossarySections.length - 1];
@@ -324,6 +325,11 @@ export function RightPanel() {
     addToGlossary(id);
     chooseSymbol(id);
     setSearchSlot(null);
+    // addToGlossary early-returns (without clearing the query) when the
+    // chosen result is already in the glossary, so clear it here too -
+    // otherwise the next "Add stitch" open would show this stale query
+    // instead of the browse-all view.
+    setGlossaryQuery("");
   };
   const searchForQuickStitch = (slot: number) => {
     setSearchSlot(slot);
