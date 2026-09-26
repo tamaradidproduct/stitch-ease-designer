@@ -481,7 +481,20 @@ export const useDocStore = create<DocState>((set, get) => {
     },
     promoteQuickSlot: (key, targetSlot) => {
       const state = get();
-      if (!state.quickSymbolIds.includes(key)) state.addQuickSlot(key);
+      const isNewKey = !state.quickSymbolIds.includes(key);
+      // An overflow entry dropped onto a slot that's already empty can be
+      // written straight into that index - there's nothing to displace, so
+      // routing it through addQuickSlot's first-vacant-slot placement
+      // followed by a chain of adjacent swaps back to the real target would
+      // only disturb slots the drop never touched.
+      if (isNewKey && targetSlot >= 0 && !state.quickSymbolIds[targetSlot]) {
+        const next = [...state.quickSymbolIds];
+        while (next.length <= targetSlot) next.push("");
+        next[targetSlot] = key;
+        state.setQuickSymbolIds(next);
+        return;
+      }
+      if (isNewKey) state.addQuickSlot(key);
       get().moveQuickSlotTo(key, targetSlot);
     },
     moveGlossaryIdTo: (key, targetIndex) => {

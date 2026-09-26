@@ -1879,8 +1879,13 @@ body {
 
 /* A colored row's fill lives only on this small swatch, not the whole
    row - a full-row tint behind the label read as too intense and made the
-   text hard to read. */
-.glossary__glyph .glyph__cell {
+   text hard to read. Same treatment for the floating picker's glyph tiles
+   (the quick row's tiles, its dynamic 6th tile, and the "more stitches"
+   drawer rows), which share this component and used to additionally paint a
+   hard-edged, full-tile fill on top of it via an inline style. */
+.glossary__glyph .glyph__cell,
+.picker__glyph .glyph__cell,
+.picker__quickButton .glyph__cell {
   border-radius: 4px;
 }
 
