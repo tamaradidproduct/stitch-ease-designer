@@ -100,12 +100,29 @@ export function RightPanel() {
     const onMove = (moveEvent: PointerEvent) => {
       setRightPanelWidth(startWidth + (startX - moveEvent.clientX));
     };
-    const onUp = () => {
+    // A plain pointerup only fires on a clean release. A gesture the OS or
+    // browser interrupts (touch scroll takeover, a system dialog stealing
+    // focus) instead ends the drag with pointercancel/lostpointercapture and
+    // no pointerup at all - without listening for those too, the resize
+    // would get stuck mid-drag and these listeners would leak.
+    const cleanup = () => {
       handle.removeEventListener("pointermove", onMove);
       handle.removeEventListener("pointerup", onUp);
+      handle.removeEventListener("pointercancel", onUp);
+      handle.removeEventListener("lostpointercapture", cleanup);
+    };
+    const onUp = (upEvent: PointerEvent) => {
+      try {
+        handle.releasePointerCapture(upEvent.pointerId);
+      } catch {
+        // Already released (e.g. by the lostpointercapture that's about to fire).
+      }
+      cleanup();
     };
     handle.addEventListener("pointermove", onMove);
     handle.addEventListener("pointerup", onUp);
+    handle.addEventListener("pointercancel", onUp);
+    handle.addEventListener("lostpointercapture", cleanup);
   };
 
   const resetDragState = () => {

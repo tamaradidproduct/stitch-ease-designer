@@ -320,6 +320,7 @@ export function extractExemplars(
   referenceImages: readonly ReferenceImage[],
   getImageElement: (ref: string) => CanvasImageSource | null,
   revision: number,
+  isImageReady?: (ref: string) => boolean,
 ): Map<string, BinaryGrid[]> {
   // Suggested-only changes deliberately do not invalidate this cache.
   void revision;
@@ -352,9 +353,13 @@ export function extractExemplars(
     for (const { col, row, image } of chosen) {
       const imageElement = getImageElement(image.ref);
       if (!imageElement) {
-        // Not decoded yet - skip this exemplar rather than caching a map
-        // that's silently missing it forever.
-        everyImageReady = false;
+        // Still decoding - skip this exemplar rather than caching a map
+        // that's silently missing it forever. A permanently failed image
+        // (isImageReady says so) never produces this exemplar either way,
+        // so it shouldn't hold the cache hostage on every future call.
+        if (!isImageReady || !isImageReady(image.ref)) {
+          everyImageReady = false;
+        }
         continue;
       }
       const crop = cropReferenceImageCell(image, imageElement, col, row, 32);

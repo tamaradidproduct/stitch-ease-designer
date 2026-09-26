@@ -443,6 +443,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
           doc().referenceImages,
           (ref) => getSharedReferenceImageCache().get(ref),
           doc().revision,
+          (ref) => getSharedReferenceImageCache().isReady(ref),
         );
       }
       const crop = cropReferenceImageCell(refImage, cachedImg, cell.col, cell.row, 32);

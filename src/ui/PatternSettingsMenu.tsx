@@ -195,6 +195,12 @@ export function PatternSettingsMenu() {
                           aria-hidden="true"
                         />
                         <input
+                          // Uncontrolled so typing doesn't push an undo step
+                          // per keystroke, but that means React won't notice
+                          // an external change (undo/redo) on its own - a
+                          // key tied to the stored value forces a remount so
+                          // the field doesn't silently drift from the store.
+                          key={patternInfo.colorNames?.[colorId] ?? ""}
                           type="text"
                           defaultValue={patternInfo.colorNames?.[colorId] ?? ""}
                           placeholder={swatch ? `${swatch.hue} ${swatch.step + 1}` : "Name"}

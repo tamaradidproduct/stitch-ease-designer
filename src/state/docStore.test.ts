@@ -381,6 +381,53 @@ describe("reference images", () => {
     expect(useDocStore.getState().referenceImages.map((img) => img.id)).toEqual(["image-1", "image-3"]);
   });
 
+  it("undoes a patch back into its original position, not just back into existence", () => {
+    const second: ReferenceImage = { ...image, id: "image-2", ref: "data:image/png;base64,def" };
+    const third: ReferenceImage = { ...image, id: "image-3", ref: "data:image/png;base64,ghi" };
+    useDocStore.getState().addReferenceImage(image);
+    useDocStore.getState().addReferenceImage(second);
+    useDocStore.getState().addReferenceImage(third);
+
+    useDocStore.getState().updateReferenceImage("image-2", { opacity: 0.9 });
+    expect(useDocStore.getState().referenceImages.map((img) => img.id)).toEqual(["image-1", "image-2", "image-3"]);
+
+    useDocStore.getState().undo();
+    expect(useDocStore.getState().referenceImages.map((img) => img.id)).toEqual(["image-1", "image-2", "image-3"]);
+
+    useDocStore.getState().redo();
+    expect(useDocStore.getState().referenceImages.map((img) => img.id)).toEqual(["image-1", "image-2", "image-3"]);
+  });
+
+  it("undoes a begin/end-bracketed edit back into its original position too", () => {
+    const second: ReferenceImage = { ...image, id: "image-2", ref: "data:image/png;base64,def" };
+    const third: ReferenceImage = { ...image, id: "image-3", ref: "data:image/png;base64,ghi" };
+    useDocStore.getState().addReferenceImage(image);
+    useDocStore.getState().addReferenceImage(second);
+    useDocStore.getState().addReferenceImage(third);
+
+    useDocStore.getState().beginReferenceImageEdit("image-2");
+    useDocStore.getState().updateReferenceImage("image-2", { width: 120 });
+    useDocStore.getState().endReferenceImageEdit();
+    expect(useDocStore.getState().referenceImages.map((img) => img.id)).toEqual(["image-1", "image-2", "image-3"]);
+
+    useDocStore.getState().undo();
+    expect(useDocStore.getState().referenceImages.map((img) => img.id)).toEqual(["image-1", "image-2", "image-3"]);
+  });
+
+  it("addReferenceImage can insert at a given index, for swapping a replacement back into a removed image's slot", () => {
+    const second: ReferenceImage = { ...image, id: "image-2", ref: "data:image/png;base64,def" };
+    const third: ReferenceImage = { ...image, id: "image-3", ref: "data:image/png;base64,ghi" };
+    useDocStore.getState().addReferenceImage(image);
+    useDocStore.getState().addReferenceImage(second);
+    useDocStore.getState().addReferenceImage(third);
+
+    useDocStore.getState().removeReferenceImage("image-2");
+    const replacement: ReferenceImage = { ...second, id: "image-2b" };
+    useDocStore.getState().addReferenceImage(replacement, 1);
+
+    expect(useDocStore.getState().referenceImages.map((img) => img.id)).toEqual(["image-1", "image-2b", "image-3"]);
+  });
+
   it("undoes and redoes reference-point patches, scoped to that image's id", () => {
     useDocStore.getState().addReferenceImage({
       ...image,

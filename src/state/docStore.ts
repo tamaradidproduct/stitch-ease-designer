@@ -63,9 +63,10 @@ type HistoryEntry = {
    * Reference-image edits are small immutable snapshots, scoped to one
    * image by id. `before` is the image's state before this entry's change -
    * `null` for "didn't exist" (undoing an add removes it), a full snapshot
-   * otherwise, whether the change was a patch or a removal (undoing a
-   * removal re-inserts it at `index`, its position just before it was
-   * removed).
+   * otherwise. `index` is that image's array position just before this
+   * entry's change, captured for a patch exactly like a removal - array
+   * order is manual z-order (FR-52), so undoing either one must restore the
+   * image in place, not just anywhere.
    */
   referenceImageChange?: { id: string; before: ReferenceImage | null; index?: number };
 };
@@ -209,8 +210,13 @@ type DocState = {
    * the quick row and the glossary, wherever `oldKey` is currently present.
    */
   recolorQuickSlot: (oldKey: string, newKey: string, excludingPlacementIds: string[]) => void;
-  /** Adds a freshly uploaded reference image. Undoable - Cmd/Ctrl+Z removes it again. */
-  addReferenceImage: (image: ReferenceImage) => void;
+  /**
+   * Adds a freshly uploaded reference image, appended at the end unless
+   * `atIndex` is given (the panel's "Replace" flow uses it to land the new
+   * image back in the slot the old one occupied). Undoable - Cmd/Ctrl+Z
+   * removes it again, from wherever it landed.
+   */
+  addReferenceImage: (image: ReferenceImage, atIndex?: number) => void;
   /**
    * Patches one reference image by id - a no-op if it's not present.
    * Everything but `id` itself is patchable, `ref` included, though the
@@ -314,7 +320,7 @@ function applyReferenceImageChange(
 export const useDocStore = create<DocState>((set, get) => {
   // Kept in the store closure rather than rendered state: it is only a
   // history bookkeeping boundary for a live drag, not UI data.
-  let referenceImageEditStart: { id: string; before: ReferenceImage } | undefined;
+  let referenceImageEditStart: { id: string; before: ReferenceImage; index?: number } | undefined;
   let referenceImageEditChanged = false;
 
   /**
@@ -540,25 +546,28 @@ export const useDocStore = create<DocState>((set, get) => {
     // each banks a `{ id, before, index? }` snapshot (`before: null` means
     // "didn't exist"), so Cmd/Ctrl+Z on a delete brings the image straight
     // back at the position it was removed from.
-    addReferenceImage: (image) =>
-      set((s) => ({
-        referenceImages: [...s.referenceImages, image],
-        revision: s.revision + 1,
-        undoStack: [...s.undoStack, {
-          sequence: nextHistorySequence(),
-          referenceImageChange: { id: image.id, before: null },
-        }],
-        redoStack: [],
-      })),
+    addReferenceImage: (image, atIndex) =>
+      set((s) => {
+        const at = atIndex !== undefined && atIndex <= s.referenceImages.length ? atIndex : s.referenceImages.length;
+        return {
+          referenceImages: [...s.referenceImages.slice(0, at), image, ...s.referenceImages.slice(at)],
+          revision: s.revision + 1,
+          undoStack: [...s.undoStack, {
+            sequence: nextHistorySequence(),
+            referenceImageChange: { id: image.id, before: null },
+          }],
+          redoStack: [],
+        };
+      }),
     // Reference-point edits are document changes, unlike camera movement, so
     // keep a compact before-image snapshot for Cmd/Ctrl+Z. This deliberately
     // covers image transforms too: a dragged mark is still an editable
     // reference point, even though it updates continuously while dragging.
     updateReferenceImage: (id, patch) => {
       const s = get();
-      const current = s.referenceImages.find((img) => img.id === id);
-      if (!current) return;
-      const next = { ...current, ...patch };
+      const current = referenceImageChangeEntry(s.referenceImages, id);
+      if (current.before === null) return;
+      const next = { ...current.before, ...patch };
       const nextImages = s.referenceImages.map((img) => (img.id === id ? next : img));
       if (referenceImageEditStart !== undefined) {
         referenceImageEditChanged = true;
@@ -569,7 +578,7 @@ export const useDocStore = create<DocState>((set, get) => {
           revision: s.revision + 1,
           undoStack: [...s.undoStack, {
             sequence: nextHistorySequence(),
-            referenceImageChange: { id, before: current },
+            referenceImageChange: { id, ...current },
           }],
           redoStack: [],
         });
@@ -578,14 +587,18 @@ export const useDocStore = create<DocState>((set, get) => {
     },
     beginReferenceImageEdit: (id) => {
       if (referenceImageEditStart !== undefined) return;
-      const current = get().referenceImages.find((img) => img.id === id);
-      if (!current) return;
-      referenceImageEditStart = { id, before: current };
+      const current = referenceImageChangeEntry(get().referenceImages, id);
+      if (current.before === null) return;
+      referenceImageEditStart = {
+        id,
+        before: current.before,
+        ...(current.index !== undefined ? { index: current.index } : {}),
+      };
       referenceImageEditChanged = false;
     },
     endReferenceImageEdit: () => {
       if (referenceImageEditStart === undefined) return;
-      const { id, before } = referenceImageEditStart;
+      const { id, before, index } = referenceImageEditStart;
       const changed = referenceImageEditChanged;
       referenceImageEditStart = undefined;
       referenceImageEditChanged = false;
@@ -593,7 +606,7 @@ export const useDocStore = create<DocState>((set, get) => {
       set((s) => ({
         undoStack: [...s.undoStack, {
           sequence: nextHistorySequence(),
-          referenceImageChange: { id, before },
+          referenceImageChange: { id, before, ...(index !== undefined ? { index } : {}) },
         }],
         redoStack: [],
       }));

@@ -72,6 +72,19 @@ export class ReferenceImageCache {
     return null;
   }
 
+  /**
+   * Whether `ref` has finished loading one way or another - either it
+   * decoded, or it's been retried `MAX_ATTEMPTS` times and given up. Lets a
+   * caller that caches work keyed on "every image is settled" (see
+   * `extractExemplars`) distinguish that from "still loading", so a
+   * permanently broken image doesn't force it to redo that work forever.
+   */
+  isReady(ref: string | null): boolean {
+    if (!ref) return true;
+    const entry = this.entries.get(ref);
+    return entry ? entry.image !== null || (!entry.pending && entry.attempts >= MAX_ATTEMPTS) : false;
+  }
+
   private evictOldest(): void {
     while (this.entries.size > MAX_ENTRIES) {
       const oldest = this.entries.keys().next().value;

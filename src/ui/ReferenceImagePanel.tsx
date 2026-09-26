@@ -1,15 +1,51 @@
 import { useEffect, useRef, useState } from "react";
+import type { RefObject } from "react";
 import { CELL } from "../canvas/camera";
 import {
   scaleFromCalibrationMarks,
   withoutCalibrationMark,
 } from "../model/referenceCalibration";
+import { markCentre } from "../model/types";
 import type { ReferenceImage } from "../model/types";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
 import { resolveReferenceImageUrl, uploadReferenceImage } from "../storage/referenceImages";
 import { newUuid } from "../uuid";
 import { tapActivate } from "./tapActivate";
+
+/**
+ * Closes a popover on an outside pointerdown or Escape, while it's open.
+ * Takes `onDismiss` via a ref rather than a dependency so callers can pass a
+ * fresh closure each render without re-subscribing the listeners.
+ */
+function useDismissOnOutside(
+  open: boolean,
+  containerRef: RefObject<HTMLElement | null>,
+  onDismiss: () => void,
+): void {
+  const onDismissRef = useRef(onDismiss);
+  useEffect(() => {
+    onDismissRef.current = onDismiss;
+  });
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) onDismissRef.current();
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.stopImmediatePropagation();
+      onDismissRef.current();
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open, containerRef]);
+}
 
 /**
  * Upload + transform controls for the chart's reference images. A chart can
@@ -47,6 +83,7 @@ export function ReferenceImagePanel() {
   const setStitchHighlightOpacity = useUiStore((s) => s.setStitchHighlightOpacity);
   const activeImageId = useUiStore((s) => s.activeReferenceImageId);
   const setActiveImageId = useUiStore((s) => s.setActiveReferenceImageId);
+  const centerCameraAt = useUiStore((s) => s.centerCameraAt);
 
   const meta = useDocStore((s) => s.meta);
   const images = useDocStore((s) => s.referenceImages);
@@ -115,59 +152,9 @@ export function ReferenceImagePanel() {
   // before it's clicked, since "Add" and "Replace" share one hidden input.
   const uploadMode = useRef<"add" | "replace">("add");
 
-  useEffect(() => {
-    if (!traceMenuOpen) return;
-    const closeOutside = (event: PointerEvent) => {
-      if (!referenceImagePanelRef.current?.contains(event.target as Node)) setTraceMenuOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.stopImmediatePropagation();
-      setTraceMenuOpen(false);
-    };
-    document.addEventListener("pointerdown", closeOutside);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", closeOutside);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [traceMenuOpen]);
-
-  useEffect(() => {
-    if (!helpOpen) return;
-    const closeOutside = (event: PointerEvent) => {
-      if (!referenceImagePanelRef.current?.contains(event.target as Node)) setHelpOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.stopImmediatePropagation();
-      setHelpOpen(false);
-    };
-    document.addEventListener("pointerdown", closeOutside);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", closeOutside);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [helpOpen]);
-
-  useEffect(() => {
-    if (!opacityOpen) return;
-    const closeOutside = (event: PointerEvent) => {
-      if (!referenceImagePanelRef.current?.contains(event.target as Node)) setOpacityOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.stopImmediatePropagation();
-      setOpacityOpen(false);
-    };
-    document.addEventListener("pointerdown", closeOutside);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", closeOutside);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [opacityOpen]);
+  useDismissOnOutside(traceMenuOpen, referenceImagePanelRef, () => setTraceMenuOpen(false));
+  useDismissOnOutside(helpOpen, referenceImagePanelRef, () => setHelpOpen(false));
+  useDismissOnOutside(opacityOpen, referenceImagePanelRef, () => setOpacityOpen(false));
 
   const onFile = async (file: File) => {
     if (!meta) return;
@@ -194,7 +181,13 @@ export function ReferenceImagePanel() {
       const number = replacing
         ? replacing.number
         : Math.max(0, ...images.map((img) => img.number)) + 1;
-      addReferenceImage({
+      // Capture the replaced image's slot before removing it - array order is
+      // manual z-order (FR-52), so the new image needs to land back in that
+      // same slot rather than at the end. Removing first, then inserting at
+      // that same index into the now-shrunk array, puts it exactly where the
+      // old one was.
+      const replacingIndex = replacing ? images.findIndex((img) => img.id === replacing.id) : -1;
+      const newImage: ReferenceImage = {
         id,
         number,
         ref: uploaded.ref,
@@ -208,12 +201,17 @@ export function ReferenceImagePanel() {
         visible: true,
         locked: false,
         ...(replacing?.inFront ? { inFront: true } : {}),
-      });
+      };
       // The replaced image's old file is deliberately left in Storage
       // rather than deleted here - both this add and the remove below are
       // undoable, and deleting the file immediately would leave Undo
       // pointing at a 404 if the designer brings it back.
       if (replacing) removeReferenceImage(replacing.id);
+      if (replacingIndex !== -1) {
+        addReferenceImage(newImage, replacingIndex);
+      } else {
+        addReferenceImage(newImage);
+      }
       setActiveImageId(id);
       // A successful upload immediately enters editing, so the newly placed
       // image and its controls are visible without an extra click.
@@ -582,7 +580,7 @@ export function ReferenceImagePanel() {
             </button>
           </div>
         )}
-        {images.length > 0 && (
+        {image && (
           <label className="refpanel__row">
             <span>Opacity</span>
             <input
@@ -590,11 +588,8 @@ export function ReferenceImagePanel() {
               min={0.1}
               max={1}
               step={0.05}
-              value={images[0]?.opacity ?? 0.5}
-              onChange={(e) => {
-                const opacity = Number(e.target.value);
-                images.forEach((img) => updateReferenceImage(img.id, { opacity }));
-              }}
+              value={image.opacity}
+              onChange={(e) => updateReferenceImage(image.id, { opacity: Number(e.target.value) })}
             />
           </label>
         )}
@@ -660,12 +655,26 @@ export function ReferenceImagePanel() {
                         <li key={point.id}>
                           {/* Selecting here opens that mark's popover on the
                               canvas, so the panel stays a summary and there
-                              is only ever one place to type. */}
+                              is only ever one place to type. Also re-centres
+                              the camera on the mark, since a calibration
+                              point on a large reference image is often
+                              scrolled well out of view by the time it's
+                              picked from this list. */}
                           <button
                             type="button"
                             className="refpanel__markRow"
                             data-active={point.id === activeMark}
-                            onClick={() => setActiveMark(point.id)}
+                            onClick={() => {
+                              setActiveMark(point.id);
+                              if (!image) return;
+                              const centre = markCentre(point);
+                              const desiredScreenX = Math.max(92, Math.min(viewport.width * 0.28, viewport.width - 340));
+                              const desiredScreenY = Math.max(96, Math.min(viewport.height * 0.24, viewport.height - 180));
+                              centerCameraAt(
+                                image.x + centre.u * image.width - (desiredScreenX - viewport.width / 2) / camera.zoom,
+                                image.y + centre.v * image.height + (desiredScreenY - viewport.height / 2) / camera.zoom,
+                              );
+                            }}
                           >
                             <span className="refpanel__markIndex" data-labelled={named}>
                               {i + 1}

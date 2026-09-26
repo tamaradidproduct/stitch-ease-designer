@@ -595,11 +595,11 @@ export function decode(stored: unknown, knownSymbol: (id: string) => boolean): D
     referenceImages: (chart.referenceImages ?? (chart.referenceImage ? [chart.referenceImage] : []))
       .map((img, i) => ({
         ...img,
-        ...(img.id ? null : { id: newUuid() }),
+        id: img.id ?? newUuid(),
         // Charts saved before `number` existed (including every legacy
         // singular `referenceImage`) get one minted from position - a
         // one-time backfill, never touched again once assigned.
-        ...(img.number ? null : { number: i + 1 }),
+        number: img.number ?? i + 1,
       })),
   };
 }

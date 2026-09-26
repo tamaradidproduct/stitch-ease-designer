@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-PROJECT_DIR="/Users/tamara/coding_projects/stitch-ease-designer"
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_DIR"
 
 export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
@@ -47,7 +47,8 @@ if [ -n "$(git status --porcelain)" ]; then
         
         if [ -n "$REVIEW_COMMENTS" ]; then
             log_message "Review violations detected. Re-routing feedback to Claude for inline remediation..."
-            claude -p "Review this feedback from our PR branch: \"$REVIEW_COMMENTS\". Modify the files to resolve these issues completely, then ensure tests pass." --dangerously-skip-permissions
+            export REVIEW_COMMENTS
+            claude -p "Review the feedback from our PR branch available in the REVIEW_COMMENTS environment variable. Modify the files to resolve these issues completely, then ensure tests pass." --dangerously-skip-permissions
             git add . && git commit -m "chore: resolved external automated review comments" && git push origin "$FIX_BRANCH"
             log_message "Review adjustments pushed successfully."
         else
