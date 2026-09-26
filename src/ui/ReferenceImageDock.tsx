@@ -154,24 +154,26 @@ export function ReferenceImageDock() {
         </>
       )}
         </div>
-        <div
-          className="referenceDock referenceDock--save"
-          aria-label="Save reference image changes"
-          onPointerDown={stopCanvasGesture}
-          onClick={stopCanvasGesture}
-        >
-          <button
-            type="button"
-            className="toolDock__button"
-            {...tapActivate(() => setPanelOpen(false))}
-            title="Save reference image changes"
+        {!marking && (
+          <div
+            className="referenceDock referenceDock--save"
+            aria-label="Save reference image changes"
+            onPointerDown={stopCanvasGesture}
+            onClick={stopCanvasGesture}
           >
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path d="m4 10 4 4 8-8" />
-            </svg>
-            <span>Save changes</span>
-          </button>
-        </div>
+            <button
+              type="button"
+              className="toolDock__button"
+              {...tapActivate(() => setPanelOpen(false))}
+              title="Save reference image changes"
+            >
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path d="m4 10 4 4 8-8" />
+              </svg>
+              <span>Save changes</span>
+            </button>
+          </div>
+        )}
       </div>
       <div
         className="referenceImageQuickDock"
