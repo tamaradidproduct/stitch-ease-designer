@@ -213,6 +213,27 @@ describe("promoteQuickSlot", () => {
 
     expect(useDocStore.getState().quickSymbolIds).toEqual(["knit", "purl", "purl::" + RED]);
   });
+
+  it("fills an already-empty target slot directly, without disturbing other slots (#259)", () => {
+    // Regression: dragging an overflow entry onto an empty quick slot used
+    // to route through addQuickSlot's first-vacant-slot placement, then walk
+    // it back to the drop target via a chain of adjacent swaps - dragging
+    // every occupied slot in between along with it, even though the target
+    // was already empty and could be filled with zero disruption.
+    useDocStore.getState().setQuickSymbolIds(["knit", "", "yo"]);
+
+    useDocStore.getState().promoteQuickSlot("m1l", 1);
+
+    expect(useDocStore.getState().quickSymbolIds).toEqual(["knit", "m1l", "yo"]);
+  });
+
+  it("extends the slot array with empty strings when the empty target slot is past the end", () => {
+    useDocStore.getState().setQuickSymbolIds(["knit", "purl"]);
+
+    useDocStore.getState().promoteQuickSlot("yo", 4);
+
+    expect(useDocStore.getState().quickSymbolIds).toEqual(["knit", "purl", "", "", "yo"]);
+  });
 });
 
 describe("moveGlossaryIdTo", () => {
