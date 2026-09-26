@@ -1300,12 +1300,14 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
               // regardless of what's armed, since Cmd always means "select."
               ui().setSelectedEmptyCells([start]);
               const rect = getRect();
+              const unreadable = ui().referenceImageUnrecognized.has(cellKey(start.col, start.row));
               ui().openPicker({
                 col: start.col,
                 row: start.row,
                 x: e.clientX - rect.left + 8,
                 y: e.clientY - rect.top + 8,
                 selectionEmptyCells: [start],
+                ...(unreadable ? { reviewingSuggestion: true } : null),
               });
             } else if (ui().tool === "select") {
               // Parked in the Select tool (not via Cmd): a quick single
@@ -1319,12 +1321,14 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
               else {
                 ui().setSelectedEmptyCells([start]);
                 const rect = getRect();
+                const unreadable = ui().referenceImageUnrecognized.has(cellKey(start.col, start.row));
                 ui().openPicker({
                   col: start.col,
                   row: start.row,
                   x: e.clientX - rect.left + 8,
                   y: e.clientY - rect.top + 8,
                   selectionEmptyCells: [start],
+                  ...(unreadable ? { reviewingSuggestion: true } : null),
                 });
               }
             }
