@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { allSymbols, getSymbol } from "../symbols/registry";
 import { CELL } from "../canvas/camera";
 import { exportChartCsv } from "../storage/exportCsv";
@@ -6,16 +6,8 @@ import { type ImageFormat, exportChartImage } from "../storage/exportImage";
 import { exportChart } from "../storage/exportImport";
 import { cellWithinReferenceImage } from "../canvas/referenceImageCrop";
 import { unoccupiedCellsFromKeys } from "../model/cellKey";
-import { getSwatch } from "../model/colorPalette";
-import {
-  FIRST_ROW_SIDES,
-  WORKED_MODES,
-  type Corner,
-  type FirstRowSide,
-  type Worked,
-} from "../model/types";
 import { useDocStore } from "../state/docStore";
-import { SUGGEST_SYMBOL_ID, useUiStore } from "../state/uiStore";
+import { RIGHT_PANEL_MAX_WIDTH, RIGHT_PANEL_MIN_WIDTH, SUGGEST_SYMBOL_ID, useUiStore } from "../state/uiStore";
 import { ReferenceImagePanel } from "./ReferenceImagePanel";
 import { SymbolGlyph } from "./SymbolGlyph";
 import { searchSymbols } from "./symbolSearch";
@@ -51,15 +43,6 @@ const CATEGORY_LABELS: Record<string, string> = {
   special: "Special",
 };
 
-/** Grid layout order (top row, then bottom row) for the first-stitch corner picker. */
-const CORNER_GRID_ORDER: Corner[] = ["tl", "tr", "bl", "br"];
-const CORNER_LABELS: Record<Corner, string> = {
-  tl: "Top left",
-  tr: "Top right",
-  bl: "Bottom left",
-  br: "Bottom right",
-};
-
 export function RightPanel() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [glossaryQuery, setGlossaryQuery] = useState("");
@@ -68,7 +51,6 @@ export function RightPanel() {
   const [draggingQuickId, setDraggingQuickId] = useState<string | null>(null);
   const [dragOverQuickId, setDragOverQuickId] = useState<string | null>(null);
   const [dragOverQuickSlot, setDragOverQuickSlot] = useState<number | null>(null);
-  const [patternInfoOpen, setPatternInfoOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [exportBusy, setExportBusy] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -78,10 +60,8 @@ export function RightPanel() {
   const meta = useDocStore((state) => state.meta);
   const index = useDocStore((state) => state.index);
   const repeats = useDocStore((state) => state.repeats);
-  const referenceImage = useDocStore((state) => state.referenceImage);
+  const referenceImages = useDocStore((state) => state.referenceImages);
   const patternInfo = useDocStore((state) => state.patternInfo);
-  const setPatternInfo = useDocStore((state) => state.setPatternInfo);
-  const setColorName = useDocStore((state) => state.setColorName);
   const revision = useDocStore((state) => state.revision);
   const acceptSuggestions = useDocStore((state) => state.acceptSuggestions);
   const dismissSuggestions = useDocStore((state) => state.dismissSuggestions);
@@ -102,7 +82,48 @@ export function RightPanel() {
   const referenceImageUnrecognized = useUiStore((state) => state.referenceImageUnrecognized);
   const clearReferenceImageUnrecognized = useUiStore((state) => state.clearReferenceImageUnrecognized);
   const setSelection = useUiStore((state) => state.setSelection);
+  const rightPanelWidth = useUiStore((state) => state.rightPanelWidth);
+  const setRightPanelWidth = useUiStore((state) => state.setRightPanelWidth);
   const addedGlossaryIds = useGlossaryIds();
+
+  // Drag-to-resize from the panel's left edge. Pointer capture keeps the
+  // handle receiving move/up events even once the cursor leaves its thin
+  // hit area mid-drag, the same pattern useReferenceImageTool.ts uses for
+  // canvas drags.
+  const onResizeHandlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const handle = e.currentTarget;
+    handle.setPointerCapture(e.pointerId);
+    const startX = e.clientX;
+    const startWidth = rightPanelWidth;
+    const onMove = (moveEvent: PointerEvent) => {
+      setRightPanelWidth(startWidth + (startX - moveEvent.clientX));
+    };
+    // A plain pointerup only fires on a clean release. A gesture the OS or
+    // browser interrupts (touch scroll takeover, a system dialog stealing
+    // focus) instead ends the drag with pointercancel/lostpointercapture and
+    // no pointerup at all - without listening for those too, the resize
+    // would get stuck mid-drag and these listeners would leak.
+    const cleanup = () => {
+      handle.removeEventListener("pointermove", onMove);
+      handle.removeEventListener("pointerup", onUp);
+      handle.removeEventListener("pointercancel", onUp);
+      handle.removeEventListener("lostpointercapture", cleanup);
+    };
+    const onUp = (upEvent: PointerEvent) => {
+      try {
+        handle.releasePointerCapture(upEvent.pointerId);
+      } catch {
+        // Already released (e.g. by the lostpointercapture that's about to fire).
+      }
+      cleanup();
+    };
+    handle.addEventListener("pointermove", onMove);
+    handle.addEventListener("pointerup", onUp);
+    handle.addEventListener("pointercancel", onUp);
+    handle.addEventListener("lostpointercapture", cleanup);
+  };
 
   const resetDragState = () => {
     setDraggingQuickId(null);
@@ -200,24 +221,15 @@ export function RightPanel() {
     </button>
   );
 
-  const { placements, glossary, plainGlossaryIds, stitchCounts, coloredCounts, symbolsPlaced, usedColorIds } = useMemo(() => {
+  const { placements, glossary, plainGlossaryIds, stitchCounts, coloredCounts, symbolsPlaced } = useMemo(() => {
     // The document mutates its index in place; its revision invalidates this
     // cached snapshot when placements change.
     void revision;
     const chartPlacements = index.toArray();
     const chartGlossary = collectColoredGlossaryEntries(addedGlossaryIds, chartPlacements);
-    const colorIds: string[] = [];
-    const seenColorIds = new Set<string>();
-    for (const p of chartPlacements) {
-      if (p.colorId && !seenColorIds.has(p.colorId)) {
-        seenColorIds.add(p.colorId);
-        colorIds.push(p.colorId);
-      }
-    }
     return {
       placements: chartPlacements,
       glossary: chartGlossary,
-      usedColorIds: colorIds,
       // Which *plain* symbols already have a glossary row - what the
       // search-to-add dropdown (always a plain add) needs to exclude.
       plainGlossaryIds: new Set(
@@ -269,16 +281,18 @@ export function RightPanel() {
   const slotCount = Math.max(5, quickSymbolIds.length + 1);
 
   // How many distinct stitches Suggest currently has an exemplar for -
-  // a confirmed (non-suggested) placement sitting inside the reference
+  // a confirmed (non-suggested) placement sitting inside any reference
   // image counts as one. Shown on the Suggest row so it's clear at a
   // glance whether there's anything to match against yet.
-  const suggestTaughtCount = referenceImage
-    ? new Set(
-        placements
-          .filter((p) => !p.suggested && cellWithinReferenceImage(referenceImage, p.col, p.row))
-          .map((p) => p.symbolId),
-      ).size
-    : 0;
+  const suggestTaughtCount = new Set(
+    placements
+      .filter(
+        (p) =>
+          !p.suggested &&
+          referenceImages.some((image) => cellWithinReferenceImage(image, p.col, p.row)),
+      )
+      .map((p) => p.symbolId),
+  ).size;
   const suggestedPlacements = placements.filter((p) => p.suggested);
   const suggestedCount = suggestedPlacements.length;
   // A marker is stale once something's been placed at its cell by any other
@@ -357,7 +371,17 @@ export function RightPanel() {
   };
 
   return (
-    <aside className="rightPanel" aria-label="Pattern details">
+    <aside className="rightPanel" aria-label="Pattern details" style={{ width: rightPanelWidth }}>
+      <div
+        className="rightPanel__resizeHandle"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize panel"
+        aria-valuenow={Math.round(rightPanelWidth)}
+        aria-valuemin={RIGHT_PANEL_MIN_WIDTH}
+        aria-valuemax={RIGHT_PANEL_MAX_WIDTH}
+        onPointerDown={onResizeHandlePointerDown}
+      />
       <section className="sideModule">
         <div className="sideModule__header">
           <div>
@@ -792,106 +816,6 @@ export function RightPanel() {
         <button
           type="button"
           className="sideModule__header sideModule__toggle"
-          onClick={() => setPatternInfoOpen((open) => !open)}
-          aria-expanded={patternInfoOpen}
-        >
-          <div>
-            <h2>Pattern info</h2>
-            <span>Fill in details for the preview instead of asking</span>
-          </div>
-          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" data-open={patternInfoOpen}>
-            <path d="m4 6 4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
-          </svg>
-        </button>
-        {patternInfoOpen && (
-          <div className="sideModule__body patternInfo">
-            <div className="patternInfo__field">
-              <span className="patternInfo__label">Worked</span>
-              <div className="patternInfo__toggle" role="radiogroup" aria-label="Worked flat or in the round">
-                {WORKED_MODES.map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    role="radio"
-                    aria-checked={patternInfo.worked === mode}
-                    data-on={patternInfo.worked === mode}
-                    onClick={() => setPatternInfo({ worked: mode as Worked })}
-                  >
-                    {mode === "flat" ? "Flat" : "Round"}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {patternInfo.worked !== "round" && (
-              <div className="patternInfo__field">
-                <span className="patternInfo__label">First row</span>
-                <div className="patternInfo__toggle" role="radiogroup" aria-label="First row RS or WS">
-                  {FIRST_ROW_SIDES.map((side) => (
-                    <button
-                      key={side}
-                      type="button"
-                      role="radio"
-                      aria-checked={patternInfo.firstRow === side}
-                      data-on={patternInfo.firstRow === side}
-                      onClick={() => setPatternInfo({ firstRow: side as FirstRowSide })}
-                    >
-                      {side}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            <div className="patternInfo__field">
-              <span className="patternInfo__label">First stitch</span>
-              <div className="patternInfo__corners" role="radiogroup" aria-label="Which corner the first stitch is at">
-                {CORNER_GRID_ORDER.map((corner) => (
-                  <button
-                    key={corner}
-                    type="button"
-                    role="radio"
-                    aria-checked={patternInfo.firstStitch === corner}
-                    data-on={patternInfo.firstStitch === corner}
-                    aria-label={CORNER_LABELS[corner]}
-                    title={CORNER_LABELS[corner]}
-                    onClick={() => setPatternInfo({ firstStitch: corner })}
-                  />
-                ))}
-              </div>
-            </div>
-            {usedColorIds.length > 0 && (
-              <div className="patternInfo__field">
-                <span className="patternInfo__label">Color names</span>
-                <div className="patternInfo__colorNames">
-                  {usedColorIds.map((colorId) => {
-                    const swatch = getSwatch(colorId);
-                    return (
-                      <label key={colorId} className="patternInfo__colorName">
-                        <span
-                          className="patternInfo__swatch"
-                          style={{ background: swatch?.hex ?? colorId }}
-                          aria-hidden="true"
-                        />
-                        <input
-                          type="text"
-                          defaultValue={patternInfo.colorNames?.[colorId] ?? ""}
-                          placeholder={swatch ? `${swatch.hue} ${swatch.step + 1}` : "Name"}
-                          aria-label={`Name for this color`}
-                          onBlur={(event) => setColorName(colorId, event.target.value)}
-                        />
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </section>
-
-      <section className="sideModule">
-        <button
-          type="button"
-          className="sideModule__header sideModule__toggle"
           onClick={() => setExportOpen((open) => !open)}
           aria-expanded={exportOpen}
         >
@@ -905,14 +829,14 @@ export function RightPanel() {
         </button>
         {exportOpen && (
           <div className="sideModule__body">
-            {referenceImage && (
+            {referenceImages.length > 0 && (
               <label className="refpanel__checkbox">
                 <input
                   type="checkbox"
                   checked={includeReferenceImage}
                   onChange={(event) => setIncludeReferenceImage(event.target.checked)}
                 />
-                Include reference image
+                Include reference image{referenceImages.length > 1 ? "s" : ""}
               </label>
             )}
             <div className="refpanel__actions">
@@ -926,7 +850,7 @@ export function RightPanel() {
                       meta.name,
                       index.toArray(),
                       repeats,
-                      referenceImage ?? undefined,
+                      referenceImages,
                       addedGlossaryIds,
                       quickSymbolIds,
                       patternInfo,

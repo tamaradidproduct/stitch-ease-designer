@@ -224,7 +224,7 @@ export function useShortcuts(): void {
       // mouse drag is too coarse to finish. Same conditions as dragging it
       // (see `useReferenceImageTool`) - a hidden image doesn't move either.
       if (ARROWS[e.key] && ui.referenceImagePanelOpen && !e.metaKey && !e.ctrlKey) {
-        const image = doc.referenceImage;
+        const image = doc.referenceImages.find((img) => img.id === ui.activeReferenceImageId);
         // With a mark selected, the arrows belong to it rather than to the
         // photo: a mark names one stitch out of hundreds, and lining it up
         // is finer work than a mouse drag can finish.
@@ -233,7 +233,7 @@ export function useShortcuts(): void {
           e.preventDefault();
           const step = e.shiftKey ? CELL : 1;
           const [dx, dy] = ARROWS[e.key]!;
-          doc.updateReferenceImage({
+          doc.updateReferenceImage(image.id, {
             calibrationMarks: patchCalibrationMark(image.calibrationMarks, active.id, {
               u: Math.max(0, Math.min(1 - active.w, active.u + (dx * step) / image.width)),
               v: Math.max(0, Math.min(1 - active.h, active.v + (dy * step) / image.height)),
@@ -248,7 +248,7 @@ export function useShortcuts(): void {
           // actually happens at.
           const step = e.shiftKey ? CELL : 1;
           const [dx, dy] = ARROWS[e.key]!;
-          doc.updateReferenceImage({ x: image.x + dx * step, y: image.y + dy * step });
+          doc.updateReferenceImage(image.id, { x: image.x + dx * step, y: image.y + dy * step });
           return;
         }
       }

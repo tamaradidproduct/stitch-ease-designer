@@ -118,7 +118,7 @@ export function createKeyValueChartStore(
       const meta = requireMeta(readIndex(), id);
       const raw = backend.read(chartKey(id));
       if (raw === null) throw new ChartNotFoundError(id);
-      const { placements, repeats, referenceImage, glossaryIds, quickSymbolIds, patternInfo, unknownSymbolIds } = decode(
+      const { placements, repeats, referenceImages, glossaryIds, quickSymbolIds, patternInfo, unknownSymbolIds } = decode(
         JSON.parse(raw),
         knownSymbol,
       );
@@ -130,7 +130,7 @@ export function createKeyValueChartStore(
         quickSymbolIds,
         patternInfo,
         unknownSymbolIds,
-        ...(referenceImage ? { referenceImage } : null),
+        referenceImages,
       };
     },
 
@@ -139,7 +139,7 @@ export function createKeyValueChartStore(
       placements: Placement[],
       expectedRev: string,
       repeats = [],
-      referenceImage?: ReferenceImage,
+      referenceImages?: ReferenceImage[],
       glossaryIds?: readonly string[],
       quickSymbolIds?: readonly string[],
       patternInfo?: PatternInfo,
@@ -155,7 +155,7 @@ export function createKeyValueChartStore(
       const previousBody = backend.read(chartKey(id));
       backend.write(
         chartKey(id),
-        JSON.stringify(encode(placements, repeats, referenceImage, glossaryIds, quickSymbolIds, patternInfo)),
+        JSON.stringify(encode(placements, repeats, referenceImages, glossaryIds, quickSymbolIds, patternInfo)),
       );
 
       const meta: DocMeta = { ...current, updatedAt: stamp(), rev: newUuid("rev_") };

@@ -10,19 +10,17 @@ import { tapActivate } from "./tapActivate";
  * the moment; detailed opacity and resize controls stay in the side panel.
  */
 export function ReferenceImageDock() {
-  const image = useDocStore((s) => s.referenceImage);
+  const activeImageId = useUiStore((s) => s.activeReferenceImageId);
+  const image = useDocStore((s) => s.referenceImages.find((img) => img.id === activeImageId) ?? null);
   const updateReferenceImage = useDocStore((s) => s.updateReferenceImage);
   const marking = useUiStore((s) => s.referenceImageMarking);
   const setMarking = useUiStore((s) => s.setReferenceImageMarking);
-  const activeMark = useUiStore((s) => s.referenceImageActiveMark);
   const setActiveMark = useUiStore((s) => s.setReferenceImageActiveMark);
-  const centerCameraAt = useUiStore((s) => s.centerCameraAt);
-  const camera = useUiStore((s) => s.camera);
-  const viewport = useUiStore((s) => s.viewport);
   const setCalibrating = useUiStore((s) => s.setReferenceImageCalibrating);
   const setGridAlignmentStatus = useUiStore((s) => s.setReferenceImageGridAlignmentStatus);
   const setCalibrationRejected = useUiStore((s) => s.setReferenceImageCalibrationRejected);
   const setPanelOpen = useUiStore((s) => s.setReferenceImagePanelOpen);
+  const rightPanelWidth = useUiStore((s) => s.rightPanelWidth);
   const quickDockRef = useRef<HTMLDivElement>(null);
   const [availableLane, setAvailableLane] = useState<{ left: number; width: number } | null>(null);
   const hasImage = image !== null;
@@ -43,7 +41,7 @@ export function ReferenceImageDock() {
       const stageRect = stage.getBoundingClientRect();
       const panRect = panDock?.getBoundingClientRect();
       const quickRect = quickDock.getBoundingClientRect();
-      const panelBoundary = stageRect.width - 304;
+      const panelBoundary = stageRect.width - rightPanelWidth;
       const left = Math.max(16, (panRect?.right ?? stageRect.left) - stageRect.left + 16);
       const right = Math.min(panelBoundary - 16, quickRect.left - stageRect.left - 16);
       const next = { left: Math.round(left), width: Math.max(0, Math.round(right - left)) };
@@ -62,7 +60,7 @@ export function ReferenceImageDock() {
       observer?.disconnect();
       window.removeEventListener("resize", updateLane);
     };
-  }, [hasImage]);
+  }, [hasImage, rightPanelWidth]);
 
   if (!image) return null;
 
@@ -86,7 +84,7 @@ export function ReferenceImageDock() {
     // Keep the numbered reference points after applying. They are useful
     // calibration data, not disposable UI, and make it possible to reopen
     // setup later, correct a number, and refine the same image again.
-    if (fit) updateReferenceImage(fit);
+    if (fit) updateReferenceImage(image.id, fit);
     setActiveMark(null);
     setMarking(false);
   };
@@ -107,17 +105,6 @@ export function ReferenceImageDock() {
           onPointerDown={stopCanvasGesture}
           onClick={stopCanvasGesture}
         >
-      <button
-        type="button"
-        className="toolDock__button"
-        {...tapActivate(() => setPanelOpen(false))}
-        title="Save reference image changes"
-      >
-        <svg viewBox="0 0 20 20" aria-hidden="true">
-          <path d="m4 10 4 4 8-8" />
-        </svg>
-        <span>Save changes</span>
-      </button>
       <button
         type="button"
         className={marking ? "toolDock__button referenceDock__cancel" : "toolDock__button"}
@@ -154,7 +141,7 @@ export function ReferenceImageDock() {
             className="toolDock__button"
             disabled={points.length === 0}
             {...tapActivate(() => {
-              updateReferenceImage({ calibrationMarks: [] });
+              updateReferenceImage(image.id, { calibrationMarks: [] });
               setActiveMark(null);
             })}
             title="Clear reference points"
@@ -164,44 +151,35 @@ export function ReferenceImageDock() {
             </svg>
             <span>Clear points</span>
           </button>
-          {points.map((point, index) => {
-            const named = point.row !== null && point.stitch !== null;
-            return (
-              <button
-                key={point.id}
-                type="button"
-                className="referenceDock__point"
-                data-active={point.id === activeMark}
-                {...tapActivate(() => {
-                  setActiveMark(point.id);
-                  // Keep the mark in the left third of the canvas so its
-                  // editor has a consistent 14px right-side gap and never
-                  // needs to flip across the mark.
-                  const targetX = image.x + (point.u + point.w / 2) * image.width;
-                  const targetY = image.y + (point.v + point.h / 2) * image.height;
-                  const desiredScreenX = Math.max(92, Math.min(viewport.width * 0.28, viewport.width - 340));
-                  const desiredScreenY = Math.max(96, Math.min(viewport.height * 0.24, viewport.height - 180));
-                  centerCameraAt(
-                    targetX - (desiredScreenX - viewport.width / 2) / camera.zoom,
-                    targetY + (desiredScreenY - viewport.height / 2) / camera.zoom,
-                  );
-                })}
-                title={named
-                  ? `Reference point ${index + 1}: row ${point.row}, stitch ${point.stitch}`
-                  : `Number reference point ${index + 1}`}
-              >
-                <span className="referenceDock__pointIndex">{index + 1}</span>
-                <span>{named ? `R${point.row} · S${point.stitch}` : "Number"}</span>
-              </button>
-            );
-          })}
         </>
       )}
+        </div>
+        <div
+          className="referenceDock referenceDock--save"
+          aria-label="Save reference image changes"
+          onPointerDown={stopCanvasGesture}
+          onClick={stopCanvasGesture}
+        >
+          <button
+            type="button"
+            className="toolDock__button"
+            {...tapActivate(() => setPanelOpen(false))}
+            title="Save reference image changes"
+          >
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="m4 10 4 4 8-8" />
+            </svg>
+            <span>Save changes</span>
+          </button>
         </div>
       </div>
       <div
         className="referenceImageQuickDock"
         ref={quickDockRef}
+        // 24px clear of the panel's own (now resizable) left edge, matching
+        // the fixed gap the CSS default (328px = 304px panel + 24px) used to
+        // hardcode for the panel's old fixed width.
+        style={{ right: rightPanelWidth + 24 }}
         aria-label="Reference image visibility and layer controls"
         onPointerDown={stopCanvasGesture}
         onClick={stopCanvasGesture}
@@ -210,7 +188,7 @@ export function ReferenceImageDock() {
           type="button"
           className="toolDock__button"
           aria-pressed={image.visible}
-          {...tapActivate(() => updateReferenceImage({ visible: !image.visible }))}
+          {...tapActivate(() => updateReferenceImage(image.id, { visible: !image.visible }))}
           title={image.visible ? "Hide reference image" : "Show reference image"}
         >
           {image.visible ? (
@@ -230,7 +208,7 @@ export function ReferenceImageDock() {
           type="button"
           className="toolDock__button"
           aria-pressed={!!image.inFront}
-          {...tapActivate(() => updateReferenceImage({ inFront: !image.inFront }))}
+          {...tapActivate(() => updateReferenceImage(image.id, { inFront: !image.inFront }))}
           title={image.inFront ? "Send reference image behind stitches" : "Bring reference image in front of stitches"}
         >
           <svg viewBox="0 0 20 20" aria-hidden="true">

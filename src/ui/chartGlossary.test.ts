@@ -3,7 +3,6 @@ import type { Placement } from "../model/types";
 import { useDocStore } from "../state/docStore";
 import {
   collectColoredGlossaryEntries,
-  collectGlossarySymbols,
   countConfirmedColoredStitches,
   countConfirmedStitches,
   saveGlossaryIds,
@@ -22,20 +21,6 @@ const stitch = (id: string, symbolId: string, opts?: { suggested?: boolean; colo
 
 beforeEach(() => {
   useDocStore.setState({ glossaryIds: [], quickSymbolIds: [] });
-});
-
-describe("collectGlossarySymbols", () => {
-  it("keeps explicit glossary order and appends placed stitch types once", () => {
-    expect(collectGlossarySymbols(
-      ["purl", "knit"],
-      ["knit", "yarn_over", "purl", "yarn_over"],
-    ).map((symbol) => symbol.id)).toEqual(["purl", "knit", "yarn_over"]);
-  });
-
-  it("ignores unknown legacy symbol ids", () => {
-    expect(collectGlossarySymbols(["missing", "knit"], []).map((symbol) => symbol.id))
-      .toEqual(["knit"]);
-  });
 });
 
 describe("collectColoredGlossaryEntries", () => {

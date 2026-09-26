@@ -1,5 +1,5 @@
 # Product Requirements Document (PRD)
-*Last Updated: 2026-09-24*
+*Last Updated: 2026-09-25*
 
 ## Core App Overview
 
@@ -722,6 +722,150 @@ calling `encode()`, then pipes its output through `fillNoStitchCells()`.
 | `src/storage/useAutosave.ts` | `patternInfo` in the autosave save call |
 | `src/ui/RightPanel.tsx` | Pattern info settings section; Export section's "Include reference image" checkbox |
 | `src/storage/exportImport.ts` | `includeReferenceImage`; `noStitchCells`/`fillNoStitchCells`; suggested-placement exclusion |
+
+---
+
+### Multiple reference images per chart
+
+**Context.** A chart could previously hold exactly one reference image.
+Designers working from more than one source photo (a chart spanning two
+scanned pages, or a chart photo plus a separate color-key photo) had to pick
+one. See `docs/conversations/2026-09-25-multiple-reference-images.md` for
+the full discussion and alternatives considered.
+
+**FR-49.** A chart's reference images are now `ReferenceImage[]`
+(`src/model/types.ts`) rather than a single nullable `ReferenceImage`. Each
+`ReferenceImage` carries a stable `id`, generated once at upload and reused
+as its Storage path segment (`{uid}/{chartId}/{imageId}.<ext>`), so several
+images never collide or overwrite one another.
+
+**FR-50.** Exactly one image is ever "active" (the one the reference panel,
+the interactive move/resize/calibrate tool, and the canvas overlay all
+target) at a time, tracked as `activeReferenceImageId` in `uiStore`.
+Selecting the active image happens **only** through a list in the
+reference-image panel (thumbnail + label per image, with select/add/remove);
+clicking an image on the canvas does not change the selection.
+
+**FR-51.** Adding, removing, and patching a reference image (transform,
+visibility, calibration) are all undoable, scoped by the image's `id`
+(`docStore`'s `addReferenceImage`/`removeReferenceImage`/
+`updateReferenceImage(id, patch)`). Undoing a removal restores the image at
+its original array position, not just back into existence at the end of the
+list. (Revised from the initial multi-image cut, which carried over the old
+single-image behavior of add/remove being non-undoable — deleting an image
+by mistake with no way back was worse than the inconsistency of add/remove
+behaving differently from every other document edit.) The underlying
+Storage file for a removed or replaced image is deliberately left alone
+rather than deleted immediately, so a later Undo never points at a missing
+file; it's only cleaned up if the chart itself is deleted.
+
+**FR-52.** Reference images draw in array order, split into two groups by
+each image's own `inFront` flag: every "behind" image, then the chart, then
+every "in-front" image. Array order doubles as manual z-order within each
+group — there is no separate reorder UI in v1 (new images stack on top of
+their group in upload order).
+
+**FR-53.** The export "include reference image" checkbox stays
+all-or-nothing: unchecked drops every reference image from the export,
+checked keeps all of them. No per-image export picker in v1.
+
+**Implementation.**
+- `src/model/types.ts` — `ReferenceImage.id`.
+- `src/state/docStore.ts` — `referenceImages: ReferenceImage[]` replaces the
+  singular field; `addReferenceImage`/`updateReferenceImage(id, patch)`/
+  `removeReferenceImage(id)`/`beginReferenceImageEdit(id)`; undo/redo
+  history entries carry `{ id, before, index? }` snapshots scoped to one
+  image (`before: null` for "didn't exist yet", `index` so undoing a
+  removal reinserts at its original position).
+- `src/state/uiStore.ts` — `activeReferenceImageId` + `setActiveReferenceImageId`.
+- `src/storage/serialize.ts` — `StoredChart.referenceImages` (array);
+  `decode()` lifts a legacy singular `referenceImage` (if present) into a
+  one-element array, minting an `id` for it and for any array element
+  missing one — covers every chart already saved, no separate migration
+  pass needed.
+- `src/storage/referenceImages.ts` — `uploadReferenceImage(chartId, file,
+  imageId)`'s Storage path now includes `imageId`.
+- `src/storage/ChartStore.ts`, `keyValueChartStore.ts`,
+  `supabaseChartStore.ts`, `migrateLocalCharts.ts`, `exportImport.ts`,
+  `useAutosave.ts` — `referenceImage` threaded through as `referenceImages`
+  throughout load/save/export/import/migration.
+- `src/canvas/referenceImageCache.ts`, the module-local pixel cache in
+  `src/input/useReferenceImageTool.ts`, and the exemplar cache in
+  `src/model/templateMatch.ts` — each converted from a single resident entry
+  (evicted on any ref change) to a map keyed by `ref`, so several images'
+  decoded bitmaps/pixels/exemplars can stay resident at once instead of
+  evicting each other.
+- `src/canvas/renderer.ts`, `src/canvas/CanvasView.tsx` — `RenderState`
+  takes `referenceImages`/`activeReferenceImageId`; the draw pipeline loops
+  the array for both the behind and in-front passes; the interactive overlay
+  (handles, calibration box, marks) renders only for the active image.
+- `src/input/useReferenceImageTool.ts`, `src/input/useShortcuts.ts` — the
+  drag state machine and arrow-key nudging resolve the target image via
+  `activeReferenceImageId` (each `Drag` variant carries the `imageId` it
+  started on, captured at pointerdown).
+- `src/input/usePaintTool.ts` — Suggest matches a cell against the first
+  reference image (in array order) whose bounds actually cover that cell.
+- `src/ui/ReferenceImagePanel.tsx` — the image list (add/select/remove,
+  thumbnails resolved via `resolveReferenceImageUrl`); "Replace" now uploads
+  under a fresh id and swaps it in at the same position via remove+add,
+  resetting that image's transform/calibration the same way a fresh upload
+  does.
+- `src/ui/ReferenceImageDock.tsx`, `src/ui/ReferenceMarkEditor.tsx` — operate
+  on the active image, resolved by id.
+- `src/ui/Toolbar.tsx`, `src/ui/ChartEditor.tsx`, `src/ui/RightPanel.tsx`,
+  `src/ui/ChartList.tsx` — singular presence/cleanup checks (`!!referenceImage`,
+  a single `removeReferenceImageFile` call) generalized to the array.
+
+**FR-54. Stable per-image numbering.** Each `ReferenceImage` carries a
+`number` (`src/model/types.ts`), assigned once at upload — one higher than
+any number currently in use — and never reused or reassigned afterward.
+Deleting an image does not renumber the ones that remain, and a later
+upload never reclaims a number a deletion freed up. Distinct from `id` (an
+opaque identity with no display meaning) purely so the "Image N" label a
+designer sees stays stable across deletions, which array position alone
+cannot guarantee since it shifts whenever an earlier image is removed.
+Legacy charts decode with numbers minted from array position
+(`src/storage/serialize.ts`).
+
+**FR-55. Crop to calibrated stitches.** A reference image can optionally be
+clipped, for display only, to the region spanned by its own **named**
+calibration marks — the stitches the designer has boxed and typed a
+row/stitch number for (`ReferenceImage.cropToCalibration`,
+`src/model/types.ts`). Reference photos routinely carry their own grid past
+where the actual pattern ends, and that grid fighting the app's own grid
+outside the real chart was the original motivating complaint (a photo's
+white grid border visibly overlapping the app's grid border).
+
+Deliberately keyed off the image's *own* calibration, not off the chart's
+placed-stitch bounds: an early cut computed bounds from `chartBounds()`
+(every placement's col/row extent) and clipped in that coordinate space,
+but a reference image's `x`/`y`/`width`/`height` and a chart's placement
+`col`/`row` live in unrelated coordinate spaces that can drift arbitrarily
+far apart as a chart is edited over time — the clip rectangle and the image
+routinely didn't overlap at all. Calibration marks belong to the image
+itself and are defined in the same image-fraction space (`u`/`v`/`w`/`h`,
+0..1) as the image's own render rect, so there's no coordinate mismatch to
+begin with, and an image can be calibrated (and cropped) before a single
+stitch is ever placed.
+
+Display-only and fully reversible: it never touches `x`/`y`/`width`/
+`height`, so turning it off always shows the whole image again regardless
+of whether the marked corners later turn out wrong (e.g. a corner never got
+worked). A no-op — shows the full image — until at least one mark is named.
+
+**Implementation.**
+- `src/model/referenceCalibration.ts` — `calibratedImageBounds(marks)`
+  returns the `{minU, maxU, minV, maxV}` rectangle spanning every named
+  mark's box (not just its centre, so a marked stitch isn't itself clipped
+  in half), reusing the same "named" filter (`stitch !== null && row !==
+  null`) `scaleFromCalibrationMarks` already uses for its fit. Null when
+  nothing's named yet.
+- `src/canvas/renderer.ts` — `drawReferenceImage` clips via `ctx.clip()`
+  using `image.x/y/width/height` plus that image's own
+  `calibratedImageBounds(image.calibrationMarks)`, entirely self-contained
+  per image (no `DocIndex`/`chartBounds` involved).
+- `src/ui/ReferenceImagePanel.tsx` — "Crop to calibrated stitches" checkbox
+  per active image.
 
 ---
 

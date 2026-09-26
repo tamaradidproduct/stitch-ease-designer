@@ -9,6 +9,8 @@ import {
 
 function image(overrides: Partial<ReferenceImage> = {}): ReferenceImage {
   return {
+    id: "image-1",
+    number: 1,
     ref: "data:image/png;base64,x",
     x: 100,
     y: 50,

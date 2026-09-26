@@ -54,21 +54,6 @@ export function collectColoredGlossaryEntries(
   });
 }
 
-/** Back-compat plain-symbol view, for call sites that only need the symbol list. */
-export function collectGlossarySymbols(
-  addedIds: readonly string[],
-  placementIds: readonly string[],
-): StitchSymbol[] {
-  const seen = new Set<string>();
-  return [...addedIds, ...placementIds].flatMap((id) => {
-    const { symbolId } = parseQuickSlotId(id);
-    if (seen.has(symbolId)) return [];
-    seen.add(symbolId);
-    const symbol = getSymbol(symbolId);
-    return symbol ? [symbol] : [];
-  });
-}
-
 /** The confirmed placements for one stitch-and-color glossary swatch. */
 export function selectableGlossaryEntryPlacementIds(
   placements: readonly Placement[],

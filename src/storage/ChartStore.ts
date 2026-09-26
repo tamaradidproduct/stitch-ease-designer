@@ -25,7 +25,7 @@ export interface ChartStore {
     placements: Placement[],
     expectedRev: string,
     repeats?: RepeatDefinition[],
-    referenceImage?: ReferenceImage,
+    referenceImages?: ReferenceImage[],
     glossaryIds?: readonly string[],
     quickSymbolIds?: readonly string[],
     patternInfo?: PatternInfo,
@@ -38,7 +38,7 @@ export type LoadedChart = {
   meta: DocMeta;
   placements: Placement[];
   repeats?: RepeatDefinition[];
-  referenceImage?: ReferenceImage;
+  referenceImages?: ReferenceImage[];
   /**
    * Chart-scoped glossary/quick-row membership - see `serialize.ts`'s
    * `DecodedChart`. Optional here only so test fixtures can omit them;

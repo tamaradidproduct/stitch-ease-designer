@@ -10,7 +10,7 @@ import { insertTargetCol } from "../model/ops";
 import { SymbolGlyph } from "./SymbolGlyph";
 import { searchSymbols } from "./symbolSearch";
 import { CloseIcon } from "./icons";
-import { collectGlossarySymbols, useGlossaryIds } from "./chartGlossary";
+import { collectColoredGlossaryEntries, useGlossaryIds } from "./chartGlossary";
 import { getSwatch } from "../model/colorPalette";
 import { parseQuickSlotId } from "../model/quickSlots";
 import { addColoredVariant, applyColorToSlot, currentSlotForPicker } from "./colorwork";
@@ -136,20 +136,26 @@ export function StitchPicker() {
     return { key: currentSlot.key, symbol, ...(currentSlot.colorId ? { colorId: currentSlot.colorId } : {}) } satisfies QuickEntry;
   }, [currentSlot, quickSymbols, selectionSpan]);
   const dynamicSwatch = dynamicSlot?.colorId ? getSwatch(dynamicSlot.colorId) : undefined;
-  const moreSymbols = useMemo(() => {
+  const moreEntries = useMemo(() => {
     // The document mutates its index in place; its revision invalidates this
     // cached snapshot when placements change.
     void revision;
     const visibleKeys = new Set(quickSymbols.map((entry) => entry.key));
-    return collectGlossarySymbols(
+    // Color-aware (keyed by symbolId::colorId, not just symbolId) - a
+    // colored variant is its own distinct glossary entry, same as it is in
+    // RightPanel's glossary list, so it needs its own row here rather than
+    // collapsing into whichever (colored or plain) form of the symbol was
+    // added first. Using the plain-symbol view here used to make any color
+    // variant beyond the first silently uncollectable from this drawer.
+    return collectColoredGlossaryEntries(
       // The right panel treats assigned quick slots as glossary rows too,
       // including slots beyond the five shown in this compact picker.
       [...quickIds, ...addedGlossaryIds],
-      index.toArray().map((placement) => placement.symbolId),
-    ).filter((symbol) =>
-      !visibleKeys.has(symbol.id) && (!selectionSpan || symbol.span === selectionSpan));
+      index.toArray(),
+    ).filter((entry) =>
+      !visibleKeys.has(entry.key) && (!selectionSpan || entry.symbol.span === selectionSpan));
   }, [quickSymbols, quickIds, addedGlossaryIds, index, selectionSpan, revision]);
-  const hasMore = moreSymbols.length > 0;
+  const hasMore = moreEntries.length > 0;
   const menuWidth = MENU_WIDTH + (dynamicSlot ? 45 : 0) + (hasMore ? 45 : 0) + (canDelete ? 45 : 0);
   const expandedMenuWidth = menuWidth + SEARCH_SLOT_WIDTH - 40;
 
@@ -662,37 +668,42 @@ export function StitchPicker() {
           <div id="picker-more-stitches" className="picker__moreDrawer" aria-label="More stitches in this pattern">
             <div className="picker__moreHeader">This pattern</div>
             <div className="picker__moreList">
-              {moreSymbols.map((symbol) => (
-                <div key={symbol.id} className="picker__item">
-                  <button
-                    type="button"
-                    className="picker__itemMain"
-                    onClick={() => choose(symbol)}
-                    title={symbol.label}
-                  >
-                    <span className="picker__glyph">
-                      <SymbolGlyph symbol={symbol} cell={cellSizeFor(symbol)} />
-                    </span>
-                    <span className="picker__label">{symbol.label}</span>
-                    {symbol.id === target.currentSymbolId && (
-                      <span className="picker__current">current</span>
-                    )}
-                    {symbol.span > 1 && <span className="picker__span">{symbol.span} sts</span>}
-                  </button>
-                  {/* FR-34: add-only - picking a color here arms a new pen,
-                      never touches anything already placed, no matter how
-                      many plain instances of this symbol exist. */}
-                  <ColorChip
-                    mode="add-only"
-                    label={`Add a colored ${symbol.label}`}
-                    className="picker__itemColorChip"
-                    onSelect={(colorId) => {
-                      addColoredVariant(symbol.id, colorId);
-                      closePicker();
-                    }}
-                  />
-                </div>
-              ))}
+              {moreEntries.map((entry) => {
+                const swatch = entry.colorId ? getSwatch(entry.colorId) : undefined;
+                return (
+                  <div key={entry.key} className="picker__item">
+                    <button
+                      type="button"
+                      className="picker__itemMain"
+                      data-colored={!!entry.colorId}
+                      style={swatch ? { background: swatch.hex } : undefined}
+                      onClick={() => choose(entry.symbol, entry.colorId)}
+                      title={entry.symbol.label}
+                    >
+                      <span className="picker__glyph">
+                        <SymbolGlyph symbol={entry.symbol} cell={cellSizeFor(entry.symbol)} colorId={entry.colorId} />
+                      </span>
+                      <span className="picker__label">{entry.symbol.label}</span>
+                      {currentSlot?.key === entry.key && (
+                        <span className="picker__current">current</span>
+                      )}
+                      {entry.symbol.span > 1 && <span className="picker__span">{entry.symbol.span} sts</span>}
+                    </button>
+                    {/* FR-34: add-only - picking a color here arms a new pen,
+                        never touches anything already placed, no matter how
+                        many plain instances of this symbol exist. */}
+                    <ColorChip
+                      mode="add-only"
+                      label={`Add a colored ${entry.symbol.label}`}
+                      className="picker__itemColorChip"
+                      onSelect={(colorId) => {
+                        addColoredVariant(entry.symbol.id, colorId);
+                        closePicker();
+                      }}
+                    />
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

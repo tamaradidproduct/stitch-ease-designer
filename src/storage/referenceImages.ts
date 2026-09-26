@@ -2,15 +2,15 @@ import { DEV_SKIP_AUTH } from "../auth/useSession";
 import { getSupabase } from "../supabase/client";
 
 /**
- * Where a chart's reference image screenshot lives.
+ * Where a chart's reference image screenshots live.
  *
- * Signed in: uploaded to this Storage bucket, one object per chart at a
- * fixed, user-id-prefixed path (`{uid}/{chartId}/reference.<ext>`) so RLS
- * can scope every read/write to its owner exactly like the `charts` table
- * does, and a replacement upload cleanly overwrites rather than orphaning
- * the old file. `ReferenceImage.ref` stores this path, never a bare URL -
- * the bucket is private, so the app always resolves a fresh signed URL
- * before drawing.
+ * Signed in: uploaded to this Storage bucket, one object per image at a
+ * user-id-and-chart-id-prefixed path (`{uid}/{chartId}/{imageId}.<ext>`) so
+ * RLS can scope every read/write to its owner exactly like the `charts`
+ * table does, and a chart with several images doesn't have them collide or
+ * overwrite one another. `ReferenceImage.ref` stores this path, never a
+ * bare URL - the bucket is private, so the app always resolves a fresh
+ * signed URL before drawing.
  *
  * `VITE_DEV_SKIP_AUTH` (no real session to own a Storage path): the image
  * is inlined as a `data:` URL directly in the chart's own stored JSON
@@ -49,10 +49,11 @@ function readAsDataUrl(file: File): Promise<string> {
   });
 }
 
-/** Uploads (or inlines, under dev-skip-auth) `file` as `chartId`'s reference image. */
+/** Uploads (or inlines, under dev-skip-auth) `file` as one of `chartId`'s reference images, identified by `imageId`. */
 export async function uploadReferenceImage(
   chartId: string,
   file: File,
+  imageId: string,
 ): Promise<UploadedReferenceImage> {
   const ext = ALLOWED_TYPES[file.type];
   if (!ext) throw new ReferenceImageError("Reference images must be PNG, JPG, or WebP.");
@@ -72,7 +73,7 @@ export async function uploadReferenceImage(
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError || !userData.user) throw new ReferenceImageError("Not signed in.");
 
-  const path = `${userData.user.id}/${chartId}/reference.${ext}`;
+  const path = `${userData.user.id}/${chartId}/${imageId}.${ext}`;
   const { error } = await supabase.storage
     .from(REFERENCE_IMAGE_BUCKET)
     .upload(path, file, { upsert: true, contentType: file.type });

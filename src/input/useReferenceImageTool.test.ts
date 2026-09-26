@@ -10,6 +10,8 @@ import { calibrationTransform, handleAt, stitchResizeTransform } from "./useRefe
  */
 function smallImage(): ReferenceImage {
   return {
+    id: "image-1",
+    number: 1,
     ref: "data:image/png;base64,x",
     x: 0,
     y: 0,

@@ -301,8 +301,10 @@ describe("selection edits", () => {
   });
 });
 
-describe("reference image", () => {
+describe("reference images", () => {
   const image: ReferenceImage = {
+    id: "image-1",
+    number: 1,
     ref: "data:image/png;base64,abc",
     x: 0,
     y: 0,
@@ -319,67 +321,154 @@ describe("reference image", () => {
     useDocStore.getState().openChart({ meta: meta("ref"), placements: [], unknownSymbolIds: [] });
   });
 
-  it("sets, patches, and removes it, bumping revision each time so autosave notices", () => {
+  it("adds, patches, and removes one, bumping revision each time so autosave notices", () => {
     const r0 = useDocStore.getState().revision;
 
-    useDocStore.getState().setReferenceImage(image);
-    expect(useDocStore.getState().referenceImage).toEqual(image);
+    useDocStore.getState().addReferenceImage(image);
+    expect(useDocStore.getState().referenceImages).toEqual([image]);
     expect(useDocStore.getState().revision).toBeGreaterThan(r0);
 
     const r1 = useDocStore.getState().revision;
-    useDocStore.getState().updateReferenceImage({ opacity: 0.8, locked: true });
-    expect(useDocStore.getState().referenceImage).toMatchObject({ opacity: 0.8, locked: true });
+    useDocStore.getState().updateReferenceImage(image.id, { opacity: 0.8, locked: true });
+    expect(useDocStore.getState().referenceImages[0]).toMatchObject({ opacity: 0.8, locked: true });
     expect(useDocStore.getState().revision).toBeGreaterThan(r1);
 
     const r2 = useDocStore.getState().revision;
-    useDocStore.getState().removeReferenceImage();
-    expect(useDocStore.getState().referenceImage).toBeNull();
+    useDocStore.getState().removeReferenceImage(image.id);
+    expect(useDocStore.getState().referenceImages).toEqual([]);
     expect(useDocStore.getState().revision).toBeGreaterThan(r2);
   });
 
-  it("is not undoable - it isn't on the undo stack at all", () => {
-    const before = useDocStore.getState().undoStack.length;
-    useDocStore.getState().setReferenceImage(image);
-    expect(useDocStore.getState().undoStack).toHaveLength(before);
+  it("holds several images independently", () => {
+    const second: ReferenceImage = { ...image, id: "image-2", ref: "data:image/png;base64,def" };
+    useDocStore.getState().addReferenceImage(image);
+    useDocStore.getState().addReferenceImage(second);
+    expect(useDocStore.getState().referenceImages.map((img) => img.id)).toEqual(["image-1", "image-2"]);
+
+    useDocStore.getState().updateReferenceImage("image-2", { opacity: 0.9 });
+    expect(useDocStore.getState().referenceImages[0]).toMatchObject({ id: "image-1", opacity: 0.5 });
+    expect(useDocStore.getState().referenceImages[1]).toMatchObject({ id: "image-2", opacity: 0.9 });
+
+    useDocStore.getState().removeReferenceImage("image-1");
+    expect(useDocStore.getState().referenceImages.map((img) => img.id)).toEqual(["image-2"]);
   });
 
-  it("undoes and redoes reference-point patches", () => {
-    useDocStore.getState().setReferenceImage({
+  it("undoes and redoes adding one", () => {
+    useDocStore.getState().addReferenceImage(image);
+    expect(useDocStore.getState().referenceImages).toEqual([image]);
+
+    useDocStore.getState().undo();
+    expect(useDocStore.getState().referenceImages).toEqual([]);
+
+    useDocStore.getState().redo();
+    expect(useDocStore.getState().referenceImages).toEqual([image]);
+  });
+
+  it("undoes removing one back into its original position, not just back into existence", () => {
+    const second: ReferenceImage = { ...image, id: "image-2", ref: "data:image/png;base64,def" };
+    const third: ReferenceImage = { ...image, id: "image-3", ref: "data:image/png;base64,ghi" };
+    useDocStore.getState().addReferenceImage(image);
+    useDocStore.getState().addReferenceImage(second);
+    useDocStore.getState().addReferenceImage(third);
+
+    useDocStore.getState().removeReferenceImage("image-2");
+    expect(useDocStore.getState().referenceImages.map((img) => img.id)).toEqual(["image-1", "image-3"]);
+
+    useDocStore.getState().undo();
+    expect(useDocStore.getState().referenceImages.map((img) => img.id)).toEqual(["image-1", "image-2", "image-3"]);
+
+    useDocStore.getState().redo();
+    expect(useDocStore.getState().referenceImages.map((img) => img.id)).toEqual(["image-1", "image-3"]);
+  });
+
+  it("undoes a patch back into its original position, not just back into existence", () => {
+    const second: ReferenceImage = { ...image, id: "image-2", ref: "data:image/png;base64,def" };
+    const third: ReferenceImage = { ...image, id: "image-3", ref: "data:image/png;base64,ghi" };
+    useDocStore.getState().addReferenceImage(image);
+    useDocStore.getState().addReferenceImage(second);
+    useDocStore.getState().addReferenceImage(third);
+
+    useDocStore.getState().updateReferenceImage("image-2", { opacity: 0.9 });
+    expect(useDocStore.getState().referenceImages.map((img) => img.id)).toEqual(["image-1", "image-2", "image-3"]);
+
+    useDocStore.getState().undo();
+    expect(useDocStore.getState().referenceImages.map((img) => img.id)).toEqual(["image-1", "image-2", "image-3"]);
+
+    useDocStore.getState().redo();
+    expect(useDocStore.getState().referenceImages.map((img) => img.id)).toEqual(["image-1", "image-2", "image-3"]);
+  });
+
+  it("undoes a begin/end-bracketed edit back into its original position too", () => {
+    const second: ReferenceImage = { ...image, id: "image-2", ref: "data:image/png;base64,def" };
+    const third: ReferenceImage = { ...image, id: "image-3", ref: "data:image/png;base64,ghi" };
+    useDocStore.getState().addReferenceImage(image);
+    useDocStore.getState().addReferenceImage(second);
+    useDocStore.getState().addReferenceImage(third);
+
+    useDocStore.getState().beginReferenceImageEdit("image-2");
+    useDocStore.getState().updateReferenceImage("image-2", { width: 120 });
+    useDocStore.getState().endReferenceImageEdit();
+    expect(useDocStore.getState().referenceImages.map((img) => img.id)).toEqual(["image-1", "image-2", "image-3"]);
+
+    useDocStore.getState().undo();
+    expect(useDocStore.getState().referenceImages.map((img) => img.id)).toEqual(["image-1", "image-2", "image-3"]);
+  });
+
+  it("addReferenceImage can insert at a given index, for swapping a replacement back into a removed image's slot", () => {
+    const second: ReferenceImage = { ...image, id: "image-2", ref: "data:image/png;base64,def" };
+    const third: ReferenceImage = { ...image, id: "image-3", ref: "data:image/png;base64,ghi" };
+    useDocStore.getState().addReferenceImage(image);
+    useDocStore.getState().addReferenceImage(second);
+    useDocStore.getState().addReferenceImage(third);
+
+    useDocStore.getState().removeReferenceImage("image-2");
+    const replacement: ReferenceImage = { ...second, id: "image-2b" };
+    useDocStore.getState().addReferenceImage(replacement, 1);
+
+    expect(useDocStore.getState().referenceImages.map((img) => img.id)).toEqual(["image-1", "image-2b", "image-3"]);
+  });
+
+  it("undoes and redoes reference-point patches, scoped to that image's id", () => {
+    useDocStore.getState().addReferenceImage({
       ...image,
       calibrationMarks: [{ id: "point-1", u: 0.1, v: 0.2, w: 0.05, h: 0.05, row: null, stitch: null }],
     });
 
-    useDocStore.getState().updateReferenceImage({
+    useDocStore.getState().updateReferenceImage(image.id, {
       calibrationMarks: [{ id: "point-1", u: 0.1, v: 0.2, w: 0.05, h: 0.05, row: 12, stitch: 8 }],
     });
-    expect(useDocStore.getState().referenceImage?.calibrationMarks?.[0]).toMatchObject({ row: 12, stitch: 8 });
+    expect(useDocStore.getState().referenceImages[0]?.calibrationMarks?.[0]).toMatchObject({ row: 12, stitch: 8 });
 
     useDocStore.getState().undo();
-    expect(useDocStore.getState().referenceImage?.calibrationMarks?.[0]).toMatchObject({ row: null, stitch: null });
+    expect(useDocStore.getState().referenceImages[0]?.calibrationMarks?.[0]).toMatchObject({ row: null, stitch: null });
 
     useDocStore.getState().redo();
-    expect(useDocStore.getState().referenceImage?.calibrationMarks?.[0]).toMatchObject({ row: 12, stitch: 8 });
+    expect(useDocStore.getState().referenceImages[0]?.calibrationMarks?.[0]).toMatchObject({ row: 12, stitch: 8 });
   });
 
   it("banks a continuous reference-image edit as one undo step", () => {
-    useDocStore.getState().setReferenceImage(image);
-    useDocStore.getState().beginReferenceImageEdit();
-    useDocStore.getState().updateReferenceImage({ width: 101 });
-    useDocStore.getState().updateReferenceImage({ width: 104 });
-    useDocStore.getState().updateReferenceImage({ width: 108 });
+    useDocStore.getState().addReferenceImage(image);
+    const afterAdd = useDocStore.getState().undoStack.length;
+
+    useDocStore.getState().beginReferenceImageEdit(image.id);
+    useDocStore.getState().updateReferenceImage(image.id, { width: 101 });
+    useDocStore.getState().updateReferenceImage(image.id, { width: 104 });
+    useDocStore.getState().updateReferenceImage(image.id, { width: 108 });
     useDocStore.getState().endReferenceImageEdit();
 
-    expect(useDocStore.getState().referenceImage?.width).toBe(108);
-    expect(useDocStore.getState().undoStack).toHaveLength(1);
+    expect(useDocStore.getState().referenceImages[0]?.width).toBe(108);
+    // The drag/resize itself only ever banks one more entry, on top of
+    // whatever the add already banked - not one per intermediate update.
+    expect(useDocStore.getState().undoStack).toHaveLength(afterAdd + 1);
 
     useDocStore.getState().undo();
-    expect(useDocStore.getState().referenceImage?.width).toBe(100);
+    expect(useDocStore.getState().referenceImages[0]?.width).toBe(100);
   });
 
-  it("updateReferenceImage without one set is a harmless no-op", () => {
+  it("updateReferenceImage for an id that isn't present is a harmless no-op", () => {
     const r0 = useDocStore.getState().revision;
-    useDocStore.getState().updateReferenceImage({ opacity: 0.2 });
-    expect(useDocStore.getState().referenceImage).toBeNull();
+    useDocStore.getState().updateReferenceImage("missing", { opacity: 0.2 });
+    expect(useDocStore.getState().referenceImages).toEqual([]);
     expect(useDocStore.getState().revision).toBe(r0);
   });
 });

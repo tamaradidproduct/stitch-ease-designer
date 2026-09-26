@@ -4,21 +4,35 @@ import { resolveReferenceImageUrl } from "../storage/referenceImages";
 const MAX_ATTEMPTS = 3;
 
 /**
- * The one loaded reference image, keyed by its `ref` rather than the
- * resolved URL — for a Storage-backed ref, resolving mints a fresh signed
- * URL every call, which would otherwise cache-bust itself on every reload
- * even though the underlying file hasn't changed.
+ * How many distinct images this cache keeps resident at once. A chart's
+ * reference images are few, but the cache is shared across chart switches
+ * within a session (see `getSharedReferenceImageCache`), so it needs a bound
+ * rather than growing forever - generous enough to cover several charts'
+ * worth of images without ever mattering in practice.
+ */
+const MAX_ENTRIES = 24;
+
+type CacheEntry = {
+  image: HTMLImageElement | null;
+  pending: boolean;
+  attempts: number;
+};
+
+/**
+ * Every loaded reference image currently in play, keyed by its `ref` rather
+ * than the resolved URL — for a Storage-backed ref, resolving mints a fresh
+ * signed URL every call, which would otherwise cache-bust itself on every
+ * reload even though the underlying file hasn't changed.
  *
  * Follows the same synchronous-get/async-load/onReady pattern as
  * `SpriteCache`: `get` never blocks the draw loop, a miss kicks off loading
  * in the background and returns null for that frame, and `onReady` is how
- * the caller learns to redraw once it lands.
+ * the caller learns to redraw once it lands. Each `ref` loads and evicts
+ * independently, so several images can be in flight at once - a chart with
+ * more than one reference image doesn't make them evict each other.
  */
 export class ReferenceImageCache {
-  private ref: string | null = null;
-  private image: HTMLImageElement | null = null;
-  private pending = false;
-  private attempts = 0;
+  private entries = new Map<string, CacheEntry>();
 
   constructor(private onReady: () => void) {}
 
@@ -35,24 +49,51 @@ export class ReferenceImageCache {
 
   /** The loaded image for `ref`, or null if it isn't ready yet (or `ref` is null). */
   get(ref: string | null): HTMLImageElement | null {
-    if (ref !== this.ref) {
-      this.ref = ref;
-      this.image = null;
-      this.pending = false;
-      this.attempts = 0;
-    }
     if (!ref) return null;
-    if (this.image) return this.image;
-    if (this.attempts >= MAX_ATTEMPTS) return null;
 
-    if (!this.pending) {
-      this.pending = true;
-      void this.load(ref);
+    let entry = this.entries.get(ref);
+    if (entry) {
+      // Re-insert to mark it most-recently-used for the eviction below.
+      this.entries.delete(ref);
+      this.entries.set(ref, entry);
+    } else {
+      entry = { image: null, pending: false, attempts: 0 };
+      this.entries.set(ref, entry);
+      this.evictOldest();
+    }
+
+    if (entry.image) return entry.image;
+    if (entry.attempts >= MAX_ATTEMPTS) return null;
+
+    if (!entry.pending) {
+      entry.pending = true;
+      void this.load(ref, entry);
     }
     return null;
   }
 
-  private async load(ref: string): Promise<void> {
+  /**
+   * Whether `ref` has finished loading one way or another - either it
+   * decoded, or it's been retried `MAX_ATTEMPTS` times and given up. Lets a
+   * caller that caches work keyed on "every image is settled" (see
+   * `extractExemplars`) distinguish that from "still loading", so a
+   * permanently broken image doesn't force it to redo that work forever.
+   */
+  isReady(ref: string | null): boolean {
+    if (!ref) return true;
+    const entry = this.entries.get(ref);
+    return entry ? entry.image !== null || (!entry.pending && entry.attempts >= MAX_ATTEMPTS) : false;
+  }
+
+  private evictOldest(): void {
+    while (this.entries.size > MAX_ENTRIES) {
+      const oldest = this.entries.keys().next().value;
+      if (oldest === undefined) break;
+      this.entries.delete(oldest);
+    }
+  }
+
+  private async load(ref: string, entry: CacheEntry): Promise<void> {
     try {
       const url = await resolveReferenceImageUrl(ref);
       const img = new Image();
@@ -72,21 +113,21 @@ export class ReferenceImageCache {
       if (!url.startsWith("data:")) img.crossOrigin = "anonymous";
       img.src = url;
       await img.decode();
-      if (ref !== this.ref) return; // a different (or no) image was set while this was loading
-      this.image = img;
-      this.attempts = 0;
+      if (this.entries.get(ref) !== entry) return; // evicted, or replaced, while this was loading
+      entry.image = img;
+      entry.attempts = 0;
       this.onReady();
     } catch (err) {
-      if (ref !== this.ref) return;
-      this.attempts += 1;
-      if (this.attempts >= MAX_ATTEMPTS) {
+      if (this.entries.get(ref) !== entry) return;
+      entry.attempts += 1;
+      if (entry.attempts >= MAX_ATTEMPTS) {
         console.error(
-          `ReferenceImageCache: giving up loading the reference image after ${this.attempts} attempts`,
+          `ReferenceImageCache: giving up loading the reference image after ${entry.attempts} attempts`,
           err,
         );
       }
     } finally {
-      if (ref === this.ref) this.pending = false;
+      if (this.entries.get(ref) === entry) entry.pending = false;
     }
   }
 }

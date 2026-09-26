@@ -15,6 +15,13 @@ import { nextHistorySequence } from "./historySequence";
 
 export { cellKey } from "../model/cellKey";
 
+/** Bounds for the drag-resizable right panel - narrow enough to reclaim real canvas space, wide enough to stay usable. */
+export const RIGHT_PANEL_MIN_WIDTH = 260;
+export const RIGHT_PANEL_MAX_WIDTH = 560;
+export const RIGHT_PANEL_DEFAULT_WIDTH = 304;
+const clampRightPanelWidth = (width: number): number =>
+  Math.round(Math.min(RIGHT_PANEL_MAX_WIDTH, Math.max(RIGHT_PANEL_MIN_WIDTH, width)));
+
 export type Tool = "select" | "stitch" | "eraser" | "insert";
 
 /**
@@ -134,6 +141,16 @@ type UiState = {
   role: Role;
   setRole: (role: Role) => void;
 
+  /**
+   * The right panel's own width in px, drag-resizable from its left edge
+   * (`RightPanel.tsx`). An app-wide preference, not chart content - carries
+   * over across chart switches (not reset by `resetForChart`), same as
+   * anything else about how the editor is laid out rather than what's on
+   * the canvas.
+   */
+  rightPanelWidth: number;
+  setRightPanelWidth: (width: number) => void;
+
   tool: Tool;
   /**
    * Symbol the next click places. Null means the next click opens the picker
@@ -181,6 +198,14 @@ type UiState = {
   selectionAnchor: Cell | null;
   setSelectionAnchor: (cell: Cell | null) => void;
 
+  /**
+   * Which of the chart's reference images the panel/tool/canvas overlay
+   * currently target - only one is ever interactively edited at a time.
+   * Selected only via the panel's own image list, never by clicking an
+   * image on the canvas.
+   */
+  activeReferenceImageId: string | null;
+  setActiveReferenceImageId: (id: string | null) => void;
   /**
    * Whether the reference-image panel is open. While it is, dragging the
    * reference image on the canvas moves/resizes it instead of
@@ -358,6 +383,11 @@ export const useUiStore = create<UiState>((set, get) => ({
   role: "designer",
   setRole: (role) => set({ role }),
 
+  rightPanelWidth: RIGHT_PANEL_DEFAULT_WIDTH,
+  setRightPanelWidth: (width) => set({ rightPanelWidth: clampRightPanelWidth(width) }),
+
+  activeReferenceImageId: null,
+  setActiveReferenceImageId: (activeReferenceImageId) => set({ activeReferenceImageId }),
   referenceImagePanelOpen: false,
   setReferenceImagePanelOpen: (open) =>
     // Closing the panel drops any in-progress calibration along with it -
@@ -755,6 +785,7 @@ export const useUiStore = create<UiState>((set, get) => ({
     altHeld: false,
     keyboardSelectionActive: false,
     isPanning: false,
+    activeReferenceImageId: null,
     referenceImagePanelOpen: false,
     referenceImageCalibrating: false,
     referenceImageGridAlignmentStatus: "idle",

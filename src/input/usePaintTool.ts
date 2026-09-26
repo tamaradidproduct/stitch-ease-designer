@@ -374,7 +374,6 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
     // so reuse this snapshot across that gesture instead of rebuilding it
     // after each placement has incremented the document revision.
     let suggestExemplars: ReturnType<typeof extractExemplars> | null = null;
-    let suggestExemplarImageRef: string | null = null;
 
     const finishSuggestBatch = () => {
       if (suggestBatchCells.length) {
@@ -389,7 +388,6 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       }
       suggestBatchCells = [];
       suggestExemplars = null;
-      suggestExemplarImageRef = null;
     };
 
     const cellAt = (e: PointerEvent | MouseEvent): Cell | null => {
@@ -428,14 +426,25 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       // Suggest never overwrites an existing stitch (confirmed or pending).
       // Skipping it here also avoids unnecessary image processing.
       if (doc().index.placementAt(cell.col, cell.row)) return;
-      const refImage = doc().referenceImage;
-      if (!refImage || !cellWithinReferenceImage(refImage, cell.col, cell.row)) return;
+      // A chart can carry more than one reference image now; the first
+      // (in array order) that actually covers this cell is the one Suggest
+      // matches against, same as if there were only ever one.
+      const refImage = doc().referenceImages.find((img) => cellWithinReferenceImage(img, cell.col, cell.row));
+      if (!refImage) return;
       const cachedImg = getSharedReferenceImageCache().get(refImage.ref);
       if (!cachedImg) return;
 
-      if (!suggestExemplars || suggestExemplarImageRef !== refImage.ref) {
-        suggestExemplars = extractExemplars(doc().index, refImage, cachedImg, doc().revision);
-        suggestExemplarImageRef = refImage.ref;
+      if (!suggestExemplars) {
+        // Pooled across every reference image on the chart, not just this
+        // one - a stitch confirmed while tracing a different image still
+        // counts as taught (see extractExemplars).
+        suggestExemplars = extractExemplars(
+          doc().index,
+          doc().referenceImages,
+          (ref) => getSharedReferenceImageCache().get(ref),
+          doc().revision,
+          (ref) => getSharedReferenceImageCache().isReady(ref),
+        );
       }
       const crop = cropReferenceImageCell(refImage, cachedImg, cell.col, cell.row, 32);
       const grid = binarizeCrop(crop);

@@ -295,18 +295,32 @@ export function selectDiverseExemplars<T extends { col: number; row: number }>(
 }
 
 /**
- * Cached by the confirmed placements and the image geometry they sample.
- * Suggested placements deliberately do not affect this key, so adding a
- * suggestion during a drag does not re-crop every confirmed exemplar.
+ * Cached by the confirmed placements and the geometry of every reference
+ * image they might be sampled from - a single shared entry, not one per
+ * image, because a stitch taught under one image counts as taught for the
+ * whole chart (see `extractExemplars`). Suggested placements deliberately
+ * do not affect the key, so adding a suggestion during a drag does not
+ * re-crop every confirmed exemplar.
  */
-let cachedFor: { fingerprint: string; ref: string; imageGeometry: string } | null = null;
+let cachedFor: { fingerprint: string; imagesGeometry: string } | null = null;
 let cachedExemplars: Map<string, BinaryGrid[]> | null = null;
 
+/**
+ * Every confirmed placement anywhere on the chart that falls under one of
+ * `referenceImages` becomes an exemplar, regardless of which image is
+ * currently being matched against - a stitch confirmed while tracing one
+ * image (e.g. page 1 of a two-page chart) is stitches Suggest already
+ * knows when tracing another, not something it has to be taught again per
+ * image. `getImageElement` resolves a `ref` to its decoded bitmap (e.g. the
+ * shared `ReferenceImageCache`) so each placement crops from whichever
+ * image it actually sits under.
+ */
 export function extractExemplars(
   index: DocIndex,
-  referenceImage: ReferenceImage,
-  imageElement: CanvasImageSource,
+  referenceImages: readonly ReferenceImage[],
+  getImageElement: (ref: string) => CanvasImageSource | null,
   revision: number,
+  isImageReady?: (ref: string) => boolean,
 ): Map<string, BinaryGrid[]> {
   // Suggested-only changes deliberately do not invalidate this cache.
   void revision;
@@ -314,38 +328,41 @@ export function extractExemplars(
   const fingerprint = confirmedPlacements
     .map((p) => `${p.id}:${p.symbolId}:${p.colorId ?? ""}:${p.col}:${p.row}`)
     .join("|");
-  const imageGeometry = [
-    referenceImage.x,
-    referenceImage.y,
-    referenceImage.width,
-    referenceImage.height,
-    referenceImage.naturalWidth,
-    referenceImage.naturalHeight,
-  ].join(":");
-  if (
-    cachedExemplars &&
-    cachedFor?.fingerprint === fingerprint &&
-    cachedFor.ref === referenceImage.ref &&
-    cachedFor.imageGeometry === imageGeometry
-  ) {
+  const imagesGeometry = referenceImages
+    .map((img) => [img.ref, img.x, img.y, img.width, img.height, img.naturalWidth, img.naturalHeight].join(":"))
+    .join("|");
+  if (cachedExemplars && cachedFor?.fingerprint === fingerprint && cachedFor.imagesGeometry === imagesGeometry) {
     return cachedExemplars;
   }
 
-  const bySlot = new Map<string, Array<{ col: number; row: number }>>();
+  const bySlot = new Map<string, Array<{ col: number; row: number; image: ReferenceImage }>>();
   for (const p of confirmedPlacements) {
-    if (!cellWithinReferenceImage(referenceImage, p.col, p.row)) continue;
+    const image = referenceImages.find((img) => cellWithinReferenceImage(img, p.col, p.row));
+    if (!image) continue;
     const slotKey = quickSlotKey(p.symbolId, p.colorId);
     const list = bySlot.get(slotKey) ?? [];
-    list.push({ col: p.col, row: p.row });
+    list.push({ col: p.col, row: p.row, image });
     bySlot.set(slotKey, list);
   }
 
   const map = new Map<string, BinaryGrid[]>();
+  let everyImageReady = true;
   for (const [slotKey, positions] of bySlot.entries()) {
     const chosen = selectDiverseExemplars(positions, MAX_EXEMPLARS_PER_SWATCH);
     const grids: BinaryGrid[] = [];
-    for (const { col, row } of chosen) {
-      const crop = cropReferenceImageCell(referenceImage, imageElement, col, row, 32);
+    for (const { col, row, image } of chosen) {
+      const imageElement = getImageElement(image.ref);
+      if (!imageElement) {
+        // Still decoding - skip this exemplar rather than caching a map
+        // that's silently missing it forever. A permanently failed image
+        // (isImageReady says so) never produces this exemplar either way,
+        // so it shouldn't hold the cache hostage on every future call.
+        if (!isImageReady || !isImageReady(image.ref)) {
+          everyImageReady = false;
+        }
+        continue;
+      }
+      const crop = cropReferenceImageCell(image, imageElement, col, row, 32);
       const grid = binarizeCrop(crop);
       // A confirmed placement is trusted as-is, blank crop included - some
       // charts draw their blank-looking stitch as something other than
@@ -356,12 +373,8 @@ export function extractExemplars(
     if (grids.length) map.set(slotKey, grids);
   }
 
-  const imageLoaded =
-    typeof HTMLImageElement === "undefined" ||
-    !(imageElement instanceof HTMLImageElement) ||
-    (imageElement.complete && imageElement.naturalWidth > 0);
-  if (imageLoaded) {
-    cachedFor = { fingerprint, ref: referenceImage.ref, imageGeometry };
+  if (everyImageReady) {
+    cachedFor = { fingerprint, imagesGeometry };
     cachedExemplars = map;
   }
   return map;

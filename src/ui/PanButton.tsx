@@ -18,6 +18,7 @@ export function PanButton() {
   const panEnabled = useUiStore((s) => s.panEnabled);
   const setPanEnabled = useUiStore((s) => s.setPanEnabled);
   const referenceImagePanelOpen = useUiStore((s) => s.referenceImagePanelOpen);
+  const rightPanelWidth = useUiStore((s) => s.rightPanelWidth);
   const dockRef = useRef<HTMLDivElement>(null);
 
   const toggle = () => setPanEnabled(!panEnabled);
@@ -36,7 +37,7 @@ export function PanButton() {
       const stageRect = stage.getBoundingClientRect();
       const panRect = panDock.getBoundingClientRect();
       const toolRect = toolDock.getBoundingClientRect();
-      const centered = (stageRect.width - 304) / 2;
+      const centered = (stageRect.width - rightPanelWidth) / 2;
       const minimum = panRect.right - stageRect.left + 16 + toolRect.width / 2;
       toolDock.style.setProperty("--tool-dock-center", `${Math.round(Math.max(centered, minimum))}px`);
     };
@@ -52,7 +53,7 @@ export function PanButton() {
       window.removeEventListener("resize", updateToolDockPosition);
       toolDock.style.removeProperty("--tool-dock-center");
     };
-  }, [referenceImagePanelOpen]);
+  }, [referenceImagePanelOpen, rightPanelWidth]);
 
   return (
     <div className="panDock" ref={dockRef}>

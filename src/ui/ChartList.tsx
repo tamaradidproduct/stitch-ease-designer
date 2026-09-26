@@ -184,7 +184,9 @@ export function ChartList() {
             setDeleting(null);
             void run(async () => {
               const loaded = await chartStore.load(chart.id);
-              if (loaded.referenceImage) await removeReferenceImageFile(loaded.referenceImage.ref);
+              await Promise.all(
+                (loaded.referenceImages ?? []).map((image) => removeReferenceImageFile(image.ref)),
+              );
               await chartStore.remove(chart.id);
             });
           }}

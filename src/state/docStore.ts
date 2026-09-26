@@ -59,8 +59,16 @@ type HistoryEntry = {
   /** Placement/repeat history uses reversible operations. */
   change?: Change;
   repeats?: RepeatDefinition[];
-  /** Reference-image changes are small immutable snapshots. */
-  referenceImage?: ReferenceImage | null;
+  /**
+   * Reference-image edits are small immutable snapshots, scoped to one
+   * image by id. `before` is the image's state before this entry's change -
+   * `null` for "didn't exist" (undoing an add removes it), a full snapshot
+   * otherwise. `index` is that image's array position just before this
+   * entry's change, captured for a patch exactly like a removal - array
+   * order is manual z-order (FR-52), so undoing either one must restore the
+   * image in place, not just anywhere.
+   */
+  referenceImageChange?: { id: string; before: ReferenceImage | null; index?: number };
 };
 
 type DocState = {
@@ -81,8 +89,8 @@ type DocState = {
   /** Symbols the stored chart referenced that this build's library lacks. */
   unknownSymbolIds: string[];
   repeats: RepeatDefinition[];
-  /** The pattern screenshot behind the chart, if one's been uploaded. Not undoable, like camera pan/zoom. */
-  referenceImage: ReferenceImage | null;
+  /** Pattern screenshots behind (or in front of) the chart, if any have been uploaded. */
+  referenceImages: ReferenceImage[];
 
   /**
    * Chart-scoped glossary/quick-row membership (FR-32) - entries are
@@ -202,14 +210,26 @@ type DocState = {
    * the quick row and the glossary, wherever `oldKey` is currently present.
    */
   recolorQuickSlot: (oldKey: string, newKey: string, excludingPlacementIds: string[]) => void;
-  /** Sets or replaces the reference image outright (a fresh upload). */
-  setReferenceImage: (image: ReferenceImage) => void;
-  /** Patches the existing reference image's transform/visibility/lock - a no-op if none is set. */
-  updateReferenceImage: (patch: Partial<Omit<ReferenceImage, "ref">>) => void;
+  /**
+   * Adds a freshly uploaded reference image, appended at the end unless
+   * `atIndex` is given (the panel's "Replace" flow uses it to land the new
+   * image back in the slot the old one occupied). Undoable - Cmd/Ctrl+Z
+   * removes it again, from wherever it landed.
+   */
+  addReferenceImage: (image: ReferenceImage, atIndex?: number) => void;
+  /**
+   * Patches one reference image by id - a no-op if it's not present.
+   * Everything but `id` itself is patchable, `ref` included, though the
+   * panel's own "Replace" action goes through `addReferenceImage` +
+   * `removeReferenceImage` instead (two separately undoable steps) rather
+   * than patching `ref` in place here.
+   */
+  updateReferenceImage: (id: string, patch: Partial<Omit<ReferenceImage, "id">>) => void;
   /** Coalesce a continuous reference-image gesture into one undo step. */
-  beginReferenceImageEdit: () => void;
+  beginReferenceImageEdit: (id: string) => void;
   endReferenceImageEdit: () => void;
-  removeReferenceImage: () => void;
+  /** Removes a reference image outright. Undoable - Cmd/Ctrl+Z restores it at its original position. */
+  removeReferenceImage: (id: string) => void;
   beginStroke: () => void;
   endStroke: () => void;
   undo: () => void;
@@ -271,10 +291,36 @@ function promoteQuickSlotOverUnplacedPlainSlots(
   return moveQuickSlotTo(slots, key, targetSlot);
 }
 
+/** `images`, as they stood just before `change` was (or is about to be) applied - the snapshot the opposite undo/redo stack needs. */
+function referenceImageChangeEntry(
+  images: readonly ReferenceImage[],
+  id: string,
+): { before: ReferenceImage | null; index?: number } {
+  const index = images.findIndex((img) => img.id === id);
+  return index === -1 ? { before: null } : { before: images[index]!, index };
+}
+
+/**
+ * Applies one `{ id, before, index? }` snapshot to `images` - the single
+ * operation undo/redo both use, in opposite directions. `before: null`
+ * means the image didn't exist yet, so applying it removes `id`; otherwise
+ * it upserts `before` back in, at `index` when the id isn't already present
+ * (undoing a removal), or in place when it is (undoing a patch).
+ */
+function applyReferenceImageChange(
+  images: readonly ReferenceImage[],
+  change: { id: string; before: ReferenceImage | null; index?: number },
+): ReferenceImage[] {
+  const without = images.filter((img) => img.id !== change.id);
+  if (change.before === null) return without;
+  const at = change.index !== undefined && change.index <= without.length ? change.index : without.length;
+  return [...without.slice(0, at), change.before, ...without.slice(at)];
+}
+
 export const useDocStore = create<DocState>((set, get) => {
   // Kept in the store closure rather than rendered state: it is only a
   // history bookkeeping boundary for a live drag, not UI data.
-  let referenceImageEditStart: ReferenceImage | null | undefined;
+  let referenceImageEditStart: { id: string; before: ReferenceImage; index?: number } | undefined;
   let referenceImageEditChanged = false;
 
   /**
@@ -346,7 +392,7 @@ export const useDocStore = create<DocState>((set, get) => {
     statusDetail: null,
     unknownSymbolIds: [],
     repeats: [],
-    referenceImage: null,
+    referenceImages: [],
     glossaryIds: [...DEFAULT_STITCH_IDS],
     quickSymbolIds: [...DEFAULT_STITCH_IDS],
     patternInfo: {},
@@ -496,55 +542,90 @@ export const useDocStore = create<DocState>((set, get) => {
       }
     },
 
+    // Adding, removing, and editing a reference image are all undoable -
+    // each banks a `{ id, before, index? }` snapshot (`before: null` means
+    // "didn't exist"), so Cmd/Ctrl+Z on a delete brings the image straight
+    // back at the position it was removed from.
+    addReferenceImage: (image, atIndex) =>
+      set((s) => {
+        const at = atIndex !== undefined && atIndex <= s.referenceImages.length ? atIndex : s.referenceImages.length;
+        return {
+          referenceImages: [...s.referenceImages.slice(0, at), image, ...s.referenceImages.slice(at)],
+          revision: s.revision + 1,
+          undoStack: [...s.undoStack, {
+            sequence: nextHistorySequence(),
+            referenceImageChange: { id: image.id, before: null },
+          }],
+          redoStack: [],
+        };
+      }),
     // Reference-point edits are document changes, unlike camera movement, so
     // keep a compact before-image snapshot for Cmd/Ctrl+Z. This deliberately
     // covers image transforms too: a dragged mark is still an editable
     // reference point, even though it updates continuously while dragging.
-    setReferenceImage: (referenceImage) =>
-      set((s) => ({ referenceImage, revision: s.revision + 1 })),
-    updateReferenceImage: (patch) => {
+    updateReferenceImage: (id, patch) => {
       const s = get();
-      if (!s.referenceImage) return;
-      const next = { ...s.referenceImage, ...patch };
+      const current = referenceImageChangeEntry(s.referenceImages, id);
+      if (current.before === null) return;
+      const next = { ...current.before, ...patch };
+      const nextImages = s.referenceImages.map((img) => (img.id === id ? next : img));
       if (referenceImageEditStart !== undefined) {
         referenceImageEditChanged = true;
-        set({ referenceImage: next, revision: s.revision + 1, redoStack: [] });
+        set({ referenceImages: nextImages, revision: s.revision + 1, redoStack: [] });
       } else {
         set({
-          referenceImage: next,
+          referenceImages: nextImages,
           revision: s.revision + 1,
           undoStack: [...s.undoStack, {
             sequence: nextHistorySequence(),
-            referenceImage: s.referenceImage,
+            referenceImageChange: { id, ...current },
           }],
           redoStack: [],
         });
       }
       clearSelectionRedo();
     },
-    beginReferenceImageEdit: () => {
+    beginReferenceImageEdit: (id) => {
       if (referenceImageEditStart !== undefined) return;
-      referenceImageEditStart = get().referenceImage;
+      const current = referenceImageChangeEntry(get().referenceImages, id);
+      if (current.before === null) return;
+      referenceImageEditStart = {
+        id,
+        before: current.before,
+        ...(current.index !== undefined ? { index: current.index } : {}),
+      };
       referenceImageEditChanged = false;
     },
     endReferenceImageEdit: () => {
       if (referenceImageEditStart === undefined) return;
-      const before = referenceImageEditStart;
+      const { id, before, index } = referenceImageEditStart;
       const changed = referenceImageEditChanged;
       referenceImageEditStart = undefined;
       referenceImageEditChanged = false;
-      if (!changed || !before) return;
+      if (!changed) return;
       set((s) => ({
         undoStack: [...s.undoStack, {
           sequence: nextHistorySequence(),
-          referenceImage: before,
+          referenceImageChange: { id, before, ...(index !== undefined ? { index } : {}) },
         }],
         redoStack: [],
       }));
       clearSelectionRedo();
     },
-    removeReferenceImage: () =>
-      set((s) => (s.referenceImage ? { referenceImage: null, revision: s.revision + 1 } : {})),
+    removeReferenceImage: (id) =>
+      set((s) => {
+        const index = s.referenceImages.findIndex((img) => img.id === id);
+        if (index === -1) return {};
+        return {
+          referenceImages: s.referenceImages.filter((img) => img.id !== id),
+          revision: s.revision + 1,
+          undoStack: [...s.undoStack, {
+            sequence: nextHistorySequence(),
+            referenceImageChange: { id, before: s.referenceImages[index]!, index },
+          }],
+          redoStack: [],
+        };
+      }),
 
     replacePlacements: (ids, symbolId, colorId) => {
       const selected = ids
@@ -824,7 +905,7 @@ export const useDocStore = create<DocState>((set, get) => {
     },
 
     undo: () => {
-      const { undoStack, redoStack, index, revision, repeats } = get();
+      const { undoStack, redoStack, index, revision, repeats, referenceImages } = get();
       const entry = undoStack[undoStack.length - 1];
       if (!entry) return;
       const inverse = entry.change ? apply(index, entry.change) : undefined;
@@ -832,19 +913,23 @@ export const useDocStore = create<DocState>((set, get) => {
         sequence: entry.sequence,
         ...(inverse ? { change: inverse } : {}),
         ...(entry.repeats !== undefined ? { repeats } : {}),
-        ...(entry.referenceImage !== undefined ? { referenceImage: get().referenceImage } : {}),
+        ...(entry.referenceImageChange
+          ? { referenceImageChange: { id: entry.referenceImageChange.id, ...referenceImageChangeEntry(referenceImages, entry.referenceImageChange.id) } }
+          : {}),
       };
       set({
         undoStack: undoStack.slice(0, -1),
         redoStack: [...redoStack, redoEntry],
         revision: revision + 1,
         ...(entry.repeats !== undefined ? { repeats: entry.repeats } : {}),
-        ...(entry.referenceImage !== undefined ? { referenceImage: entry.referenceImage } : {}),
+        ...(entry.referenceImageChange
+          ? { referenceImages: applyReferenceImageChange(referenceImages, entry.referenceImageChange) }
+          : {}),
       });
     },
 
     redo: () => {
-      const { undoStack, redoStack, index, revision, repeats } = get();
+      const { undoStack, redoStack, index, revision, repeats, referenceImages } = get();
       const entry = redoStack[redoStack.length - 1];
       if (!entry) return;
       const inverse = entry.change ? apply(index, entry.change) : undefined;
@@ -852,14 +937,18 @@ export const useDocStore = create<DocState>((set, get) => {
         sequence: entry.sequence,
         ...(inverse ? { change: inverse } : {}),
         ...(entry.repeats !== undefined ? { repeats } : {}),
-        ...(entry.referenceImage !== undefined ? { referenceImage: get().referenceImage } : {}),
+        ...(entry.referenceImageChange
+          ? { referenceImageChange: { id: entry.referenceImageChange.id, ...referenceImageChangeEntry(referenceImages, entry.referenceImageChange.id) } }
+          : {}),
       };
       set({
         redoStack: redoStack.slice(0, -1),
         undoStack: [...undoStack, undoEntry],
         revision: revision + 1,
         ...(entry.repeats !== undefined ? { repeats: entry.repeats } : {}),
-        ...(entry.referenceImage !== undefined ? { referenceImage: entry.referenceImage } : {}),
+        ...(entry.referenceImageChange
+          ? { referenceImages: applyReferenceImageChange(referenceImages, entry.referenceImageChange) }
+          : {}),
       });
     },
 
@@ -867,7 +956,7 @@ export const useDocStore = create<DocState>((set, get) => {
       meta,
       placements,
       repeats = [],
-      referenceImage = null,
+      referenceImages = [],
       glossaryIds = [...DEFAULT_STITCH_IDS],
       quickSymbolIds = [...DEFAULT_STITCH_IDS],
       patternInfo = {},
@@ -886,7 +975,7 @@ export const useDocStore = create<DocState>((set, get) => {
         statusDetail: null,
         unknownSymbolIds,
         repeats,
-        referenceImage,
+        referenceImages,
         glossaryIds,
         quickSymbolIds,
         patternInfo,

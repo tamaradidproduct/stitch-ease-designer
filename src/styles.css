@@ -167,6 +167,50 @@ body {
   white-space: nowrap;
 }
 
+.patternSettings {
+  display: flex;
+}
+
+.patternSettings__trigger {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.patternSettings__trigger:hover,
+.patternSettings__trigger[aria-expanded="true"] {
+  border-color: var(--border);
+  background: var(--bg);
+}
+
+.patternSettings__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.patternSettings__summary {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.patternSettings__popover {
+  z-index: 30;
+  width: 240px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+
 .save--bad {
   color: #b91c1c;
   font-weight: 600;
@@ -408,6 +452,16 @@ body {
   cursor: default;
 }
 
+/* Save changes is its own pill, unbundled from the scale-setup tools, and
+   pinned to the right edge of the same lane those tools are centered in -
+   a separate, always-in-the-same-place action rather than one more button
+   in a group of tools whose count/width changes as calibration proceeds. */
+.referenceDock--save {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+}
+
 .referenceImageQuickDock {
   position: absolute;
   z-index: 18;
@@ -440,40 +494,6 @@ body {
 
 .referenceDock__cancel {
   color: var(--text-muted);
-}
-
-.referenceDock__point {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-height: 38px;
-  padding: 0 9px;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  background: var(--bg);
-  color: var(--text);
-  font: inherit;
-  font-size: 11px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.referenceDock__pointIndex {
-  display: grid;
-  width: 18px;
-  height: 18px;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--chrome);
-  color: var(--text-muted);
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.referenceDock__point[data-active="true"] {
-  border-color: var(--accent);
-  background: var(--accent-soft-bg);
-  color: var(--accent);
 }
 
 /* Deliberately shown on every platform, not just touch: (hover: hover) and
@@ -1434,6 +1454,25 @@ body {
   overflow-y: auto;
 }
 
+/* Drag-resize from the panel's own left edge - a thin hit area sitting on
+   the padding box's edge (not offset negative) so it isn't clipped by the
+   panel's own overflow-y: auto. */
+.rightPanel__resizeHandle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 6px;
+  z-index: 1;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.rightPanel__resizeHandle:hover,
+.rightPanel__resizeHandle:active {
+  background: var(--accent-soft-bg);
+}
+
 .rightPanel__bottom {
   margin-top: auto;
   flex: none;
@@ -2107,10 +2146,58 @@ body {
 
 .refpanel__quickControls {
   display: flex;
-  align-items: center;
-  justify-content: flex-end;
+  flex-direction: column;
   gap: 6px;
   padding: 0 8px 8px;
+}
+
+.refpanel__quickList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.refpanel__quickRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.refpanel__quickLabel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.refpanel__quickLabel span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.refpanel__quickBottomRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.refpanel__quickOpacityPopover {
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--chrome);
+}
+
+.refpanel__quickBottomRow .refpanel__layerButton {
+  margin-left: auto;
 }
 
 .btn.refpanel__iconButton {
@@ -2133,7 +2220,8 @@ body {
   stroke-linejoin: round;
 }
 
-.refpanel__iconButton[aria-pressed="true"] {
+.refpanel__iconButton[aria-pressed="true"],
+.refpanel__iconButton[aria-expanded="true"] {
   border-color: var(--accent);
   background: var(--accent-soft-bg);
   color: var(--accent);
@@ -2672,6 +2760,140 @@ body {
 
 .signIn__form--actions button:first-child {
   flex: 1;
+}
+
+/* The image list: which of a chart's several reference images is active. */
+.refpanel__images {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.refpanel__imageList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.refpanel__imageList li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.refpanel__imageRow {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.refpanel__imageRow:hover {
+  background: var(--chrome);
+}
+
+.refpanel__imageRow[data-active="true"] {
+  border-color: var(--accent);
+}
+
+.refpanel__imageThumb {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: 4px;
+  object-fit: cover;
+  background: var(--chrome);
+}
+
+.refpanel__imageThumb--empty {
+  border: 1px dashed var(--border);
+}
+
+/* Replace/remove, right on each image's own row - every control in this
+   list acts on that specific image, so there's no separate "acts on
+   whichever is active" pair of buttons elsewhere in the panel. */
+.refpanel__imageAction {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.refpanel__imageAction:hover:not(:disabled) {
+  background: var(--chrome);
+  color: var(--text);
+}
+
+.refpanel__imageAction:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.refpanel__imageAction--danger:hover:not(:disabled) {
+  color: var(--danger);
+}
+
+.refpanel__imageAction svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Matches the glossary's own empty-slot row (`.glossary__item--empty`),
+   reused here rather than a plain text link so adding an image reads as
+   the same kind of action as adding a stitch. */
+.refpanel__addImage {
+  margin-top: 2px;
+}
+
+.refpanel__addImage:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.refpanel__helpRow {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.refpanel__helpButton {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.refpanel__helpPopover {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--chrome);
 }
 
 /* The calibration marks panel section: a status line plus its actions. */

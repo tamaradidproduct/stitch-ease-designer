@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { DocIndex } from "./docIndex";
+import type { Placement, ReferenceImage } from "./types";
 import {
   type BinaryGrid,
   MAX_EXEMPLARS_PER_SWATCH,
   binarizeCrop,
   computeGridSimilarity,
+  extractExemplars,
   isCellBlank,
   matchCandidateStitch,
   selectDiverseExemplars,
@@ -370,5 +373,60 @@ describe("selectDiverseExemplars", () => {
     // an already-chosen point than something nearer the middle is.
     expect(chosen[0]).toBeLessThan(3);
     expect(chosen[chosen.length - 1]).toBeGreaterThan(16);
+  });
+});
+
+describe("extractExemplars caching around images that never load", () => {
+  const refImage = (id: string): ReferenceImage => ({
+    id,
+    number: 1,
+    ref: id,
+    x: 0,
+    y: 0,
+    width: 1000,
+    height: 1000,
+    naturalWidth: 1000,
+    naturalHeight: 1000,
+    opacity: 0.5,
+    visible: true,
+    locked: false,
+  });
+
+  const confirmed = (id: string): Placement => ({ id, symbolId: "knit", col: 0, row: 0 });
+
+  it("without isImageReady, an image that's stuck loading is re-fetched forever", () => {
+    const index = DocIndex.from([confirmed("without-isready")]);
+    const image = refImage("ref-without-isready");
+    let calls = 0;
+    const getImageElement = () => {
+      calls++;
+      return null; // never decodes
+    };
+
+    extractExemplars(index, [image], getImageElement, 0);
+    extractExemplars(index, [image], getImageElement, 0);
+
+    // No caching kicks in when the caller can't say whether the image will
+    // ever be ready, so both calls re-run the (here trivial, but in
+    // practice expensive) exemplar extraction.
+    expect(calls).toBe(2);
+  });
+
+  it("once isImageReady reports a permanent failure, the result is cached and getImageElement isn't called again", () => {
+    const index = DocIndex.from([confirmed("with-isready")]);
+    const image = refImage("ref-with-isready");
+    let calls = 0;
+    const getImageElement = () => {
+      calls++;
+      return null; // permanently failed, per isImageReady below
+    };
+    const isImageReady = () => true;
+
+    extractExemplars(index, [image], getImageElement, 0, isImageReady);
+    extractExemplars(index, [image], getImageElement, 0, isImageReady);
+
+    // The second call is served from cache - a broken image doesn't force
+    // the (expensive) extraction to redo itself on every future call.
+    expect(calls).toBe(1);
   });
 });
