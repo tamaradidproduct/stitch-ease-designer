@@ -11,7 +11,6 @@ import { SymbolGlyph } from "./SymbolGlyph";
 import { searchSymbols } from "./symbolSearch";
 import { CloseIcon } from "./icons";
 import { collectColoredGlossaryEntries, useGlossaryIds } from "./chartGlossary";
-import { getSwatch } from "../model/colorPalette";
 import { clamp } from "./utils";
 import { parseQuickSlotId } from "../model/quickSlots";
 import { addColoredVariant, applyColorToSlot, currentSlotForPicker } from "./colorwork";
@@ -136,7 +135,6 @@ export function StitchPicker() {
     if (!symbol || (selectionSpan && symbol.span !== selectionSpan)) return null;
     return { key: currentSlot.key, symbol, ...(currentSlot.colorId ? { colorId: currentSlot.colorId } : {}) } satisfies QuickEntry;
   }, [currentSlot, quickSymbols, selectionSpan]);
-  const dynamicSwatch = dynamicSlot?.colorId ? getSwatch(dynamicSlot.colorId) : undefined;
   const moreEntries = useMemo(() => {
     // The document mutates its index in place; its revision invalidates this
     // cached snapshot when placements change.
@@ -512,14 +510,12 @@ export function StitchPicker() {
           {Array.from({ length: 5 }, (_, slot) => {
             if (searchOpen && searchOrigin === slot) return renderSearchField(`search:${slot}`);
             const entry = quickSymbols[slot];
-            const swatch = entry?.colorId ? getSwatch(entry.colorId) : undefined;
             return entry ? (
               <div key={entry.key} className="picker__quickTile">
                 <button
                   type="button"
                   className="picker__quickButton"
                   data-colored={!!entry.colorId}
-                  style={swatch ? { background: swatch.hex } : undefined}
                   onClick={() => choose(entry.symbol, entry.colorId)}
                   title={entry.symbol.label}
                   aria-label={entry.symbol.label}
@@ -577,7 +573,6 @@ export function StitchPicker() {
                   type="button"
                   className="picker__quickButton"
                   data-colored={!!dynamicSlot.colorId}
-                  style={dynamicSwatch ? { background: dynamicSwatch.hex } : undefined}
                   onClick={() => choose(dynamicSlot.symbol, dynamicSlot.colorId)}
                   title={dynamicSlot.symbol.label}
                   aria-label={dynamicSlot.symbol.label}
@@ -671,42 +666,38 @@ export function StitchPicker() {
           <div id="picker-more-stitches" className="picker__moreDrawer" aria-label="More stitches in this pattern">
             <div className="picker__moreHeader">This pattern</div>
             <div className="picker__moreList">
-              {moreEntries.map((entry) => {
-                const swatch = entry.colorId ? getSwatch(entry.colorId) : undefined;
-                return (
-                  <div key={entry.key} className="picker__item">
-                    <button
-                      type="button"
-                      className="picker__itemMain"
-                      data-colored={!!entry.colorId}
-                      style={swatch ? { background: swatch.hex } : undefined}
-                      onClick={() => choose(entry.symbol, entry.colorId)}
-                      title={entry.symbol.label}
-                    >
-                      <span className="picker__glyph">
-                        <SymbolGlyph symbol={entry.symbol} cell={cellSizeFor(entry.symbol)} colorId={entry.colorId} />
-                      </span>
-                      <span className="picker__label">{entry.symbol.label}</span>
-                      {currentSlot?.key === entry.key && (
-                        <span className="picker__current">current</span>
-                      )}
-                      {entry.symbol.span > 1 && <span className="picker__span">{entry.symbol.span} sts</span>}
-                    </button>
-                    {/* FR-34: add-only - picking a color here arms a new pen,
-                        never touches anything already placed, no matter how
-                        many plain instances of this symbol exist. */}
-                    <ColorChip
-                      mode="add-only"
-                      label={`Add a colored ${entry.symbol.label}`}
-                      className="picker__itemColorChip"
-                      onSelect={(colorId) => {
-                        addColoredVariant(entry.symbol.id, colorId);
-                        closePicker();
-                      }}
-                    />
-                  </div>
-                );
-              })}
+              {moreEntries.map((entry) => (
+                <div key={entry.key} className="picker__item">
+                  <button
+                    type="button"
+                    className="picker__itemMain"
+                    data-colored={!!entry.colorId}
+                    onClick={() => choose(entry.symbol, entry.colorId)}
+                    title={entry.symbol.label}
+                  >
+                    <span className="picker__glyph">
+                      <SymbolGlyph symbol={entry.symbol} cell={cellSizeFor(entry.symbol)} colorId={entry.colorId} />
+                    </span>
+                    <span className="picker__label">{entry.symbol.label}</span>
+                    {currentSlot?.key === entry.key && (
+                      <span className="picker__current">current</span>
+                    )}
+                    {entry.symbol.span > 1 && <span className="picker__span">{entry.symbol.span} sts</span>}
+                  </button>
+                  {/* FR-34: add-only - picking a color here arms a new pen,
+                      never touches anything already placed, no matter how
+                      many plain instances of this symbol exist. */}
+                  <ColorChip
+                    mode="add-only"
+                    label={`Add a colored ${entry.symbol.label}`}
+                    className="picker__itemColorChip"
+                    onSelect={(colorId) => {
+                      addColoredVariant(entry.symbol.id, colorId);
+                      closePicker();
+                    }}
+                  />
+                </div>
+              ))}
             </div>
           </div>
         )}
