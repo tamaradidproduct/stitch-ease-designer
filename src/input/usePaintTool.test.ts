@@ -191,6 +191,15 @@ describe("modeFor", () => {
     expect(modeFor(noMods, "purl", "suggest", suggested, false)).toEqual({
       kind: "confirm",
       overrideSymbolId: "purl",
+      overrideColorId: null,
+    });
+  });
+
+  it("carries the armed pen's color along with the override, so replacing a suggestion keeps it colored", () => {
+    expect(modeFor(noMods, "purl", "suggest", suggested, false, "red")).toEqual({
+      kind: "confirm",
+      overrideSymbolId: "purl",
+      overrideColorId: "red",
     });
   });
 
@@ -323,5 +332,11 @@ describe("strokeKey", () => {
     // "place:confirm" would be a real (if odd) symbol id; the actual
     // confirm mode's key must still be distinguishable from it.
     expect(strokeKey({ kind: "confirm" })).not.toBe(strokeKey({ kind: "place", symbolId: "confirm" }));
+  });
+
+  it("distinguishes overrides that differ only by color", () => {
+    expect(strokeKey({ kind: "confirm", overrideSymbolId: "purl", overrideColorId: "red" })).not.toBe(
+      strokeKey({ kind: "confirm", overrideSymbolId: "purl", overrideColorId: "blue" }),
+    );
   });
 });

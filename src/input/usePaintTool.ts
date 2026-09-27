@@ -88,13 +88,13 @@ export function straightLineCells(from: Cell, to: Cell): Cell[] {
 export type StrokeMode =
   | { kind: "place"; symbolId: string; colorId?: string | null }
   | { kind: "suggest" }
-  | { kind: "confirm"; overrideSymbolId?: string }
+  | { kind: "confirm"; overrideSymbolId?: string; overrideColorId?: string | null }
   | { kind: "erase" };
 
 /** Identifies a mode for the "is this a continuation of the same stroke" check - see `lastDrawn`. */
 export function strokeKey(mode: StrokeMode): string {
   if (mode.kind === "place") return `place:${mode.symbolId}:${mode.colorId ?? ""}`;
-  if (mode.kind === "confirm") return `confirm:${mode.overrideSymbolId ?? ""}`;
+  if (mode.kind === "confirm") return `confirm:${mode.overrideSymbolId ?? ""}:${mode.overrideColorId ?? ""}`;
   return mode.kind;
 }
 
@@ -176,12 +176,13 @@ export function resolveSuggestAction(
  * a fixed "suggest" sticky value, which is a no-op default that only a live
  * modifier can turn into anything.
  *
- * A real armed stitch (not Suggest itself) rides along as `overrideSymbolId`
- * - confirming a suggestion as that specific stitch instead of whatever it
- * was guessed as. That override needs no modifier at all: landing on a
- * suggestion - by click or by dragging across it - confirms it as that
- * stitch outright, and takes precedence over everything below (pre-existing
- * behavior, unaffected by this feature - see FR-11).
+ * A real armed stitch (not Suggest itself) rides along as `overrideSymbolId`,
+ * with its armed color as `overrideColorId` - confirming a suggestion as that
+ * specific stitch (and color) instead of whatever it was guessed as. That
+ * override needs no modifier at all: landing on a suggestion - by click or by
+ * dragging across it - confirms it as that stitch outright, and takes
+ * precedence over everything below (pre-existing behavior, unaffected by
+ * this feature - see FR-11).
  */
 export function modeFor(
   e: { metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey: boolean },
@@ -215,7 +216,7 @@ export function modeFor(
   const overrideSymbolId =
     armedSymbolId && armedSymbolId !== SUGGEST_SYMBOL_ID ? armedSymbolId : null;
   if (targetIsSuggested && overrideSymbolId) {
-    return { kind: "confirm", overrideSymbolId };
+    return { kind: "confirm", overrideSymbolId, overrideColorId: activeColor };
   }
 
   const effective = resolveSuggestAction(
@@ -465,14 +466,18 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
      * elsewhere, so dragging loosely across a row only ever touches the
      * cells that were actually pending review. With `overrideSymbolId` (a
      * real stitch armed alongside Cmd/Ctrl), the suggestion is replaced with
-     * that stitch and confirmed in the same step, rather than accepted as
-     * whatever it was originally guessed to be.
+     * that stitch - and its armed color, `overrideColorId` - confirmed in
+     * the same step, rather than accepted as whatever it was originally
+     * guessed to be.
      */
-    const confirmAt = (cell: Cell, overrideSymbolId?: string) => {
+    const confirmAt = (cell: Cell, overrideSymbolId?: string, overrideColorId?: string | null) => {
       const target = doc().index.placementAt(cell.col, cell.row);
       if (!target?.suggested) return;
-      if (overrideSymbolId && overrideSymbolId !== target.symbolId) {
-        doc().replacePlacements([target.id], overrideSymbolId);
+      if (
+        overrideSymbolId &&
+        (overrideSymbolId !== target.symbolId || overrideColorId !== (target.colorId ?? null))
+      ) {
+        doc().replacePlacements([target.id], overrideSymbolId, overrideColorId);
       } else {
         doc().acceptSuggestions([target.id]);
       }
@@ -523,7 +528,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
           matchAndPlace(cell);
           return;
         case "confirm":
-          confirmAt(cell, mode.overrideSymbolId);
+          confirmAt(cell, mode.overrideSymbolId, mode.overrideColorId);
           return;
         case "erase":
           eraseAt(cell);
