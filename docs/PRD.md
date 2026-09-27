@@ -228,7 +228,10 @@ sync by hand.** This is why the shared helpers above exist now.
   range-select anchor was cleared on the second click unless *both*
   `Cmd`/`Ctrl` and `Shift` were held — but once already mid-gesture, only
   `Shift` drives that logic. Fixed by keying anchor-preservation on `Shift`
-  alone.
+  alone. **Superseded (2026-09-27, #270/#269):** Cmd/Ctrl+Shift no longer
+  range-completes at all — see **FR-56** below. The anchor-preservation
+  fix here still applies to plain Shift's own gap fill, which kept the
+  anchor all along.
 - **G-5 — A real click could get misrouted into "drag" handling.** A
   trackpad tap can nudge the pointer across a grid-cell boundary and back
   without the user intending a drag; once an internal "did this move" flag
@@ -358,6 +361,46 @@ itself is armed does. See `isSuggestReviewCandidate` in `usePaintTool.ts`.
 | `src/styles.css` | Purple on-state styling for the toolDock's Suggest/Confirm/Dismiss buttons |
 | `src/ui/chartGlossary.ts` | `countConfirmedStitches`, `symbolsWithAnyPlacement` (pure, tested) |
 | `src/ui/RightPanel.tsx` | Consumes the above two for the glossary's displayed counts and remove-eligibility |
+
+---
+
+### Selection: Cmd/Ctrl+Shift toggles individual stitches, never a range
+
+**Context.** QA reported that a Cmd/Ctrl+Shift-click sequence degraded into
+an unwanted range-fill once more than two clicks were involved (#254), and
+that the same gesture behaved inconsistently depending on whether a picker
+was already open when the second click landed (#208). `tamaradidproduct`
+clarified the intended split on #270:
+
+> With CMD, you can select a specific stitch. With Shift, you can select a
+> range of stitches — either via dragging or via clicking to fill the gap.
+> CMD + Shift should allow the user to select specific stitches one by one.
+
+**FR-56.** Cmd/Ctrl+Shift+click **MUST** always toggle just the clicked
+stitch (or empty cell) into/out of the selection — it never completes a
+range, however many Cmd/Ctrl+Shift clicks happen in a row. This is how a
+designer builds up a selection of disconnected stitches, one click at a
+time, without the gap between two of them ever getting silently pulled in.
+Range completion is exclusively **plain Shift's** job (no Cmd/Ctrl held): a
+click-then-Shift-click gap fill, or a Shift-held drag/marquee.
+
+Previously, the first Cmd/Ctrl+Shift click on a cell also set it as a
+"range anchor," and a second Cmd/Ctrl+Shift click elsewhere completed a
+bounding-box range between the two instead of toggling the second cell on
+its own — correct only for exactly two clicks, wrong for a third disconnected
+toggle (see Gotcha G-4, superseded). This anchor-driven range-completion is
+now removed: Cmd/Ctrl+Shift no longer reads or sets `selectionAnchor` at
+all. That field remains solely for plain Shift's own gap fill, unaffected by
+this change.
+
+**Implementation.** `src/input/usePaintTool.ts`'s `endStroke`
+(`selectionAdditive` branch) now always toggles the clicked placement (via
+`selectExisting`) or empty cell, with no anchor/bounding-box branch. This
+also resolves the inconsistency reported on #269: the same gesture landing
+on a placement while a picker was already open took a separate code path
+(`onPointerDown`'s `modifierSelect && modifierTarget` branch) that already
+did a plain toggle — the two paths disagreed only because the other one
+still range-completed. Both now agree: a plain toggle, every time.
 
 ---
 
@@ -891,7 +934,8 @@ not yet scheduled:
 - The `Cmd`/`Ctrl`+`Shift`+`Opt/Alt` marquee empty-cell-inclusion chord (see
   FR-21) and its two regression boundaries
 - The `Cmd`/`Ctrl`+`Opt/Alt` marquee-vs-Dismiss collision boundary (G-7)
-- `Cmd`/`Ctrl`+`Shift` range-select (two-click range completion)
+- `Cmd`/`Ctrl`+`Shift` toggle-select of individual, possibly disconnected
+  stitches (FR-56)
 - `Shift`+click additive empty-cell selection
 
 Three of these (both live-override cases and the simultaneous-block case)

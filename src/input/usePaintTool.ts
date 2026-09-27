@@ -601,7 +601,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       return cells;
     };
 
-    /** Every placement id (whole groups) and empty cell inside the rectangle between `a` and `b`, inclusive - the click-then-Shift-click gap fill (nothing armed) and the Cmd/Ctrl+Shift click-then-click range select. */
+    /** Every placement id (whole groups) and empty cell inside the rectangle between `a` and `b`, inclusive - the click-then-Shift-click gap fill (nothing armed). */
     const cellsInBoundingBox = (a: Cell, b: Cell): { ids: string[]; emptyCells: Cell[] } => {
       const minCol = Math.min(a.col, b.col);
       const maxCol = Math.max(a.col, b.col);
@@ -1267,18 +1267,13 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
           ui().setSelection(finalIds, finalEmptyCells, true);
         } else {
           if (selectionAdditive) {
-            // Cmd+Shift: the first click on a cell toggles it into the pool
-            // and becomes a range anchor; a second Cmd+Shift click on
-            // another cell completes a bounding-box select instead of just
-            // toggling that one too.
-            const anchor = ui().selectionAnchor;
-            if (anchor && (anchor.col !== start.col || anchor.row !== start.row)) {
-              const { ids, emptyCells } = cellsInBoundingBox(anchor, start);
-              ui().setSelection(ids, emptyCells, true);
-              ui().setSelectionAnchor(null);
-            } else if (existing) {
-              const ids = selectExisting(existing.id, true);
-              ui().setSelectionAnchor(ids.includes(existing.id) ? start : null);
+            // Cmd+Shift always toggles just the clicked cell into/out of the
+            // selection - it never completes a range. That's Shift alone's
+            // job (the click-then-Shift-click gap fill above, and marquee
+            // drag); Cmd+Shift is how a designer builds up a selection of
+            // disconnected stitches one at a time (#270, #269).
+            if (existing) {
+              selectExisting(existing.id, true);
             } else {
               const emptyCells = ui().selectedEmptyCells;
               const key = cellKey(start.col, start.row);
@@ -1287,7 +1282,6 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
                 ? emptyCells.filter((cell) => cellKey(cell.col, cell.row) !== key)
                 : [...emptyCells, start];
               ui().setSelectedEmptyCells(nextEmpty);
-              ui().setSelectionAnchor(exists ? null : start);
             }
           } else if (existing) {
             const ids = selectExisting(existing.id, false);
