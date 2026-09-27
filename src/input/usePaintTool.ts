@@ -475,7 +475,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       if (!target?.suggested) return;
       if (
         overrideSymbolId &&
-        (overrideSymbolId !== target.symbolId || overrideColorId !== (target.colorId ?? null))
+        (overrideSymbolId !== target.symbolId || (overrideColorId ?? null) !== (target.colorId ?? null))
       ) {
         doc().replacePlacements([target.id], overrideSymbolId, overrideColorId);
       } else {
