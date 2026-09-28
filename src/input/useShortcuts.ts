@@ -233,6 +233,17 @@ export function useShortcuts(): void {
           e.preventDefault();
           const step = e.shiftKey ? CELL : 1;
           const [dx, dy] = ARROWS[e.key]!;
+          if (e.altKey) {
+            // Alt+arrows stretch (right/up) or shrink (left/down) the box
+            // itself, a world unit at a time (a cell with Shift).
+            doc.updateReferenceImage(image.id, {
+              calibrationMarks: patchCalibrationMark(image.calibrationMarks, active.id, {
+                w: Math.max(1 / image.width, Math.min(1 - active.u, active.w + (dx * step) / image.width)),
+                h: Math.max(1 / image.height, Math.min(1 - active.v, active.h + (dy * step) / image.height)),
+              }),
+            });
+            return;
+          }
           doc.updateReferenceImage(image.id, {
             calibrationMarks: patchCalibrationMark(image.calibrationMarks, active.id, {
               u: Math.max(0, Math.min(1 - active.w, active.u + (dx * step) / image.width)),

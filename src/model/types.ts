@@ -193,6 +193,13 @@ export type ReferenceImage = {
    */
   cropToCalibration?: boolean;
   /**
+   * Contrast multiplier applied to the photo's pixels (1 or absent = as
+   * uploaded). Applied at the source: the canvas drawing, calibration's grid
+   * detection and Suggest's stitch matching all read the corrected pixels.
+   * Display-side only - the stored file is never modified.
+   */
+  contrast?: number;
+  /**
    * The bottom-left corner of the one stitch the designer boxed with "Set
    * stitch size", kept after calibration rather than discarded - it's what
    * every later resize is anchored to, so that aligning the first stitch to

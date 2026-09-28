@@ -230,8 +230,8 @@ type UiState = {
    * Which reference-image corner handle the pointer is over, so the cursor
    * can show the resize direction. Only meaningful while the panel is open.
    */
-  referenceImageHandle: { target: "image" | "stitch"; handle: BoxHandle } | null;
-  setReferenceImageHandle: (handle: { target: "image" | "stitch"; handle: BoxHandle } | null) => void;
+  referenceImageHandle: { target: "image" | "stitch" | "mark"; handle: BoxHandle } | null;
+  setReferenceImageHandle: (handle: { target: "image" | "stitch" | "mark"; handle: BoxHandle } | null) => void;
   /**
    * Set when a calibration box was thrown away for being too small to be a
    * deliberate drag, so the panel can say so. Calibration stays armed - the

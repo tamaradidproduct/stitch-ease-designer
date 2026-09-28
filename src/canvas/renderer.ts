@@ -19,6 +19,7 @@ import {
 } from "./camera";
 import { drawGrid, labelStep } from "./grid";
 import type { ReferenceImageCache } from "./referenceImageCache";
+import { effectiveContrast } from "./referenceImageContrast";
 import type { SpriteCache } from "./spriteCache";
 import type { PickerTarget, SelectionBox, SelectionMove, Tool } from "../state/uiStore";
 import { parseCellKey } from "../model/cellKey";
@@ -640,6 +641,11 @@ function drawUnrecognizedCells(ctx: CanvasRenderingContext2D, state: RenderState
   ctx.restore();
 }
 
+/** Size (px, screen space) of a calibration mark's corner/side grab handles. */
+const MARK_HANDLE_SIZE = 7;
+/** Outline color for calibration marks and their handles, kept high-contrast against any photo. */
+const MARK_OUTLINE_COLOR = "#ffffff";
+
 function drawReferenceImageOverlay(ctx: CanvasRenderingContext2D, state: RenderState): void {
   const { referenceImagePanelOpen, referenceImages, activeReferenceImageId, referenceImageCalibrationBox, referenceImageMarks, referenceImageActiveMark, referenceImageMarking, camera: cam, viewport: vp } =
     state;
@@ -757,18 +763,34 @@ function drawReferenceImageOverlay(ctx: CanvasRenderingContext2D, state: RenderS
       // pixels of line over a busy photo and easy to lose.
       ctx.fillStyle = active ? "rgba(2, 132, 199, 0.18)" : "rgba(124, 58, 237, 0.13)";
       ctx.fillRect(x, y, width, height);
-      ctx.strokeStyle = "#ffffff";
+      ctx.strokeStyle = MARK_OUTLINE_COLOR;
       ctx.lineWidth = 3;
       ctx.strokeRect(x + 0.5, y + 0.5, width - 1, height - 1);
       ctx.strokeStyle = colour;
       ctx.lineWidth = active ? 2 : 1.5;
       ctx.strokeRect(x + 0.5, y + 0.5, width - 1, height - 1);
 
+      if (active && referenceImageMarking) {
+        // Grab points on the selected mark: corners and side midpoints,
+        // so it can be stretched onto exactly the stitch it names.
+        const hs = MARK_HANDLE_SIZE;
+        const points: Array<[number, number]> = [
+          [x, y], [x + width, y], [x, y + height], [x + width, y + height],
+          [x + width / 2, y], [x + width / 2, y + height], [x, y + height / 2], [x + width, y + height / 2],
+        ];
+        for (const [hx, hy] of points) {
+          ctx.fillStyle = colour;
+          ctx.fillRect(hx - hs / 2, hy - hs / 2, hs, hs);
+          ctx.strokeStyle = MARK_OUTLINE_COLOR;
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(hx - hs / 2, hy - hs / 2, hs, hs);
+        }
+      }
       ctx.fillStyle = colour;
       ctx.beginPath();
       ctx.arc(x, y, 8, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = "#ffffff";
+      ctx.fillStyle = MARK_OUTLINE_COLOR;
       ctx.font = "600 11px system-ui, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
@@ -877,7 +899,7 @@ function drawReferenceImage(
 ): void {
   if (!image.visible) return;
 
-  const img = cache.get(image.ref);
+  const img = cache.get(image.ref, effectiveContrast(image));
   if (!img) return;
 
   const { x, y, width, height, opacity } = image;

@@ -6,6 +6,7 @@ import { cellKey, parseCellKey } from "../model/cellKey";
 import { stitchGroups } from "../model/stitchNumbers";
 import { insertTargetCol } from "../model/ops";
 import { getSharedReferenceImageCache } from "../canvas/referenceImageCache";
+import { effectiveContrast } from "../canvas/referenceImageContrast";
 import { cellWithinReferenceImage, cropReferenceImageCell } from "../canvas/referenceImageCrop";
 import { binarizeCrop, extractExemplars, matchCandidateStitch } from "../model/templateMatch";
 import { useDocStore } from "../state/docStore";
@@ -432,7 +433,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       // matches against, same as if there were only ever one.
       const refImage = doc().referenceImages.find((img) => cellWithinReferenceImage(img, cell.col, cell.row));
       if (!refImage) return;
-      const cachedImg = getSharedReferenceImageCache().get(refImage.ref);
+      const cachedImg = getSharedReferenceImageCache().get(refImage.ref, effectiveContrast(refImage));
       if (!cachedImg) return;
 
       if (!suggestExemplars) {
@@ -442,7 +443,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         suggestExemplars = extractExemplars(
           doc().index,
           doc().referenceImages,
-          (ref) => getSharedReferenceImageCache().get(ref),
+          (img) => getSharedReferenceImageCache().get(img.ref, effectiveContrast(img)),
           doc().revision,
           (ref) => getSharedReferenceImageCache().isReady(ref),
         );

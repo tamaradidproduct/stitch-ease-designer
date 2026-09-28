@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { CELL } from "../canvas/camera";
+import { MAX_CONTRAST, MIN_CONTRAST, effectiveContrast } from "../canvas/referenceImageContrast";
 import {
   scaleFromCalibrationMarks,
   withoutCalibrationMark,
@@ -70,6 +71,7 @@ export function ReferenceImagePanel() {
   const camera = useUiStore((s) => s.camera);
   const viewport = useUiStore((s) => s.viewport);
   const setCalibrating = useUiStore((s) => s.setReferenceImageCalibrating);
+  const setMarking = useUiStore((s) => s.setReferenceImageMarking);
   const gridAlignmentStatus = useUiStore((s) => s.referenceImageGridAlignmentStatus);
   const setGridAlignmentStatus = useUiStore((s) => s.setReferenceImageGridAlignmentStatus);
   const setCalibrationBox = useUiStore((s) => s.setReferenceImageCalibrationBox);
@@ -133,7 +135,7 @@ export function ReferenceImagePanel() {
   // say that two of them naming the same row pins nothing down.
   const points = image?.calibrationMarks ?? [];
   const labelled = points.filter((p) => p.stitch !== null && p.row !== null);
-  const fit = image && marking ? scaleFromCalibrationMarks(image, points) : null;
+  const fit = image ? scaleFromCalibrationMarks(image, points) : null;
   const hasSpread =
     new Set(labelled.map((point) => point.stitch)).size >= 2 &&
     new Set(labelled.map((point) => point.row)).size >= 2;
@@ -595,6 +597,19 @@ export function ReferenceImagePanel() {
         )}
         {image && (
           <>
+            <label className="refpanel__row">
+              <span>Contrast</span>
+              <input
+                type="range"
+                min={MIN_CONTRAST}
+                max={MAX_CONTRAST}
+                step={0.05}
+                value={effectiveContrast(image)}
+                title="Boost or soften this image's contrast. Calibration and stitch suggestions read the adjusted image."
+                onChange={(e) => updateReferenceImage(image.id, { contrast: Number(e.target.value) })}
+                onDoubleClick={() => updateReferenceImage(image.id, { contrast: 1 })}
+              />
+            </label>
             {marking && (
             <p
               className={
@@ -643,7 +658,7 @@ export function ReferenceImagePanel() {
                 </p>
               </div>
             )}
-            {marking && (
+            {(marking || points.length > 0) && (
               <div className="refpanel__marks">
                 {points.length === 0 ? (
                   <p className="refpanel__hint">No stitches boxed yet.</p>
@@ -665,6 +680,7 @@ export function ReferenceImagePanel() {
                             className="refpanel__markRow"
                             data-active={point.id === activeMark}
                             onClick={() => {
+                              setMarking(true);
                               setActiveMark(point.id);
                               if (!image) return;
                               const centre = markCentre(point);
