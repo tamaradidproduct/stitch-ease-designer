@@ -30,6 +30,8 @@ import { registerListeners } from "./registerListeners";
 
 /** Hit-radius for the resize handle, in screen px (constant regardless of zoom). */
 const HANDLE_PX = 10;
+/** How much a handle's hit radius shrinks relative to the box size, for small marks. */
+const MARK_HANDLE_RADIUS_SCALING_FACTOR = 3;
 /** Smallest a reference image can be scaled down to, in world units. */
 const MIN_SIZE = 24;
 /**
@@ -346,7 +348,8 @@ export function markHandleAt(
     width: mark.w * image.width,
     height: mark.h * image.height,
   };
-  const radius = Math.min(HANDLE_PX, (Math.min(rect.width, rect.height) * zoom) / 3) / zoom;
+  const radius =
+    Math.min(HANDLE_PX, (Math.min(rect.width, rect.height) * zoom) / MARK_HANDLE_RADIUS_SCALING_FACTOR) / zoom;
   for (const corner of CORNERS) {
     const p = cornerPoint(rect, corner);
     if (Math.abs(w.x - p.x) <= radius && Math.abs(w.y - p.y) <= radius) return corner;

@@ -135,7 +135,7 @@ export function ReferenceImagePanel() {
   // say that two of them naming the same row pins nothing down.
   const points = image?.calibrationMarks ?? [];
   const labelled = points.filter((p) => p.stitch !== null && p.row !== null);
-  const fit = image ?scaleFromCalibrationMarks(image, points) : null;
+  const fit = image ? scaleFromCalibrationMarks(image, points) : null;
   const hasSpread =
     new Set(labelled.map((point) => point.stitch)).size >= 2 &&
     new Set(labelled.map((point) => point.row)).size >= 2;

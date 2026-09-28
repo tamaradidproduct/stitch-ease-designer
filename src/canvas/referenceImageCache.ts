@@ -13,6 +13,9 @@ const MAX_ATTEMPTS = 3;
  */
 const MAX_ENTRIES = 24;
 
+/** Contrast-adjusted copies kept per image, so a slider drag doesn't grow this unboundedly. */
+const MAX_ADJUSTED_ENTRIES_PER_IMAGE = 3;
+
 type CacheEntry = {
   image: HTMLImageElement | null;
   /** Contrast-adjusted copies of `image`, a few kept so a slider drag doesn't grow this unboundedly. */
@@ -76,7 +79,9 @@ export class ReferenceImageCache {
         if (made === entry.image) return entry.image;
         adjusted = made as HTMLCanvasElement;
         entry.adjusted.set(contrast, adjusted);
-        if (entry.adjusted.size > 3) entry.adjusted.delete(entry.adjusted.keys().next().value as number);
+        if (entry.adjusted.size > MAX_ADJUSTED_ENTRIES_PER_IMAGE) {
+          entry.adjusted.delete(entry.adjusted.keys().next().value as number);
+        }
       }
       return adjusted;
     }

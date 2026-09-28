@@ -12,6 +12,7 @@ import {
 } from "../model/types";
 import { getSymbol } from "../symbols/registry";
 import { DEFAULT_STITCH_IDS } from "../model/quickSlots";
+import { MIN_CONTRAST, MAX_CONTRAST } from "../canvas/referenceImageContrast";
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 const NO_STITCH_ID = "no_stitch";
@@ -451,7 +452,8 @@ function validateOneReferenceImage(img: unknown, label: string): void {
     (candidate.inFront !== undefined && typeof candidate.inFront !== "boolean") ||
     (candidate.cropToCalibration !== undefined && typeof candidate.cropToCalibration !== "boolean") ||
     (candidate.contrast !== undefined &&
-      (typeof candidate.contrast !== "number" || !(candidate.contrast > 0 && candidate.contrast <= 10))) ||
+      (typeof candidate.contrast !== "number" ||
+        !(candidate.contrast >= MIN_CONTRAST && candidate.contrast <= MAX_CONTRAST))) ||
     (candidate.id !== undefined && typeof candidate.id !== "string") ||
     (candidate.number !== undefined && typeof candidate.number !== "number")
   ) {
