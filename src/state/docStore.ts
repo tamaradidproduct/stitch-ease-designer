@@ -988,8 +988,9 @@ export const useDocStore = create<DocState>((set, get) => {
           : {}),
       });
       if (entry.unrecognizedKeysCleared) {
-        const ui = useUiStore.getState();
-        for (const key of entry.unrecognizedKeysCleared) ui.setReferenceImageUnrecognized(key, true);
+        const next = new Set(useUiStore.getState().referenceImageUnrecognized);
+        for (const key of entry.unrecognizedKeysCleared) next.add(key);
+        useUiStore.setState({ referenceImageUnrecognized: next });
       }
     },
 
@@ -1017,8 +1018,9 @@ export const useDocStore = create<DocState>((set, get) => {
           : {}),
       });
       if (entry.unrecognizedKeysCleared) {
-        const ui = useUiStore.getState();
-        for (const key of entry.unrecognizedKeysCleared) ui.setReferenceImageUnrecognized(key, false);
+        const next = new Set(useUiStore.getState().referenceImageUnrecognized);
+        for (const key of entry.unrecognizedKeysCleared) next.delete(key);
+        useUiStore.setState({ referenceImageUnrecognized: next });
       }
     },
 
