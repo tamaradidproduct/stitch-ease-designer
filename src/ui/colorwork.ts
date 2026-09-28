@@ -57,9 +57,12 @@ export function currentSlotForPicker(
     if (!homogeneous) return null;
     // FR-40: for a genuine multi-selection, every other confirmed placement
     // sharing this combo must already be part of the selection. A single
-    // targeted placement is exempt - see the comment above.
-    if (target.selectionIds.length > 1) {
-      const selectedIds = new Set(target.selectionIds);
+    // targeted placement is exempt - see the comment above. Gated on the
+    // resolved `placements`, not `target.selectionIds`, so a selection with
+    // stale/unresolved ids that resolves to just one real placement is still
+    // treated as a singleton.
+    if (placements.length > 1) {
+      const selectedIds = new Set(placements.map((p) => p.id));
       const missesAnInstance = allPlacements.some(
         (p) => !p.suggested && sameCombo(p) && !selectedIds.has(p.id),
       );
