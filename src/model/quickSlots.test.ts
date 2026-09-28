@@ -4,6 +4,7 @@ import {
   moveQuickSlot,
   moveQuickSlotTo,
   parseQuickSlotId,
+  quickSlotInsertEdge,
   quickSlotKey,
 } from "./quickSlots";
 
@@ -73,5 +74,26 @@ describe("moveQuickSlotTo", () => {
 
   it("moves a stitch into an empty slot without renumbering the other shortcuts", () => {
     expect(moveQuickSlotTo(["knit", "purl"], "knit", 2)).toEqual(["purl", "", "knit"]);
+  });
+});
+
+describe("quickSlotInsertEdge (issue #271: occupied-slot drag-over signifier)", () => {
+  it("shows the line after the target when dragging a lower index onto a higher one", () => {
+    // Matches moveQuickSlotTo(["knit", "purl", "yo"], "knit", 2) landing
+    // "knit" after "yo": ["purl", "yo", "knit"].
+    expect(quickSlotInsertEdge(0, 2)).toBe("after");
+  });
+
+  it("shows the line before the target when dragging a higher index onto a lower one", () => {
+    expect(quickSlotInsertEdge(2, 0)).toBe("before");
+  });
+
+  it("treats a not-yet-slotted dragged key (overflow entry being promoted) as arriving from beyond the end", () => {
+    expect(quickSlotInsertEdge(-1, 0)).toBe("before");
+    expect(quickSlotInsertEdge(-1, 4)).toBe("before");
+  });
+
+  it("shows no line when hovering the slot the drag already started from", () => {
+    expect(quickSlotInsertEdge(1, 1)).toBeNull();
   });
 });

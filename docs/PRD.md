@@ -506,6 +506,30 @@ under the existing armed/hover/drag-over highlight — see `SymbolGlyph`'s
 `colorId` prop (`src/ui/SymbolGlyph.tsx`) and `.glossary__glyph .glyph__cell`
 in `styles.css`.
 
+**FR-59 — distinct quick-slot drag-over signifiers (#271, split from #251;
+follows #259's fill-vs-push fix).** Dragging a quick slot over another one
+now shows one of two distinct hover treatments depending on whether the
+target is empty or occupied, since the two drops behave differently
+(`promoteQuickSlot`/`moveQuickSlotTo`):
+- **Empty target (fill in place).** The whole slot gets the existing
+  full-slot highlight (`[data-drag-over="true"]`) — unchanged from before.
+- **Occupied target (push existing stitches along).** Instead of the
+  full-slot highlight, a thin insertion line appears between two slots, on
+  the edge the dragged stitch will land on — in the same
+  `--accent-soft-border` hover color, per `[data-insert-edge]` in
+  `styles.css`. Which edge is computed by `quickSlotInsertEdge` in
+  `src/model/quickSlots.ts`, from the dragged slot's current index and the
+  hovered slot's index (a not-yet-slotted overflow entry being promoted
+  always arrives from beyond the last slot, so it always shows "before").
+  Wired into `RightPanel`'s occupied-slot render branch (`data-insert-edge`
+  there replaces the old `data-drag-over` — the empty-slot branch is
+  untouched).
+
+Approved by tamaradidproduct on #271: "If there's an empty slot available,
+when a user hovers over that slot, highlight the entire slot. Otherwise,
+show a highlighted line in the same hover color between two stitch slots to
+indicate the new stitch placement."
+
 #### Storage
 
 **FR-37.** Mirrors how `suggested` is already stored — a sparse
