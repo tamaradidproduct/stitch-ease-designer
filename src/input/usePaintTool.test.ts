@@ -123,6 +123,26 @@ describe("resolveUnrecognizedCellsInBounds", () => {
     const unrecognized = new Set([cellKey(50, 50)]);
     expect(resolveUnrecognizedCellsInBounds(unrecognized, bounds, noneOccupied)).toEqual([]);
   });
+
+  it("takes the bounds-scan path when the unrecognized set outgrows the drag area, with the same result as the full-scan path", () => {
+    // A small marquee over a chart with many unread markers elsewhere
+    // shouldn't cost parsing all of them - see the function's own bounds-vs-
+    // set-size comparison. Exercises that branch specifically: bounds here
+    // (9 cells) are smaller than the set (10), the opposite of every case
+    // above.
+    const outside = Array.from({ length: 9 }, (_, i) => cellKey(100 + i, 100));
+    const unrecognized = new Set([...outside, cellKey(2, 2)]);
+    expect(resolveUnrecognizedCellsInBounds(unrecognized, bounds, noneOccupied)).toEqual([
+      { col: 2, row: 2 },
+    ]);
+  });
+
+  it("drops an occupied cell via the bounds-scan path too", () => {
+    const outside = Array.from({ length: 9 }, (_, i) => cellKey(100 + i, 100));
+    const unrecognized = new Set([...outside, cellKey(2, 2)]);
+    const isOccupied = (col: number, row: number) => col === 2 && row === 2;
+    expect(resolveUnrecognizedCellsInBounds(unrecognized, bounds, isOccupied)).toEqual([]);
+  });
 });
 
 describe("shouldBlockDismissGesture", () => {

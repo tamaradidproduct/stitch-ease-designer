@@ -134,9 +134,24 @@ export function resolveUnrecognizedCellsInBounds(
   bounds: CellBounds,
   isOccupied: (col: number, row: number) => boolean,
 ): Cell[] {
-  return unoccupiedCellsFromKeys(unrecognized, isOccupied).filter(
-    (c) => c.col >= bounds.minCol && c.col <= bounds.maxCol && c.row >= bounds.minRow && c.row <= bounds.maxRow,
-  );
+  // Called on every pointermove while marqueeing, so the walk has to stay
+  // cheap for a large `unrecognized` set: a small drag over a big chart
+  // should cost the marquee's own area, not the whole document's unread
+  // markers. Below that crossover, parsing every key (as before) is still
+  // the cheaper of the two.
+  const boundsArea = (bounds.maxCol - bounds.minCol + 1) * (bounds.maxRow - bounds.minRow + 1);
+  if (boundsArea >= unrecognized.size) {
+    return unoccupiedCellsFromKeys(unrecognized, isOccupied).filter(
+      (c) => c.col >= bounds.minCol && c.col <= bounds.maxCol && c.row >= bounds.minRow && c.row <= bounds.maxRow,
+    );
+  }
+  const cells: Cell[] = [];
+  for (let col = bounds.minCol; col <= bounds.maxCol; col++) {
+    for (let row = bounds.minRow; row <= bounds.maxRow; row++) {
+      if (unrecognized.has(cellKey(col, row)) && !isOccupied(col, row)) cells.push({ col, row });
+    }
+  }
+  return cells;
 }
 
 /**
@@ -1195,17 +1210,23 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         }
         // Unlike the includeEmptyCells chord above, unidentified Suggest
         // markers always join the marquee - see `resolveUnrecognizedCellsInBounds`.
-        const unrecognizedInBounds = resolveUnrecognizedCellsInBounds(
-          ui().referenceImageUnrecognized,
-          { minCol, maxCol, minRow, maxRow },
-          (col, row) => !!doc().index.placementAt(col, row),
-        );
-        if (unrecognizedInBounds.length) {
-          const emptyCells = new Map<string, Cell>(
-            nextEmptyCells.map((c) => [cellKey(c.col, c.row), c]),
+        // Skipped when that chord is already active: its loop above just
+        // added every unoccupied cell in bounds to `nextEmptyCells`, and an
+        // unrecognized cell is by definition unoccupied, so it's already in
+        // there - resolving it again would just re-derive the same subset.
+        if (!includeEmptyCells(e)) {
+          const unrecognizedInBounds = resolveUnrecognizedCellsInBounds(
+            ui().referenceImageUnrecognized,
+            { minCol, maxCol, minRow, maxRow },
+            (col, row) => !!doc().index.placementAt(col, row),
           );
-          for (const c of unrecognizedInBounds) emptyCells.set(cellKey(c.col, c.row), c);
-          nextEmptyCells = [...emptyCells.values()];
+          if (unrecognizedInBounds.length) {
+            const emptyCells = new Map<string, Cell>(
+              nextEmptyCells.map((c) => [cellKey(c.col, c.row), c]),
+            );
+            for (const c of unrecognizedInBounds) emptyCells.set(cellKey(c.col, c.row), c);
+            nextEmptyCells = [...emptyCells.values()];
+          }
         }
         // Marquee previews update continuously but become one undoable
         // selection action only when the pointer is released.
