@@ -15,6 +15,7 @@ import { clamp } from "./utils";
 import { parseQuickSlotId } from "../model/quickSlots";
 import { addColoredVariant, applyColorToSlot, currentSlotForPicker } from "./colorwork";
 import { ColorChip } from "./ColorChip";
+import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
 
 const MENU_WIDTH = 284;
 const SEARCH_SLOT_WIDTH = 200;
@@ -289,17 +290,19 @@ export function StitchPicker() {
       ?.scrollIntoView({ block: "nearest" });
   }, [active]);
 
-  useEffect(() => {
-    const onPointerDown = (e: PointerEvent) => {
-      if (rootRef.current?.contains(e.target as Node)) return;
-      // The canvas closes the picker itself, so that the click which dismisses
-      // it doesn't also drop a stitch at the spot the user aimed to close.
-      if (e.target instanceof HTMLCanvasElement) return;
-      closePicker();
-    };
-    document.addEventListener("pointerdown", onPointerDown, true);
-    return () => document.removeEventListener("pointerdown", onPointerDown, true);
-  }, [closePicker]);
+  useDismissOnOutsideOrEscape({
+    onDismiss: closePicker,
+    containerRef: rootRef,
+    // The canvas closes the picker itself, so that the click which dismisses
+    // it doesn't also drop a stitch at the spot the user aimed to close.
+    ignoreTarget: (target) => target instanceof HTMLCanvasElement,
+    // Escape is already handled by this component's own onKeyDown below
+    // (tangled up with arrow-key navigation, backspace-to-delete, etc.,
+    // which only make sense scoped to the picker's own focused root) - a
+    // second, document-level Escape listener here would be redundant at
+    // best.
+    closeOnEscape: false,
+  });
 
   if (!target) return null;
 

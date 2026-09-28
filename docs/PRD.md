@@ -313,6 +313,23 @@ incidental `Opt`/`Alt` tap could trigger during an otherwise-ordinary
 marquee drag. See `includeEmptyCells` in `usePaintTool.ts`'s
 `onPointerMove`.
 
+**FR-60 (#268).** An "unidentified" cell — one Suggest scanned but couldn't
+match against any exemplar, tracked as a UI-side flag in
+`referenceImageUnrecognized` rather than a real `Placement` — joins a plain
+`Cmd`/`Ctrl`-drag marquee unconditionally, the same as an identified
+suggestion, rather than needing the three-key `includeEmptyCells` chord
+FR-21 gates genuinely empty cells behind. This is a deliberate asymmetry:
+unidentified markers are a scan result worth acting on, not blank space, so
+they should be exactly as easy to sweep up as an identified suggestion is.
+Because a marker has no placement id of its own, a marquee that picks one up
+folds it into `selectedEmptyCells` — the same convention already used for
+unidentified cells elsewhere (`SuggestReviewMenu`'s and `RightPanel`'s
+"Replace all"), so downstream bulk actions keep treating a mixed batch of
+real empty cells and unidentified markers consistently. A stale marker
+whose cell has since gotten a real placement is filtered out, same as
+elsewhere. See `resolveUnrecognizedCellsInBounds` in `usePaintTool.ts`'s
+`onPointerMove`.
+
 **FR-41 (added this session, #225).** Suggest armed, pointerdown landing on
 its own still-pending guess, no selection modifier held: the gesture is
 ambiguous between reviewing it (a click) and painting a new Suggest stroke

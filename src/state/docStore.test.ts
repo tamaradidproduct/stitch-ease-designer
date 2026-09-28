@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { DocMeta, ReferenceImage } from "../model/types";
 import type { LoadedChart } from "../storage/ChartStore";
 import { isChartOpen, useDocStore } from "./docStore";
+import { useUiStore } from "./uiStore";
 
 const meta = (id: string, rev = "r1"): DocMeta => ({
   id,
@@ -298,6 +299,54 @@ describe("selection edits", () => {
     expect(dupA!.groupId).toBeDefined();
     expect(dupA!.groupId).toBe(dupB!.groupId);
     expect(dupC!.groupId).toBeUndefined();
+  });
+});
+
+describe("place() restoring the unrecognized-cell flag on undo (#285)", () => {
+  beforeEach(() => {
+    useDocStore.getState().openChart({ meta: meta("unrecognized"), placements: [], unknownSymbolIds: [] });
+    useUiStore.getState().clearReferenceImageUnrecognized();
+  });
+
+  it("clears a flagged cell's unrecognized mark and restores it on undo", () => {
+    useUiStore.getState().setReferenceImageUnrecognized("2,3", true);
+
+    useDocStore.getState().place("knit", 2, 3, undefined, undefined, undefined, "2,3");
+    expect(useUiStore.getState().referenceImageUnrecognized.has("2,3")).toBe(false);
+
+    useDocStore.getState().undo();
+    expect(useDocStore.getState().index.size).toBe(0);
+    expect(useUiStore.getState().referenceImageUnrecognized.has("2,3")).toBe(true);
+
+    useDocStore.getState().redo();
+    expect(useDocStore.getState().index.size).toBe(1);
+    expect(useUiStore.getState().referenceImageUnrecognized.has("2,3")).toBe(false);
+  });
+
+  it("leaves other flagged cells alone when undoing an unrelated placement", () => {
+    useUiStore.getState().setReferenceImageUnrecognized("5,5", true);
+    useDocStore.getState().place("knit", 0, 0);
+
+    useDocStore.getState().undo();
+    expect(useUiStore.getState().referenceImageUnrecognized.has("5,5")).toBe(true);
+  });
+
+  it("bundles every unrecognized cell a single drag-paint stroke clears into one undo step", () => {
+    useUiStore.getState().setReferenceImageUnrecognized("0,0", true);
+    useUiStore.getState().setReferenceImageUnrecognized("1,0", true);
+
+    useDocStore.getState().beginStroke();
+    useDocStore.getState().place("knit", 0, 0, undefined, undefined, undefined, "0,0");
+    useDocStore.getState().place("knit", 1, 0, undefined, undefined, undefined, "1,0");
+    useDocStore.getState().endStroke();
+
+    expect(useDocStore.getState().undoStack).toHaveLength(1);
+    expect(useUiStore.getState().referenceImageUnrecognized.size).toBe(0);
+
+    useDocStore.getState().undo();
+    expect(useDocStore.getState().index.size).toBe(0);
+    expect(useUiStore.getState().referenceImageUnrecognized.has("0,0")).toBe(true);
+    expect(useUiStore.getState().referenceImageUnrecognized.has("1,0")).toBe(true);
   });
 });
 

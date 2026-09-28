@@ -5,6 +5,7 @@ import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
 import { CheckIcon, CrossIcon } from "./icons";
 import { clamp } from "./utils";
+import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
 
 /**
  * The compact menu that appears once after a Suggest stroke finishes,
@@ -65,25 +66,14 @@ export function SuggestReviewMenu() {
     });
   }, [open, bounds, camera, viewport, identified.length, unrecognizedCells.length]);
 
-  useLayoutEffect(() => {
-    if (!open) return;
-    const onPointerDown = (e: PointerEvent) => {
-      if (rootRef.current?.contains(e.target as Node)) return;
-      // Same rule as StitchPicker: the canvas closes this itself, so the
-      // click that dismisses the menu doesn't also start a new stroke.
-      if (e.target instanceof HTMLCanvasElement) return;
-      closeSuggestReview();
-    };
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeSuggestReview();
-    };
-    document.addEventListener("pointerdown", onPointerDown, true);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown, true);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open, closeSuggestReview]);
+  useDismissOnOutsideOrEscape({
+    enabled: open,
+    onDismiss: closeSuggestReview,
+    containerRef: rootRef,
+    // Same rule as StitchPicker: the canvas closes this itself, so the
+    // click that dismisses the menu doesn't also start a new stroke.
+    ignoreTarget: (target) => target instanceof HTMLCanvasElement,
+  });
 
   if (!open) return null;
 
