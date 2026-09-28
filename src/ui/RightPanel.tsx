@@ -21,7 +21,7 @@ import {
   symbolsWithAnyPlacement,
   useGlossaryIds,
 } from "./chartGlossary";
-import { parseQuickSlotId, quickSlotKey } from "../model/quickSlots";
+import { parseQuickSlotId, quickSlotInsertEdge, quickSlotKey } from "../model/quickSlots";
 import { addColoredVariant } from "./colorwork";
 import { ColorChip } from "./ColorChip";
 import { CheckIcon, CloseIcon, CrossIcon, DragHandleIcon } from "./icons";
@@ -527,12 +527,20 @@ export function RightPanel() {
                 ? (coloredCounts.get(key!) ?? 0)
                 : (stitchCounts.get(symbol?.id ?? "") ?? 0);
               const selectAllLabel = `Select all ${count} placed ${symbol?.label} stitches`;
+              // #271: dropping onto an already-occupied quick slot pushes
+              // the existing stitches along (see promoteQuickSlot/
+              // moveQuickSlotTo) rather than filling in place, so it gets
+              // the insertion-line signifier instead of the empty-slot's
+              // full highlight.
+              const insertEdge = dragOverQuickId === key
+                ? quickSlotInsertEdge(draggingQuickId ? quickSymbolIds.indexOf(draggingQuickId) : -1, slot)
+                : null;
               return key && symbol ? (
                 <div
                   key={key}
                   className="glossary__item"
                   data-on={armed && tool === "stitch"}
-                  data-drag-over={dragOverQuickId === key}
+                  data-insert-edge={insertEdge ?? undefined}
                   onDragOver={(event) => {
                     if (draggingQuickId && draggingQuickId !== key) {
                       event.preventDefault();

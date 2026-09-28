@@ -62,6 +62,34 @@ export function moveQuickSlotTo(slots: readonly string[], key: string, targetSlo
   return [...next];
 }
 
+/**
+ * Which edge of a hovered, *occupied* quick slot should carry the
+ * insertion-line hover signifier while dragging another quick slot over it
+ * (issue #271). `moveQuickSlotTo` walks the dragged slot through its
+ * neighbours until it lands exactly at `targetSlot`, shifting everything
+ * between the two indices over by one - so the slot that currently sits at
+ * `targetSlot` ends up on the near side of wherever the drag came from: it
+ * moves toward `draggedIndex`, and the dragged item takes its place. That
+ * means the drop will land the dragged item on the far side of the target
+ * from the drag's origin - after it when dragging forward (a lower index
+ * onto a higher one), before it when dragging backward - which is the edge
+ * this returns.
+ *
+ * `draggedIndex` is -1 when the dragged key isn't in the row yet (a glossary
+ * overflow entry being promoted): `promoteQuickSlot` appends it past the
+ * last slot first and only then walks it back to `targetSlot`, so it always
+ * arrives from beyond the end - the same as a very large `draggedIndex`,
+ * hence "before".
+ *
+ * Returns null only when hovering the slot the drag already started from -
+ * dropping there is a no-op, matching `moveQuickSlotTo`'s own early-out.
+ */
+export function quickSlotInsertEdge(draggedIndex: number, targetSlot: number): "before" | "after" | null {
+  if (draggedIndex === targetSlot) return null;
+  if (draggedIndex === -1) return "before";
+  return draggedIndex < targetSlot ? "after" : "before";
+}
+
 export function removeQuickSlot(slots: readonly string[], key: string): string[] {
   const at = slots.indexOf(key);
   if (at === -1) return [...slots];
