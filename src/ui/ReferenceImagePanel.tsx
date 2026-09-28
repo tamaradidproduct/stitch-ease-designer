@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import type { RefObject } from "react";
 import { CELL } from "../canvas/camera";
 import { MAX_CONTRAST, MIN_CONTRAST, effectiveContrast } from "../canvas/referenceImageContrast";
 import {
@@ -13,40 +12,7 @@ import { useUiStore } from "../state/uiStore";
 import { resolveReferenceImageUrl, uploadReferenceImage } from "../storage/referenceImages";
 import { newUuid } from "../uuid";
 import { tapActivate } from "./tapActivate";
-
-/**
- * Closes a popover on an outside pointerdown or Escape, while it's open.
- * Takes `onDismiss` via a ref rather than a dependency so callers can pass a
- * fresh closure each render without re-subscribing the listeners.
- */
-function useDismissOnOutside(
-  open: boolean,
-  containerRef: RefObject<HTMLElement | null>,
-  onDismiss: () => void,
-): void {
-  const onDismissRef = useRef(onDismiss);
-  useEffect(() => {
-    onDismissRef.current = onDismiss;
-  });
-
-  useEffect(() => {
-    if (!open) return;
-    const closeOutside = (event: PointerEvent) => {
-      if (!containerRef.current?.contains(event.target as Node)) onDismissRef.current();
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.stopImmediatePropagation();
-      onDismissRef.current();
-    };
-    document.addEventListener("pointerdown", closeOutside);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", closeOutside);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [open, containerRef]);
-}
+import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
 
 /**
  * Upload + transform controls for the chart's reference images. A chart can
@@ -154,9 +120,27 @@ export function ReferenceImagePanel() {
   // before it's clicked, since "Add" and "Replace" share one hidden input.
   const uploadMode = useRef<"add" | "replace">("add");
 
-  useDismissOnOutside(traceMenuOpen, referenceImagePanelRef, () => setTraceMenuOpen(false));
-  useDismissOnOutside(helpOpen, referenceImagePanelRef, () => setHelpOpen(false));
-  useDismissOnOutside(opacityOpen, referenceImagePanelRef, () => setOpacityOpen(false));
+  useDismissOnOutsideOrEscape({
+    enabled: traceMenuOpen,
+    containerRef: referenceImagePanelRef,
+    onDismiss: () => setTraceMenuOpen(false),
+    captureOutsidePointerdown: false,
+    stopEscapePropagation: true,
+  });
+  useDismissOnOutsideOrEscape({
+    enabled: helpOpen,
+    containerRef: referenceImagePanelRef,
+    onDismiss: () => setHelpOpen(false),
+    captureOutsidePointerdown: false,
+    stopEscapePropagation: true,
+  });
+  useDismissOnOutsideOrEscape({
+    enabled: opacityOpen,
+    containerRef: referenceImagePanelRef,
+    onDismiss: () => setOpacityOpen(false),
+    captureOutsidePointerdown: false,
+    stopEscapePropagation: true,
+  });
 
   const onFile = async (file: File) => {
     if (!meta) return;
@@ -705,6 +689,7 @@ export function ReferenceImagePanel() {
                             type="button"
                             className="refpanel__markRemove"
                             title="Remove this box"
+                            aria-label="Remove this box"
                             onClick={() => {
                               updateReferenceImage(image.id, {
                                 calibrationMarks: withoutCalibrationMark(

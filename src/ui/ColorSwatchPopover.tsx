@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { COLOR_GRID } from "../model/colorPalette";
 import { handleColorSwatchClick, resolveColorPopoverPosition } from "./colorSwatchPopoverPosition";
+import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
 
 export type ColorSwatchPopoverProps = {
   /** The chip's own rect, measured live rather than relying on CSS containing-block luck (see the file's own doc comment). */
@@ -58,26 +59,13 @@ export function ColorSwatchPopover({
     }));
   }, [anchorRect, boundaryRect, placement, width, height]);
 
-  useLayoutEffect(() => {
-    const onPointerDown = (e: PointerEvent) => {
-      if (rootRef.current?.contains(e.target as Node)) return;
-      onClose();
-    };
-    const onScrollOrResize = () => onClose();
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("pointerdown", onPointerDown, true);
-    document.addEventListener("scroll", onScrollOrResize, true);
-    window.addEventListener("resize", onScrollOrResize);
-    document.addEventListener("keydown", onKeyDown, true);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown, true);
-      document.removeEventListener("scroll", onScrollOrResize, true);
-      window.removeEventListener("resize", onScrollOrResize);
-      document.removeEventListener("keydown", onKeyDown, true);
-    };
-  }, [onClose]);
+  useDismissOnOutsideOrEscape({
+    onDismiss: onClose,
+    containerRef: rootRef,
+    captureOutsidePointerdown: true,
+    captureEscape: true,
+    closeOnScroll: true,
+  });
 
   return (
     <div
