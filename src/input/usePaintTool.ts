@@ -2,7 +2,7 @@ import { type RefObject, useEffect } from "react";
 import { type Cell, screenToCell, screenToInsertCell } from "../canvas/camera";
 import { RULER } from "../canvas/theme";
 import { type CellBounds, DocIndex } from "../model/docIndex";
-import { cellKey, parseCellKey } from "../model/cellKey";
+import { cellKey, parseCellKey, unoccupiedCellsFromKeys } from "../model/cellKey";
 import { stitchGroups } from "../model/stitchNumbers";
 import { insertTargetCol } from "../model/ops";
 import { getSharedReferenceImageCache } from "../canvas/referenceImageCache";
@@ -116,6 +116,27 @@ export function resolveGroupIds(index: DocIndex, bounds: CellBounds): string[] {
     }
     return members;
   });
+}
+
+/**
+ * Unidentified Suggest markers (`referenceImageUnrecognized`) within a
+ * marquee's bounds that don't already have a placement. A marker is a
+ * UI-side flag, not a `Placement`, so `resolveGroupIds` above never sees it
+ * - but a plain Cmd/Ctrl-drag should sweep one in just as easily as it does
+ * an identified suggestion, rather than requiring the deliberate
+ * `includeEmptyCells` chord that genuinely empty cells need (#268). They
+ * have no placement id of their own, so callers fold the result into
+ * `selectedEmptyCells`, matching the convention already used elsewhere for
+ * folding them into a selection (`SuggestReviewMenu`'s "Replace all").
+ */
+export function resolveUnrecognizedCellsInBounds(
+  unrecognized: ReadonlySet<string>,
+  bounds: CellBounds,
+  isOccupied: (col: number, row: number) => boolean,
+): Cell[] {
+  return unoccupiedCellsFromKeys(unrecognized, isOccupied).filter(
+    (c) => c.col >= bounds.minCol && c.col <= bounds.maxCol && c.row >= bounds.minRow && c.row <= bounds.maxRow,
+  );
 }
 
 /**
@@ -1170,6 +1191,20 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
               if (!doc().index.placementAt(col, row)) emptyCells.set(cellKey(col, row), { col, row });
             }
           }
+          nextEmptyCells = [...emptyCells.values()];
+        }
+        // Unlike the includeEmptyCells chord above, unidentified Suggest
+        // markers always join the marquee - see `resolveUnrecognizedCellsInBounds`.
+        const unrecognizedInBounds = resolveUnrecognizedCellsInBounds(
+          ui().referenceImageUnrecognized,
+          { minCol, maxCol, minRow, maxRow },
+          (col, row) => !!doc().index.placementAt(col, row),
+        );
+        if (unrecognizedInBounds.length) {
+          const emptyCells = new Map<string, Cell>(
+            nextEmptyCells.map((c) => [cellKey(c.col, c.row), c]),
+          );
+          for (const c of unrecognizedInBounds) emptyCells.set(cellKey(c.col, c.row), c);
           nextEmptyCells = [...emptyCells.values()];
         }
         // Marquee previews update continuously but become one undoable
