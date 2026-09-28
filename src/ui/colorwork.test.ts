@@ -28,13 +28,30 @@ describe("currentSlotForPicker (FR-40)", () => {
     expect(slot?.placementIds).toEqual(["a"]);
   });
 
-  it("returns null when another confirmed placement of the same combo exists outside the selection (#211/#224)", () => {
+  it("returns a slot for a single selected stitch even when another confirmed placement of the same combo exists outside the selection (#267 relaxes #211/#224 for singletons)", () => {
     const placements = [placement({ id: "a" }), placement({ id: "b", col: 1 })];
     const slot = currentSlotForPicker(targetFor(["a"]), byId(placements), null, null, placements);
+    expect(slot?.symbolId).toBe("purl");
+    expect(slot?.placementIds).toEqual(["a"]);
+  });
+
+  it("returns null for a multi-selection missing another confirmed instance of the combo (#211/#224)", () => {
+    const placements = [
+      placement({ id: "a" }),
+      placement({ id: "b", col: 1 }),
+      placement({ id: "c", col: 2 }),
+    ];
+    const slot = currentSlotForPicker(
+      targetFor(["a", "b"]),
+      byId(placements),
+      null,
+      null,
+      placements,
+    );
     expect(slot).toBeNull();
   });
 
-  it("returns a slot once the selection covers every instance of the combo", () => {
+  it("returns a slot once a multi-selection covers every instance of the combo", () => {
     const placements = [placement({ id: "a" }), placement({ id: "b", col: 1 })];
     const slot = currentSlotForPicker(
       targetFor(["a", "b"]),
