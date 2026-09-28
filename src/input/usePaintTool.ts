@@ -511,20 +511,28 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
     /** Applies `mode` to one cell - the shared body Draw, Suggest, confirm, and erase all paint through. */
     const applyMode = (mode: StrokeMode, cell: Cell) => {
       switch (mode.kind) {
-        case "place":
+        case "place": {
           // Overwrite Safety Block: freehand drawing never overwrites a
           // cell that already holds a placement (confirmed or suggested) -
           // it's skipped, and the rest of the drag keeps going.
           if (doc().index.placementAt(cell.col, cell.row)) return;
-          doc().place(mode.symbolId, cell.col, cell.row, undefined, undefined, mode.colorId);
           // An unreadable cell has no placement to trip the block above, so
-          // a drag can land here too - clear the stale mark rather than
-          // leaving it flagged as unread under a stitch that's now there.
-          {
-            const key = cellKey(cell.col, cell.row);
-            if (ui().referenceImageUnrecognized.has(key)) ui().setReferenceImageUnrecognized(key, false);
-          }
+          // a drag can land here too - clear the stale mark (undoably, via
+          // `place`'s `unrecognizedKeyCleared`) rather than leaving it
+          // flagged as unread under a stitch that's now there (#285).
+          const key = cellKey(cell.col, cell.row);
+          const unrecognizedKeyCleared = ui().referenceImageUnrecognized.has(key) ? key : undefined;
+          doc().place(
+            mode.symbolId,
+            cell.col,
+            cell.row,
+            undefined,
+            undefined,
+            mode.colorId,
+            unrecognizedKeyCleared,
+          );
           return;
+        }
         case "suggest":
           matchAndPlace(cell);
           return;
