@@ -136,6 +136,7 @@ export function ChartList() {
                 <input
                   name="name"
                   className="chartrow__input"
+                  aria-label="Chart name"
                   defaultValue={chart.name}
                   autoFocus
                   onBlur={() => setRenaming(null)}
