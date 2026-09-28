@@ -689,6 +689,7 @@ export function ReferenceImagePanel() {
                             type="button"
                             className="refpanel__markRemove"
                             title="Remove this box"
+                            aria-label="Remove this box"
                             onClick={() => {
                               updateReferenceImage(image.id, {
                                 calibrationMarks: withoutCalibrationMark(

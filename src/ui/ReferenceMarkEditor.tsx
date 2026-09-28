@@ -266,7 +266,13 @@ export function ReferenceMarkEditor() {
           </button>
         </div>
       </div>
-      <button type="button" className="markpop__remove" title="Close point editor" onClick={close}>
+      <button
+        type="button"
+        className="markpop__remove"
+        title="Close point editor"
+        aria-label="Close point editor"
+        onClick={close}
+      >
         &times;
       </button>
     </div>
