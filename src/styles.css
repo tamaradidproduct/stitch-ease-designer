@@ -835,12 +835,16 @@ body {
   width: 18px;
   height: 18px;
   place-items: center;
-  border: 1.5px solid var(--bg);
+  /* #265: a border/fill that both matched --bg was invisible against a
+     pale, uncolored tile. A solid --border ring plus a soft drop shadow
+     reads as a control regardless of the tile's own color. */
+  border: 1.5px solid var(--border);
   border-radius: 50%;
   padding: 0;
   background: var(--bg);
   color: var(--text-muted);
   cursor: pointer;
+  box-shadow: 0 1px 3px rgb(15 23 42 / 20%);
 }
 
 .colorChip:hover,
@@ -861,6 +865,10 @@ body {
   flex: none;
   margin-left: auto;
   border-color: transparent;
+  /* These sit inline in a list row (not overlaid on a tile), alongside
+     other flat icon buttons like .glossary__remove - the #265 affordance
+     fix is only needed where the chip floats over a stitch tile. */
+  box-shadow: none;
 }
 
 .colorPopover {
