@@ -42,4 +42,28 @@ describe("isOutsidePointerdown", () => {
     expect(isOutsidePointerdown({} as EventTarget, container, ignoreTarget)).toBe(false);
     expect(contains).not.toHaveBeenCalled();
   });
+
+  // A pointerdown's target is always a real Node in a browser, but this
+  // guards against `contains` throwing a TypeError if it were ever anything
+  // else - a null target, in particular, is worth covering explicitly since
+  // `contains(null)` is well-defined (false) but not every environment
+  // honors that.
+  it("treats a null target as outside without throwing", () => {
+    const container = { contains: () => true };
+    expect(() => isOutsidePointerdown(null, container)).not.toThrow();
+    expect(isOutsidePointerdown(null, container)).toBe(true);
+  });
+
+  // This project's Vitest config runs in a plain Node.js environment with no
+  // DOM at all (see vite.config.ts's `test.environment: "node"`), so the
+  // global `Node` constructor this function guards with doesn't exist here -
+  // exactly the case its `typeof Node === "undefined"` fallback is for. This
+  // documents that assumption and confirms the container is still consulted
+  // normally when it holds, rather than every target silently short-
+  // circuiting to "outside" in this test environment.
+  it("still consults the container when the environment has no global Node", () => {
+    expect(typeof Node).toBe("undefined");
+    const container = { contains: () => true };
+    expect(isOutsidePointerdown({} as EventTarget, container)).toBe(false);
+  });
 });

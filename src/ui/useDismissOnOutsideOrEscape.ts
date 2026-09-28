@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import type { RefObject } from "react";
 
 /**
@@ -17,7 +17,14 @@ export function isOutsidePointerdown(
   ignoreTarget?: (target: EventTarget | null) => boolean,
 ): boolean {
   if (ignoreTarget?.(target)) return false;
-  if (container?.contains(target as Node)) return false;
+  // `contains` requires an actual Node - a pointerdown's target always is
+  // one in practice, but guarding here avoids a TypeError if it's ever
+  // something else (or null). `typeof Node === "undefined"` covers this
+  // project's Vitest environment, which runs in plain Node.js with no DOM
+  // at all - this function is exercised there directly, with plain
+  // stand-in objects rather than real Nodes.
+  const targetIsNode = !!target && (typeof Node === "undefined" || target instanceof Node);
+  if (targetIsNode && container?.contains(target as Node)) return false;
   return true;
 }
 
@@ -116,19 +123,21 @@ export function useDismissOnOutsideOrEscape(options: UseDismissOnOutsideOrEscape
   // onDismiss (and ignoreTarget) read via a ref rather than as effect
   // dependencies, so a caller passing a fresh closure every render doesn't
   // cause the listener effect below to tear down and resubscribe each time.
+  // This sync runs in a useLayoutEffect, matching the listener effect below
+  // (not a plain useEffect) - both need to land in the same, synchronous-
+  // before-paint phase, or a pointerdown/keydown dispatched in the gap
+  // between them could still read a stale ref.
   const latestRef = useRef({ onDismiss, ignoreTarget });
-  useEffect(() => {
+  useLayoutEffect(() => {
     latestRef.current = { onDismiss, ignoreTarget };
   });
 
-  // A plain useEffect would work equally well here - nothing in the six
-  // sites this hook replaced actually depended on listeners attaching
-  // before vs. after paint, since the pointerdown that opens a panel has
-  // always finished dispatching (and any effects from opening it have
-  // already run) by the time a *later* pointerdown could reach these
-  // listeners either way. useLayoutEffect is used anyway so the listeners
-  // are guaranteed live as early as possible, matching the two sites that
-  // asked for that explicitly (ColorSwatchPopover, SuggestReviewMenu).
+  // useLayoutEffect (not a plain useEffect) so the listeners are attached,
+  // and the ref above kept in sync with them, in the same synchronous phase
+  // - matching the two sites that asked for capture-phase, attach-before-
+  // paint timing explicitly (ColorSwatchPopover, SuggestReviewMenu), and
+  // avoiding a gap after paint where a real pointerdown/keydown could still
+  // reach a listener that's live but reading a stale ref.
   useLayoutEffect(() => {
     if (!enabled) return;
 
