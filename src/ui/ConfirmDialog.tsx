@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
 
 export type ConfirmDialogProps = {
   message: string;
@@ -30,12 +31,17 @@ export function ConfirmDialog({
     confirmRef.current?.focus();
   }, []);
 
+  useDismissOnOutsideOrEscape({
+    onDismiss: onCancel,
+    // No document-level outside-pointerdown handling here - the overlay's
+    // own onPointerDown below already closes the dialog on a backdrop click
+    // (and, being a full-viewport backdrop, is never missed by a click that
+    // isn't also on the dialog itself).
+    dismissOnOutsidePointerdown: false,
+  });
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        onCancel();
-        return;
-      }
       if (e.key === "Tab") {
         const dialog = dialogRef.current;
         const focusable = dialog?.querySelectorAll("button");
@@ -66,7 +72,7 @@ export function ConfirmDialog({
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onCancel]);
+  }, []);
 
   return (
     <div className="confirmDialog__overlay" onPointerDown={(e) => { if (e.target === e.currentTarget) onCancel(); }}>
