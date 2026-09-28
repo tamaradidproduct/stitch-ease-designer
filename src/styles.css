@@ -1846,6 +1846,7 @@ body {
 }
 
 .glossary__item {
+  position: relative;
   display: flex;
   width: 100%;
   align-items: center;
@@ -1869,6 +1870,30 @@ body {
   border-color: var(--accent-soft-border);
   background: var(--accent-soft-bg);
   outline: none;
+}
+
+/* #271: dropping a quick slot onto an already-occupied one pushes the
+   existing stitches along rather than filling in place, so instead of the
+   full-slot highlight above it gets a thin insertion line - in the same
+   accent-soft-border hover color - on whichever edge the stitch will land,
+   sitting in the row gap rather than overlapping either slot. */
+.glossary__item[data-insert-edge]::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent-soft-border);
+  pointer-events: none;
+}
+
+.glossary__item[data-insert-edge="before"]::after {
+  top: -4px;
+}
+
+.glossary__item[data-insert-edge="after"]::after {
+  bottom: -4px;
 }
 
 .glossary__arm {
