@@ -18,10 +18,12 @@ import {
   addCalibrationMark,
   newCalibrationMarkId,
   patchCalibrationMark,
+  resizeMark,
   snapImageToGrid,
 } from "../model/referenceCalibration";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
+import { applyContrastToPixels, effectiveContrast } from "../canvas/referenceImageContrast";
 import { resolveReferenceImageUrl } from "../storage/referenceImages";
 import { useCanvasRect } from "./useCanvasRect";
 import { registerListeners } from "./registerListeners";
@@ -102,6 +104,12 @@ type Drag =
       grabV: number;
     })
   | (DragTarget & {
+      /** Stretching one side or corner of an already-boxed stitch. */
+      mode: "markResize";
+      id: string;
+      handle: BoxHandle;
+    })
+  | (DragTarget & {
       /** Dragging out a new box around a stitch, exactly as calibration does. */
       mode: "markDraw";
       start: Point;
@@ -115,8 +123,9 @@ type Drag =
 // already-decoded pixels.
 const referencePixelsCache = new Map<string, ImageData>();
 
-async function loadReferencePixels(ref: string): Promise<ImageData> {
-  const cached = referencePixelsCache.get(ref);
+async function loadReferencePixels(ref: string, contrast: number): Promise<ImageData> {
+  const cacheKey = `${ref}|${contrast}`;
+  const cached = referencePixelsCache.get(cacheKey);
   if (cached) return cached;
   const url = await resolveReferenceImageUrl(ref);
   const element = new Image();
@@ -130,7 +139,10 @@ async function loadReferencePixels(ref: string): Promise<ImageData> {
   if (!context) throw new Error("Could not inspect the reference image");
   context.drawImage(element, 0, 0);
   const data = context.getImageData(0, 0, canvas.width, canvas.height);
-  referencePixelsCache.set(ref, data);
+  applyContrastToPixels(data.data, contrast);
+  // Only the current contrast's decode is worth keeping per image.
+  for (const key of referencePixelsCache.keys()) if (key.startsWith(`${ref}|`)) referencePixelsCache.delete(key);
+  referencePixelsCache.set(cacheKey, data);
   return data;
 }
 
@@ -317,6 +329,41 @@ export function markFromBox(
   return { id: newCalibrationMarkId(), u, v, w, h, stitch: null, row: null };
 }
 
+/**
+ * Which handle of `mark` - any corner or side - `w` is on, or null. The
+ * hit radius shrinks with small boxes so a stitch-sized mark's own body
+ * stays grabbable for moving rather than being all handle.
+ */
+export function markHandleAt(
+  image: ReferenceImage,
+  mark: CalibrationMark,
+  w: Point,
+  zoom: number,
+): BoxHandle | null {
+  const rect: Rect = {
+    x: image.x + mark.u * image.width,
+    y: image.y + mark.v * image.height,
+    width: mark.w * image.width,
+    height: mark.h * image.height,
+  };
+  const radius = Math.min(HANDLE_PX, (Math.min(rect.width, rect.height) * zoom) / 3) / zoom;
+  for (const corner of CORNERS) {
+    const p = cornerPoint(rect, corner);
+    if (Math.abs(w.x - p.x) <= radius && Math.abs(w.y - p.y) <= radius) return corner;
+  }
+  const withinX = w.x >= rect.x - radius && w.x <= rect.x + rect.width + radius;
+  const withinY = w.y >= rect.y - radius && w.y <= rect.y + rect.height + radius;
+  for (const edge of EDGES) {
+    const hit =
+      edge === "l" ? Math.abs(w.x - rect.x) <= radius && withinY
+      : edge === "r" ? Math.abs(w.x - (rect.x + rect.width)) <= radius && withinY
+      : edge === "b" ? Math.abs(w.y - rect.y) <= radius && withinX
+      : Math.abs(w.y - (rect.y + rect.height)) <= radius && withinX;
+    if (hit) return edge;
+  }
+  return null;
+}
+
 export function handleAt(
   image: ReferenceImage,
   w: Point,
@@ -428,6 +475,19 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
         e.preventDefault();
         e.stopImmediatePropagation();
 
+        // The selected mark's own corners and sides come first: they sit on
+        // its border, where a plain press would otherwise start a move.
+        const activeMark = image.calibrationMarks?.find(
+          (m) => m.id === useUiStore.getState().referenceImageActiveMark,
+        );
+        const markHandle = activeMark ? markHandleAt(image, activeMark, w, zoom) : null;
+        if (activeMark && markHandle) {
+          drag = { mode: "markResize", id: activeMark.id, handle: markHandle, imageId: image.id };
+          useDocStore.getState().beginReferenceImageEdit(image.id);
+          canvas.setPointerCapture(e.pointerId);
+          return;
+        }
+
         const existing = markAt(image, w);
         if (existing) {
           // Inside a box already drawn: slide it, keeping the grab point
@@ -531,8 +591,14 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
     const syncHandleHover = (e: PointerEvent) => {
       const ui = useUiStore.getState();
       const image = getActiveImage();
-      const next =
-        ui.referenceImagePanelOpen && !ui.referenceImageCalibrating && image?.visible
+      const activeMark = ui.referenceImageMarking
+        ? image?.calibrationMarks?.find((m) => m.id === ui.referenceImageActiveMark)
+        : undefined;
+      const markHandle =
+        image && activeMark ? markHandleAt(image, activeMark, worldAt(e), ui.camera.zoom) : null;
+      const next = markHandle
+        ? { target: "mark" as const, handle: markHandle }
+        : ui.referenceImagePanelOpen && !ui.referenceImageCalibrating && !ui.referenceImageMarking && image?.visible
           ? handleAt(image, worldAt(e), ui.camera.zoom)
           : null;
       const prev = ui.referenceImageHandle;
@@ -622,6 +688,26 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
             v: Math.max(0, Math.min(1 - mark.h, (w.y - img.y) / img.height - grabV)),
           }),
         });
+      } else if (drag.mode === "markResize") {
+        const { id, handle, imageId } = drag;
+        const img = useDocStore.getState().referenceImages.find((i) => i.id === imageId);
+        const mark = img?.calibrationMarks?.find((m) => m.id === id);
+        if (!img || !mark) return;
+        const zoom = useUiStore.getState().camera.zoom;
+        const minWorld = MIN_CALIBRATION_PX / zoom;
+        useDocStore.getState().updateReferenceImage(imageId, {
+          calibrationMarks: patchCalibrationMark(
+            img.calibrationMarks,
+            id,
+            resizeMark(
+              mark,
+              handle,
+              { u: (w.x - img.x) / img.width, v: (w.y - img.y) / img.height },
+              minWorld / img.width,
+              minWorld / img.height,
+            ),
+          ),
+        });
       } else if (drag.mode === "markDraw") {
         useUiStore.getState().setReferenceImageCalibrationBox({ start: drag.start, current: w });
       } else {
@@ -649,7 +735,7 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
       ui.setReferenceImageGridAlignmentStatus("detecting");
       let detectedBox: PixelRect | null = null;
       try {
-        const pixels = await loadReferencePixels(sourceImage.ref);
+        const pixels = await loadReferencePixels(sourceImage.ref, effectiveContrast(sourceImage));
         detectedBox = detectGridCell(pixels, worldBoxToPixels(sourceImage, roughBox));
       } catch {
         // Pixel inspection may be unavailable for a cross-origin image. The
@@ -697,7 +783,8 @@ export function useReferenceImageTool(ref: RefObject<HTMLCanvasElement | null>):
         drag.mode === "move" ||
         drag.mode === "scale" ||
         drag.mode === "stitchResize" ||
-        drag.mode === "markMove";
+        drag.mode === "markMove" ||
+        drag.mode === "markResize";
       e.stopImmediatePropagation();
       const draggedImageId = drag.imageId;
       if (drag.mode === "calibrate") {

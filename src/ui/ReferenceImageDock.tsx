@@ -9,6 +9,11 @@ import { tapActivate } from "./tapActivate";
  * edited.  It deliberately contains only actions that affect the canvas in
  * the moment; detailed opacity and resize controls stay in the side panel.
  */
+/** Canvas width (stage minus right panel) above which the secondary actions keep their labels. */
+const FULL_LAYOUT_MIN_WIDTH = 900;
+/** Below this, the secondary actions stack in a column above Save changes. */
+const ICON_LAYOUT_MIN_WIDTH = 640;
+
 export function ReferenceImageDock() {
   const activeImageId = useUiStore((s) => s.activeReferenceImageId);
   const image = useDocStore((s) => s.referenceImages.find((img) => img.id === activeImageId) ?? null);
@@ -23,6 +28,11 @@ export function ReferenceImageDock() {
   const rightPanelWidth = useUiStore((s) => s.rightPanelWidth);
   const quickDockRef = useRef<HTMLDivElement>(null);
   const [availableLane, setAvailableLane] = useState<{ left: number; width: number } | null>(null);
+  // How much room the canvas has, which decides how the secondary actions
+  // (Hide / Bring to front) present themselves: "full" shows labels,
+  // "icons" collapses them to icons that expand on hover, and "stacked"
+  // (very narrow) puts them in one column on top of Save changes.
+  const [layout, setLayout] = useState<"full" | "icons" | "stacked">("full");
   const hasImage = image !== null;
 
   // The reference scale controls share the bottom edge with the persistent
@@ -39,6 +49,13 @@ export function ReferenceImageDock() {
 
     const updateLane = () => {
       const stageRect = stage.getBoundingClientRect();
+      // Sized off the stage and the right panel alone, never the quick dock
+      // itself, whose width changes with the layout this decides.
+      const canvasWidth = stageRect.width - rightPanelWidth;
+      setLayout(canvasWidth >= FULL_LAYOUT_MIN_WIDTH ? "full" : canvasWidth >= ICON_LAYOUT_MIN_WIDTH ? "icons" : "stacked");
+      // Hovering the collapsed dock expands it over the canvas; re-centring
+      // the scale tools around that temporary width would make them jump.
+      if (quickDock.matches(":hover")) return;
       const panRect = panDock?.getBoundingClientRect();
       const quickRect = quickDock.getBoundingClientRect();
       const panelBoundary = stageRect.width - rightPanelWidth;
@@ -90,6 +107,23 @@ export function ReferenceImageDock() {
   };
 
   const stopCanvasGesture = (event: React.PointerEvent | React.MouseEvent) => event.stopPropagation();
+
+  // Save changes stays out of the way while scale setup is active, where
+  // "Apply scale" is the action that matters.
+  const showSave = !marking;
+  const saveButton = (
+    <button
+      type="button"
+      className="toolDock__button referenceDock__save"
+      {...tapActivate(() => setPanelOpen(false))}
+      title="Save reference image changes"
+    >
+      <svg viewBox="0 0 20 20" aria-hidden="true">
+        <path d="m4 10 4 4 8-8" />
+      </svg>
+      <span>Save changes</span>
+    </button>
+  );
 
   return (
     <>
@@ -154,29 +188,19 @@ export function ReferenceImageDock() {
         </>
       )}
         </div>
-        {!marking && (
+        {showSave && layout !== "stacked" && (
           <div
             className="referenceDock referenceDock--save"
             aria-label="Save reference image changes"
             onPointerDown={stopCanvasGesture}
             onClick={stopCanvasGesture}
           >
-            <button
-              type="button"
-              className="toolDock__button"
-              {...tapActivate(() => setPanelOpen(false))}
-              title="Save reference image changes"
-            >
-              <svg viewBox="0 0 20 20" aria-hidden="true">
-                <path d="m4 10 4 4 8-8" />
-              </svg>
-              <span>Save changes</span>
-            </button>
+            {saveButton}
           </div>
         )}
       </div>
       <div
-        className="referenceImageQuickDock"
+        className={`referenceImageQuickDock referenceImageQuickDock--${layout}`}
         ref={quickDockRef}
         // 24px clear of the panel's own (now resizable) left edge, matching
         // the fixed gap the CSS default (328px = 304px panel + 24px) used to
@@ -222,6 +246,7 @@ export function ReferenceImageDock() {
           </svg>
           <span>{image.inFront ? "Send behind" : "Bring to front"}</span>
         </button>
+        {showSave && layout === "stacked" && saveButton}
       </div>
     </>
   );

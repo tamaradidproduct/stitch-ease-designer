@@ -1,5 +1,5 @@
 import { CELL } from "../canvas/camera";
-import { markCentre, type CalibrationMark, type ReferenceImage } from "./types";
+import { markCentre, handleSigns, type BoxHandle, type CalibrationMark, type ReferenceImage } from "./types";
 
 /** Smallest the fit is allowed to scale an image to, in world units: one cell. */
 const MIN_SIZE = 24;
@@ -180,3 +180,37 @@ export const withoutCalibrationMark = (
   marks: CalibrationMark[] | undefined,
   id: string,
 ): CalibrationMark[] => (marks ?? []).filter((m) => m.id !== id);
+
+/**
+ * `mark` with the side(s) named by `handle` moved to `cursor` (an image
+ * fraction, 0..1 from the bottom-left), the opposite side(s) held still.
+ * Clamped to the photo and to a minimum size, so a box can be shrunk or
+ * stretched onto exactly the stitch it names without ever collapsing or
+ * leaving the image. An edge handle only touches its own axis.
+ */
+export function resizeMark(
+  mark: Pick<CalibrationMark, "u" | "v" | "w" | "h">,
+  handle: BoxHandle,
+  cursor: { u: number; v: number },
+  minW: number,
+  minH: number,
+): Pick<CalibrationMark, "u" | "v" | "w" | "h"> {
+  const { sx, sy } = handleSigns(handle);
+  let left = mark.u;
+  let right = mark.u + mark.w;
+  let bottom = mark.v;
+  let top = mark.v + mark.h;
+  const cu = Math.max(0, Math.min(1, cursor.u));
+  const cv = Math.max(0, Math.min(1, cursor.v));
+  if (sx === -1) left = Math.min(cu, right - minW);
+  if (sx === 1) right = Math.max(cu, left + minW);
+  if (sy === -1) bottom = Math.min(cv, top - minH);
+  if (sy === 1) top = Math.max(cv, bottom + minH);
+  // The min-size floor can push a side past the photo edge; pull the
+  // moving side back inside rather than the fixed one.
+  left = Math.max(0, left);
+  bottom = Math.max(0, bottom);
+  right = Math.min(1, right);
+  top = Math.min(1, top);
+  return { u: left, v: bottom, w: right - left, h: top - bottom };
+}

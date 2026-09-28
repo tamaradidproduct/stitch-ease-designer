@@ -311,14 +311,14 @@ let cachedExemplars: Map<string, BinaryGrid[]> | null = null;
  * currently being matched against - a stitch confirmed while tracing one
  * image (e.g. page 1 of a two-page chart) is stitches Suggest already
  * knows when tracing another, not something it has to be taught again per
- * image. `getImageElement` resolves a `ref` to its decoded bitmap (e.g. the
+ * image. `getImageElement` resolves an image to its decoded, contrast-corrected bitmap (e.g. the
  * shared `ReferenceImageCache`) so each placement crops from whichever
  * image it actually sits under.
  */
 export function extractExemplars(
   index: DocIndex,
   referenceImages: readonly ReferenceImage[],
-  getImageElement: (ref: string) => CanvasImageSource | null,
+  getImageElement: (image: ReferenceImage) => CanvasImageSource | null,
   revision: number,
   isImageReady?: (ref: string) => boolean,
 ): Map<string, BinaryGrid[]> {
@@ -329,7 +329,7 @@ export function extractExemplars(
     .map((p) => `${p.id}:${p.symbolId}:${p.colorId ?? ""}:${p.col}:${p.row}`)
     .join("|");
   const imagesGeometry = referenceImages
-    .map((img) => [img.ref, img.x, img.y, img.width, img.height, img.naturalWidth, img.naturalHeight].join(":"))
+    .map((img) => [img.ref, img.x, img.y, img.width, img.height, img.naturalWidth, img.naturalHeight, img.contrast ?? 1].join(":"))
     .join("|");
   if (cachedExemplars && cachedFor?.fingerprint === fingerprint && cachedFor.imagesGeometry === imagesGeometry) {
     return cachedExemplars;
@@ -351,7 +351,7 @@ export function extractExemplars(
     const chosen = selectDiverseExemplars(positions, MAX_EXEMPLARS_PER_SWATCH);
     const grids: BinaryGrid[] = [];
     for (const { col, row, image } of chosen) {
-      const imageElement = getImageElement(image.ref);
+      const imageElement = getImageElement(image);
       if (!imageElement) {
         // Still decoding - skip this exemplar rather than caching a map
         // that's silently missing it forever. A permanently failed image

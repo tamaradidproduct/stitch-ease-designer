@@ -480,6 +480,57 @@ body {
   backdrop-filter: blur(8px);
 }
 
+/* Narrower canvases: the secondary actions (Hide / Bring to front)
+   collapse to icons that expand while the dock is hovered or focused, then,
+   when very narrow, stack in a column above Save changes. Touch screens have
+   no hover, so the icons keep their titles/aria-labels there. */
+.referenceImageQuickDock--icons .toolDock__button,
+.referenceImageQuickDock--stacked .toolDock__button:not(.referenceDock__save) {
+  min-width: 38px;
+  overflow: hidden;
+  transition:
+    width 150ms ease,
+    padding 150ms ease,
+    gap 150ms ease;
+}
+
+.referenceImageQuickDock--icons .toolDock__button span,
+.referenceImageQuickDock--stacked .toolDock__button:not(.referenceDock__save) span {
+  max-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  white-space: nowrap;
+  transition:
+    max-width 150ms ease,
+    opacity 100ms ease;
+}
+
+.referenceImageQuickDock--icons .toolDock__button,
+.referenceImageQuickDock--stacked .toolDock__button:not(.referenceDock__save) {
+  padding: 0 10px;
+  gap: 0;
+}
+
+.referenceImageQuickDock--icons:hover .toolDock__button,
+.referenceImageQuickDock--icons:focus-within .toolDock__button,
+.referenceImageQuickDock--stacked:hover .toolDock__button,
+.referenceImageQuickDock--stacked:focus-within .toolDock__button {
+  gap: 6px;
+}
+
+.referenceImageQuickDock--icons:hover .toolDock__button span,
+.referenceImageQuickDock--icons:focus-within .toolDock__button span,
+.referenceImageQuickDock--stacked:hover .toolDock__button span,
+.referenceImageQuickDock--stacked:focus-within .toolDock__button span {
+  max-width: 120px;
+  opacity: 1;
+}
+
+.referenceImageQuickDock--stacked {
+  flex-direction: column;
+  align-items: stretch;
+}
+
 .referenceDock__apply {
   border-color: var(--accent) !important;
   background: var(--accent) !important;

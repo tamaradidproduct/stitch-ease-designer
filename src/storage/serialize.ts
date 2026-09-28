@@ -450,6 +450,8 @@ function validateOneReferenceImage(img: unknown, label: string): void {
     typeof candidate.locked !== "boolean" ||
     (candidate.inFront !== undefined && typeof candidate.inFront !== "boolean") ||
     (candidate.cropToCalibration !== undefined && typeof candidate.cropToCalibration !== "boolean") ||
+    (candidate.contrast !== undefined &&
+      (typeof candidate.contrast !== "number" || !(candidate.contrast > 0 && candidate.contrast <= 10))) ||
     (candidate.id !== undefined && typeof candidate.id !== "string") ||
     (candidate.number !== undefined && typeof candidate.number !== "number")
   ) {

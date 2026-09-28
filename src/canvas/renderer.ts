@@ -19,6 +19,7 @@ import {
 } from "./camera";
 import { drawGrid, labelStep } from "./grid";
 import type { ReferenceImageCache } from "./referenceImageCache";
+import { effectiveContrast } from "./referenceImageContrast";
 import type { SpriteCache } from "./spriteCache";
 import type { PickerTarget, SelectionBox, SelectionMove, Tool } from "../state/uiStore";
 import { parseCellKey } from "../model/cellKey";
@@ -764,6 +765,22 @@ function drawReferenceImageOverlay(ctx: CanvasRenderingContext2D, state: RenderS
       ctx.lineWidth = active ? 2 : 1.5;
       ctx.strokeRect(x + 0.5, y + 0.5, width - 1, height - 1);
 
+      if (active && referenceImageMarking) {
+        // Grab points on the selected mark: corners and side midpoints,
+        // so it can be stretched onto exactly the stitch it names.
+        const hs = 7;
+        const points: Array<[number, number]> = [
+          [x, y], [x + width, y], [x, y + height], [x + width, y + height],
+          [x + width / 2, y], [x + width / 2, y + height], [x, y + height / 2], [x + width, y + height / 2],
+        ];
+        for (const [hx, hy] of points) {
+          ctx.fillStyle = colour;
+          ctx.fillRect(hx - hs / 2, hy - hs / 2, hs, hs);
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(hx - hs / 2, hy - hs / 2, hs, hs);
+        }
+      }
       ctx.fillStyle = colour;
       ctx.beginPath();
       ctx.arc(x, y, 8, 0, Math.PI * 2);
@@ -877,7 +894,7 @@ function drawReferenceImage(
 ): void {
   if (!image.visible) return;
 
-  const img = cache.get(image.ref);
+  const img = cache.get(image.ref, effectiveContrast(image));
   if (!img) return;
 
   const { x, y, width, height, opacity } = image;

@@ -1,4 +1,5 @@
 import { resolveReferenceImageUrl } from "../storage/referenceImages";
+import { contrastedSource } from "./referenceImageContrast";
 
 /** Load attempts before a broken/unreachable reference image is given up on. */
 const MAX_ATTEMPTS = 3;
@@ -14,6 +15,8 @@ const MAX_ENTRIES = 24;
 
 type CacheEntry = {
   image: HTMLImageElement | null;
+  /** Contrast-adjusted copies of `image`, a few kept so a slider drag doesn't grow this unboundedly. */
+  adjusted: Map<number, HTMLCanvasElement>;
   pending: boolean;
   attempts: number;
 };
@@ -47,8 +50,11 @@ export class ReferenceImageCache {
     this.onReady = onReady ?? (() => {});
   }
 
-  /** The loaded image for `ref`, or null if it isn't ready yet (or `ref` is null). */
-  get(ref: string | null): HTMLImageElement | null {
+  /**
+   * The loaded image for `ref` with `contrast` applied (1 = as uploaded), or
+   * null if it isn't ready yet (or `ref` is null).
+   */
+  get(ref: string | null, contrast = 1): HTMLImageElement | HTMLCanvasElement | null {
     if (!ref) return null;
 
     let entry = this.entries.get(ref);
@@ -57,12 +63,23 @@ export class ReferenceImageCache {
       this.entries.delete(ref);
       this.entries.set(ref, entry);
     } else {
-      entry = { image: null, pending: false, attempts: 0 };
+      entry = { image: null, adjusted: new Map(), pending: false, attempts: 0 };
       this.entries.set(ref, entry);
       this.evictOldest();
     }
 
-    if (entry.image) return entry.image;
+    if (entry.image) {
+      if (contrast === 1) return entry.image;
+      let adjusted = entry.adjusted.get(contrast);
+      if (!adjusted) {
+        const made = contrastedSource(entry.image, contrast);
+        if (made === entry.image) return entry.image;
+        adjusted = made as HTMLCanvasElement;
+        entry.adjusted.set(contrast, adjusted);
+        if (entry.adjusted.size > 3) entry.adjusted.delete(entry.adjusted.keys().next().value as number);
+      }
+      return adjusted;
+    }
     if (entry.attempts >= MAX_ATTEMPTS) return null;
 
     if (!entry.pending) {
