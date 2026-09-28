@@ -2,7 +2,7 @@ import { type RefObject, useEffect } from "react";
 import { type Cell, screenToCell, screenToInsertCell } from "../canvas/camera";
 import { RULER } from "../canvas/theme";
 import { type CellBounds, DocIndex } from "../model/docIndex";
-import { cellKey, parseCellKey } from "../model/cellKey";
+import { cellKey, parseCellKey, unoccupiedCellsFromKeys } from "../model/cellKey";
 import { stitchGroups } from "../model/stitchNumbers";
 import { insertTargetCol } from "../model/ops";
 import { getSharedReferenceImageCache } from "../canvas/referenceImageCache";
@@ -116,6 +116,42 @@ export function resolveGroupIds(index: DocIndex, bounds: CellBounds): string[] {
     }
     return members;
   });
+}
+
+/**
+ * Unidentified Suggest markers (`referenceImageUnrecognized`) within a
+ * marquee's bounds that don't already have a placement. A marker is a
+ * UI-side flag, not a `Placement`, so `resolveGroupIds` above never sees it
+ * - but a plain Cmd/Ctrl-drag should sweep one in just as easily as it does
+ * an identified suggestion, rather than requiring the deliberate
+ * `includeEmptyCells` chord that genuinely empty cells need (#268). They
+ * have no placement id of their own, so callers fold the result into
+ * `selectedEmptyCells`, matching the convention already used elsewhere for
+ * folding them into a selection (`SuggestReviewMenu`'s "Replace all").
+ */
+export function resolveUnrecognizedCellsInBounds(
+  unrecognized: ReadonlySet<string>,
+  bounds: CellBounds,
+  isOccupied: (col: number, row: number) => boolean,
+): Cell[] {
+  // Called on every pointermove while marqueeing, so the walk has to stay
+  // cheap for a large `unrecognized` set: a small drag over a big chart
+  // should cost the marquee's own area, not the whole document's unread
+  // markers. Below that crossover, parsing every key (as before) is still
+  // the cheaper of the two.
+  const boundsArea = (bounds.maxCol - bounds.minCol + 1) * (bounds.maxRow - bounds.minRow + 1);
+  if (boundsArea >= unrecognized.size) {
+    return unoccupiedCellsFromKeys(unrecognized, isOccupied).filter(
+      (c) => c.col >= bounds.minCol && c.col <= bounds.maxCol && c.row >= bounds.minRow && c.row <= bounds.maxRow,
+    );
+  }
+  const cells: Cell[] = [];
+  for (let col = bounds.minCol; col <= bounds.maxCol; col++) {
+    for (let row = bounds.minRow; row <= bounds.maxRow; row++) {
+      if (unrecognized.has(cellKey(col, row)) && !isOccupied(col, row)) cells.push({ col, row });
+    }
+  }
+  return cells;
 }
 
 /**
@@ -511,20 +547,28 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
     /** Applies `mode` to one cell - the shared body Draw, Suggest, confirm, and erase all paint through. */
     const applyMode = (mode: StrokeMode, cell: Cell) => {
       switch (mode.kind) {
-        case "place":
+        case "place": {
           // Overwrite Safety Block: freehand drawing never overwrites a
           // cell that already holds a placement (confirmed or suggested) -
           // it's skipped, and the rest of the drag keeps going.
           if (doc().index.placementAt(cell.col, cell.row)) return;
-          doc().place(mode.symbolId, cell.col, cell.row, undefined, undefined, mode.colorId);
           // An unreadable cell has no placement to trip the block above, so
-          // a drag can land here too - clear the stale mark rather than
-          // leaving it flagged as unread under a stitch that's now there.
-          {
-            const key = cellKey(cell.col, cell.row);
-            if (ui().referenceImageUnrecognized.has(key)) ui().setReferenceImageUnrecognized(key, false);
-          }
+          // a drag can land here too - clear the stale mark (undoably, via
+          // `place`'s `unrecognizedKeyCleared`) rather than leaving it
+          // flagged as unread under a stitch that's now there (#285).
+          const key = cellKey(cell.col, cell.row);
+          const unrecognizedKeyCleared = ui().referenceImageUnrecognized.has(key) ? key : undefined;
+          doc().place(
+            mode.symbolId,
+            cell.col,
+            cell.row,
+            undefined,
+            undefined,
+            mode.colorId,
+            unrecognizedKeyCleared,
+          );
           return;
+        }
         case "suggest":
           matchAndPlace(cell);
           return;
@@ -1171,6 +1215,26 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
             }
           }
           nextEmptyCells = [...emptyCells.values()];
+        }
+        // Unlike the includeEmptyCells chord above, unidentified Suggest
+        // markers always join the marquee - see `resolveUnrecognizedCellsInBounds`.
+        // Skipped when that chord is already active: its loop above just
+        // added every unoccupied cell in bounds to `nextEmptyCells`, and an
+        // unrecognized cell is by definition unoccupied, so it's already in
+        // there - resolving it again would just re-derive the same subset.
+        if (!includeEmptyCells(e)) {
+          const unrecognizedInBounds = resolveUnrecognizedCellsInBounds(
+            ui().referenceImageUnrecognized,
+            { minCol, maxCol, minRow, maxRow },
+            (col, row) => !!doc().index.placementAt(col, row),
+          );
+          if (unrecognizedInBounds.length) {
+            const emptyCells = new Map<string, Cell>(
+              nextEmptyCells.map((c) => [cellKey(c.col, c.row), c]),
+            );
+            for (const c of unrecognizedInBounds) emptyCells.set(cellKey(c.col, c.row), c);
+            nextEmptyCells = [...emptyCells.values()];
+          }
         }
         // Marquee previews update continuously but become one undoable
         // selection action only when the pointer is released.

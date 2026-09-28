@@ -25,6 +25,7 @@ import { parseQuickSlotId, quickSlotInsertEdge, quickSlotKey } from "../model/qu
 import { addColoredVariant } from "./colorwork";
 import { ColorChip } from "./ColorChip";
 import { CheckIcon, CloseIcon, CrossIcon, DragHandleIcon } from "./icons";
+import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
 
 /**
  * Section order for the glossary search dropdown; anything uncategorized
@@ -175,31 +176,18 @@ export function RightPanel() {
     setActiveGlossaryResult(0);
   }, [searchSlot, glossaryQuery]);
 
-  useEffect(() => {
-    if (searchSlot === null) return;
-    const dismissOutside = (event: PointerEvent) => {
-      if (!inlineSearchRef.current?.contains(event.target as Node)) {
-        // Dismissal is its own gesture: intercept it before the canvas sees
-        // the pointerdown, so an armed stitch is never placed as the menu
-        // closes.
-        event.preventDefault();
-        event.stopPropagation();
-        setSearchSlot(null);
-        setGlossaryQuery("");
-      }
-    };
-    const dismissOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+  useDismissOnOutsideOrEscape({
+    enabled: searchSlot !== null,
+    containerRef: inlineSearchRef,
+    onDismiss: () => {
       setSearchSlot(null);
       setGlossaryQuery("");
-    };
-    document.addEventListener("pointerdown", dismissOutside, true);
-    document.addEventListener("keydown", dismissOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", dismissOutside, true);
-      document.removeEventListener("keydown", dismissOnEscape);
-    };
-  }, [searchSlot]);
+    },
+    // Dismissal is its own gesture: intercept the outside pointerdown before
+    // the canvas sees it, so an armed stitch is never placed as the menu
+    // closes. Escape doesn't need this - it can't also place a stitch.
+    suppressDismissingPointerdown: true,
+  });
 
 
   // Shown in an armed row's trailing slot in place of whatever's normally

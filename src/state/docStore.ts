@@ -69,6 +69,15 @@ type HistoryEntry = {
    * image in place, not just anywhere.
    */
   referenceImageChange?: { id: string; before: ReferenceImage | null; index?: number };
+  /**
+   * Cell keys whose `referenceImageUnrecognized` flag (uiStore) this entry's
+   * change cleared - Suggest scanned the cell but couldn't identify it, and
+   * the designer then placed a real stitch there. That flag lives outside
+   * doc history entirely (see `commit`), so without this it's untouched by
+   * undo/redo: Cmd/Ctrl+Z would restore the erased placement but leave the
+   * cell reading as plain empty space instead of "unidentified" again (#285).
+   */
+  unrecognizedKeysCleared?: readonly string[];
 };
 
 type DocState = {
@@ -126,6 +135,8 @@ type DocState = {
     suggested?: boolean,
     confidence?: number,
     colorId?: string | null,
+    /** A cell key whose `referenceImageUnrecognized` flag this placement clears - see `HistoryEntry.unrecognizedKeysCleared`. */
+    unrecognizedKeyCleared?: string,
   ) => void;
   erase: (col: number, row: number) => void;
   /**
@@ -322,6 +333,11 @@ export const useDocStore = create<DocState>((set, get) => {
   // history bookkeeping boundary for a live drag, not UI data.
   let referenceImageEditStart: { id: string; before: ReferenceImage; index?: number } | undefined;
   let referenceImageEditChanged = false;
+  // Same kind of bookkeeping boundary as above, for the unrecognized-cell
+  // keys a drag-paint stroke clears - accumulated here so `endStroke` can
+  // bank them all onto the stroke's single merged HistoryEntry (a stroke
+  // can cross several unidentified cells in one drag).
+  let strokeUnrecognizedCleared: Set<string> | null = null;
 
   /**
    * A new document edit truncates the *whole* unified timeline's future, not
@@ -345,19 +361,33 @@ export const useDocStore = create<DocState>((set, get) => {
    * the placement edit. Not supported mid-stroke - no drag-paint action
    * touches repeats, so `commit` never needs to merge a repeats change into
    * an in-progress stroke.
+   *
+   * `unrecognizedKeyCleared`, when given, is a uiStore
+   * `referenceImageUnrecognized` cell key this change clears. Applied
+   * immediately (that flag lives in uiStore, not here) and, mid-stroke,
+   * accumulated in `strokeUnrecognizedCleared` for `endStroke` to bank -
+   * otherwise banked directly on this single-commit entry.
    */
-  const commit = (change: Change, repeatsAfter?: RepeatDefinition[]) => {
+  const commit = (change: Change, repeatsAfter?: RepeatDefinition[], unrecognizedKeyCleared?: string) => {
     if (isEmptyChange(change)) return;
     const { index, stroke, revision, undoStack, repeats } = get();
     const inverse = apply(index, change);
 
+    if (unrecognizedKeyCleared) {
+      useUiStore.getState().setReferenceImageUnrecognized(unrecognizedKeyCleared, false);
+    }
+
     if (stroke) {
+      if (unrecognizedKeyCleared) {
+        (strokeUnrecognizedCleared ??= new Set()).add(unrecognizedKeyCleared);
+      }
       set({ revision: revision + 1, stroke: [...stroke, change], redoStack: [] });
     } else {
       const entry: HistoryEntry = {
         sequence: nextHistorySequence(),
         change: inverse,
         ...(repeatsAfter !== undefined ? { repeats } : {}),
+        ...(unrecognizedKeyCleared ? { unrecognizedKeysCleared: [unrecognizedKeyCleared] } : {}),
       };
       set({
         revision: revision + 1,
@@ -397,8 +427,12 @@ export const useDocStore = create<DocState>((set, get) => {
     quickSymbolIds: [...DEFAULT_STITCH_IDS],
     patternInfo: {},
 
-    place: (symbolId, col, row, suggested, confidence, colorId) =>
-      commit(placeChange(get().index, symbolId, col, row, suggested, confidence, colorId)),
+    place: (symbolId, col, row, suggested, confidence, colorId, unrecognizedKeyCleared) =>
+      commit(
+        placeChange(get().index, symbolId, col, row, suggested, confidence, colorId),
+        undefined,
+        unrecognizedKeyCleared,
+      ),
     erase: (col, row) => commit(eraseChange(get().index, col, row)),
     acceptSuggestions: (ids) => {
       const idSet = ids ? new Set(ids) : null;
@@ -897,21 +931,34 @@ export const useDocStore = create<DocState>((set, get) => {
       return added.map((p) => p.id);
     },
 
-    beginStroke: () => set({ stroke: [] }),
+    beginStroke: () => {
+      strokeUnrecognizedCleared = null;
+      set({ stroke: [] });
+    },
 
     endStroke: () => {
       const { stroke, undoStack } = get();
       if (!stroke) return;
       if (stroke.length === 0) {
         set({ stroke: null });
+        strokeUnrecognizedCleared = null;
         return;
       }
       // The stroke is already applied; bank a single inverse for all of it.
       const merged = mergeChanges(stroke);
       const inverse: Change = { added: merged.removed, removed: merged.added };
+      const unrecognizedKeysCleared = strokeUnrecognizedCleared ? [...strokeUnrecognizedCleared] : undefined;
+      strokeUnrecognizedCleared = null;
       set({
         stroke: null,
-        undoStack: [...undoStack, { sequence: nextHistorySequence(), change: inverse }],
+        undoStack: [
+          ...undoStack,
+          {
+            sequence: nextHistorySequence(),
+            change: inverse,
+            ...(unrecognizedKeysCleared ? { unrecognizedKeysCleared } : {}),
+          },
+        ],
         redoStack: [],
       });
       clearSelectionRedo();
@@ -929,6 +976,7 @@ export const useDocStore = create<DocState>((set, get) => {
         ...(entry.referenceImageChange
           ? { referenceImageChange: { id: entry.referenceImageChange.id, ...referenceImageChangeEntry(referenceImages, entry.referenceImageChange.id) } }
           : {}),
+        ...(entry.unrecognizedKeysCleared ? { unrecognizedKeysCleared: entry.unrecognizedKeysCleared } : {}),
       };
       set({
         undoStack: undoStack.slice(0, -1),
@@ -939,6 +987,11 @@ export const useDocStore = create<DocState>((set, get) => {
           ? { referenceImages: applyReferenceImageChange(referenceImages, entry.referenceImageChange) }
           : {}),
       });
+      if (entry.unrecognizedKeysCleared) {
+        const next = new Set(useUiStore.getState().referenceImageUnrecognized);
+        for (const key of entry.unrecognizedKeysCleared) next.add(key);
+        useUiStore.setState({ referenceImageUnrecognized: next });
+      }
     },
 
     redo: () => {
@@ -953,6 +1006,7 @@ export const useDocStore = create<DocState>((set, get) => {
         ...(entry.referenceImageChange
           ? { referenceImageChange: { id: entry.referenceImageChange.id, ...referenceImageChangeEntry(referenceImages, entry.referenceImageChange.id) } }
           : {}),
+        ...(entry.unrecognizedKeysCleared ? { unrecognizedKeysCleared: entry.unrecognizedKeysCleared } : {}),
       };
       set({
         redoStack: redoStack.slice(0, -1),
@@ -963,6 +1017,11 @@ export const useDocStore = create<DocState>((set, get) => {
           ? { referenceImages: applyReferenceImageChange(referenceImages, entry.referenceImageChange) }
           : {}),
       });
+      if (entry.unrecognizedKeysCleared) {
+        const next = new Set(useUiStore.getState().referenceImageUnrecognized);
+        for (const key of entry.unrecognizedKeysCleared) next.delete(key);
+        useUiStore.setState({ referenceImageUnrecognized: next });
+      }
     },
 
     openChart: ({

@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { DocIndex } from "../model/docIndex";
 import { SUGGEST_SYMBOL_ID } from "../state/uiStore";
+import { cellKey } from "../model/cellKey";
 import {
   constrainToStraightAxis,
   includeEmptyCells,
   isDismissable,
   isSuggestReviewCandidate,
   resolveGroupIds,
+  resolveUnrecognizedCellsInBounds,
   modeFor,
   resolveSuggestAction,
   shouldBlockDismissGesture,
@@ -81,6 +83,65 @@ describe("resolveGroupIds", () => {
 
     expect(resolveGroupIds(index, { minCol: 1, maxCol: 4, minRow: 1, maxRow: 1 }))
       .toEqual(["group-left", "group-right", "group-left", "group-right", "solo"]);
+  });
+});
+
+describe("resolveUnrecognizedCellsInBounds", () => {
+  const bounds = { minCol: 1, maxCol: 3, minRow: 1, maxRow: 3 };
+  const noneOccupied = () => false;
+
+  it("includes an unidentified cell within the drag bounds (#268: unidentified cells marquee-select as easily as identified ones)", () => {
+    const unrecognized = new Set([cellKey(2, 2)]);
+    expect(resolveUnrecognizedCellsInBounds(unrecognized, bounds, noneOccupied)).toEqual([
+      { col: 2, row: 2 },
+    ]);
+  });
+
+  it("excludes an unidentified cell outside the drag bounds", () => {
+    const unrecognized = new Set([cellKey(9, 9)]);
+    expect(resolveUnrecognizedCellsInBounds(unrecognized, bounds, noneOccupied)).toEqual([]);
+  });
+
+  it("excludes a genuinely empty cell that was never flagged unrecognized - it stays behind the includeEmptyCells chord", () => {
+    // The set here only ever holds unidentified-marker keys; an ordinary
+    // empty cell within the same bounds simply never appears in it, so this
+    // function has nothing to return for it regardless of drag bounds.
+    const unrecognized = new Set<string>();
+    expect(resolveUnrecognizedCellsInBounds(unrecognized, bounds, noneOccupied)).toEqual([]);
+  });
+
+  it("drops a marker whose cell has since gotten a real placement", () => {
+    const unrecognized = new Set([cellKey(2, 2)]);
+    const isOccupied = (col: number, row: number) => col === 2 && row === 2;
+    expect(resolveUnrecognizedCellsInBounds(unrecognized, bounds, isOccupied)).toEqual([]);
+  });
+
+  it("leaves confirmed/identified placement selection untouched - it only ever adds empty-cell entries", () => {
+    // Identified suggestions and confirmed placements are real `Placement`s
+    // resolved via `resolveGroupIds`, never via this function, so a bounds
+    // box with no unrecognized markers in it returns nothing to merge in.
+    const unrecognized = new Set([cellKey(50, 50)]);
+    expect(resolveUnrecognizedCellsInBounds(unrecognized, bounds, noneOccupied)).toEqual([]);
+  });
+
+  it("takes the bounds-scan path when the unrecognized set outgrows the drag area, with the same result as the full-scan path", () => {
+    // A small marquee over a chart with many unread markers elsewhere
+    // shouldn't cost parsing all of them - see the function's own bounds-vs-
+    // set-size comparison. Exercises that branch specifically: bounds here
+    // (9 cells) are smaller than the set (10), the opposite of every case
+    // above.
+    const outside = Array.from({ length: 9 }, (_, i) => cellKey(100 + i, 100));
+    const unrecognized = new Set([...outside, cellKey(2, 2)]);
+    expect(resolveUnrecognizedCellsInBounds(unrecognized, bounds, noneOccupied)).toEqual([
+      { col: 2, row: 2 },
+    ]);
+  });
+
+  it("drops an occupied cell via the bounds-scan path too", () => {
+    const outside = Array.from({ length: 9 }, (_, i) => cellKey(100 + i, 100));
+    const unrecognized = new Set([...outside, cellKey(2, 2)]);
+    const isOccupied = (col: number, row: number) => col === 2 && row === 2;
+    expect(resolveUnrecognizedCellsInBounds(unrecognized, bounds, isOccupied)).toEqual([]);
   });
 });
 
