@@ -912,6 +912,39 @@ worked). A no-op — shows the full image — until at least one mark is named.
 
 ---
 
+### Reference image: contrast, granular calibration points, responsive dock
+
+**FR-56. Per-image contrast.** Each reference image has an optional
+`contrast` multiplier (0.5–3, absent = 1), set from a slider under Opacity in
+the reference-image panel (double-click resets). It is applied at the
+source, so the canvas drawing/export, calibration's grid-line detection and
+Suggest's stitch matching all read the same adjusted pixels. Display-side
+only: the uploaded file is never modified. (A four-way whites/highlights/
+shadows/blacks control was tried and rejected as not helping.)
+
+**FR-57. Granular calibration-point editing.** In scale setup, the selected
+calibration point can be moved (drag, arrow keys) and now also resized:
+drag any of its corner/side handles, or Alt+arrows (Shift = one stitch).
+The opposite side stays fixed, and the box is clamped to the photo and a
+minimum size. Selecting a point in the panel list now enters scale setup
+and selects it, so points stay editable after the first pass.
+
+**FR-58. Responsive reference dock (#253).** The secondary actions (Hide/
+Show, Bring to front) collapse to icons that expand on hover when the canvas
+(stage minus right panel) is under 900px, and stack in a column above Save
+changes under 640px. "Set scale" tools are the primary group and unchanged.
+Save changes remains hidden during scale setup (#246/#276).
+
+**Implementation.**
+- `src/canvas/referenceImageContrast.ts`, `referenceImageCache.ts`,
+  `useReferenceImageTool.ts`, `templateMatch.ts` — contrast applied via the
+  shared image cache and calibration pixel loader.
+- `src/model/referenceCalibration.ts` (`resizeMark`),
+  `useReferenceImageTool.ts` (`markResize`), `renderer.ts`, `useShortcuts.ts`.
+- `src/ui/ReferenceImageDock.tsx`, `src/styles.css` — layout modes.
+
+---
+
 ## Known Platform Limitations (Desktop vs iPad)
 
 QA testing (2026-09-17) split test coverage by device (Desktop / iPad) and
