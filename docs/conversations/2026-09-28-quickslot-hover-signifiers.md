@@ -61,7 +61,7 @@ decision-needed ("Bucket B") issue rather than implemented outright.
   `--accent-soft-border` token the existing hover/drag-over highlight
   already uses.
 
-See `docs/PRD.md` FR-59 for the shipped spec, next to FR-36 (the colorwork
+See `docs/PRD.md` FR-61 for the shipped spec, next to FR-36 (the colorwork
 session's other glossary-row hover/highlight decision).
 
 ## Alternatives considered

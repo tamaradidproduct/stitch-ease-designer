@@ -530,7 +530,17 @@ under the existing armed/hover/drag-over highlight — see `SymbolGlyph`'s
 `colorId` prop (`src/ui/SymbolGlyph.tsx`) and `.glossary__glyph .glyph__cell`
 in `styles.css`.
 
-**FR-59 — distinct quick-slot drag-over signifiers (#271, split from #251;
+**FR-59 (#265).** The `recolor`-mode chip that floats over a picker quick-slot
+tile (`.picker__quickColorChip`) has a solid `var(--border)` ring and a subtle
+drop shadow, not a border/fill that both match the page background — the
+prior style was indistinguishable from a pale, uncolored tile. The inline
+`add-only` chips in the glossary panel and picker drawer
+(`.glossary__colorChip`, `.picker__itemColorChip`) keep their existing
+borderless, shadowless look, since they sit in a list row next to other flat
+icon buttons rather than overlaid on tile artwork and already read fine
+there.
+
+**FR-61 — distinct quick-slot drag-over signifiers (#271, split from #251;
 follows #259's fill-vs-push fix).** Dragging a quick slot over another one
 now shows one of two distinct hover treatments depending on whether the
 target is empty or occupied, since the two drops behave differently
