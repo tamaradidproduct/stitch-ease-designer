@@ -15,11 +15,18 @@ import type { Placement } from "../model/types";
  * armed pen itself. A mixed multi-selection (more than one distinct combo)
  * has no current slot at all.
  *
- * FR-40: a homogeneous selection only counts as "currently selected" when
- * it accounts for every confirmed placement of that (symbol, color) combo on
- * the whole chart - not just within the selection. Leaving one matching
- * stitch unselected elsewhere on the canvas hides the chip, since coloring
- * it would otherwise silently leave that other stitch a mismatched outlier.
+ * FR-40: for a genuine multi-selection (more than one placement targeted), a
+ * homogeneous selection only counts as "currently selected" when it accounts
+ * for every confirmed placement of that (symbol, color) combo on the whole
+ * chart - not just within the selection. Leaving one matching stitch
+ * unselected elsewhere on the canvas hides the chip, since coloring it would
+ * otherwise silently leave that other stitch a mismatched outlier.
+ *
+ * A single targeted placement is exempt from that check: recoloring it
+ * always goes through `applyColorToSlot`, which mints a distinct colored
+ * quick slot and recolors only that one placement, leaving every sibling
+ * elsewhere on the chart untouched - so there is no mismatched-outlier risk
+ * to guard against, and the chip should always show.
  */
 export type CurrentSlot = {
   key: string;
@@ -48,13 +55,19 @@ export function currentSlotForPicker(
       p.symbolId === first.symbolId && (p.colorId ?? null) === (first.colorId ?? null);
     const homogeneous = placements.every(sameCombo);
     if (!homogeneous) return null;
-    // FR-40: every other confirmed placement sharing this combo must
-    // already be part of the selection.
-    const selectedIds = new Set(target.selectionIds);
-    const missesAnInstance = allPlacements.some(
-      (p) => !p.suggested && sameCombo(p) && !selectedIds.has(p.id),
-    );
-    if (missesAnInstance) return null;
+    // FR-40: for a genuine multi-selection, every other confirmed placement
+    // sharing this combo must already be part of the selection. A single
+    // targeted placement is exempt - see the comment above. Gated on the
+    // resolved `placements`, not `target.selectionIds`, so a selection with
+    // stale/unresolved ids that resolves to just one real placement is still
+    // treated as a singleton.
+    if (placements.length > 1) {
+      const selectedIds = new Set(placements.map((p) => p.id));
+      const missesAnInstance = allPlacements.some(
+        (p) => !p.suggested && sameCombo(p) && !selectedIds.has(p.id),
+      );
+      if (missesAnInstance) return null;
+    }
     return {
       key: quickSlotKey(first.symbolId, first.colorId),
       symbolId: first.symbolId,

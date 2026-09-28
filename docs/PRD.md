@@ -475,16 +475,23 @@ member already shares the same (symbol, color) combo. A mixed selection
 shows no chip; recoloring it is reachable only by picking a different pen
 outright.
 
-**FR-40 (added this session, #211/#224, narrows FR-33).** A homogeneous
-selection only counts as "currently selected" for chip purposes when it also
-covers *every* confirmed placement of that (symbol, color) combo on the
-chart — not just a homogeneous subset. Leaving one matching stitch outside
-the selection hides the chip entirely, rather than letting a subset recolor
-happen and leave that other stitch a mismatched outlier. A still-`.suggested`
-placement (pending Suggest review) doesn't count as an "other instance" for
-this check. This replaces the subset-recolor workflow FR-33 previously
-allowed; FR-34's add-only chips are unaffected, since they never touch
-existing placements regardless of how many plain instances exist.
+**FR-40 (added #211/#224, narrowed by #267, narrows FR-33).** For a genuine
+multi-selection (more than one placement targeted), a homogeneous selection
+only counts as "currently selected" for chip purposes when it also covers
+*every* confirmed placement of that (symbol, color) combo on the chart — not
+just a homogeneous subset. Leaving one matching stitch outside the selection
+hides the chip entirely, rather than letting a subset recolor happen and
+leave that other stitch a mismatched outlier. A still-`.suggested` placement
+(pending Suggest review) doesn't count as an "other instance" for this check.
+This replaces the subset-recolor workflow FR-33 previously allowed for
+multi-selections; FR-34's add-only chips are unaffected, since they never
+touch existing placements regardless of how many plain instances exist.
+
+A single targeted placement is exempt from the "every other instance" check
+(#267): recoloring it always mints a distinct colored quick slot and
+recolors only that one placement, leaving every sibling elsewhere on the
+chart untouched, so there is no mismatched-outlier risk and the chip always
+shows.
 
 **FR-34.** A symbol that isn't currently armed can still get a new colored
 variant without painting anything, from the picker's "more stitches" drawer
