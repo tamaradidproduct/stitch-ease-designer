@@ -361,7 +361,15 @@ export function StitchPicker() {
       beginStroke();
       for (const cell of cells) {
         if (useDocStore.getState().index.placementAt(cell.col, cell.row)) continue;
-        place(symbol.id, cell.col, cell.row, undefined, undefined, colorId);
+        // Same undoable clear as usePaintTool.ts's freehand `place` (#285) -
+        // each cleared flag is banked onto this stroke's merged HistoryEntry
+        // by `endStroke` below, so undo can re-flag every cell this batch
+        // touched, not just the first one (#305).
+        const key = cellKey(cell.col, cell.row);
+        const unrecognizedKeyCleared = useUiStore.getState().referenceImageUnrecognized.has(key)
+          ? key
+          : undefined;
+        place(symbol.id, cell.col, cell.row, undefined, undefined, colorId, unrecognizedKeyCleared);
       }
       endStroke();
       const newIds = [...new Set(cells
@@ -373,14 +381,7 @@ export function StitchPicker() {
       // this branch used to return before ever reaching that check, so
       // Suggest was silently getting swapped out on every unrecognized-cell
       // fix instead of staying armed for the rest of the review pass.
-      //
-      // Clears every cell in this batch, not just `target.col,row` - a
-      // single unrecognized-cell edit and "Replace all" (which fills every
-      // currently-unrecognized cell in one go) both need every one of their
-      // markers cleared, not only the anchor cell's.
       if (target.reviewingSuggestion) {
-        const setUnrecognized = useUiStore.getState().setReferenceImageUnrecognized;
-        for (const cell of cells) setUnrecognized(cellKey(cell.col, cell.row), false);
         useUiStore.getState().addQuickSymbol(symbol.id, colorId);
       } else if (newIds.length) {
         chooseSymbol(symbol.id, "stitch", undefined, colorId);
@@ -395,13 +396,19 @@ export function StitchPicker() {
         setInsertAnimation({ col: insertedCol, row: target.row });
       }
     } else {
-      place(symbol.id, target.col, target.row, undefined, undefined, colorId);
+      // Same undoable clear as usePaintTool.ts's freehand `place` (#285) -
+      // threading it through `place` attaches the flag-clear to this
+      // placement's own HistoryEntry so undo can re-flag the cell (#305).
+      const key = cellKey(target.col, target.row);
+      const unrecognizedKeyCleared = useUiStore.getState().referenceImageUnrecognized.has(key)
+        ? key
+        : undefined;
+      place(symbol.id, target.col, target.row, undefined, undefined, colorId, unrecognizedKeyCleared);
     }
     // Resolving a suggestion review (confirmed or unrecognized) shouldn't
     // arm whatever the designer just picked - Suggest stays armed so a
     // review pass can keep going cell by cell.
     if (target.reviewingSuggestion) {
-      useUiStore.getState().setReferenceImageUnrecognized(cellKey(target.col, target.row), false);
       useUiStore.getState().addQuickSymbol(symbol.id, colorId);
       closePicker();
       return;
