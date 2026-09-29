@@ -989,9 +989,13 @@ and selects it, so points stay editable after the first pass.
 
 **FR-58. Responsive reference dock (#253).** The secondary actions (Hide/
 Show, Bring to front) collapse to icons that expand on hover when the canvas
-(stage minus right panel) is under 900px, and stack in a column above Save
-changes under 640px. "Set scale" tools are the primary group and unchanged.
-Save changes remains hidden during scale setup (#246/#276).
+(stage minus right panel) is under 900px, and stack in a column under 640px.
+"Set scale" tools are the primary group and unchanged. Save changes remains
+hidden during scale setup (#246/#276).
+
+**FR-59 (added #263, narrows FR-58).** Under 640px, Save changes is its own
+separate, full-width pill positioned underneath the Hide/Bring-to-front
+column, rather than a third button sharing that column's box.
 
 **Implementation.**
 - `src/canvas/referenceImageContrast.ts`, `referenceImageCache.ts`,
@@ -999,7 +1003,9 @@ Save changes remains hidden during scale setup (#246/#276).
   shared image cache and calibration pixel loader.
 - `src/model/referenceCalibration.ts` (`resizeMark`),
   `useReferenceImageTool.ts` (`markResize`), `renderer.ts`, `useShortcuts.ts`.
-- `src/ui/ReferenceImageDock.tsx`, `src/styles.css` — layout modes.
+- `src/ui/ReferenceImageDock.tsx`, `src/styles.css` — layout modes; Save
+  changes moved to a sibling `referenceImageQuickDockGroup` pill under 640px
+  (#263).
 
 ---
 

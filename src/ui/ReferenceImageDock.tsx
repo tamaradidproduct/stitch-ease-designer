@@ -200,53 +200,67 @@ export function ReferenceImageDock() {
         )}
       </div>
       <div
-        className={`referenceImageQuickDock referenceImageQuickDock--${layout}`}
+        className={`referenceImageQuickDockGroup${layout === "stacked" ? " referenceImageQuickDockGroup--stacked" : ""}`}
         ref={quickDockRef}
         // 24px clear of the panel's own (now resizable) left edge, matching
         // the fixed gap the CSS default (328px = 304px panel + 24px) used to
         // hardcode for the panel's old fixed width.
         style={{ right: rightPanelWidth + 24 }}
-        aria-label="Reference image visibility and layer controls"
+        // Covers the gap between the two stacked docks too, so a tap that
+        // lands there doesn't fall through to a canvas gesture.
         onPointerDown={stopCanvasGesture}
         onClick={stopCanvasGesture}
       >
-        <button
-          type="button"
-          className="toolDock__button"
-          aria-pressed={image.visible}
-          {...tapActivate(() => updateReferenceImage(image.id, { visible: !image.visible }))}
-          title={image.visible ? "Hide reference image" : "Show reference image"}
+        <div
+          className={`referenceImageQuickDock referenceImageQuickDock--${layout}`}
+          aria-label="Reference image visibility and layer controls"
         >
-          {image.visible ? (
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path d="M2 10s2.7-5 8-5 8 5 8 5-2.7 5-8 5-8-5-8-5Z" />
-              <circle cx="10" cy="10" r="2" />
-            </svg>
-          ) : (
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path d="M2 10s2.7-5 8-5c1.2 0 2.2.2 3.1.6M18 10s-2.7 5-8 5c-1.2 0-2.2-.2-3.1-.6" />
-              <path d="m3 3 14 14" />
-            </svg>
-          )}
-          <span>{image.visible ? "Hide" : "Show"}</span>
-        </button>
-        <button
-          type="button"
-          className="toolDock__button"
-          aria-pressed={!!image.inFront}
-          {...tapActivate(() => updateReferenceImage(image.id, { inFront: !image.inFront }))}
-          title={image.inFront ? "Send reference image behind stitches" : "Bring reference image in front of stitches"}
-        >
-          <svg viewBox="0 0 20 20" aria-hidden="true">
-            {image.inFront ? (
-              <path d="M10 3v14m0 0-3-3m3 3 3-3" />
+          <button
+            type="button"
+            className="toolDock__button"
+            aria-pressed={image.visible}
+            {...tapActivate(() => updateReferenceImage(image.id, { visible: !image.visible }))}
+            title={image.visible ? "Hide reference image" : "Show reference image"}
+          >
+            {image.visible ? (
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M2 10s2.7-5 8-5 8 5 8 5-2.7 5-8 5-8-5-8-5Z" />
+                <circle cx="10" cy="10" r="2" />
+              </svg>
             ) : (
-              <path d="M10 17V3m0 0-3 3m3-3 3 3" />
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M2 10s2.7-5 8-5c1.2 0 2.2.2 3.1.6M18 10s-2.7 5-8 5c-1.2 0-2.2-.2-3.1-.6" />
+                <path d="m3 3 14 14" />
+              </svg>
             )}
-          </svg>
-          <span>{image.inFront ? "Send behind" : "Bring to front"}</span>
-        </button>
-        {showSave && layout === "stacked" && saveButton}
+            <span>{image.visible ? "Hide" : "Show"}</span>
+          </button>
+          <button
+            type="button"
+            className="toolDock__button"
+            aria-pressed={!!image.inFront}
+            {...tapActivate(() => updateReferenceImage(image.id, { inFront: !image.inFront }))}
+            title={image.inFront ? "Send reference image behind stitches" : "Bring reference image in front of stitches"}
+          >
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              {image.inFront ? (
+                <path d="M10 3v14m0 0-3-3m3 3 3-3" />
+              ) : (
+                <path d="M10 17V3m0 0-3 3m3-3 3 3" />
+              )}
+            </svg>
+            <span>{image.inFront ? "Send behind" : "Bring to front"}</span>
+          </button>
+        </div>
+        {showSave && layout === "stacked" && (
+          // A separate, full-width pill underneath the visibility/layering
+          // dock above, rather than one more button sharing its box - it
+          // stays reachable as its own tap target once that dock has
+          // collapsed to icons-only.
+          <div className="referenceDock referenceDock--save-stacked" aria-label="Save reference image changes">
+            {saveButton}
+          </div>
+        )}
       </div>
     </>
   );
