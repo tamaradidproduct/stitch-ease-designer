@@ -472,6 +472,15 @@ body {
   gap: 8px;
 }
 
+/* Without this, the icon-only dock would stretch to match the wider Save
+   changes pill below it (align-items: stretch above) instead of staying a
+   compact column of its own - flex-end keeps both flush on their shared
+   right edge as the default, with the icon dock itself re-centered under
+   the (usually wider) Save button below. */
+.referenceImageQuickDockGroup--stacked {
+  align-items: flex-end;
+}
+
 .referenceImageQuickDock {
   display: flex;
   align-items: center;
@@ -537,6 +546,10 @@ body {
 .referenceImageQuickDock--stacked {
   flex-direction: column;
   align-items: stretch;
+}
+
+.referenceImageQuickDockGroup--stacked .referenceImageQuickDock {
+  align-self: center;
 }
 
 /* Save changes, pulled out of the icons-only dock above it once things get

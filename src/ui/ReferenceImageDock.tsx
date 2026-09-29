@@ -201,17 +201,19 @@ export function ReferenceImageDock() {
       </div>
       <div
         className={`referenceImageQuickDockGroup${layout === "stacked" ? " referenceImageQuickDockGroup--stacked" : ""}`}
+        ref={quickDockRef}
         // 24px clear of the panel's own (now resizable) left edge, matching
         // the fixed gap the CSS default (328px = 304px panel + 24px) used to
         // hardcode for the panel's old fixed width.
         style={{ right: rightPanelWidth + 24 }}
+        // Covers the gap between the two stacked docks too, so a tap that
+        // lands there doesn't fall through to a canvas gesture.
+        onPointerDown={stopCanvasGesture}
+        onClick={stopCanvasGesture}
       >
         <div
           className={`referenceImageQuickDock referenceImageQuickDock--${layout}`}
-          ref={quickDockRef}
           aria-label="Reference image visibility and layer controls"
-          onPointerDown={stopCanvasGesture}
-          onClick={stopCanvasGesture}
         >
           <button
             type="button"
@@ -255,12 +257,7 @@ export function ReferenceImageDock() {
           // dock above, rather than one more button sharing its box - it
           // stays reachable as its own tap target once that dock has
           // collapsed to icons-only.
-          <div
-            className="referenceDock referenceDock--save-stacked"
-            aria-label="Save reference image changes"
-            onPointerDown={stopCanvasGesture}
-            onClick={stopCanvasGesture}
-          >
+          <div className="referenceDock referenceDock--save-stacked" aria-label="Save reference image changes">
             {saveButton}
           </div>
         )}
