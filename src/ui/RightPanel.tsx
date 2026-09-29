@@ -614,7 +614,28 @@ export function RightPanel() {
                   )}
                 </div>
               ) : searchSlot === slot ? (
-                <div ref={inlineSearchRef} key={`search:${slot}`} className="glossary__inlineSearch">
+                <div
+                  ref={inlineSearchRef}
+                  key={`search:${slot}`}
+                  className="glossary__inlineSearch"
+                  data-drag-over={dragOverQuickSlot === slot}
+                  onDragOver={(event) => {
+                    if (draggingQuickId) {
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = "move";
+                      if (dragOverQuickSlot !== slot) setDragOverQuickSlot(slot);
+                    }
+                  }}
+                  onDragLeave={() =>
+                    setDragOverQuickSlot((current) => current === slot ? null : current)
+                  }
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    const draggedId = draggingQuickId;
+                    if (draggedId) moveQuickSymbolTo(draggedId, slot);
+                    resetDragState();
+                  }}
+                >
                   {slot < 5 ? <kbd className="glossary__shortcut">{slot + 1}</kbd> : <span className="glossary__shortcutSpacer" />}
                   <svg viewBox="0 0 20 20" aria-hidden="true">
                     <circle cx="8.5" cy="8.5" r="5.25" /><path d="m12.4 12.4 4 4" />
