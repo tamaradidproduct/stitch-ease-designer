@@ -1802,6 +1802,24 @@ body {
   box-shadow: 0 0 0 2px rgb(2 132 199 / 10%);
 }
 
+/* Issue #308: this search box temporarily stands in for a plain empty-slot
+   button (see RightPanel.tsx), so a drag hovering over it gets the same
+   hover cue the empty-slot button itself shows via
+   `.glossary__item[data-drag-over="true"]` above. */
+.glossary__inlineSearch[data-drag-over="true"] {
+  border-color: var(--accent-soft-border);
+  background: var(--accent-soft-bg);
+}
+
+/* Without this, the drag-over cue can flicker as the pointer crosses child
+   elements (the icon, shortcut kbd, search input) - each one entering/
+   leaving fires its own dragenter/dragleave on the container. Disabling
+   pointer events on the children means only the container itself sees
+   those events. */
+.glossary__inlineSearch[data-drag-over="true"] * {
+  pointer-events: none;
+}
+
 .glossarySearch__results {
   /* `position`/`left`/`top`/`width` are set inline from a measured rect
      (see RightPanel.tsx) - `position: fixed` there is what escapes
