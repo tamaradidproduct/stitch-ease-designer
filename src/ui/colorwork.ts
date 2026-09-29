@@ -43,6 +43,9 @@ export function currentSlotForPicker(
   armedSymbolId: string | null,
   activeColor: string | null,
   allPlacements: readonly Placement[],
+  // Optional so existing (selectionIds-only) callers/tests don't need to
+  // thread it through. Only the `currentSymbolId`-only branch below uses it.
+  placementAt?: (col: number, row: number) => Placement | undefined,
 ): CurrentSlot | null {
   if (target?.selectionIds?.length) {
     const placements = target.selectionIds.flatMap((id) => {
@@ -76,6 +79,26 @@ export function currentSlotForPicker(
     };
   }
   if (target?.currentSymbolId) {
+    // The double-click handler and the "/" shortcut (neither of which sets
+    // `selectionIds`) only ever set `currentSymbolId` when there's a real
+    // placement under `target.col/row` - resolve it the same way the
+    // `selectionIds` branch above does, live off the placement, rather than
+    // trusting `target.currentColorId` (the "/" shortcut doesn't even set
+    // that) and leaving `placementIds` permanently empty. An empty
+    // `placementIds` unconditionally hid StitchPicker's dynamic 6th slot for
+    // both of those entry points (#307).
+    const existing = placementAt?.(target.col, target.row);
+    if (existing) {
+      return {
+        key: quickSlotKey(existing.symbolId, existing.colorId),
+        symbolId: existing.symbolId,
+        ...(existing.colorId ? { colorId: existing.colorId } : {}),
+        placementIds: [existing.id],
+      };
+    }
+    // Defensive fallback - no live placement at that cell (e.g. it was
+    // erased out from under an already-open picker, or no `placementAt`
+    // lookup was supplied at all). Keep the previous target-derived shape.
     return {
       key: quickSlotKey(target.currentSymbolId, target.currentColorId),
       symbolId: target.currentSymbolId,
