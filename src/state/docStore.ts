@@ -15,6 +15,7 @@ import {
   isEmptyChange,
   type Change,
   type DocMeta,
+  type PatternInfo,
   type ReferenceImage,
   type RepeatDefinition,
   type Placement,
@@ -23,6 +24,15 @@ import { newUuid } from "../uuid";
 import type { LoadedChart } from "../storage/ChartStore";
 import { nextHistorySequence } from "./historySequence";
 import { useUiStore } from "./uiStore";
+import {
+  DEFAULT_STITCH_IDS,
+  assignQuickSlot,
+  moveQuickSlotTo,
+  parseQuickSlotId,
+  quickSlotKey,
+  removeQuickSlot,
+  renameQuickSlot,
+} from "../model/quickSlots";
 
 /**
  * Where the open chart stands with storage.
@@ -49,8 +59,25 @@ type HistoryEntry = {
   /** Placement/repeat history uses reversible operations. */
   change?: Change;
   repeats?: RepeatDefinition[];
-  /** Reference-image changes are small immutable snapshots. */
-  referenceImage?: ReferenceImage | null;
+  /**
+   * Reference-image edits are small immutable snapshots, scoped to one
+   * image by id. `before` is the image's state before this entry's change -
+   * `null` for "didn't exist" (undoing an add removes it), a full snapshot
+   * otherwise. `index` is that image's array position just before this
+   * entry's change, captured for a patch exactly like a removal - array
+   * order is manual z-order (FR-52), so undoing either one must restore the
+   * image in place, not just anywhere.
+   */
+  referenceImageChange?: { id: string; before: ReferenceImage | null; index?: number };
+  /**
+   * Cell keys whose `referenceImageUnrecognized` flag (uiStore) this entry's
+   * change cleared - Suggest scanned the cell but couldn't identify it, and
+   * the designer then placed a real stitch there. That flag lives outside
+   * doc history entirely (see `commit`), so without this it's untouched by
+   * undo/redo: Cmd/Ctrl+Z would restore the erased placement but leave the
+   * cell reading as plain empty space instead of "unidentified" again (#285).
+   */
+  unrecognizedKeysCleared?: readonly string[];
 };
 
 type DocState = {
@@ -71,16 +98,46 @@ type DocState = {
   /** Symbols the stored chart referenced that this build's library lacks. */
   unknownSymbolIds: string[];
   repeats: RepeatDefinition[];
-  /** The pattern screenshot behind the chart, if one's been uploaded. Not undoable, like camera pan/zoom. */
-  referenceImage: ReferenceImage | null;
+  /** Pattern screenshots behind (or in front of) the chart, if any have been uploaded. */
+  referenceImages: ReferenceImage[];
+
+  /**
+   * Chart-scoped glossary/quick-row membership (FR-32) - entries are
+   * quick-slot keys (`symbolId` or `symbolId::colorId`, see `quickSlots.ts`).
+   * Chart settings, not document content: mutated outside `commit()`, so
+   * Cmd/Ctrl+Z never touches them (see §6 "Undo scope" in the colorwork spec).
+   */
+  glossaryIds: string[];
+  quickSymbolIds: string[];
+
+  /**
+   * See `PatternInfo`. Chart settings, not document content - like
+   * `glossaryIds`/`quickSymbolIds` above, mutated outside `commit()` so
+   * Cmd/Ctrl+Z never touches it.
+   */
+  patternInfo: PatternInfo;
 
   undoStack: HistoryEntry[];
   redoStack: HistoryEntry[];
   /** Changes accumulated during the current drag, merged into one entry. */
   stroke: Change[] | null;
 
-  /** `suggested`/`confidence` mark it as an unaccepted guess from auto-suggest - see `Placement`. */
-  place: (symbolId: string, col: number, row: number, suggested?: boolean, confidence?: number) => void;
+  /**
+   * `suggested`/`confidence` mark it as an unaccepted guess from auto-suggest
+   * - see `Placement`. `colorId` is null/undefined for an uncolored pen
+   * (DNT-8: every call site is responsible for passing its own color
+   * explicitly, never "whatever's active").
+   */
+  place: (
+    symbolId: string,
+    col: number,
+    row: number,
+    suggested?: boolean,
+    confidence?: number,
+    colorId?: string | null,
+    /** A cell key whose `referenceImageUnrecognized` flag this placement clears - see `HistoryEntry.unrecognizedKeysCleared`. */
+    unrecognizedKeyCleared?: string,
+  ) => void;
   erase: (col: number, row: number) => void;
   /**
    * Clears the suggested flag on suggested placements in one undoable step -
@@ -95,7 +152,7 @@ type DocState = {
    */
   dismissSuggestions: (ids?: string[]) => void;
   /** Returns the replaced placements' new ids, or the original `ids` unchanged if nothing was replaced. */
-  replacePlacements: (ids: string[], symbolId: string) => string[];
+  replacePlacements: (ids: string[], symbolId: string, colorId?: string | null) => string[];
   erasePlacements: (ids: string[]) => void;
   movePlacements: (ids: string[], deltaCol: number, deltaRow: number) => void;
   /** Whether `movePlacements` would actually move anything, without doing it. */
@@ -117,15 +174,73 @@ type DocState = {
    * everything further along the row in the knitting direction - out of the
    * way to make room, rather than overwriting it.
    */
-  insertPlacement: (symbolId: string, col: number, row: number) => void;
-  /** Sets or replaces the reference image outright (a fresh upload). */
-  setReferenceImage: (image: ReferenceImage) => void;
-  /** Patches the existing reference image's transform/visibility/lock - a no-op if none is set. */
-  updateReferenceImage: (patch: Partial<Omit<ReferenceImage, "ref">>) => void;
+  insertPlacement: (symbolId: string, col: number, row: number, colorId?: string | null) => void;
+  /**
+   * Recolors exactly `ids` (must currently share one (symbolId, colorId)
+   * combo - callers enforce FR-33's homogeneity rule) to `colorId`. A
+   * document edit like any other placement change, so it's undoable.
+   * Returns the recolored placements' new ids.
+   */
+  recolorPlacements: (ids: string[], colorId: string | null) => string[];
+  /** Merges a patch into `patternInfo`. Not undoable - see the field's own doc comment. */
+  setPatternInfo: (patch: Partial<PatternInfo>) => void;
+  /** Names (or renames) one color; an empty/blank name removes its entry. */
+  setColorName: (colorId: string, name: string) => void;
+  /** Replaces the whole glossary array. Not undoable - see the field's own doc comment. */
+  setGlossaryIds: (ids: string[]) => void;
+  /** Replaces the whole quick-row array. Not undoable - see the field's own doc comment. */
+  setQuickSymbolIds: (ids: string[]) => void;
+  /** Adds `id` to the glossary if it isn't already there. */
+  addGlossaryId: (id: string) => void;
+  /** Removes `id` from the glossary. */
+  removeGlossaryId: (id: string) => void;
+  /** Adds `key` to the next free quick slot; newly placed or colored swatches move ahead of unplaced plain slots. */
+  addQuickSlot: (key: string) => void;
+  /** Clears a quick-slot assignment without moving other slots. */
+  removeQuickSlot: (key: string) => void;
+  /** Reorders a quick slot, updating its number-key shortcut. */
+  moveQuickSlotTo: (key: string, targetSlot: number) => void;
+  /**
+   * Moves `key` into the quick row at `targetSlot`, adding it first if it
+   * isn't already a quick slot - the drag-and-drop path for promoting a
+   * glossary entry that didn't make it into a quick slot (e.g. one that only
+   * arrived via a duplicate/paste or an import, never an explicit arm/pick)
+   * up into the row where it can get a keyboard shortcut and be reordered
+   * like any other slot. A no-op move for an already-slotted key is
+   * unaffected - this only adds the "insert if missing" step in front of it.
+   */
+  promoteQuickSlot: (key: string, targetSlot: number) => void;
+  /** Reorders a glossary entry (adding it to the explicit list first if it was only placement-derived). */
+  moveGlossaryIdTo: (key: string, targetIndex: number) => void;
+  /**
+   * DNT-12's rename-vs-mint recolor path: renaming `oldKey` to `newKey` in
+   * place is only safe when nothing else on the chart still uses `oldKey`'s
+   * (symbol, color) combo, excluding `excludingPlacementIds` (the placements
+   * actually being recolored). When siblings remain, mints (or reuses) a new
+   * slot for `newKey` instead of touching `oldKey`'s slot. Applies to both
+   * the quick row and the glossary, wherever `oldKey` is currently present.
+   */
+  recolorQuickSlot: (oldKey: string, newKey: string, excludingPlacementIds: string[]) => void;
+  /**
+   * Adds a freshly uploaded reference image, appended at the end unless
+   * `atIndex` is given (the panel's "Replace" flow uses it to land the new
+   * image back in the slot the old one occupied). Undoable - Cmd/Ctrl+Z
+   * removes it again, from wherever it landed.
+   */
+  addReferenceImage: (image: ReferenceImage, atIndex?: number) => void;
+  /**
+   * Patches one reference image by id - a no-op if it's not present.
+   * Everything but `id` itself is patchable, `ref` included, though the
+   * panel's own "Replace" action goes through `addReferenceImage` +
+   * `removeReferenceImage` instead (two separately undoable steps) rather
+   * than patching `ref` in place here.
+   */
+  updateReferenceImage: (id: string, patch: Partial<Omit<ReferenceImage, "id">>) => void;
   /** Coalesce a continuous reference-image gesture into one undo step. */
-  beginReferenceImageEdit: () => void;
+  beginReferenceImageEdit: (id: string) => void;
   endReferenceImageEdit: () => void;
-  removeReferenceImage: () => void;
+  /** Removes a reference image outright. Undoable - Cmd/Ctrl+Z restores it at its original position. */
+  removeReferenceImage: (id: string) => void;
   beginStroke: () => void;
   endStroke: () => void;
   undo: () => void;
@@ -154,11 +269,75 @@ export const selectIsDirty = (s: DocState): boolean => s.revision !== s.savedRev
  */
 export const isChartOpen = (id: string): boolean => useDocStore.getState().meta?.id === id;
 
+function promoteQuickSlotOverUnplacedPlainSlots(
+  slots: readonly string[],
+  index: DocIndex,
+  key: string,
+): string[] {
+  const { colorId: keyColorId } = parseQuickSlotId(key);
+  // Confirmed placements only, matching countConfirmedStitches/
+  // selectableGlossaryEntryPlacementIds elsewhere in the glossary: a
+  // still-pending Suggest guess isn't something the designer has actually
+  // drawn, so it must not block a genuinely-placed stitch from promoting.
+  const placedSwatches = new Set<string>();
+  const placedPlainSymbols = new Set<string>();
+  for (const placement of index.placements.values()) {
+    if (placement.suggested) continue;
+    placedSwatches.add(quickSlotKey(placement.symbolId, placement.colorId));
+    if (!placement.colorId) placedPlainSymbols.add(placement.symbolId);
+  }
+  if (!keyColorId && !placedSwatches.has(key)) return [...slots];
+  const targetSlot = slots.findIndex((slot) => {
+    if (!slot) return false;
+    const { symbolId, colorId } = parseQuickSlotId(slot);
+    return !colorId && !placedPlainSymbols.has(symbolId);
+  });
+  if (targetSlot === -1) return [...slots];
+  // Only move left: `key` may already sit ahead of `targetSlot` (nothing to
+  // promote past), and moveQuickSlotTo walks it *to* that index regardless
+  // of direction - asking it to move right would demote an already-promoted
+  // swatch past the very unplaced default it's supposed to stay ahead of.
+  const currentIndex = slots.indexOf(key);
+  if (currentIndex !== -1 && currentIndex <= targetSlot) return [...slots];
+  return moveQuickSlotTo(slots, key, targetSlot);
+}
+
+/** `images`, as they stood just before `change` was (or is about to be) applied - the snapshot the opposite undo/redo stack needs. */
+function referenceImageChangeEntry(
+  images: readonly ReferenceImage[],
+  id: string,
+): { before: ReferenceImage | null; index?: number } {
+  const index = images.findIndex((img) => img.id === id);
+  return index === -1 ? { before: null } : { before: images[index]!, index };
+}
+
+/**
+ * Applies one `{ id, before, index? }` snapshot to `images` - the single
+ * operation undo/redo both use, in opposite directions. `before: null`
+ * means the image didn't exist yet, so applying it removes `id`; otherwise
+ * it upserts `before` back in, at `index` when the id isn't already present
+ * (undoing a removal), or in place when it is (undoing a patch).
+ */
+function applyReferenceImageChange(
+  images: readonly ReferenceImage[],
+  change: { id: string; before: ReferenceImage | null; index?: number },
+): ReferenceImage[] {
+  const without = images.filter((img) => img.id !== change.id);
+  if (change.before === null) return without;
+  const at = change.index !== undefined && change.index <= without.length ? change.index : without.length;
+  return [...without.slice(0, at), change.before, ...without.slice(at)];
+}
+
 export const useDocStore = create<DocState>((set, get) => {
   // Kept in the store closure rather than rendered state: it is only a
   // history bookkeeping boundary for a live drag, not UI data.
-  let referenceImageEditStart: ReferenceImage | null | undefined;
+  let referenceImageEditStart: { id: string; before: ReferenceImage; index?: number } | undefined;
   let referenceImageEditChanged = false;
+  // Same kind of bookkeeping boundary as above, for the unrecognized-cell
+  // keys a drag-paint stroke clears - accumulated here so `endStroke` can
+  // bank them all onto the stroke's single merged HistoryEntry (a stroke
+  // can cross several unidentified cells in one drag).
+  let strokeUnrecognizedCleared: Set<string> | null = null;
 
   /**
    * A new document edit truncates the *whole* unified timeline's future, not
@@ -182,19 +361,33 @@ export const useDocStore = create<DocState>((set, get) => {
    * the placement edit. Not supported mid-stroke - no drag-paint action
    * touches repeats, so `commit` never needs to merge a repeats change into
    * an in-progress stroke.
+   *
+   * `unrecognizedKeyCleared`, when given, is a uiStore
+   * `referenceImageUnrecognized` cell key this change clears. Applied
+   * immediately (that flag lives in uiStore, not here) and, mid-stroke,
+   * accumulated in `strokeUnrecognizedCleared` for `endStroke` to bank -
+   * otherwise banked directly on this single-commit entry.
    */
-  const commit = (change: Change, repeatsAfter?: RepeatDefinition[]) => {
+  const commit = (change: Change, repeatsAfter?: RepeatDefinition[], unrecognizedKeyCleared?: string) => {
     if (isEmptyChange(change)) return;
     const { index, stroke, revision, undoStack, repeats } = get();
     const inverse = apply(index, change);
 
+    if (unrecognizedKeyCleared) {
+      useUiStore.getState().setReferenceImageUnrecognized(unrecognizedKeyCleared, false);
+    }
+
     if (stroke) {
+      if (unrecognizedKeyCleared) {
+        (strokeUnrecognizedCleared ??= new Set()).add(unrecognizedKeyCleared);
+      }
       set({ revision: revision + 1, stroke: [...stroke, change], redoStack: [] });
     } else {
       const entry: HistoryEntry = {
         sequence: nextHistorySequence(),
         change: inverse,
         ...(repeatsAfter !== undefined ? { repeats } : {}),
+        ...(unrecognizedKeyCleared ? { unrecognizedKeysCleared: [unrecognizedKeyCleared] } : {}),
       };
       set({
         revision: revision + 1,
@@ -229,10 +422,17 @@ export const useDocStore = create<DocState>((set, get) => {
     statusDetail: null,
     unknownSymbolIds: [],
     repeats: [],
-    referenceImage: null,
+    referenceImages: [],
+    glossaryIds: [...DEFAULT_STITCH_IDS],
+    quickSymbolIds: [...DEFAULT_STITCH_IDS],
+    patternInfo: {},
 
-    place: (symbolId, col, row, suggested, confidence) =>
-      commit(placeChange(get().index, symbolId, col, row, suggested, confidence)),
+    place: (symbolId, col, row, suggested, confidence, colorId, unrecognizedKeyCleared) =>
+      commit(
+        placeChange(get().index, symbolId, col, row, suggested, confidence, colorId),
+        undefined,
+        unrecognizedKeyCleared,
+      ),
     erase: (col, row) => commit(eraseChange(get().index, col, row)),
     acceptSuggestions: (ids) => {
       const idSet = ids ? new Set(ids) : null;
@@ -254,74 +454,246 @@ export const useDocStore = create<DocState>((set, get) => {
       commit({ added: [], removed: suggested });
     },
     canInsertAt: (col, row) => canInsertAtIndex(get().index, col, row),
-    insertPlacement: (symbolId, col, row) =>
-      commit(insertChange(get().index, symbolId, col, row)),
+    insertPlacement: (symbolId, col, row, colorId) =>
+      commit(insertChange(get().index, symbolId, col, row, colorId)),
 
+    recolorPlacements: (ids, colorId) => {
+      const selected = ids
+        .map((id) => get().index.placements.get(id))
+        .filter((p): p is NonNullable<typeof p> => !!p);
+      if (!selected.length) return ids;
+      if (selected.every((p) => (p.colorId ?? null) === (colorId ?? null))) return ids;
+      const added = selected.map((p) => ({
+        ...p,
+        id: newPlacementId(),
+        ...(colorId ? { colorId } : {}),
+      }));
+      commit({ removed: selected, added });
+      return added.map((p) => p.id);
+    },
+
+    setPatternInfo: (patch) =>
+      set((s) => ({ patternInfo: { ...s.patternInfo, ...patch }, revision: s.revision + 1 })),
+    setColorName: (colorId, name) => {
+      const trimmed = name.trim();
+      const { colorNames } = get().patternInfo;
+      const next = { ...colorNames };
+      if (trimmed) {
+        next[colorId] = trimmed;
+      } else {
+        delete next[colorId];
+      }
+      get().setPatternInfo({ colorNames: next });
+    },
+    setGlossaryIds: (glossaryIds) => set((s) => ({ glossaryIds, revision: s.revision + 1 })),
+    setQuickSymbolIds: (quickSymbolIds) => set((s) => ({ quickSymbolIds, revision: s.revision + 1 })),
+    addGlossaryId: (id) => {
+      const current = get().glossaryIds;
+      if (current.includes(id)) return;
+      get().setGlossaryIds([...current, id]);
+    },
+    removeGlossaryId: (id) => {
+      const current = get().glossaryIds;
+      if (!current.includes(id)) return;
+      get().setGlossaryIds(current.filter((existing) => existing !== id));
+    },
+    addQuickSlot: (key) => {
+      const state = get();
+      const assigned = assignQuickSlot(state.quickSymbolIds, key);
+      const next = promoteQuickSlotOverUnplacedPlainSlots(assigned, state.index, key);
+      if (next !== state.quickSymbolIds) state.setQuickSymbolIds(next);
+    },
+    removeQuickSlot: (key) => {
+      const current = get().quickSymbolIds;
+      const next = removeQuickSlot(current, key);
+      if (next !== current) get().setQuickSymbolIds(next);
+    },
+    moveQuickSlotTo: (key, targetSlot) => {
+      const current = get().quickSymbolIds;
+      const next = moveQuickSlotTo(current, key, targetSlot);
+      if (next !== current) get().setQuickSymbolIds(next);
+    },
+    promoteQuickSlot: (key, targetSlot) => {
+      const state = get();
+      const isNewKey = !state.quickSymbolIds.includes(key);
+      // An overflow entry dropped onto a slot that's already empty can be
+      // written straight into that index - there's nothing to displace, so
+      // routing it through addQuickSlot's first-vacant-slot placement
+      // followed by a chain of adjacent swaps back to the real target would
+      // only disturb slots the drop never touched.
+      if (isNewKey && targetSlot >= 0 && !state.quickSymbolIds[targetSlot]) {
+        const next = [...state.quickSymbolIds];
+        while (next.length <= targetSlot) next.push("");
+        next[targetSlot] = key;
+        state.setQuickSymbolIds(next);
+        return;
+      }
+      if (isNewKey) state.addQuickSlot(key);
+      get().moveQuickSlotTo(key, targetSlot);
+    },
+    moveGlossaryIdTo: (key, targetIndex) => {
+      const state = get();
+      const current = state.glossaryIds.includes(key)
+        ? state.glossaryIds
+        : [...state.glossaryIds, key];
+      const from = current.indexOf(key);
+      const clampedTarget = Math.max(0, Math.min(targetIndex, current.length - 1));
+      if (from === clampedTarget && current === state.glossaryIds) return;
+      const without = current.filter((id) => id !== key);
+      const next = [
+        ...without.slice(0, clampedTarget),
+        key,
+        ...without.slice(clampedTarget),
+      ];
+      state.setGlossaryIds(next);
+    },
+    recolorQuickSlot: (oldKey, newKey, excludingPlacementIds) => {
+      if (oldKey === newKey) return;
+      const { symbolId, colorId } = parseQuickSlotId(oldKey);
+      const excluded = new Set(excludingPlacementIds);
+      // DNT-12: renaming in place is only safe when nothing else on the
+      // chart still uses the old combo.
+      let hasSibling = false;
+      for (const p of get().index.placements.values()) {
+        if (!excluded.has(p.id) && p.symbolId === symbolId && (p.colorId ?? null) === (colorId ?? null)) {
+          hasSibling = true;
+          break;
+        }
+      }
+      const state = get();
+      if (hasSibling) {
+        // Siblings remain - mint (or reuse) a new slot for the new combo,
+        // leaving the old one untouched.
+        if (state.quickSymbolIds.includes(oldKey)) state.addQuickSlot(newKey);
+        if (state.glossaryIds.includes(oldKey)) state.addGlossaryId(newKey);
+        return;
+      }
+      // DNT-10: renaming in place must not silently create a duplicate slot
+      // when an *older* slot already holds this exact resulting pen -
+      // that older slot is emptied instead, rather than bailing out
+      // (bailing looks like the color simply didn't apply).
+      if (state.quickSymbolIds.includes(oldKey)) {
+        const withoutOlderDuplicate = state.quickSymbolIds.includes(newKey)
+          ? removeQuickSlot(state.quickSymbolIds, newKey)
+          : state.quickSymbolIds;
+        const renamed = renameQuickSlot(withoutOlderDuplicate, oldKey, newKey);
+        state.setQuickSymbolIds(
+          promoteQuickSlotOverUnplacedPlainSlots(renamed, state.index, newKey),
+        );
+      }
+      if (state.glossaryIds.includes(oldKey)) {
+        const withoutOlderDuplicate = state.glossaryIds.filter((id) => id !== newKey);
+        state.setGlossaryIds(
+          withoutOlderDuplicate.map((id) => (id === oldKey ? newKey : id)),
+        );
+      }
+    },
+
+    // Adding, removing, and editing a reference image are all undoable -
+    // each banks a `{ id, before, index? }` snapshot (`before: null` means
+    // "didn't exist"), so Cmd/Ctrl+Z on a delete brings the image straight
+    // back at the position it was removed from.
+    addReferenceImage: (image, atIndex) =>
+      set((s) => {
+        const at = atIndex !== undefined && atIndex <= s.referenceImages.length ? atIndex : s.referenceImages.length;
+        return {
+          referenceImages: [...s.referenceImages.slice(0, at), image, ...s.referenceImages.slice(at)],
+          revision: s.revision + 1,
+          undoStack: [...s.undoStack, {
+            sequence: nextHistorySequence(),
+            referenceImageChange: { id: image.id, before: null },
+          }],
+          redoStack: [],
+        };
+      }),
     // Reference-point edits are document changes, unlike camera movement, so
     // keep a compact before-image snapshot for Cmd/Ctrl+Z. This deliberately
     // covers image transforms too: a dragged mark is still an editable
     // reference point, even though it updates continuously while dragging.
-    setReferenceImage: (referenceImage) =>
-      set((s) => ({ referenceImage, revision: s.revision + 1 })),
-    updateReferenceImage: (patch) => {
+    updateReferenceImage: (id, patch) => {
       const s = get();
-      if (!s.referenceImage) return;
-      const next = { ...s.referenceImage, ...patch };
+      const current = referenceImageChangeEntry(s.referenceImages, id);
+      if (current.before === null) return;
+      const next = { ...current.before, ...patch };
+      const nextImages = s.referenceImages.map((img) => (img.id === id ? next : img));
       if (referenceImageEditStart !== undefined) {
         referenceImageEditChanged = true;
-        set({ referenceImage: next, revision: s.revision + 1, redoStack: [] });
+        set({ referenceImages: nextImages, revision: s.revision + 1, redoStack: [] });
       } else {
         set({
-          referenceImage: next,
+          referenceImages: nextImages,
           revision: s.revision + 1,
           undoStack: [...s.undoStack, {
             sequence: nextHistorySequence(),
-            referenceImage: s.referenceImage,
+            referenceImageChange: { id, ...current },
           }],
           redoStack: [],
         });
       }
       clearSelectionRedo();
     },
-    beginReferenceImageEdit: () => {
+    beginReferenceImageEdit: (id) => {
       if (referenceImageEditStart !== undefined) return;
-      referenceImageEditStart = get().referenceImage;
+      const current = referenceImageChangeEntry(get().referenceImages, id);
+      if (current.before === null) return;
+      referenceImageEditStart = {
+        id,
+        before: current.before,
+        ...(current.index !== undefined ? { index: current.index } : {}),
+      };
       referenceImageEditChanged = false;
     },
     endReferenceImageEdit: () => {
       if (referenceImageEditStart === undefined) return;
-      const before = referenceImageEditStart;
+      const { id, before, index } = referenceImageEditStart;
       const changed = referenceImageEditChanged;
       referenceImageEditStart = undefined;
       referenceImageEditChanged = false;
-      if (!changed || !before) return;
+      if (!changed) return;
       set((s) => ({
         undoStack: [...s.undoStack, {
           sequence: nextHistorySequence(),
-          referenceImage: before,
+          referenceImageChange: { id, before, ...(index !== undefined ? { index } : {}) },
         }],
         redoStack: [],
       }));
       clearSelectionRedo();
     },
-    removeReferenceImage: () =>
-      set((s) => (s.referenceImage ? { referenceImage: null, revision: s.revision + 1 } : {})),
+    removeReferenceImage: (id) =>
+      set((s) => {
+        const index = s.referenceImages.findIndex((img) => img.id === id);
+        if (index === -1) return {};
+        return {
+          referenceImages: s.referenceImages.filter((img) => img.id !== id),
+          revision: s.revision + 1,
+          undoStack: [...s.undoStack, {
+            sequence: nextHistorySequence(),
+            referenceImageChange: { id, before: s.referenceImages[index]!, index },
+          }],
+          redoStack: [],
+        };
+      }),
 
-    replacePlacements: (ids, symbolId) => {
+    replacePlacements: (ids, symbolId, colorId) => {
       const selected = ids
         .map((id) => get().index.placements.get(id))
         .filter((p): p is NonNullable<typeof p> => !!p);
       if (!selected.length || selected.some((p) => get().index.spanOf(p) !== spanOf(symbolId))) return ids;
-      if (selected.every((p) => p.symbolId === symbolId)) return ids;
+      if (selected.every((p) => p.symbolId === symbolId && (p.colorId ?? null) === (colorId ?? null))) {
+        return ids;
+      }
       // Spread first: a replaced stitch keeps whatever group it belonged
       // to (a repeat instance, a duplicated cluster) rather than silently
       // dropping out of it. Choosing a replacement is a deliberate,
       // resolved answer, so it also drops any suggested/confidence
-      // flags - the same as accepting a suggestion outright.
-      const added = selected.map(({ suggested: _dropped, confidence: _score, ...rest }) => ({
+      // flags - the same as accepting a suggestion outright. `colorId`
+      // defaults to stripped (DNT-8): a plain pick is a whole new pen, never
+      // whatever color happened to be active.
+      const added = selected.map(({ suggested: _dropped, confidence: _score, colorId: _old, ...rest }) => ({
         ...rest,
         id: newPlacementId(),
         symbolId,
+        ...(colorId ? { colorId } : {}),
       }));
       commit({ removed: selected, added });
       return added.map((p) => p.id);
@@ -385,6 +757,7 @@ export const useDocStore = create<DocState>((set, get) => {
           symbolId: p.symbolId,
           col: p.col - minCol,
           row: p.row - minRow,
+          ...(p.colorId ? { colorId: p.colorId } : {}),
         })),
       };
       const groupId = newUuid("group_");
@@ -410,6 +783,7 @@ export const useDocStore = create<DocState>((set, get) => {
         col: col + stitch.col,
         row: row + stitch.row,
         groupId,
+        ...(stitch.colorId ? { colorId: stitch.colorId } : {}),
       }));
       for (const placement of added) {
         for (let offset = 0; offset < spanOf(placement.symbolId); offset++) {
@@ -557,28 +931,41 @@ export const useDocStore = create<DocState>((set, get) => {
       return added.map((p) => p.id);
     },
 
-    beginStroke: () => set({ stroke: [] }),
+    beginStroke: () => {
+      strokeUnrecognizedCleared = null;
+      set({ stroke: [] });
+    },
 
     endStroke: () => {
       const { stroke, undoStack } = get();
       if (!stroke) return;
       if (stroke.length === 0) {
         set({ stroke: null });
+        strokeUnrecognizedCleared = null;
         return;
       }
       // The stroke is already applied; bank a single inverse for all of it.
       const merged = mergeChanges(stroke);
       const inverse: Change = { added: merged.removed, removed: merged.added };
+      const unrecognizedKeysCleared = strokeUnrecognizedCleared ? [...strokeUnrecognizedCleared] : undefined;
+      strokeUnrecognizedCleared = null;
       set({
         stroke: null,
-        undoStack: [...undoStack, { sequence: nextHistorySequence(), change: inverse }],
+        undoStack: [
+          ...undoStack,
+          {
+            sequence: nextHistorySequence(),
+            change: inverse,
+            ...(unrecognizedKeysCleared ? { unrecognizedKeysCleared } : {}),
+          },
+        ],
         redoStack: [],
       });
       clearSelectionRedo();
     },
 
     undo: () => {
-      const { undoStack, redoStack, index, revision, repeats } = get();
+      const { undoStack, redoStack, index, revision, repeats, referenceImages } = get();
       const entry = undoStack[undoStack.length - 1];
       if (!entry) return;
       const inverse = entry.change ? apply(index, entry.change) : undefined;
@@ -586,19 +973,29 @@ export const useDocStore = create<DocState>((set, get) => {
         sequence: entry.sequence,
         ...(inverse ? { change: inverse } : {}),
         ...(entry.repeats !== undefined ? { repeats } : {}),
-        ...(entry.referenceImage !== undefined ? { referenceImage: get().referenceImage } : {}),
+        ...(entry.referenceImageChange
+          ? { referenceImageChange: { id: entry.referenceImageChange.id, ...referenceImageChangeEntry(referenceImages, entry.referenceImageChange.id) } }
+          : {}),
+        ...(entry.unrecognizedKeysCleared ? { unrecognizedKeysCleared: entry.unrecognizedKeysCleared } : {}),
       };
       set({
         undoStack: undoStack.slice(0, -1),
         redoStack: [...redoStack, redoEntry],
         revision: revision + 1,
         ...(entry.repeats !== undefined ? { repeats: entry.repeats } : {}),
-        ...(entry.referenceImage !== undefined ? { referenceImage: entry.referenceImage } : {}),
+        ...(entry.referenceImageChange
+          ? { referenceImages: applyReferenceImageChange(referenceImages, entry.referenceImageChange) }
+          : {}),
       });
+      if (entry.unrecognizedKeysCleared) {
+        const next = new Set(useUiStore.getState().referenceImageUnrecognized);
+        for (const key of entry.unrecognizedKeysCleared) next.add(key);
+        useUiStore.setState({ referenceImageUnrecognized: next });
+      }
     },
 
     redo: () => {
-      const { undoStack, redoStack, index, revision, repeats } = get();
+      const { undoStack, redoStack, index, revision, repeats, referenceImages } = get();
       const entry = redoStack[redoStack.length - 1];
       if (!entry) return;
       const inverse = entry.change ? apply(index, entry.change) : undefined;
@@ -606,18 +1003,37 @@ export const useDocStore = create<DocState>((set, get) => {
         sequence: entry.sequence,
         ...(inverse ? { change: inverse } : {}),
         ...(entry.repeats !== undefined ? { repeats } : {}),
-        ...(entry.referenceImage !== undefined ? { referenceImage: get().referenceImage } : {}),
+        ...(entry.referenceImageChange
+          ? { referenceImageChange: { id: entry.referenceImageChange.id, ...referenceImageChangeEntry(referenceImages, entry.referenceImageChange.id) } }
+          : {}),
+        ...(entry.unrecognizedKeysCleared ? { unrecognizedKeysCleared: entry.unrecognizedKeysCleared } : {}),
       };
       set({
         redoStack: redoStack.slice(0, -1),
         undoStack: [...undoStack, undoEntry],
         revision: revision + 1,
         ...(entry.repeats !== undefined ? { repeats: entry.repeats } : {}),
-        ...(entry.referenceImage !== undefined ? { referenceImage: entry.referenceImage } : {}),
+        ...(entry.referenceImageChange
+          ? { referenceImages: applyReferenceImageChange(referenceImages, entry.referenceImageChange) }
+          : {}),
       });
+      if (entry.unrecognizedKeysCleared) {
+        const next = new Set(useUiStore.getState().referenceImageUnrecognized);
+        for (const key of entry.unrecognizedKeysCleared) next.delete(key);
+        useUiStore.setState({ referenceImageUnrecognized: next });
+      }
     },
 
-    openChart: ({ meta, placements, repeats = [], referenceImage = null, unknownSymbolIds }) => {
+    openChart: ({
+      meta,
+      placements,
+      repeats = [],
+      referenceImages = [],
+      glossaryIds = [...DEFAULT_STITCH_IDS],
+      quickSymbolIds = [...DEFAULT_STITCH_IDS],
+      patternInfo = {},
+      unknownSymbolIds,
+    }) => {
       const revision = get().revision + 1;
       set({
         ...blank(),
@@ -631,7 +1047,10 @@ export const useDocStore = create<DocState>((set, get) => {
         statusDetail: null,
         unknownSymbolIds,
         repeats,
-        referenceImage,
+        referenceImages,
+        glossaryIds,
+        quickSymbolIds,
+        patternInfo,
       });
     },
 

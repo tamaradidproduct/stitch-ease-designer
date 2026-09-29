@@ -1,0 +1,34 @@
+name: Customize Copilot Agent PRs
+
+on:
+  pull_request:
+    types: [opened]
+
+jobs:
+  modify-copilot-pr:
+    # Only execute if the pull request was opened by the Copilot background bot
+    if: github.actor == 'github-copilot[bot]' || contains(github.event.pull_request.user.login, 'copilot')
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+
+    steps:
+      # Step 1: Convert the Draft PR into a Real (Ready for Review) PR
+      - name: Mark PR as Ready for Review
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr ready ${{ github.event.pull_request.html_url }}
+
+      # Step 2: Remove the requested human reviewers
+      - name: Clear Review Requests
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Fetches the login of the user who triggered/assigned the issue (if applicable)
+          # and removes them or any assigned reviewers from the review queue
+          gh api \
+            --method DELETE \
+            -H "Accept: application/vnd.github+json" \
+            /repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/requested_reviewers \
+            -f reviewers[]="${{ github.event.pull_request.assignee.login || github.repository_owner }}"

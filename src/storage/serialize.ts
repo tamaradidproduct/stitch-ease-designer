@@ -1,7 +1,21 @@
 import { newPlacementId } from "../model/ops";
 import { cellKey } from "../model/cellKey";
-import type { Placement, ReferenceImage, RepeatDefinition } from "../model/types";
+import { newUuid } from "../uuid";
+import {
+  CORNERS,
+  FIRST_ROW_SIDES,
+  WORKED_MODES,
+  type Placement,
+  type PatternInfo,
+  type ReferenceImage,
+  type RepeatDefinition,
+} from "../model/types";
 import { getSymbol } from "../symbols/registry";
+import { DEFAULT_STITCH_IDS } from "../model/quickSlots";
+import { MIN_CONTRAST, MAX_CONTRAST } from "../canvas/referenceImageContrast";
+
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+const NO_STITCH_ID = "no_stitch";
 
 /**
  * The stored form of a chart.
@@ -24,11 +38,36 @@ export type StoredChart = {
   stitches: ([number, number, number] | [number, number, number, number])[];
   groups?: string[];
   suggested?: [number, number][];
+  /** Colors used on this chart, hex, first-seen order. Mirrors `palette`. */
+  colorPalette?: string[];
+  /** [col, row, colorPaletteIndex] - sparse, only cells that have a color (FR-22). */
+  colors?: [number, number, number][];
+  /**
+   * Chart-scoped glossary/quick-row membership (FR-32). Omitted entirely
+   * only for a chart that has never been saved since this field existed -
+   * every save after that always writes a concrete array (possibly empty),
+   * which is what makes "never customized" (this key absent) distinguishable
+   * from "explicitly cleared" (`[]`) at decode time. Entries are quick-slot
+   * keys (`symbolId` or `symbolId::colorId` - see `quickSlots.ts`).
+   */
+  glossaryIds?: string[];
+  quickSymbolIds?: string[];
   repeats?: RepeatDefinition[];
+  referenceImages?: ReferenceImage[];
+  /**
+   * Legacy singular form, from before a chart could hold more than one
+   * reference image. Only ever read (by `decode`, which lifts it into a
+   * one-element `referenceImages`) - `encode` never writes it again.
+   */
   referenceImage?: ReferenceImage;
+  /** See `PatternInfo` - stored flat, like every other per-chart setting here. */
+  worked?: PatternInfo["worked"];
+  firstRow?: PatternInfo["firstRow"];
+  firstStitch?: PatternInfo["firstStitch"];
+  colorNames?: PatternInfo["colorNames"];
 };
 
-export const STORED_VERSION = 2;
+export const STORED_VERSION = 3;
 
 export const emptyChart = (): StoredChart => ({
   v: STORED_VERSION,
@@ -57,11 +96,20 @@ export class ChartFormatError extends Error {
  * requirements, but they make the output a pure function of the chart's
  * contents: re-encoding an unchanged chart produces byte-identical JSON, so
  * autosave can skip no-op writes and diffs stay readable.
+ *
+ * `glossaryIds`/`quickSymbolIds` are required, not optional, because they
+ * must always be written once a chart is saved at all (see the field's own
+ * doc comment on `StoredChart`) - a chart that's still uncustomized is saved
+ * with its current (possibly default) value, never omitted, once it's saved
+ * even once.
  */
 export function encode(
   placements: Iterable<Placement>,
   repeats: RepeatDefinition[] = [],
-  referenceImage?: ReferenceImage,
+  referenceImages: ReferenceImage[] = [],
+  glossaryIds: readonly string[] = DEFAULT_STITCH_IDS,
+  quickSymbolIds: readonly string[] = DEFAULT_STITCH_IDS,
+  patternInfo: PatternInfo = {},
 ): StoredChart {
   const sorted = [...placements].sort((a, b) => a.row - b.row || a.col - b.col);
 
@@ -71,6 +119,9 @@ export function encode(
   const groups: string[] = [];
   const groupIndex = new Map<string, number>();
   const suggested: [number, number][] = [];
+  const colorPalette: string[] = [];
+  const colorIndexOf = new Map<string, number>();
+  const colors: [number, number, number][] = [];
 
   for (const p of sorted) {
     if (p.suggested) suggested.push([p.col, p.row]);
@@ -79,6 +130,15 @@ export function encode(
       paletteIndex = palette.length;
       palette.push(p.symbolId);
       indexOf.set(p.symbolId, paletteIndex);
+    }
+    if (p.colorId) {
+      let colorIndex = colorIndexOf.get(p.colorId);
+      if (colorIndex === undefined) {
+        colorIndex = colorPalette.length;
+        colorPalette.push(p.colorId);
+        colorIndexOf.set(p.colorId, colorIndex);
+      }
+      colors.push([p.col, p.row, colorIndex]);
     }
     if (p.groupId) {
       let at = groupIndex.get(p.groupId);
@@ -99,12 +159,23 @@ export function encode(
     stitches,
     groups,
     repeats,
+    glossaryIds: [...glossaryIds],
+    quickSymbolIds: [...quickSymbolIds],
     ...(suggested.length ? { suggested } : null),
-    ...(referenceImage ? { referenceImage } : null),
+    ...(colors.length ? { colorPalette, colors } : null),
+    ...(referenceImages.length ? { referenceImages } : null),
+    ...(patternInfo.worked ? { worked: patternInfo.worked } : null),
+    ...(patternInfo.firstRow ? { firstRow: patternInfo.firstRow } : null),
+    ...(patternInfo.firstStitch ? { firstStitch: patternInfo.firstStitch } : null),
+    ...(patternInfo.colorNames && Object.keys(patternInfo.colorNames).length
+      ? { colorNames: patternInfo.colorNames }
+      : null),
   };
 }
 
 const isInteger = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n);
+const isStringArray = (v: unknown): v is string[] =>
+  Array.isArray(v) && v.every((s) => typeof s === "string");
 
 /**
  * `validate()`'s checks, split into one function per shape it inspects -
@@ -121,9 +192,11 @@ const isInteger = (n: unknown): n is number => typeof n === "number" && Number.i
 
 function validateVersion(chart: Partial<StoredChart>): void {
   if (!isInteger(chart.v)) throw new ChartFormatError("missing version");
-  if (chart.v !== 1 && chart.v !== STORED_VERSION) {
-    // The version field is the migration hook. There's nothing to migrate from
-    // yet, so anything else is either corrupt or from a newer build.
+  if (chart.v !== 1 && chart.v !== 2 && chart.v !== STORED_VERSION) {
+    // The version field is the migration hook. Versions 1-2 have no
+    // colorwork/glossary fields at all, which decode already treats as
+    // "never customized" / "no color" - nothing to migrate. Anything else is
+    // either corrupt or from a newer build.
     throw new ChartFormatError(
       `unsupported chart version ${chart.v} (this build reads ${STORED_VERSION})`,
     );
@@ -172,6 +245,74 @@ function validateSuggested(chart: Partial<StoredChart>): void {
   }
 }
 
+function validateColorPalette(chart: Partial<StoredChart>): void {
+  if (chart.colorPalette === undefined) return;
+  if (!isStringArray(chart.colorPalette)) {
+    throw new ChartFormatError("colorPalette must be an array of color ids");
+  }
+}
+
+function validateColors(chart: Partial<StoredChart>): void {
+  if (chart.colors === undefined) return;
+  if (
+    !Array.isArray(chart.colors) ||
+    chart.colors.some((cell) => !Array.isArray(cell) || cell.length !== 3 || !cell.every(isInteger))
+  ) {
+    throw new ChartFormatError("colors must be an array of [col, row, colorPaletteIndex] tuples");
+  }
+  const paletteLength = chart.colorPalette?.length ?? 0;
+  chart.colors.forEach(([, , colorIndex], i) => {
+    if (colorIndex < 0 || colorIndex >= paletteLength) {
+      throw new ChartFormatError(`colors entry ${i} references colorPalette index ${colorIndex}`);
+    }
+  });
+}
+
+function validateGlossaryIds(chart: Partial<StoredChart>): void {
+  if (chart.glossaryIds !== undefined && !isStringArray(chart.glossaryIds)) {
+    throw new ChartFormatError("glossaryIds must be an array of quick-slot ids");
+  }
+}
+
+function validateQuickSymbolIds(chart: Partial<StoredChart>): void {
+  if (chart.quickSymbolIds !== undefined && !isStringArray(chart.quickSymbolIds)) {
+    throw new ChartFormatError("quickSymbolIds must be an array of quick-slot ids");
+  }
+}
+
+function validateWorked(chart: Partial<StoredChart>): void {
+  if (chart.worked !== undefined && !WORKED_MODES.includes(chart.worked)) {
+    throw new ChartFormatError('worked must be "flat" or "round"');
+  }
+}
+
+function validateFirstRow(chart: Partial<StoredChart>): void {
+  if (chart.firstRow !== undefined && !FIRST_ROW_SIDES.includes(chart.firstRow)) {
+    throw new ChartFormatError('firstRow must be "RS" or "WS"');
+  }
+}
+
+function validateFirstStitch(chart: Partial<StoredChart>): void {
+  if (chart.firstStitch !== undefined && !CORNERS.includes(chart.firstStitch)) {
+    throw new ChartFormatError("firstStitch must be a grid corner");
+  }
+}
+
+function validateColorNames(chart: Partial<StoredChart>): void {
+  if (chart.colorNames === undefined) return;
+  const names = chart.colorNames;
+  if (
+    typeof names !== "object" ||
+    names === null ||
+    Array.isArray(names) ||
+    Object.entries(names).some(
+      ([colorId, label]) => !HEX_COLOR.test(colorId) || typeof label !== "string" || !label.trim(),
+    )
+  ) {
+    throw new ChartFormatError("colorNames must map hex color ids to non-empty names");
+  }
+}
+
 /** Per-stitch group-index bounds - the second of the two stitch passes. */
 function validateStitchGroupReferences(chart: Partial<StoredChart>): void {
   chart.stitches!.forEach((stitch, i) => {
@@ -199,7 +340,8 @@ function validateRepeats(chart: Partial<StoredChart>): void {
           stitch === null ||
           typeof stitch.symbolId !== "string" ||
           !isInteger(stitch.col) ||
-          !isInteger(stitch.row),
+          !isInteger(stitch.row) ||
+          (stitch.colorId !== undefined && typeof stitch.colorId !== "string"),
       )
     ) {
       throw new ChartFormatError(`repeat ${i} is invalid`);
@@ -282,32 +424,58 @@ function validateStitchPin(img: Partial<ReferenceImage>): void {
   }
 }
 
-function validateReferenceImage(chart: Partial<StoredChart>): void {
-  if (chart.referenceImage === undefined) return;
-  const img = chart.referenceImage as Partial<ReferenceImage> | null;
+/**
+ * Validates one image's shape, under `label` for the error message. `id` is
+ * deliberately not required here — a legacy singular `referenceImage` never
+ * had one, and `decode` mints one for it, same as it does for any element of
+ * `referenceImages` that's somehow missing one too.
+ */
+function validateOneReferenceImage(img: unknown, label: string): void {
+  const candidate = img as Partial<ReferenceImage> | null;
   if (
-    typeof img !== "object" ||
-    img === null ||
-    typeof img.ref !== "string" ||
-    typeof img.x !== "number" ||
-    typeof img.y !== "number" ||
-    typeof img.width !== "number" ||
-    !(img.width > 0) ||
-    typeof img.height !== "number" ||
-    !(img.height > 0) ||
-    typeof img.naturalWidth !== "number" ||
-    !(img.naturalWidth > 0) ||
-    typeof img.naturalHeight !== "number" ||
-    !(img.naturalHeight > 0) ||
-    typeof img.opacity !== "number" ||
-    typeof img.visible !== "boolean" ||
-    typeof img.locked !== "boolean" ||
-    (img.inFront !== undefined && typeof img.inFront !== "boolean")
+    typeof candidate !== "object" ||
+    candidate === null ||
+    typeof candidate.ref !== "string" ||
+    typeof candidate.x !== "number" ||
+    typeof candidate.y !== "number" ||
+    typeof candidate.width !== "number" ||
+    !(candidate.width > 0) ||
+    typeof candidate.height !== "number" ||
+    !(candidate.height > 0) ||
+    typeof candidate.naturalWidth !== "number" ||
+    !(candidate.naturalWidth > 0) ||
+    typeof candidate.naturalHeight !== "number" ||
+    !(candidate.naturalHeight > 0) ||
+    typeof candidate.opacity !== "number" ||
+    typeof candidate.visible !== "boolean" ||
+    typeof candidate.locked !== "boolean" ||
+    (candidate.inFront !== undefined && typeof candidate.inFront !== "boolean") ||
+    (candidate.cropToCalibration !== undefined && typeof candidate.cropToCalibration !== "boolean") ||
+    (candidate.contrast !== undefined &&
+      (typeof candidate.contrast !== "number" ||
+        !(candidate.contrast >= MIN_CONTRAST && candidate.contrast <= MAX_CONTRAST))) ||
+    (candidate.id !== undefined && typeof candidate.id !== "string") ||
+    (candidate.number !== undefined && typeof candidate.number !== "number")
   ) {
-    throw new ChartFormatError("referenceImage is invalid");
+    throw new ChartFormatError(`${label} is invalid`);
   }
-  validateCalibrationMarks(img);
-  validateStitchPin(img);
+  validateCalibrationMarks(candidate);
+  validateStitchPin(candidate);
+}
+
+function validateReferenceImages(chart: Partial<StoredChart>): void {
+  if (chart.referenceImages !== undefined) {
+    if (!Array.isArray(chart.referenceImages)) {
+      throw new ChartFormatError("referenceImages must be an array");
+    }
+    chart.referenceImages.forEach((img, i) => validateOneReferenceImage(img, `referenceImages[${i}]`));
+    return;
+  }
+  // Legacy singular form - only present on a chart saved before this field
+  // existed, never alongside the array above.
+  if (chart.referenceImage !== undefined) {
+    validateOneReferenceImage(chart.referenceImage, "referenceImage");
+  }
 }
 
 function validate(stored: unknown): StoredChart {
@@ -325,9 +493,17 @@ function validate(stored: unknown): StoredChart {
   validateGroups(chart);
   validateRepeatsIsArray(chart);
   validateSuggested(chart);
+  validateColorPalette(chart);
+  validateColors(chart);
+  validateGlossaryIds(chart);
+  validateQuickSymbolIds(chart);
   validateStitchGroupReferences(chart);
   validateRepeats(chart);
-  validateReferenceImage(chart);
+  validateReferenceImages(chart);
+  validateWorked(chart);
+  validateFirstRow(chart);
+  validateFirstStitch(chart);
+  validateColorNames(chart);
 
   return chart as StoredChart;
 }
@@ -335,7 +511,21 @@ function validate(stored: unknown): StoredChart {
 export type DecodedChart = {
   placements: Placement[];
   repeats: RepeatDefinition[];
-  referenceImage?: ReferenceImage;
+  referenceImages: ReferenceImage[];
+  /**
+   * Chart-scoped glossary/quick-row membership. Always a concrete array -
+   * `DEFAULT_STITCH_IDS` when the stored chart never customized these (key
+   * absent), whatever was stored otherwise, `[]` included (FR-32).
+   */
+  glossaryIds: string[];
+  quickSymbolIds: string[];
+  /**
+   * See `PatternInfo`. Always a concrete (possibly empty) object, never
+   * absent, so callers can destructure its fields without an extra
+   * existence check - each individual field stays optional/undefined when
+   * the stored chart never set it.
+   */
+  patternInfo: PatternInfo;
   /**
    * Symbols the stored chart references that this build's library doesn't have
    * — a chart saved before a symbol was renamed or removed in Figma. They're
@@ -348,9 +538,11 @@ export type DecodedChart = {
 
 export function decode(stored: unknown, knownSymbol: (id: string) => boolean): DecodedChart {
   const chart = validate(stored);
+  const stitches = chart.stitches.filter(([, , paletteIndex]) => chart.palette[paletteIndex] !== NO_STITCH_ID);
 
   const unknown = new Set<string>();
   for (const id of chart.palette) {
+    if (id === NO_STITCH_ID) continue;
     if (!knownSymbol(id)) unknown.add(id);
   }
 
@@ -360,8 +552,9 @@ export function decode(stored: unknown, knownSymbol: (id: string) => boolean): D
   // retain the renderer's one-cell fallback, because their original span is
   // unavailable in this version of the library.
   const occupied = new Set<string>();
-  for (const [col, row, paletteIndex] of chart.stitches) {
+  for (const [col, row, paletteIndex] of stitches) {
     const symbolId = chart.palette[paletteIndex]!;
+    if (symbolId === NO_STITCH_ID) continue;
     const span = knownSymbol(symbolId) ? (getSymbol(symbolId)?.span ?? 1) : 1;
     for (let cell = col; cell < col + span; cell++) {
       const key = `${cell},${row}`;
@@ -373,19 +566,44 @@ export function decode(stored: unknown, knownSymbol: (id: string) => boolean): D
   }
 
   const suggestedCells = new Set((chart.suggested ?? []).map(([col, row]) => cellKey(col, row)));
-  const placements = chart.stitches.map(([col, row, paletteIndex, groupIndex]) => ({
-    id: newPlacementId(),
-    symbolId: chart.palette[paletteIndex]!,
-    col,
-    row,
-    ...(groupIndex === undefined ? {} : { groupId: chart.groups![groupIndex] }),
-    ...(suggestedCells.has(cellKey(col, row)) ? { suggested: true } : {}),
-  }));
+  const colorByCell = new Map<string, string>();
+  for (const [col, row, colorIndex] of chart.colors ?? []) {
+    const colorId = chart.colorPalette?.[colorIndex];
+    if (colorId) colorByCell.set(cellKey(col, row), colorId);
+  }
+  const placements = stitches.map(([col, row, paletteIndex, groupIndex]) => {
+    const colorId = colorByCell.get(cellKey(col, row));
+    return {
+      id: newPlacementId(),
+      symbolId: chart.palette[paletteIndex]!,
+      col,
+      row,
+      ...(groupIndex === undefined ? {} : { groupId: chart.groups![groupIndex] }),
+      ...(suggestedCells.has(cellKey(col, row)) ? { suggested: true } : {}),
+      ...(colorId ? { colorId } : {}),
+    };
+  });
 
   return {
     placements,
     repeats: chart.repeats!,
+    glossaryIds: chart.glossaryIds ?? [...DEFAULT_STITCH_IDS],
+    quickSymbolIds: chart.quickSymbolIds ?? [...DEFAULT_STITCH_IDS],
+    patternInfo: {
+      ...(chart.worked ? { worked: chart.worked } : null),
+      ...(chart.firstRow ? { firstRow: chart.firstRow } : null),
+      ...(chart.firstStitch ? { firstStitch: chart.firstStitch } : null),
+      ...(chart.colorNames ? { colorNames: chart.colorNames } : null),
+    },
     unknownSymbolIds: [...unknown],
-    ...(chart.referenceImage ? { referenceImage: chart.referenceImage } : null),
+    referenceImages: (chart.referenceImages ?? (chart.referenceImage ? [chart.referenceImage] : []))
+      .map((img, i) => ({
+        ...img,
+        id: img.id ?? newUuid(),
+        // Charts saved before `number` existed (including every legacy
+        // singular `referenceImage`) get one minted from position - a
+        // one-time backfill, never touched again once assigned.
+        number: img.number ?? i + 1,
+      })),
   };
 }

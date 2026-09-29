@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { CELL } from "../canvas/camera";
-import { scaleFromCalibrationMarks, snapImageToGrid } from "./referenceCalibration";
+import { resizeMark, scaleFromCalibrationMarks, snapImageToGrid } from "./referenceCalibration";
 import { stitchBoxRect, type ReferenceImage } from "./types";
 
 function image(overrides: Partial<ReferenceImage> = {}): ReferenceImage {
   return {
+    id: "image-1",
+    number: 1,
     ref: "data:image/png;base64,x",
     x: 0,
     y: 0,
@@ -169,5 +171,28 @@ describe("scaleFromCalibrationMarks", () => {
     // The same marks at a believable count are fine.
     const sane = [mark("a", 0, 0, 1, 1), mark("b", 1, 1, 20, 15)];
     expect(scaleFromCalibrationMarks(base, sane)).not.toBeNull();
+  });
+});
+
+describe("resizeMark", () => {
+  const mark = { u: 0.4, v: 0.4, w: 0.2, h: 0.2 };
+  it("moves only the dragged side and keeps the opposite one fixed", () => {
+    const r = resizeMark(mark, "r", { u: 0.8, v: 0.1 }, 0.01, 0.01);
+    expect(r.u).toBeCloseTo(0.4);
+    expect(r.w).toBeCloseTo(0.4);
+    expect(r.v).toBeCloseTo(0.4);
+    expect(r.h).toBeCloseTo(0.2);
+  });
+  it("drags a corner on both axes, clamped to the photo", () => {
+    const r = resizeMark(mark, "tl", { u: -0.5, v: 0.9 }, 0.01, 0.01);
+    expect(r.u).toBe(0);
+    expect(r.w).toBeCloseTo(0.6);
+    expect(r.v).toBeCloseTo(0.4);
+    expect(r.h).toBeCloseTo(0.5);
+  });
+  it("won't collapse below the minimum size", () => {
+    const r = resizeMark(mark, "r", { u: 0.1, v: 0.5 }, 0.05, 0.05);
+    expect(r.w).toBeCloseTo(0.05);
+    expect(r.u).toBeCloseTo(0.4);
   });
 });

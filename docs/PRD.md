@@ -1,5 +1,5 @@
 # Product Requirements Document (PRD)
-*Last Updated: 2026-09-18*
+*Last Updated: 2026-09-25*
 
 ## Core App Overview
 
@@ -9,8 +9,12 @@ it is a chart editor: an infinite canvas that is itself a grid of square
 cells, where each cell can hold a stitch (some stitches span several cells).
 Clicking any cell places a stitch from the Figma symbol library.
 
-v1 is the working drawing interface only — no chart frames, RS/WS handling,
-repeat boxes, stitch counts, or project-management side yet. Two features are
+v1 is the working drawing interface only — no chart frames, repeat boxes,
+stitch counts, or project-management side yet. A chart can record `worked`
+(flat/round) and `firstRow` (RS/WS) as plain metadata for a preview to read
+(see "Pattern info fields..." below), but the chart itself still renders
+every row right-to-left regardless of these — RS/WS-driven row direction and
+stitch numbering are still deferred. Two features are
 gated to an `admin` role while still experimental: the reference-image tracer
 and **Suggest**, which runs template matching against a reference image and
 places guesses for the designer to confirm or dismiss. Everyone else
@@ -189,6 +193,12 @@ no toolDock button highlighted, stroke is a no-op.
   symbol with only a pending suggestion look removable when it isn't.
   Implemented as `symbolsWithAnyPlacement(placements)` in
   `src/ui/chartGlossary.ts`.
+- **FR-39 (added this session, #199).** The Suggest glossary row shows a
+  short subtitle under the "Suggest" label instead of a bare numeric badge —
+  "Confirm a stitch to enable Suggest" at zero, "Recognizes 1 stitch type" at
+  one, "Recognizes N stitch types" otherwise. Same underlying count
+  (`suggestTaughtCount`) as before; only its presentation changed, since the
+  numeric badge alone wasn't discoverable without hovering its tooltip.
 
 #### Gotchas hit while building this (read before touching modifier logic)
 
@@ -218,7 +228,10 @@ sync by hand.** This is why the shared helpers above exist now.
   range-select anchor was cleared on the second click unless *both*
   `Cmd`/`Ctrl` and `Shift` were held — but once already mid-gesture, only
   `Shift` drives that logic. Fixed by keying anchor-preservation on `Shift`
-  alone.
+  alone. **Superseded (2026-09-27, #270/#269):** Cmd/Ctrl+Shift no longer
+  range-completes at all — see **FR-56** below. The anchor-preservation
+  fix here still applies to plain Shift's own gap fill, which kept the
+  anchor all along.
 - **G-5 — A real click could get misrouted into "drag" handling.** A
   trackpad tap can nudge the pointer across a grid-cell boundary and back
   without the user intending a drag; once an internal "did this move" flag
@@ -300,7 +313,38 @@ incidental `Opt`/`Alt` tap could trigger during an otherwise-ordinary
 marquee drag. See `includeEmptyCells` in `usePaintTool.ts`'s
 `onPointerMove`.
 
-#### Do not touch
+**FR-60 (#268).** An "unidentified" cell — one Suggest scanned but couldn't
+match against any exemplar, tracked as a UI-side flag in
+`referenceImageUnrecognized` rather than a real `Placement` — joins a plain
+`Cmd`/`Ctrl`-drag marquee unconditionally, the same as an identified
+suggestion, rather than needing the three-key `includeEmptyCells` chord
+FR-21 gates genuinely empty cells behind. This is a deliberate asymmetry:
+unidentified markers are a scan result worth acting on, not blank space, so
+they should be exactly as easy to sweep up as an identified suggestion is.
+Because a marker has no placement id of its own, a marquee that picks one up
+folds it into `selectedEmptyCells` — the same convention already used for
+unidentified cells elsewhere (`SuggestReviewMenu`'s and `RightPanel`'s
+"Replace all"), so downstream bulk actions keep treating a mixed batch of
+real empty cells and unidentified markers consistently. A stale marker
+whose cell has since gotten a real placement is filtered out, same as
+elsewhere. See `resolveUnrecognizedCellsInBounds` in `usePaintTool.ts`'s
+`onPointerMove`.
+
+**FR-41 (added this session, #225).** Suggest armed, pointerdown landing on
+its own still-pending guess, no selection modifier held: the gesture is
+ambiguous between reviewing it (a click) and painting a new Suggest stroke
+across it (a drag), so the decision is deferred to the first real movement
+instead of immediately starting a move. No movement by pointerup → open the
+suggestion for review, same as before. Real movement → run a normal Suggest
+paint stroke starting from the origin cell (a no-op there, since Suggest
+already never overwrites an existing placement) through the cells the drag
+actually crosses. Every other combination — a real stitch armed and landing
+on a suggestion (FR-11's override), Shift's additive selection toggle, a
+drag starting on a confirmed/hand-drawn stitch — is unaffected; this only
+changes what starting a gesture on a *pending* suggestion while Suggest
+itself is armed does. See `isSuggestReviewCandidate` in `usePaintTool.ts`.
+
+#### Do not touch (Suggest)
 
 - **DNT-2.** Suggest's own template-matching internals (confidence thresholds, exemplar
   matching) — this feature only adds review actions on top of results
@@ -335,6 +379,630 @@ marquee drag. See `includeEmptyCells` in `usePaintTool.ts`'s
 | `src/ui/chartGlossary.ts` | `countConfirmedStitches`, `symbolsWithAnyPlacement` (pure, tested) |
 | `src/ui/RightPanel.tsx` | Consumes the above two for the glossary's displayed counts and remove-eligibility |
 
+---
+
+### Selection: Cmd/Ctrl+Shift toggles individual stitches, never a range
+
+**Context.** QA reported that a Cmd/Ctrl+Shift-click sequence degraded into
+an unwanted range-fill once more than two clicks were involved (#254), and
+that the same gesture behaved inconsistently depending on whether a picker
+was already open when the second click landed (#208). `tamaradidproduct`
+clarified the intended split on #270:
+
+> With CMD, you can select a specific stitch. With Shift, you can select a
+> range of stitches — either via dragging or via clicking to fill the gap.
+> CMD + Shift should allow the user to select specific stitches one by one.
+
+**FR-56.** Cmd/Ctrl+Shift+click **MUST** always toggle just the clicked
+stitch (or empty cell) into/out of the selection — it never completes a
+range, however many Cmd/Ctrl+Shift clicks happen in a row. This is how a
+designer builds up a selection of disconnected stitches, one click at a
+time, without the gap between two of them ever getting silently pulled in.
+Range completion is exclusively **plain Shift's** job (no Cmd/Ctrl held): a
+click-then-Shift-click gap fill, or a Shift-held drag/marquee.
+
+Previously, the first Cmd/Ctrl+Shift click on a cell also set it as a
+"range anchor," and a second Cmd/Ctrl+Shift click elsewhere completed a
+bounding-box range between the two instead of toggling the second cell on
+its own — correct only for exactly two clicks, wrong for a third disconnected
+toggle (see Gotcha G-4, superseded). This anchor-driven range-completion is
+now removed: Cmd/Ctrl+Shift no longer reads or sets `selectionAnchor` at
+all. That field remains solely for plain Shift's own gap fill, unaffected by
+this change.
+
+**Implementation.** `src/input/usePaintTool.ts`'s `endStroke`
+(`selectionAdditive` branch) now always toggles the clicked placement (via
+`selectExisting`) or empty cell, with no anchor/bounding-box branch. This
+also resolves the inconsistency reported on #269: the same gesture landing
+on a placement while a picker was already open took a separate code path
+(`onPointerDown`'s `modifierSelect && modifierTarget` branch) that already
+did a plain toggle — the two paths disagreed only because the other one
+still range-completed. Both now agree: a plain toggle, every time.
+
+---
+
+### Multicolor stitches (colorwork)
+
+**Context.** Lets a designer chart colorwork on top of the existing texture-stitch
+system. Built ground-up on `colorwork/multicolor-stitches` (branched from
+`main`, which had no prior colorwork code) — [PR #194](https://github.com/tamaradidproduct/stitch-ease-designer/pull/194).
+
+#### Data model
+
+**FR-22.** Color is a property of a stitch, never a second kind of stitch.
+`Placement.colorId` is an optional hex string. An uncolored placement carries
+no `colorId` at all; a chart that never uses color encodes byte-identically
+to the pre-colorwork format.
+
+**FR-23.** Choosing a glossary/quick-slot tile arms the symbol and its color
+together as a single pen — no separate "now pick a color" step.
+
+**FR-24.** The moment a (symbol, color) combo is first used it becomes a
+glossary tile automatically, deduplicated by identity — the same mechanism a
+plain symbol already uses to become glossary-eligible by being placed.
+
+**FR-32.** Knit and Purl are always seeded into both the glossary and the
+quick-access row, for every chart (`DEFAULT_STITCH_IDS` in
+`src/model/quickSlots.ts`). Removable and reorderable like any other entry;
+the seed is only the starting state. **Chart-scoped**, not a browser-local
+side channel — persists with the chart (`docStore.glossaryIds` /
+`quickSymbolIds`) and travels through export/import.
+
+#### Interaction
+
+**FR-25.** The color chip lives on whichever tile is *currently selected* —
+the actual placement the picker is open on, or, only when there's nothing to
+look up yet, the armed pen itself. One identity (`currentSlotForPicker` in
+`src/ui/colorwork.ts`) feeds chip visibility, the recolor effect, and tile
+highlighting — every consumer reads that single value rather than
+independently reading `armedSymbolId`/`activeColor`.
+
+**FR-26.** A quick slot is symbol *and* color together (`chooseSymbol(id,
+tool, preserveSelection, colorId)`), not a symbol that inherits whatever
+color happens to be active. A plain pick clears the active color.
+
+**FR-27.** Clicking a color acts on the current selection only: recolors the
+placement(s) if any, recolors its quick slot, arms the result, closes the
+color menu and the picker.
+
+**FR-28.** A colored stitch renders as a cell background fill behind the
+glyph, with glyph ink adapting to the fill. Ink is a fixed, tagged property
+of each of the 32 swatches (`ColorSwatch.ink` in `src/model/colorPalette.ts`,
+hand-authored per hue rather than computed from luminance at paint time — a
+single numeric cutoff doesn't sort every hue's dark step correctly).
+Applied identically at **four** render sites: the canvas renderer, the
+armed-stitch cursor preview, and — the one that shipped incomplete the first
+time (see Gotchas) — `SymbolGlyph`, which both the picker's and the
+glossary's tiles use.
+
+**FR-29.** Fill precedence: a symbol's own tint (e.g. "no stitch" grey)
+overpaints the pen's color, never the reverse.
+
+**FR-30.** A sixth, dynamic tile appears in the picker's quick row exactly
+when the current selection is a real stitch whose combo isn't already one of
+the five visible slots. Not persisted, divider-separated from the five real
+slots.
+
+**FR-31.** The picker shows a persistent context label ("Replace Purl at col
+4, row 4," "Replace 3 selected stitches") whenever open on an existing
+stitch or selection — not buried in the search placeholder.
+
+**FR-33.** "Currently selected" extends to a multi-selection only when every
+member already shares the same (symbol, color) combo. A mixed selection
+shows no chip; recoloring it is reachable only by picking a different pen
+outright.
+
+**FR-40 (added #211/#224, narrowed by #267, narrows FR-33).** For a genuine
+multi-selection (more than one placement targeted), a homogeneous selection
+only counts as "currently selected" for chip purposes when it also covers
+*every* confirmed placement of that (symbol, color) combo on the chart — not
+just a homogeneous subset. Leaving one matching stitch outside the selection
+hides the chip entirely, rather than letting a subset recolor happen and
+leave that other stitch a mismatched outlier. A still-`.suggested` placement
+(pending Suggest review) doesn't count as an "other instance" for this check.
+This replaces the subset-recolor workflow FR-33 previously allowed for
+multi-selections; FR-34's add-only chips are unaffected, since they never
+touch existing placements regardless of how many plain instances exist.
+
+A single targeted placement is exempt from the "every other instance" check
+(#267): recoloring it always mints a distinct colored quick slot and
+recolors only that one placement, leaving every sibling elsewhere on the
+chart untouched, so there is no mismatched-outlier risk and the chip always
+shows.
+
+**FR-34.** A symbol that isn't currently armed can still get a new colored
+variant without painting anything, from the picker's "more stitches" drawer
+or the glossary panel — each plain row (slotted or not) gets a small
+add-only color chip. Picking a color there is strictly additive: arms a new
+pen and gives it a quick slot, never recolors anything already on the
+chart. A colored row never gets this chip.
+
+**FR-35 (added this session).** The add-only and recolor chips share one
+palette icon (reused from the reference-image panel's "canvas stitch
+colors" button) rather than a bare circle+line/circle+plus pair — the
+original abstract icon didn't read as "color" at a glance. The add-only
+variant keeps a small "+" badge so the two still look distinct.
+
+**FR-36 (added this session).** A colored glossary row tints only its small
+glyph swatch, not the whole row. A full-row background wash was tried first
+and rejected on review — it made the label hard to read, especially layered
+under the existing armed/hover/drag-over highlight — see `SymbolGlyph`'s
+`colorId` prop (`src/ui/SymbolGlyph.tsx`) and `.glossary__glyph .glyph__cell`
+in `styles.css`.
+
+**FR-59 (#265).** The `recolor`-mode chip that floats over a picker quick-slot
+tile (`.picker__quickColorChip`) has a solid `var(--border)` ring and a subtle
+drop shadow, not a border/fill that both match the page background — the
+prior style was indistinguishable from a pale, uncolored tile. The inline
+`add-only` chips in the glossary panel and picker drawer
+(`.glossary__colorChip`, `.picker__itemColorChip`) keep their existing
+borderless, shadowless look, since they sit in a list row next to other flat
+icon buttons rather than overlaid on tile artwork and already read fine
+there.
+
+**FR-61 — distinct quick-slot drag-over signifiers (#271, split from #251;
+follows #259's fill-vs-push fix).** Dragging a quick slot over another one
+now shows one of two distinct hover treatments depending on whether the
+target is empty or occupied, since the two drops behave differently
+(`promoteQuickSlot`/`moveQuickSlotTo`):
+- **Empty target (fill in place).** The whole slot gets the existing
+  full-slot highlight (`[data-drag-over="true"]`) — unchanged from before.
+- **Occupied target (push existing stitches along).** Instead of the
+  full-slot highlight, a thin insertion line appears between two slots, on
+  the edge the dragged stitch will land on — in the same
+  `--accent-soft-border` hover color, per `[data-insert-edge]` in
+  `styles.css`. Which edge is computed by `quickSlotInsertEdge` in
+  `src/model/quickSlots.ts`, from the dragged slot's current index and the
+  hovered slot's index (a not-yet-slotted overflow entry being promoted
+  always arrives from beyond the last slot, so it always shows "before").
+  Wired into `RightPanel`'s occupied-slot render branch (`data-insert-edge`
+  there replaces the old `data-drag-over` — the empty-slot branch is
+  untouched).
+
+Approved by tamaradidproduct on #271: "If there's an empty slot available,
+when a user hovers over that slot, highlight the entire slot. Otherwise,
+show a highlighted line in the same hover color between two stitch slots to
+indicate the new stitch placement."
+
+#### Storage
+
+**FR-37.** Mirrors how `suggested` is already stored — a sparse
+list, not baked into every stitch tuple: `colorPalette?: string[]` (hex,
+first-seen order) + `colors?: [col, row, colorPaletteIndex][]` for only the
+colored cells. Purely additive; old charts decode unchanged. `STORED_VERSION`
+bumped to 3 (versions 1–2 still read fine — no colorwork fields at all reads
+as "no color, never customized").
+
+**FR-38 — absent vs. empty (`glossaryIds`/`quickSymbolIds`).** A real
+three-state distinction:
+- **Undefined** (key omitted) → chart never saved since colorwork shipped →
+  decodes to `DEFAULT_STITCH_IDS` (knit, purl).
+- **Present, explicit array** (`[]` included) → decodes to exactly that,
+  no fallback.
+
+Unlike `suggested`/`colors`, these two fields are always written once a
+chart is saved at all (`encode()` in `src/storage/serialize.ts`) — that's
+what makes "never customized" distinguishable from "customized to empty."
+`emptyChart()` (a chart that hasn't been saved yet) is the one place that
+still omits them.
+
+**DNT-10.** Recoloring a slot that collides with an *older* slot already
+holding the same resulting pen empties that older slot rather than bailing
+out — bailing looks like the color simply didn't apply. Handled in
+`docStore.recolorQuickSlot`'s rename-in-place path.
+
+**Quick-slot keys.** Composite id `symbolId::colorId` (bare `symbolId` when
+uncolored), defined once in `src/model/quickSlots.ts`
+(`quickSlotKey`/`parseQuickSlotId`), imported everywhere else rather than
+rebuilt inline.
+
+**DNT-9.** `parseQuickSlotId` splits on the first `::`. Don't introduce a
+symbol id that contains it.
+
+#### Rendering & counts
+
+**DNT-12.** A plain symbol's displayed placed-count excludes colored
+placements of that symbol — a colored combo is a separate inventory line
+with its own count (`countConfirmedStitches` / `countConfirmedColoredStitches`
+in `src/ui/chartGlossary.ts`).
+
+**DNT-8.** Every pick is a whole pen: `place`/`chooseSymbol`'s `colorId`
+parameter defaults to `null`/clears, never "leave whatever was active." A
+plain glossary row checks `activeColor === null` before rendering itself as
+armed, so a plain row and a colored row of the same symbol can't both show
+armed at once.
+
+#### Gotchas hit while building this (read before touching colorwork rendering)
+
+- **G-11 — colored tiles rendered black-on-white.** The canvas renderer and
+  the cursor preview got `colorId` from the start; `SymbolGlyph` (the
+  component the picker's and glossary's tiles actually use) didn't, so a
+  colored slot's icon still showed plain black-on-white even though the
+  underlying data and the canvas were correct. This was FR-28's fourth
+  render site, easy to miss because the other three all worked and made the
+  feature look "done." Fixed by threading `colorId` through `SymbolGlyph`
+  too, at every call site that has a color to give.
+- **G-12 — overflow glossary entries had no drag handle.** A colored combo
+  that only ever arrived via a duplicate/paste or a file import (never an
+  explicit arm/pick) landed in the unslotted overflow section with no way to
+  promote it into a numbered quick slot or reorder it. Fixed with two new
+  `docStore` actions — `promoteQuickSlot` (adds a glossary-only key to the
+  quick row before moving it) and `moveGlossaryIdTo` — and a matching drag
+  handle on overflow rows. `moveQuickSymbolTo` now always goes through the
+  promote path, so an already-slotted key still just reorders as before.
+- **G-13 — glossary search dropdown clipped mid-list.** `.glossarySearch__results`
+  used `position: absolute` inside `.sideModule`, which sets
+  `overflow: hidden` so the card can round its own corners — a dropdown
+  extending past the card's bottom edge got cut off there instead of
+  floating over the rest of the sidebar. Same class of bug as the picker's
+  "more stitches" drawer popover (see `ColorSwatchPopover`'s own doc
+  comment) and fixed the same way: anchor via a measured rect with
+  `position: fixed`, which escapes the clipping ancestor entirely instead of
+  relying on CSS containing-block luck.
+- **Design revision — full-row color wash was too intense.** Shipped once
+  tinting the whole `.glossary__item` background; on review this made the
+  label hard to read and looked especially harsh combined with the
+  pre-existing armed/hover/drag-over highlight. Reverted to swatch-only
+  (FR-36).
+
+#### Do not touch (colorwork)
+
+- **DNT-11 — load-bearing.** Recoloring the currently-selected
+  stitch/pen may only rename its quick slot *in place* when nothing else on
+  the chart still uses that slot's old (symbol, color) combo (scan excludes
+  the placement(s) actually being recolored). Skipping this check is a real,
+  previously-shipped bug: recoloring one placed stitch renamed the *whole*
+  shared quick slot in place, silently orphaning every other plain instance
+  on the chart. When siblings remain, mint (or reuse) a new slot instead.
+  Implemented in `docStore.recolorQuickSlot`.
+- **Scope.** Named/managed palettes (rename, reorder into groups, per-chart
+  named palettes beyond the quick row) are explicitly deferred — the
+  quick-slot row *is* the palette for this pass. Suggest stays uncolored.
+- **DNT-13 — undo scope.** Glossary and quick-slot edits are **not**
+  undoable — Cmd/Ctrl+Z reverts placements, not a palette change.
+  Deliberate: they're chart settings, not document content, so they're
+  mutated outside `docStore`'s `commit()`/undo stack. Flagged as
+  revisit-if-confusing, not settled forever.
+- **DNT-14.** No native `<input type="color">`, no "more colors" escape
+  hatch, no pure white, no "no color" cell in the picker — a fixed
+  32-swatch grid (8 hue columns × 4 lightness steps) so one click is always
+  exactly one apply. A native color input was tried and removed: it fires
+  continuously as the cursor moves, and applying a color used to close the
+  popover, so the first shade dragged over committed and the input
+  unmounted mid-drag.
+
+#### File map
+
+| File | Owns |
+|---|---|
+| `src/model/types.ts` | `Placement.colorId`, `RepeatStitch.colorId` |
+| `src/model/quickSlots.ts` | `quickSlotKey`/`parseQuickSlotId` (single source of truth), `DEFAULT_STITCH_IDS`, quick-slot array helpers |
+| `src/model/colorPalette.ts` | `COLOR_GRID` (32 swatches, each tagged ink), `getSwatch`/`glyphInkFor` |
+| `src/model/ops.ts` | `colorId` threaded through `placeChange`/`insertChange` |
+| `src/state/docStore.ts` | `colorId` threaded through `place`/`insertPlacement`; `recolorPlacements`, `recolorQuickSlot` (DNT-10/11), `promoteQuickSlot`, `moveGlossaryIdTo`; `glossaryIds`/`quickSymbolIds` state + actions (not undoable) |
+| `src/state/uiStore.ts` | `activeColor`/`setActiveColor`; `chooseSymbol`'s `colorId` param |
+| `src/storage/serialize.ts` | `colorPalette`/`colors` (sparse); `glossaryIds`/`quickSymbolIds` absent-vs-empty encode/decode; `STORED_VERSION` 3 |
+| `src/storage/ChartStore.ts`, `keyValueChartStore.ts`, `supabaseChartStore.ts`, `exportImport.ts`, `migrateLocalCharts.ts`, `useAutosave.ts` | Thread `glossaryIds`/`quickSymbolIds` through load/save/export/import/migration |
+| `src/canvas/renderer.ts` | Cell background fill for `colorId`; glyph ink lookup |
+| `src/canvas/cursors.ts` | Armed-stitch cursor preview carries the pen's color |
+| `src/ui/SymbolGlyph.tsx` | `colorId` prop — the fourth FR-28 render site (see Gotchas) |
+| `src/ui/colorwork.ts` | `currentSlotForPicker` (FR-25 identity), `applyColorToSlot`, `addColoredVariant` |
+| `src/ui/ColorChip.tsx`, `ColorSwatchPopover.tsx` | Shared chip + popover, consolidated across all three call sites from the start |
+| `src/ui/StitchPicker.tsx` | `currentSlot`; quick tiles + dynamic sixth; drawer chip; FR-31 context label |
+| `src/ui/RightPanel.tsx` | Quick-slot rows, glossary rows (slotted + overflow), drag/promote, search dropdown |
+| `src/ui/chartGlossary.ts` | `collectColoredGlossaryEntries`, `countConfirmedStitches`/`countConfirmedColoredStitches` (DNT-13), `symbolsWithAnyPlacement` |
+
+### Color-aware Suggest, quick slots, and glossary selection
+
+**FR-39. Suggest preserves a confirmed swatch identity.** Reference-image
+exemplars are grouped by `(symbolId, colorId)`, not symbol alone. A successful
+Suggest match places the complete taught swatch, including its color.
+
+**FR-40. Quick slots promote active swatches.** A newly placed uncolored
+stitch, or a newly colored swatch, moves ahead of unplaced plain defaults in
+the quick row. Existing placed plain stitches retain their relative priority.
+
+**FR-41. Choosing from the stitch picker clears the resolved selection.** After
+placing or replacing through the picker, the resulting stitch is deselected so
+the next canvas click acts directly on the next target. During Suggest review,
+changing a resolved stitch color must leave Suggest armed.
+
+**FR-42. Every placed glossary swatch exposes Select all.** The `All (count)`
+action selects only confirmed placements with that exact `(symbolId, colorId)`
+identity. Pending suggestions remain in the review workflow. Numbered quick
+slots and overflow glossary rows use the same visible action.
+
+**FR-43. Stitch library additions.** The Figma library entries for Slip stitch
+with yarn front (`sl_wyif`) and Slip stitch with yarn in back (`sl_wyib`) are
+searchable, rendered, and checked in as both generated registry entries and
+SVG assets.
+
+**Deferred note — color-sensitive Suggest matching.** Suggest currently stores
+color with an exemplar but compares binary glyph shapes. Same-shape swatches
+in different colors therefore remain ambiguous rather than receiving a random
+color assignment. Adding color features to the matcher is intentionally
+deferred.
+
+---
+
+### Pattern info fields, reference-image export option, and export-format rectangle fill
+
+**Context.** A preview consumer needs a handful of facts about a pattern
+stated once rather than asked each time, plus two changes to what a
+`.stitchchart.json` export actually contains. See
+`docs/conversations/2026-09-24-pattern-info-and-export-format.md` for the
+full discussion and alternatives considered.
+
+#### Pattern info data model
+
+**FR-44.** `PatternInfo` (`src/model/types.ts`) groups four optional,
+per-chart facts: `worked: "flat" | "round"`, `firstRow: "RS" | "WS"`,
+`firstStitch: Corner` (reuses the existing `"bl" | "br" | "tl" | "tr"` corner
+vocabulary already used for reference-image resize handles — no new
+vocabulary invented), and `colorNames: Record<hexColorId, string>` (e.g.
+`{ "#d3f3d0": "MC" }`, keyed by the same hex `colorId` values already used
+everywhere else). Grouped into one type — rather than threaded as four
+separate parameters through `encode`/`decode`/`ChartStore.save` — purely to
+keep those signatures from growing a positional argument per field;
+`StoredChart` itself still stores the four as flat top-level keys, matching
+every other per-chart setting (`glossaryIds`, `referenceImage`, etc).
+
+**FR-45.** Like `glossaryIds`/`quickSymbolIds` (FR-32/DNT-13), `patternInfo`
+edits are chart settings, not document content — mutated outside
+`docStore`'s `commit()`, so Cmd/Ctrl+Z never touches them.
+
+**Implementation.**
+- `src/model/types.ts` — `Worked`, `WORKED_MODES`, `FirstRowSide`,
+  `FIRST_ROW_SIDES`, `PatternInfo`.
+- `src/storage/serialize.ts` — `StoredChart.worked`/`firstRow`/`firstStitch`/
+  `colorNames`, `validateWorked`/`validateFirstRow`/`validateFirstStitch`/
+  `validateColorNames` (hex-keyed, non-empty-string values), threaded through
+  `encode()`/`decode()` via a single grouped `patternInfo` parameter.
+  `decode()`'s `DecodedChart.patternInfo` is always a concrete (possibly
+  empty) object, never absent — same "optional only for test fixtures"
+  pattern as `glossaryIds`/`quickSymbolIds` on `ChartStore.LoadedChart`.
+- `src/storage/ChartStore.ts`, `keyValueChartStore.ts`,
+  `supabaseChartStore.ts`, `migrateLocalCharts.ts` — `patternInfo` threaded
+  through `load`/`save` exactly like `glossaryIds`/`quickSymbolIds`.
+- `src/state/docStore.ts` — `patternInfo` state, `setPatternInfo` (merges a
+  patch), `setColorName` (adds/renames/removes one color's name; a
+  blank/whitespace-only name removes the entry). Defaulted in `openChart`.
+- `src/storage/useAutosave.ts` — `patternInfo` included in the autosave
+  `store.save()` call.
+
+#### Pattern info settings UI
+
+**FR-46.** A collapsible **Pattern info** section in `RightPanel.tsx`
+(same pattern as Export/Help) exposes: a Worked flat/round toggle; a First
+row RS/WS toggle (hidden when Worked is "round" — RS/WS is a flat-only
+concept); a 2×2 first-stitch corner-grid picker; and, only once at least one
+colored stitch exists on the chart, a swatch + text-input row per color
+actually in use, wired to `setColorName`.
+
+#### Export: leave out the reference image
+
+**FR-47.** `exportChart()` (`src/storage/exportImport.ts`) takes an
+`includeReferenceImage` flag (default `true`); `false` skips inlining the
+reference image into the export entirely. Surfaced as a checkbox in the
+RightPanel Export section, shown only when the open chart actually has a
+reference image — lets a designer share a chart file without carrying along
+a (potentially copyrighted or personal) source photo.
+
+#### Export format (v3): rectangle fill, drop pending suggestions
+
+**FR-48.** Two changes scoped to `exportChart()` specifically — **not** the
+general `encode()` used by autosave, so in-app storage stays lean and this
+stays a pure export-time transform. `v` stays `3`; every other field/format
+is unchanged.
+- Every cell inside the bounding rectangle of the chart's *confirmed*
+  (non-suggested) placements that isn't already covered by a stitch (spans
+  included) is backfilled with a `"no_stitch"` palette entry, appended as
+  the palette's **last** index (so no other stitch's palette index shifts).
+  Only added if at least one cell actually needs it. No `colors` entry is
+  ever written for a no-stitch cell.
+- Unconfirmed Suggest guesses (`placement.suggested === true`) are dropped
+  entirely from the export: not listed in `stitches`, not counted toward the
+  rectangle, and the `suggested` key is never written. Export-only — autosave
+  still persists pending suggestions as before, so an in-progress review
+  survives a reload untouched.
+
+**Implementation.** `noStitchCells()`/`fillNoStitchCells()` in
+`src/storage/exportImport.ts` (the latter exported for direct unit testing
+against a plain `StoredChart`, without exercising the browser-only download
+side effect); `exportChart()` filters `placement.suggested` out before
+calling `encode()`, then pipes its output through `fillNoStitchCells()`.
+
+#### File map
+
+| File | Owns |
+|---|---|
+| `src/model/types.ts` | `Worked`, `FirstRowSide`, `PatternInfo` |
+| `src/storage/serialize.ts` | `StoredChart` pattern-info fields + validators; `encode`/`decode`'s `patternInfo` param |
+| `src/storage/ChartStore.ts`, `keyValueChartStore.ts`, `supabaseChartStore.ts`, `migrateLocalCharts.ts` | Thread `patternInfo` through load/save/migration |
+| `src/state/docStore.ts` | `patternInfo` state, `setPatternInfo`, `setColorName` (not undoable) |
+| `src/storage/useAutosave.ts` | `patternInfo` in the autosave save call |
+| `src/ui/RightPanel.tsx` | Pattern info settings section; Export section's "Include reference image" checkbox |
+| `src/storage/exportImport.ts` | `includeReferenceImage`; `noStitchCells`/`fillNoStitchCells`; suggested-placement exclusion |
+
+---
+
+### Multiple reference images per chart
+
+**Context.** A chart could previously hold exactly one reference image.
+Designers working from more than one source photo (a chart spanning two
+scanned pages, or a chart photo plus a separate color-key photo) had to pick
+one. See `docs/conversations/2026-09-25-multiple-reference-images.md` for
+the full discussion and alternatives considered.
+
+**FR-49.** A chart's reference images are now `ReferenceImage[]`
+(`src/model/types.ts`) rather than a single nullable `ReferenceImage`. Each
+`ReferenceImage` carries a stable `id`, generated once at upload and reused
+as its Storage path segment (`{uid}/{chartId}/{imageId}.<ext>`), so several
+images never collide or overwrite one another.
+
+**FR-50.** Exactly one image is ever "active" (the one the reference panel,
+the interactive move/resize/calibrate tool, and the canvas overlay all
+target) at a time, tracked as `activeReferenceImageId` in `uiStore`.
+Selecting the active image happens **only** through a list in the
+reference-image panel (thumbnail + label per image, with select/add/remove);
+clicking an image on the canvas does not change the selection.
+
+**FR-51.** Adding, removing, and patching a reference image (transform,
+visibility, calibration) are all undoable, scoped by the image's `id`
+(`docStore`'s `addReferenceImage`/`removeReferenceImage`/
+`updateReferenceImage(id, patch)`). Undoing a removal restores the image at
+its original array position, not just back into existence at the end of the
+list. (Revised from the initial multi-image cut, which carried over the old
+single-image behavior of add/remove being non-undoable — deleting an image
+by mistake with no way back was worse than the inconsistency of add/remove
+behaving differently from every other document edit.) The underlying
+Storage file for a removed or replaced image is deliberately left alone
+rather than deleted immediately, so a later Undo never points at a missing
+file; it's only cleaned up if the chart itself is deleted.
+
+**FR-52.** Reference images draw in array order, split into two groups by
+each image's own `inFront` flag: every "behind" image, then the chart, then
+every "in-front" image. Array order doubles as manual z-order within each
+group — there is no separate reorder UI in v1 (new images stack on top of
+their group in upload order).
+
+**FR-53.** The export "include reference image" checkbox stays
+all-or-nothing: unchecked drops every reference image from the export,
+checked keeps all of them. No per-image export picker in v1.
+
+**Implementation.**
+- `src/model/types.ts` — `ReferenceImage.id`.
+- `src/state/docStore.ts` — `referenceImages: ReferenceImage[]` replaces the
+  singular field; `addReferenceImage`/`updateReferenceImage(id, patch)`/
+  `removeReferenceImage(id)`/`beginReferenceImageEdit(id)`; undo/redo
+  history entries carry `{ id, before, index? }` snapshots scoped to one
+  image (`before: null` for "didn't exist yet", `index` so undoing a
+  removal reinserts at its original position).
+- `src/state/uiStore.ts` — `activeReferenceImageId` + `setActiveReferenceImageId`.
+- `src/storage/serialize.ts` — `StoredChart.referenceImages` (array);
+  `decode()` lifts a legacy singular `referenceImage` (if present) into a
+  one-element array, minting an `id` for it and for any array element
+  missing one — covers every chart already saved, no separate migration
+  pass needed.
+- `src/storage/referenceImages.ts` — `uploadReferenceImage(chartId, file,
+  imageId)`'s Storage path now includes `imageId`.
+- `src/storage/ChartStore.ts`, `keyValueChartStore.ts`,
+  `supabaseChartStore.ts`, `migrateLocalCharts.ts`, `exportImport.ts`,
+  `useAutosave.ts` — `referenceImage` threaded through as `referenceImages`
+  throughout load/save/export/import/migration.
+- `src/canvas/referenceImageCache.ts`, the module-local pixel cache in
+  `src/input/useReferenceImageTool.ts`, and the exemplar cache in
+  `src/model/templateMatch.ts` — each converted from a single resident entry
+  (evicted on any ref change) to a map keyed by `ref`, so several images'
+  decoded bitmaps/pixels/exemplars can stay resident at once instead of
+  evicting each other.
+- `src/canvas/renderer.ts`, `src/canvas/CanvasView.tsx` — `RenderState`
+  takes `referenceImages`/`activeReferenceImageId`; the draw pipeline loops
+  the array for both the behind and in-front passes; the interactive overlay
+  (handles, calibration box, marks) renders only for the active image.
+- `src/input/useReferenceImageTool.ts`, `src/input/useShortcuts.ts` — the
+  drag state machine and arrow-key nudging resolve the target image via
+  `activeReferenceImageId` (each `Drag` variant carries the `imageId` it
+  started on, captured at pointerdown).
+- `src/input/usePaintTool.ts` — Suggest matches a cell against the first
+  reference image (in array order) whose bounds actually cover that cell.
+- `src/ui/ReferenceImagePanel.tsx` — the image list (add/select/remove,
+  thumbnails resolved via `resolveReferenceImageUrl`); "Replace" now uploads
+  under a fresh id and swaps it in at the same position via remove+add,
+  resetting that image's transform/calibration the same way a fresh upload
+  does.
+- `src/ui/ReferenceImageDock.tsx`, `src/ui/ReferenceMarkEditor.tsx` — operate
+  on the active image, resolved by id.
+- `src/ui/Toolbar.tsx`, `src/ui/ChartEditor.tsx`, `src/ui/RightPanel.tsx`,
+  `src/ui/ChartList.tsx` — singular presence/cleanup checks (`!!referenceImage`,
+  a single `removeReferenceImageFile` call) generalized to the array.
+
+**FR-54. Stable per-image numbering.** Each `ReferenceImage` carries a
+`number` (`src/model/types.ts`), assigned once at upload — one higher than
+any number currently in use — and never reused or reassigned afterward.
+Deleting an image does not renumber the ones that remain, and a later
+upload never reclaims a number a deletion freed up. Distinct from `id` (an
+opaque identity with no display meaning) purely so the "Image N" label a
+designer sees stays stable across deletions, which array position alone
+cannot guarantee since it shifts whenever an earlier image is removed.
+Legacy charts decode with numbers minted from array position
+(`src/storage/serialize.ts`).
+
+**FR-55. Crop to calibrated stitches.** A reference image can optionally be
+clipped, for display only, to the region spanned by its own **named**
+calibration marks — the stitches the designer has boxed and typed a
+row/stitch number for (`ReferenceImage.cropToCalibration`,
+`src/model/types.ts`). Reference photos routinely carry their own grid past
+where the actual pattern ends, and that grid fighting the app's own grid
+outside the real chart was the original motivating complaint (a photo's
+white grid border visibly overlapping the app's grid border).
+
+Deliberately keyed off the image's *own* calibration, not off the chart's
+placed-stitch bounds: an early cut computed bounds from `chartBounds()`
+(every placement's col/row extent) and clipped in that coordinate space,
+but a reference image's `x`/`y`/`width`/`height` and a chart's placement
+`col`/`row` live in unrelated coordinate spaces that can drift arbitrarily
+far apart as a chart is edited over time — the clip rectangle and the image
+routinely didn't overlap at all. Calibration marks belong to the image
+itself and are defined in the same image-fraction space (`u`/`v`/`w`/`h`,
+0..1) as the image's own render rect, so there's no coordinate mismatch to
+begin with, and an image can be calibrated (and cropped) before a single
+stitch is ever placed.
+
+Display-only and fully reversible: it never touches `x`/`y`/`width`/
+`height`, so turning it off always shows the whole image again regardless
+of whether the marked corners later turn out wrong (e.g. a corner never got
+worked). A no-op — shows the full image — until at least one mark is named.
+
+**Implementation.**
+- `src/model/referenceCalibration.ts` — `calibratedImageBounds(marks)`
+  returns the `{minU, maxU, minV, maxV}` rectangle spanning every named
+  mark's box (not just its centre, so a marked stitch isn't itself clipped
+  in half), reusing the same "named" filter (`stitch !== null && row !==
+  null`) `scaleFromCalibrationMarks` already uses for its fit. Null when
+  nothing's named yet.
+- `src/canvas/renderer.ts` — `drawReferenceImage` clips via `ctx.clip()`
+  using `image.x/y/width/height` plus that image's own
+  `calibratedImageBounds(image.calibrationMarks)`, entirely self-contained
+  per image (no `DocIndex`/`chartBounds` involved).
+- `src/ui/ReferenceImagePanel.tsx` — "Crop to calibrated stitches" checkbox
+  per active image.
+
+---
+
+### Reference image: contrast, granular calibration points, responsive dock
+
+**FR-56. Per-image contrast.** Each reference image has an optional
+`contrast` multiplier (0.5–3, absent = 1), set from a slider under Opacity in
+the reference-image panel (double-click resets). It is applied at the
+source, so the canvas drawing/export, calibration's grid-line detection and
+Suggest's stitch matching all read the same adjusted pixels. Display-side
+only: the uploaded file is never modified. (A four-way whites/highlights/
+shadows/blacks control was tried and rejected as not helping.)
+
+**FR-57. Granular calibration-point editing.** In scale setup, the selected
+calibration point can be moved (drag, arrow keys) and now also resized:
+drag any of its corner/side handles, or Alt+arrows (Shift = one stitch).
+The opposite side stays fixed, and the box is clamped to the photo and a
+minimum size. Selecting a point in the panel list now enters scale setup
+and selects it, so points stay editable after the first pass.
+
+**FR-58. Responsive reference dock (#253).** The secondary actions (Hide/
+Show, Bring to front) collapse to icons that expand on hover when the canvas
+(stage minus right panel) is under 900px, and stack in a column above Save
+changes under 640px. "Set scale" tools are the primary group and unchanged.
+Save changes remains hidden during scale setup (#246/#276).
+
+**Implementation.**
+- `src/canvas/referenceImageContrast.ts`, `referenceImageCache.ts`,
+  `useReferenceImageTool.ts`, `templateMatch.ts` — contrast applied via the
+  shared image cache and calibration pixel loader.
+- `src/model/referenceCalibration.ts` (`resizeMark`),
+  `useReferenceImageTool.ts` (`markResize`), `renderer.ts`, `useShortcuts.ts`.
+- `src/ui/ReferenceImageDock.tsx`, `src/styles.css` — layout modes.
+
+---
+
 ## Known Platform Limitations (Desktop vs iPad)
 
 QA testing (2026-09-17) split test coverage by device (Desktop / iPad) and
@@ -357,7 +1025,8 @@ not yet scheduled:
 - The `Cmd`/`Ctrl`+`Shift`+`Opt/Alt` marquee empty-cell-inclusion chord (see
   FR-21) and its two regression boundaries
 - The `Cmd`/`Ctrl`+`Opt/Alt` marquee-vs-Dismiss collision boundary (G-7)
-- `Cmd`/`Ctrl`+`Shift` range-select (two-click range completion)
+- `Cmd`/`Ctrl`+`Shift` toggle-select of individual, possibly disconnected
+  stitches (FR-56)
 - `Shift`+click additive empty-cell selection
 
 Three of these (both live-override cases and the simultaneous-block case)

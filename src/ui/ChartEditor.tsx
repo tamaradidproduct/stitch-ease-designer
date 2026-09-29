@@ -9,6 +9,7 @@ import { redoLatest, undoLatest } from "../state/editorHistory";
 import { useUiStore } from "../state/uiStore";
 import { KeyboardHintBanner } from "./KeyboardHintBanner";
 import { PanButton } from "./PanButton";
+import { PatternSettingsMenu } from "./PatternSettingsMenu";
 import { ReferenceImageDock } from "./ReferenceImageDock";
 import { ReferenceMarkEditor } from "./ReferenceMarkEditor";
 import { RightPanel } from "./RightPanel";
@@ -49,8 +50,9 @@ export function ChartEditor() {
   const canRedoSelection = useUiStore((s) => s.selectionRedoStack.length > 0);
   const canUndo = canUndoDocument || canUndoSelection;
   const canRedo = canRedoDocument || canRedoSelection;
-  const referenceImage = useDocStore((s) => s.referenceImage);
+  const referenceImages = useDocStore((s) => s.referenceImages);
   const referenceImagePanelOpen = useUiStore((s) => s.referenceImagePanelOpen);
+  const rightPanelWidth = useUiStore((s) => s.rightPanelWidth);
 
   useAutosave(chartStore);
 
@@ -65,22 +67,27 @@ export function ChartEditor() {
         // result would put the wrong chart on screen under the right URL.
         if (!cancelled) {
           // Reference-image tracing is still admin-only. A chart can carry
-          // one anyway - saved by an admin earlier, or from an imported file
-          // - so it's stripped here, at the one place charts enter the live
+          // some anyway - saved by an admin earlier, or from an imported file
+          // - so they're stripped here, at the one place charts enter the live
           // editor, rather than trusting every downstream consumer (the
-          // canvas renderer draws it regardless of which panel is open) to
+          // canvas renderer draws them regardless of which panel is open) to
           // each re-check the role themselves.
           if (useUiStore.getState().role === "admin") {
             useDocStore.getState().openChart(loaded);
           } else {
-            const { referenceImage, ...chartWithoutReferenceImage } = loaded;
-            void referenceImage;
-            useDocStore.getState().openChart(chartWithoutReferenceImage);
+            const { referenceImages, ...chartWithoutReferenceImages } = loaded;
+            void referenceImages;
+            useDocStore.getState().openChart(chartWithoutReferenceImages);
           }
           // Tools and quick slots describe the editing session, not the
           // document. A newly opened chart always starts without inheriting
           // an armed stitch, picker history, or selection from another one.
           useUiStore.getState().resetForChart();
+          // Default to the first image so the panel isn't blank on open -
+          // there's no drag-to-reorder yet, so "first" is also "oldest".
+          useUiStore
+            .getState()
+            .setActiveReferenceImageId(useDocStore.getState().referenceImages[0]?.id ?? null);
         }
       } catch (error) {
         if (cancelled) return;
@@ -168,6 +175,7 @@ export function ChartEditor() {
         ) : (
           <span className="topbar__title">Opening…</span>
         )}
+        {openMeta && <PatternSettingsMenu />}
         <SaveIndicator />
         <span className="topbar__spacer" />
         <button
@@ -219,7 +227,7 @@ export function ChartEditor() {
 
       <KeyboardHintBanner />
 
-      <main className="stage">
+      <main className="stage" style={{ paddingRight: rightPanelWidth }}>
         <CanvasView />
         <ReferenceMarkEditor />
         <RightPanel />
@@ -228,7 +236,7 @@ export function ChartEditor() {
         <SelectionActions />
         <Toolbar />
         <PanButton />
-        {referenceImagePanelOpen && referenceImage && <ReferenceImageDock />}
+        {referenceImagePanelOpen && referenceImages.length > 0 && <ReferenceImageDock />}
       </main>
       <StatusBar />
     </div>

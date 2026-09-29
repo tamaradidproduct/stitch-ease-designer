@@ -176,6 +176,50 @@ body {
   white-space: nowrap;
 }
 
+.patternSettings {
+  display: flex;
+}
+
+.patternSettings__trigger {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.patternSettings__trigger:hover,
+.patternSettings__trigger[aria-expanded="true"] {
+  border-color: var(--border);
+  background: var(--bg);
+}
+
+.patternSettings__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.patternSettings__summary {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.patternSettings__popover {
+  z-index: 30;
+  width: 240px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+
 .save--bad {
   color: #b91c1c;
   font-weight: 600;
@@ -417,6 +461,16 @@ body {
   cursor: default;
 }
 
+/* Save changes is its own pill, unbundled from the scale-setup tools, and
+   pinned to the right edge of the same lane those tools are centered in -
+   a separate, always-in-the-same-place action rather than one more button
+   in a group of tools whose count/width changes as calibration proceeds. */
+.referenceDock--save {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+}
+
 .referenceImageQuickDock {
   position: absolute;
   z-index: 18;
@@ -435,6 +489,57 @@ body {
   backdrop-filter: blur(8px);
 }
 
+/* Narrower canvases: the secondary actions (Hide / Bring to front)
+   collapse to icons that expand while the dock is hovered or focused, then,
+   when very narrow, stack in a column above Save changes. Touch screens have
+   no hover, so the icons keep their titles/aria-labels there. */
+.referenceImageQuickDock--icons .toolDock__button,
+.referenceImageQuickDock--stacked .toolDock__button:not(.referenceDock__save) {
+  min-width: 38px;
+  overflow: hidden;
+  transition:
+    width 150ms ease,
+    padding 150ms ease,
+    gap 150ms ease;
+}
+
+.referenceImageQuickDock--icons .toolDock__button span,
+.referenceImageQuickDock--stacked .toolDock__button:not(.referenceDock__save) span {
+  max-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  white-space: nowrap;
+  transition:
+    max-width 150ms ease,
+    opacity 100ms ease;
+}
+
+.referenceImageQuickDock--icons .toolDock__button,
+.referenceImageQuickDock--stacked .toolDock__button:not(.referenceDock__save) {
+  padding: 0 10px;
+  gap: 0;
+}
+
+.referenceImageQuickDock--icons:hover .toolDock__button,
+.referenceImageQuickDock--icons:focus-within .toolDock__button,
+.referenceImageQuickDock--stacked:hover .toolDock__button,
+.referenceImageQuickDock--stacked:focus-within .toolDock__button {
+  gap: 6px;
+}
+
+.referenceImageQuickDock--icons:hover .toolDock__button span,
+.referenceImageQuickDock--icons:focus-within .toolDock__button span,
+.referenceImageQuickDock--stacked:hover .toolDock__button span,
+.referenceImageQuickDock--stacked:focus-within .toolDock__button span {
+  max-width: 120px;
+  opacity: 1;
+}
+
+.referenceImageQuickDock--stacked {
+  flex-direction: column;
+  align-items: stretch;
+}
+
 .referenceDock__apply {
   border-color: var(--accent) !important;
   background: var(--accent) !important;
@@ -449,40 +554,6 @@ body {
 
 .referenceDock__cancel {
   color: var(--text-muted);
-}
-
-.referenceDock__point {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-height: 38px;
-  padding: 0 9px;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  background: var(--bg);
-  color: var(--text);
-  font: inherit;
-  font-size: 11px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.referenceDock__pointIndex {
-  display: grid;
-  width: 18px;
-  height: 18px;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--chrome);
-  color: var(--text-muted);
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.referenceDock__point[data-active="true"] {
-  border-color: var(--accent);
-  background: var(--accent-soft-bg);
-  color: var(--accent);
 }
 
 /* Deliberately shown on every platform, not just touch: (hover: hover) and
@@ -726,12 +797,110 @@ body {
   overflow: visible;
 }
 
+/* FR-31: a persistent label naming what the picker is currently editing. */
+.picker__context {
+  padding: 6px 10px 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .picker__quick {
   display: flex;
+  align-items: center;
   gap: 5px;
   padding: 7px;
   background: var(--bg);
   border-radius: 9px;
+}
+
+/* FR-30: separates the dynamic sixth tile from the five real, persisted slots. */
+.picker__quickDivider {
+  width: 1px;
+  align-self: stretch;
+  margin: 4px 1px;
+  background: var(--border);
+}
+
+.picker__quickButton[data-colored="true"] {
+  border-color: rgb(15 23 42 / 12%);
+}
+
+/*
+ * Shared color-chip affordance (FR-25/26/34 - see the colorwork spec's
+ * Consolidation section). `--recolor` is the restrictive, current-selection-
+ * only chip; `--add-only` is the permissive, mint-a-new-pen chip. Both share
+ * the small circular icon-button shell; only the inner glyph differs.
+ */
+.colorChip {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  z-index: 2;
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  /* #265: a border/fill that both matched --bg was invisible against a
+     pale, uncolored tile. A solid --border ring plus a soft drop shadow
+     reads as a control regardless of the tile's own color. */
+  border: 1.5px solid var(--border);
+  border-radius: 50%;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text-muted);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgb(15 23 42 / 20%);
+}
+
+.colorChip:hover,
+.colorChip:focus-visible,
+.colorChip[aria-expanded="true"] {
+  color: var(--accent);
+  outline: none;
+}
+
+.picker__quickColorChip {
+  right: -3px;
+  bottom: -3px;
+}
+
+.picker__itemColorChip,
+.glossary__colorChip {
+  position: static;
+  flex: none;
+  margin-left: auto;
+  border-color: transparent;
+  /* These sit inline in a list row (not overlaid on a tile), alongside
+     other flat icon buttons like .glossary__remove - the #265 affordance
+     fix is only needed where the chip floats over a stitch tile. */
+  box-shadow: none;
+}
+
+.colorPopover {
+  z-index: 30;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow:
+    0 8px 24px rgb(15 23 42 / 14%),
+    0 2px 6px rgb(15 23 42 / 8%);
+}
+
+.colorPopover__swatch {
+  border: 1px solid rgb(15 23 42 / 10%);
+  border-radius: 5px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.colorPopover__swatch:hover,
+.colorPopover__swatch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 .picker__quickButton,
@@ -741,6 +910,11 @@ body {
   height: 40px;
   place-items: center;
   border-radius: 7px;
+}
+
+.picker__quickTile {
+  position: relative;
+  flex: none;
 }
 
 .picker__quickButton {
@@ -870,15 +1044,33 @@ body {
 }
 
 .picker__moreList .picker__item {
+  display: flex;
+  align-items: center;
   min-height: 40px;
   flex: none;
-  padding: 6px 8px;
+  padding: 0;
 }
 
 .picker__moreList .picker__item:hover,
-.picker__moreList .picker__item:focus-visible {
+.picker__moreList .picker__item:focus-within {
   background: var(--accent-soft-bg);
   outline: none;
+}
+
+.picker__itemMain {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
 }
 
 .picker__selectionBubbles {
@@ -1330,6 +1522,25 @@ body {
   overflow-y: auto;
 }
 
+/* Drag-resize from the panel's own left edge - a thin hit area sitting on
+   the padding box's edge (not offset negative) so it isn't clipped by the
+   panel's own overflow-y: auto. */
+.rightPanel__resizeHandle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 6px;
+  z-index: 1;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.rightPanel__resizeHandle:hover,
+.rightPanel__resizeHandle:active {
+  background: var(--accent-soft-bg);
+}
+
 .rightPanel__bottom {
   margin-top: auto;
   flex: none;
@@ -1532,7 +1743,7 @@ body {
   flex: 1;
 }
 
-.glossary__inlineSearch svg {
+.glossary__inlineSearch > svg {
   width: 14px;
   height: 14px;
   flex: none;
@@ -1566,11 +1777,12 @@ body {
 }
 
 .glossarySearch__results {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  left: 0;
-  z-index: 5;
+  /* `position`/`left`/`top`/`width` are set inline from a measured rect
+     (see RightPanel.tsx) - `position: fixed` there is what escapes
+     `.sideModule`'s `overflow: hidden`, which otherwise clips this dropdown
+     at the glossary card's own bottom edge instead of floating it over the
+     rest of the sidebar. */
+  z-index: 30;
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -1643,6 +1855,7 @@ body {
 }
 
 .glossary__item {
+  position: relative;
   display: flex;
   width: 100%;
   align-items: center;
@@ -1666,6 +1879,30 @@ body {
   border-color: var(--accent-soft-border);
   background: var(--accent-soft-bg);
   outline: none;
+}
+
+/* #271: dropping a quick slot onto an already-occupied one pushes the
+   existing stitches along rather than filling in place, so instead of the
+   full-slot highlight above it gets a thin insertion line - in the same
+   accent-soft-border hover color - on whichever edge the stitch will land,
+   sitting in the row gap rather than overlapping either slot. */
+.glossary__item[data-insert-edge]::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent-soft-border);
+  pointer-events: none;
+}
+
+.glossary__item[data-insert-edge="before"]::after {
+  top: -4px;
+}
+
+.glossary__item[data-insert-edge="after"]::after {
+  bottom: -4px;
 }
 
 .glossary__arm {
@@ -1733,10 +1970,42 @@ body {
   flex: none;
 }
 
+/* A colored row's fill lives only on this small swatch, not the whole
+   row - a full-row tint behind the label read as too intense and made the
+   text hard to read. Same treatment for the floating picker's glyph tiles
+   (the quick row's tiles, its dynamic 6th tile, and the "more stitches"
+   drawer rows), which share this component and used to additionally paint a
+   hard-edged, full-tile fill on top of it via an inline style. */
+.glossary__glyph .glyph__cell,
+.picker__glyph .glyph__cell,
+.picker__quickButton .glyph__cell {
+  border-radius: 4px;
+}
+
 .glossary__label {
   min-width: 0;
   flex: 1;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.glossary__labelGroup {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.glossary__labelGroup .glossary__label {
+  flex: none;
+}
+
+.glossary__subtitle {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1752,6 +2021,25 @@ body {
   color: var(--text-muted);
   font-size: 10px;
   font-variant-numeric: tabular-nums;
+}
+
+.glossary__selectEntry {
+  padding: 0 5px;
+  border: 0;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.glossary__selectEntry:hover:not(:disabled),
+.glossary__selectEntry:focus-visible {
+  background: var(--accent-soft-bg);
+  color: var(--accent);
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.glossary__selectEntry:disabled {
+  cursor: default;
 }
 
 .glossary__item:hover .glossary__count,
@@ -1956,10 +2244,58 @@ body {
 
 .refpanel__quickControls {
   display: flex;
-  align-items: center;
-  justify-content: flex-end;
+  flex-direction: column;
   gap: 6px;
   padding: 0 8px 8px;
+}
+
+.refpanel__quickList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.refpanel__quickRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.refpanel__quickLabel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.refpanel__quickLabel span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.refpanel__quickBottomRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.refpanel__quickOpacityPopover {
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--chrome);
+}
+
+.refpanel__quickBottomRow .refpanel__layerButton {
+  margin-left: auto;
 }
 
 .btn.refpanel__iconButton {
@@ -1982,7 +2318,8 @@ body {
   stroke-linejoin: round;
 }
 
-.refpanel__iconButton[aria-pressed="true"] {
+.refpanel__iconButton[aria-pressed="true"],
+.refpanel__iconButton[aria-expanded="true"] {
   border-color: var(--accent);
   background: var(--accent-soft-bg);
   color: var(--accent);
@@ -2061,6 +2398,105 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.refpanel__checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.patternInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.patternInfo__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.patternInfo__label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.patternInfo__toggle {
+  display: flex;
+  gap: 6px;
+}
+
+.patternInfo__toggle button {
+  flex: 1;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.patternInfo__toggle button[data-on="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink, #fff);
+}
+
+.patternInfo__corners {
+  display: grid;
+  grid-template-columns: repeat(2, 28px);
+  grid-template-rows: repeat(2, 28px);
+  gap: 4px;
+  width: fit-content;
+}
+
+.patternInfo__corners button {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  cursor: pointer;
+}
+
+.patternInfo__corners button[data-on="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.patternInfo__colorNames {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.patternInfo__colorName {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.patternInfo__swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.patternInfo__colorName input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
 }
 
 .refpanel__error {
@@ -2422,6 +2858,140 @@ body {
 
 .signIn__form--actions button:first-child {
   flex: 1;
+}
+
+/* The image list: which of a chart's several reference images is active. */
+.refpanel__images {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.refpanel__imageList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.refpanel__imageList li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.refpanel__imageRow {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.refpanel__imageRow:hover {
+  background: var(--chrome);
+}
+
+.refpanel__imageRow[data-active="true"] {
+  border-color: var(--accent);
+}
+
+.refpanel__imageThumb {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: 4px;
+  object-fit: cover;
+  background: var(--chrome);
+}
+
+.refpanel__imageThumb--empty {
+  border: 1px dashed var(--border);
+}
+
+/* Replace/remove, right on each image's own row - every control in this
+   list acts on that specific image, so there's no separate "acts on
+   whichever is active" pair of buttons elsewhere in the panel. */
+.refpanel__imageAction {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.refpanel__imageAction:hover:not(:disabled) {
+  background: var(--chrome);
+  color: var(--text);
+}
+
+.refpanel__imageAction:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.refpanel__imageAction--danger:hover:not(:disabled) {
+  color: var(--danger);
+}
+
+.refpanel__imageAction svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Matches the glossary's own empty-slot row (`.glossary__item--empty`),
+   reused here rather than a plain text link so adding an image reads as
+   the same kind of action as adding a stitch. */
+.refpanel__addImage {
+  margin-top: 2px;
+}
+
+.refpanel__addImage:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.refpanel__helpRow {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.refpanel__helpButton {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.refpanel__helpPopover {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--chrome);
 }
 
 /* The calibration marks panel section: a status line plus its actions. */

@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { CELL, cellToScreenRect } from "../canvas/camera";
 import type { Placement } from "../model/types";
 import { patchCalibrationMark } from "../model/referenceCalibration";
+import { parseQuickSlotId } from "../model/quickSlots";
 import { registerListeners } from "./registerListeners";
 import { useDocStore } from "../state/docStore";
 import { redoLatest, undoLatest } from "../state/editorHistory";
@@ -60,6 +61,11 @@ export function useShortcuts(): void {
       if (ui.picker && !e.metaKey && !e.ctrlKey && !e.altKey && e.key.length === 1) return;
 
       const doc = useDocStore.getState();
+      const selectedPlacementsSnapshot = (): Placement[] =>
+        ui.selectedPlacementIds
+          .map((id) => doc.index.placements.get(id))
+          .filter((placement): placement is Placement => !!placement)
+          .map((placement) => ({ ...placement }));
 
       // The reference panel owns canvas input. Suppress the drawing-tool
       // shortcuts while it is engaged instead of quietly arming Draw behind
@@ -76,10 +82,11 @@ export function useShortcuts(): void {
       }
 
       if (/^[1-5]$/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
-        const symbolId = ui.quickSymbolIds[Number(e.key) - 1];
-        if (symbolId) {
+        const key = useDocStore.getState().quickSymbolIds[Number(e.key) - 1];
+        if (key) {
           e.preventDefault();
-          ui.chooseSymbol(symbolId);
+          const { symbolId, colorId } = parseQuickSlotId(key);
+          ui.chooseSymbol(symbolId, undefined, undefined, colorId);
         }
         return;
       }
@@ -132,19 +139,13 @@ export function useShortcuts(): void {
 
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "c") {
         e.preventDefault();
-        ui.setClipboardPlacements(ui.selectedPlacementIds
-          .map((id) => doc.index.placements.get(id))
-          .filter((placement): placement is Placement => !!placement)
-          .map((placement) => ({ ...placement })));
+        ui.setClipboardPlacements(selectedPlacementsSnapshot());
         return;
       }
 
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "x") {
         e.preventDefault();
-        ui.setClipboardPlacements(ui.selectedPlacementIds
-          .map((id) => doc.index.placements.get(id))
-          .filter((placement): placement is Placement => !!placement)
-          .map((placement) => ({ ...placement })));
+        ui.setClipboardPlacements(selectedPlacementsSnapshot());
         if (ui.selectedPlacementIds.length) {
           doc.erasePlacements(ui.selectedPlacementIds);
           ui.clearSelection();
@@ -166,6 +167,9 @@ export function useShortcuts(): void {
             placement.symbolId,
             placement.col + deltaCol,
             placement.row + deltaRow,
+            undefined,
+            undefined,
+            placement.colorId,
           );
         }
         doc.endStroke();
@@ -220,7 +224,7 @@ export function useShortcuts(): void {
       // mouse drag is too coarse to finish. Same conditions as dragging it
       // (see `useReferenceImageTool`) - a hidden image doesn't move either.
       if (ARROWS[e.key] && ui.referenceImagePanelOpen && !e.metaKey && !e.ctrlKey) {
-        const image = doc.referenceImage;
+        const image = doc.referenceImages.find((img) => img.id === ui.activeReferenceImageId);
         // With a mark selected, the arrows belong to it rather than to the
         // photo: a mark names one stitch out of hundreds, and lining it up
         // is finer work than a mouse drag can finish.
@@ -229,7 +233,18 @@ export function useShortcuts(): void {
           e.preventDefault();
           const step = e.shiftKey ? CELL : 1;
           const [dx, dy] = ARROWS[e.key]!;
-          doc.updateReferenceImage({
+          if (e.altKey) {
+            // Alt+arrows stretch (right/up) or shrink (left/down) the box
+            // itself, a world unit at a time (a cell with Shift).
+            doc.updateReferenceImage(image.id, {
+              calibrationMarks: patchCalibrationMark(image.calibrationMarks, active.id, {
+                w: Math.max(1 / image.width, Math.min(1 - active.u, active.w + (dx * step) / image.width)),
+                h: Math.max(1 / image.height, Math.min(1 - active.v, active.h + (dy * step) / image.height)),
+              }),
+            });
+            return;
+          }
+          doc.updateReferenceImage(image.id, {
             calibrationMarks: patchCalibrationMark(image.calibrationMarks, active.id, {
               u: Math.max(0, Math.min(1 - active.w, active.u + (dx * step) / image.width)),
               v: Math.max(0, Math.min(1 - active.h, active.v + (dy * step) / image.height)),
@@ -244,7 +259,7 @@ export function useShortcuts(): void {
           // actually happens at.
           const step = e.shiftKey ? CELL : 1;
           const [dx, dy] = ARROWS[e.key]!;
-          doc.updateReferenceImage({ x: image.x + dx * step, y: image.y + dy * step });
+          doc.updateReferenceImage(image.id, { x: image.x + dx * step, y: image.y + dy * step });
           return;
         }
       }

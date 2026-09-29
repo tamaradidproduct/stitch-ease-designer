@@ -27,6 +27,7 @@ async function migrateReferenceImage(
   const uploaded = await uploadReferenceImage(
     targetChartId,
     new File([blob], "reference-image", { type: blob.type || "image/png" }),
+    image.id,
   );
   return { ...image, ...uploaded };
 }
@@ -52,11 +53,22 @@ export async function migrateLocalCharts(
 
   for (const meta of charts) {
     try {
-      const { placements, repeats, referenceImage } = await source.load(meta.id);
+      const { placements, repeats, referenceImages, glossaryIds, quickSymbolIds, patternInfo } = await source.load(meta.id);
       const created = await target.create(meta.name);
       try {
-        const migratedImage = referenceImage ? await migrateImage(created.id, referenceImage) : undefined;
-        await target.save(created.id, placements, created.rev, repeats, migratedImage);
+        const migratedImages = await Promise.all(
+          (referenceImages ?? []).map((image) => migrateImage(created.id, image)),
+        );
+        await target.save(
+          created.id,
+          placements,
+          created.rev,
+          repeats,
+          migratedImages,
+          glossaryIds,
+          quickSymbolIds,
+          patternInfo,
+        );
       } catch (error) {
         // Otherwise a failure here - the image re-upload, or the save that
         // follows it - would leave an empty chart behind in the target

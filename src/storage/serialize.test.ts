@@ -33,6 +33,8 @@ describe("encode", () => {
       ],
       groups: [],
       repeats: [],
+      glossaryIds: ["knit", "purl"],
+      quickSymbolIds: ["knit", "purl"],
     });
     // No trace of the runtime ids anywhere in the output.
     expect(JSON.stringify(stored)).not.toContain("seed_");
@@ -47,7 +49,15 @@ describe("encode", () => {
   });
 
   it("handles an empty chart", () => {
-    expect(encode([])).toEqual(emptyChart());
+    // `emptyChart()` (a chart that's never been saved) omits
+    // glossaryIds/quickSymbolIds entirely - `encode()` (an actual save)
+    // always writes concrete values, the seeded default here since nothing
+    // was customized. The two are deliberately not the same object anymore.
+    expect(encode([])).toEqual({
+      ...emptyChart(),
+      glossaryIds: ["knit", "purl"],
+      quickSymbolIds: ["knit", "purl"],
+    });
   });
 });
 
@@ -129,8 +139,10 @@ describe("round trip", () => {
   });
 });
 
-describe("referenceImage", () => {
+describe("referenceImages", () => {
   const image: ReferenceImage = {
+    id: "image-1",
+    number: 1,
     ref: "user-1/chart-1/reference.png",
     x: -10,
     y: 5,
@@ -144,16 +156,22 @@ describe("referenceImage", () => {
   };
 
   it("round-trips unchanged", () => {
-    const stored = encode([place("knit", 0, 0)], [], image);
-    expect(stored.referenceImage).toEqual(image);
+    const stored = encode([place("knit", 0, 0)], [], [image]);
+    expect(stored.referenceImages).toEqual([image]);
     const decoded = decode(stored, known);
-    expect(decoded.referenceImage).toEqual(image);
+    expect(decoded.referenceImages).toEqual([image]);
+  });
+
+  it("round-trips several images, each independently", () => {
+    const second: ReferenceImage = { ...image, id: "image-2", ref: "user-1/chart-1/image-2.png", inFront: true };
+    const stored = encode([place("knit", 0, 0)], [], [image, second]);
+    expect(decode(stored, known).referenceImages).toEqual([image, second]);
   });
 
   it("round-trips the calibrated stitch pin, so alignment survives a reload", () => {
     const calibrated = { ...image, stitchPin: { u: 0.25, v: 0.5 } };
-    const stored = encode([place("knit", 0, 0)], [], calibrated);
-    expect(decode(stored, known).referenceImage).toEqual(calibrated);
+    const stored = encode([place("knit", 0, 0)], [], [calibrated]);
+    expect(decode(stored, known).referenceImages).toEqual([calibrated]);
   });
 
   it("round-trips calibration marks, so placing four survives a reload", () => {
@@ -166,17 +184,25 @@ describe("referenceImage", () => {
         { id: "m2", u: 0.4, v: 0.1, w: 0.02, h: 0.03, stitch: 30, row: null },
       ],
     };
-    const stored = encode([place("knit", 0, 0)], [], marked);
-    expect(decode(stored, known).referenceImage).toEqual(marked);
+    const stored = encode([place("knit", 0, 0)], [], [marked]);
+    expect(decode(stored, known).referenceImages).toEqual([marked]);
   });
 
-  it("is omitted entirely when there isn't one, not stored as null/undefined", () => {
+  it("is omitted entirely when there aren't any, not stored as an empty array", () => {
     const stored = encode([place("knit", 0, 0)]);
-    expect(stored).not.toHaveProperty("referenceImage");
-    expect(decode(stored, known)).not.toHaveProperty("referenceImage");
+    expect(stored).not.toHaveProperty("referenceImages");
+    expect(decode(stored, known).referenceImages).toEqual([]);
   });
 
-  it("rejects a malformed referenceImage", () => {
+  it("lifts a legacy singular referenceImage into a one-element array, minting an id and a number", () => {
+    const legacy = { ...image, id: undefined, number: undefined };
+    const stored = { ...encode([place("knit", 0, 0)]), referenceImage: legacy };
+    const decoded = decode(stored, known);
+    expect(decoded.referenceImages).toHaveLength(1);
+    expect(decoded.referenceImages[0]).toMatchObject({ ...image, id: expect.any(String), number: 1 });
+  });
+
+  it("rejects a malformed reference image", () => {
     const bad: Record<string, unknown> = {
       "missing ref": { ...image, ref: undefined },
       "zero width": { ...image, width: 0 },
@@ -207,7 +233,7 @@ describe("referenceImage", () => {
       },
     };
     for (const referenceImage of Object.values(bad)) {
-      const stored = { ...encode([]), referenceImage };
+      const stored = { ...encode([]), referenceImages: [referenceImage] };
       expect(() => decode(stored, known)).toThrow(ChartFormatError);
     }
   });
@@ -332,5 +358,104 @@ describe("validation", () => {
     const stored = encode([place(CABLE, -2, 5), place("purl", 0, 0)]);
     const reparsed = JSON.parse(JSON.stringify(stored));
     expect(encode(decode(reparsed, known).placements)).toEqual(stored);
+  });
+});
+
+describe("colorwork (FR-22 / storage §3)", () => {
+  const RED = "#e11d48";
+  const BLUE = "#0ea5e9";
+
+  it("an uncolored chart encodes without a colorPalette/colors key at all", () => {
+    const stored = encode([place("knit", 0, 0)]);
+    expect(stored.colorPalette).toBeUndefined();
+    expect(stored.colors).toBeUndefined();
+  });
+
+  it("stores color as a sparse list, not baked into every stitch tuple", () => {
+    const colored = { ...place("knit", 0, 0), colorId: RED };
+    const stored = encode([colored, place("purl", 1, 0)]);
+    expect(stored.colorPalette).toEqual([RED]);
+    expect(stored.colors).toEqual([[0, 0, 0]]);
+  });
+
+  it("round-trips colorId through encode/decode", () => {
+    const colored = { ...place("knit", 0, 0), colorId: RED };
+    const other = { ...place("purl", 1, 0), colorId: BLUE };
+    const stored = encode([colored, other]);
+    const decoded = decode(stored, known);
+    expect(decoded.placements.find((p) => p.col === 0)?.colorId).toBe(RED);
+    expect(decoded.placements.find((p) => p.col === 1)?.colorId).toBe(BLUE);
+  });
+
+  it("rejects a colors entry that references an out-of-bounds colorPalette index", () => {
+    const bad = { ...encode([place("knit", 0, 0)]), colorPalette: [RED], colors: [[0, 0, 5]] };
+    expect(() => decode(bad, known)).toThrow(ChartFormatError);
+  });
+});
+
+describe("glossaryIds/quickSymbolIds absent-vs-empty (storage §3)", () => {
+  it("emptyChart (never saved) omits both keys entirely", () => {
+    expect(emptyChart().glossaryIds).toBeUndefined();
+    expect(emptyChart().quickSymbolIds).toBeUndefined();
+  });
+
+  it("decode falls back to the default seed when the key is absent (a pre-colorwork chart)", () => {
+    const legacy = { v: 2, palette: [], stitches: [], groups: [], repeats: [] };
+    const decoded = decode(legacy, known);
+    expect(decoded.glossaryIds).toEqual(["knit", "purl"]);
+    expect(decoded.quickSymbolIds).toEqual(["knit", "purl"]);
+  });
+
+  it("decode preserves an explicit empty array as a deliberate clear, not the default", () => {
+    const stored = { ...emptyChart(), glossaryIds: [], quickSymbolIds: [] };
+    const decoded = decode(stored, known);
+    expect(decoded.glossaryIds).toEqual([]);
+    expect(decoded.quickSymbolIds).toEqual([]);
+  });
+
+  it("encode always writes concrete arrays once a chart is saved at all, never omitting them", () => {
+    const stored = encode([], [], undefined, [], []);
+    expect(stored.glossaryIds).toEqual([]);
+    expect(stored.quickSymbolIds).toEqual([]);
+  });
+});
+
+describe("pattern info (worked/firstRow/firstStitch/colorNames)", () => {
+  it("an unset chart encodes without any of the four keys", () => {
+    const stored = encode([place("knit", 0, 0)]);
+    expect(stored.worked).toBeUndefined();
+    expect(stored.firstRow).toBeUndefined();
+    expect(stored.firstStitch).toBeUndefined();
+    expect(stored.colorNames).toBeUndefined();
+  });
+
+  it("round-trips worked/firstRow/firstStitch/colorNames through encode/decode", () => {
+    const patternInfo = {
+      worked: "flat" as const,
+      firstRow: "RS" as const,
+      firstStitch: "bl" as const,
+      colorNames: { "#d3f3d0": "MC", "#e11d48": "CC" },
+    };
+    const stored = encode([place("knit", 0, 0)], [], undefined, [], [], patternInfo);
+    expect(stored.worked).toBe("flat");
+    expect(stored.firstRow).toBe("RS");
+    expect(stored.firstStitch).toBe("bl");
+    expect(stored.colorNames).toEqual(patternInfo.colorNames);
+
+    const decoded = decode(stored, known);
+    expect(decoded.patternInfo).toEqual(patternInfo);
+  });
+
+  it("decode returns an empty patternInfo object, never undefined, when nothing was ever set", () => {
+    expect(decode(encode([place("knit", 0, 0)]), known).patternInfo).toEqual({});
+  });
+
+  it("rejects an invalid worked, firstRow, firstStitch, or colorNames", () => {
+    expect(() => decode({ ...encode([]), worked: "sideways" }, known)).toThrow(ChartFormatError);
+    expect(() => decode({ ...encode([]), firstRow: "front" }, known)).toThrow(ChartFormatError);
+    expect(() => decode({ ...encode([]), firstStitch: "middle" }, known)).toThrow(ChartFormatError);
+    expect(() => decode({ ...encode([]), colorNames: { notahex: "MC" } }, known)).toThrow(ChartFormatError);
+    expect(() => decode({ ...encode([]), colorNames: { "#d3f3d0": "" } }, known)).toThrow(ChartFormatError);
+    expect(() => decode({ ...encode([]), colorNames: "nope" }, known)).toThrow(ChartFormatError);
   });
 });

@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
+import { DocIndex } from "../model/docIndex";
 import { SUGGEST_SYMBOL_ID } from "../state/uiStore";
+import { cellKey } from "../model/cellKey";
 import {
   constrainToStraightAxis,
   includeEmptyCells,
   isDismissable,
+  isSuggestReviewCandidate,
+  resolveGroupIds,
+  resolveUnrecognizedCellsInBounds,
   modeFor,
   resolveSuggestAction,
   shouldBlockDismissGesture,
@@ -65,6 +70,78 @@ describe("includeEmptyCells", () => {
     expect(includeEmptyCells({ ...noMods, altKey: true })).toBe(false);
     expect(includeEmptyCells({ ...noMods, metaKey: true, altKey: true })).toBe(false);
     expect(includeEmptyCells({ ...noMods, ctrlKey: true, altKey: true })).toBe(false);
+  });
+});
+
+describe("resolveGroupIds", () => {
+  it("expands a touched group once while preserving ungrouped placements", () => {
+    const index = DocIndex.from([
+      { id: "group-left", symbolId: "knit", col: 1, row: 1, groupId: "group-1" },
+      { id: "group-right", symbolId: "purl", col: 2, row: 1, groupId: "group-1" },
+      { id: "solo", symbolId: "knit", col: 4, row: 1 },
+    ]);
+
+    expect(resolveGroupIds(index, { minCol: 1, maxCol: 4, minRow: 1, maxRow: 1 }))
+      .toEqual(["group-left", "group-right", "group-left", "group-right", "solo"]);
+  });
+});
+
+describe("resolveUnrecognizedCellsInBounds", () => {
+  const bounds = { minCol: 1, maxCol: 3, minRow: 1, maxRow: 3 };
+  const noneOccupied = () => false;
+
+  it("includes an unidentified cell within the drag bounds (#268: unidentified cells marquee-select as easily as identified ones)", () => {
+    const unrecognized = new Set([cellKey(2, 2)]);
+    expect(resolveUnrecognizedCellsInBounds(unrecognized, bounds, noneOccupied)).toEqual([
+      { col: 2, row: 2 },
+    ]);
+  });
+
+  it("excludes an unidentified cell outside the drag bounds", () => {
+    const unrecognized = new Set([cellKey(9, 9)]);
+    expect(resolveUnrecognizedCellsInBounds(unrecognized, bounds, noneOccupied)).toEqual([]);
+  });
+
+  it("excludes a genuinely empty cell that was never flagged unrecognized - it stays behind the includeEmptyCells chord", () => {
+    // The set here only ever holds unidentified-marker keys; an ordinary
+    // empty cell within the same bounds simply never appears in it, so this
+    // function has nothing to return for it regardless of drag bounds.
+    const unrecognized = new Set<string>();
+    expect(resolveUnrecognizedCellsInBounds(unrecognized, bounds, noneOccupied)).toEqual([]);
+  });
+
+  it("drops a marker whose cell has since gotten a real placement", () => {
+    const unrecognized = new Set([cellKey(2, 2)]);
+    const isOccupied = (col: number, row: number) => col === 2 && row === 2;
+    expect(resolveUnrecognizedCellsInBounds(unrecognized, bounds, isOccupied)).toEqual([]);
+  });
+
+  it("leaves confirmed/identified placement selection untouched - it only ever adds empty-cell entries", () => {
+    // Identified suggestions and confirmed placements are real `Placement`s
+    // resolved via `resolveGroupIds`, never via this function, so a bounds
+    // box with no unrecognized markers in it returns nothing to merge in.
+    const unrecognized = new Set([cellKey(50, 50)]);
+    expect(resolveUnrecognizedCellsInBounds(unrecognized, bounds, noneOccupied)).toEqual([]);
+  });
+
+  it("takes the bounds-scan path when the unrecognized set outgrows the drag area, with the same result as the full-scan path", () => {
+    // A small marquee over a chart with many unread markers elsewhere
+    // shouldn't cost parsing all of them - see the function's own bounds-vs-
+    // set-size comparison. Exercises that branch specifically: bounds here
+    // (9 cells) are smaller than the set (10), the opposite of every case
+    // above.
+    const outside = Array.from({ length: 9 }, (_, i) => cellKey(100 + i, 100));
+    const unrecognized = new Set([...outside, cellKey(2, 2)]);
+    expect(resolveUnrecognizedCellsInBounds(unrecognized, bounds, noneOccupied)).toEqual([
+      { col: 2, row: 2 },
+    ]);
+  });
+
+  it("drops an occupied cell via the bounds-scan path too", () => {
+    const outside = Array.from({ length: 9 }, (_, i) => cellKey(100 + i, 100));
+    const unrecognized = new Set([...outside, cellKey(2, 2)]);
+    const isOccupied = (col: number, row: number) => col === 2 && row === 2;
+    expect(resolveUnrecognizedCellsInBounds(unrecognized, bounds, isOccupied)).toEqual([]);
   });
 });
 
@@ -151,7 +228,11 @@ describe("isDismissable", () => {
 
 describe("modeFor", () => {
   it("draws with the armed stitch when nothing is held", () => {
-    expect(modeFor(noMods, "purl", "suggest", undefined, false)).toEqual({ kind: "place", symbolId: "purl" });
+    expect(modeFor(noMods, "purl", "suggest", undefined, false)).toEqual({
+      kind: "place",
+      symbolId: "purl",
+      colorId: null,
+    });
   });
 
   it("is null when nothing is armed and no modifier is held", () => {
@@ -171,6 +252,15 @@ describe("modeFor", () => {
     expect(modeFor(noMods, "purl", "suggest", suggested, false)).toEqual({
       kind: "confirm",
       overrideSymbolId: "purl",
+      overrideColorId: null,
+    });
+  });
+
+  it("carries the armed pen's color along with the override, so replacing a suggestion keeps it colored", () => {
+    expect(modeFor(noMods, "purl", "suggest", suggested, false, "red")).toEqual({
+      kind: "confirm",
+      overrideSymbolId: "purl",
+      overrideColorId: "red",
     });
   });
 
@@ -201,8 +291,16 @@ describe("modeFor", () => {
   });
 
   it("ignores the sticky default entirely once armed away from Suggest - a real armed stitch keeps drawing normally (Gotcha G-3)", () => {
-    expect(modeFor(noMods, "purl", "confirm", undefined, false)).toEqual({ kind: "place", symbolId: "purl" });
-    expect(modeFor(noMods, "purl", "dismiss", undefined, false)).toEqual({ kind: "place", symbolId: "purl" });
+    expect(modeFor(noMods, "purl", "confirm", undefined, false)).toEqual({
+      kind: "place",
+      symbolId: "purl",
+      colorId: null,
+    });
+    expect(modeFor(noMods, "purl", "dismiss", undefined, false)).toEqual({
+      kind: "place",
+      symbolId: "purl",
+      colorId: null,
+    });
   });
 
   it("lets a literally held modifier override the sticky default live, for the duration held", () => {
@@ -246,6 +344,26 @@ describe("shouldStartDismissStroke", () => {
   });
 });
 
+describe("isSuggestReviewCandidate", () => {
+  it("defers a plain pointerdown on a pending suggestion while Suggest is armed", () => {
+    expect(isSuggestReviewCandidate(SUGGEST_SYMBOL_ID, suggested, false)).toBe(true);
+  });
+
+  it("does not defer when the target isn't a pending suggestion", () => {
+    expect(isSuggestReviewCandidate(SUGGEST_SYMBOL_ID, confirmed, false)).toBe(false);
+    expect(isSuggestReviewCandidate(SUGGEST_SYMBOL_ID, undefined, false)).toBe(false);
+  });
+
+  it("does not defer when Suggest itself isn't armed", () => {
+    expect(isSuggestReviewCandidate("purl", suggested, false)).toBe(false);
+    expect(isSuggestReviewCandidate(null, suggested, false)).toBe(false);
+  });
+
+  it("does not defer a Shift-click, which keeps its own additive-selection meaning", () => {
+    expect(isSuggestReviewCandidate(SUGGEST_SYMBOL_ID, suggested, true)).toBe(false);
+  });
+});
+
 describe("strokeKey", () => {
   it("distinguishes different armed symbols from each other", () => {
     expect(strokeKey({ kind: "place", symbolId: "purl" })).not.toBe(
@@ -275,5 +393,11 @@ describe("strokeKey", () => {
     // "place:confirm" would be a real (if odd) symbol id; the actual
     // confirm mode's key must still be distinguishable from it.
     expect(strokeKey({ kind: "confirm" })).not.toBe(strokeKey({ kind: "place", symbolId: "confirm" }));
+  });
+
+  it("distinguishes overrides that differ only by color", () => {
+    expect(strokeKey({ kind: "confirm", overrideSymbolId: "purl", overrideColorId: "red" })).not.toBe(
+      strokeKey({ kind: "confirm", overrideSymbolId: "purl", overrideColorId: "blue" }),
+    );
   });
 });

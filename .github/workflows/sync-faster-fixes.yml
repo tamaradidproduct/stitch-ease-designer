@@ -1,0 +1,37 @@
+name: Sync Faster Fixes to Airtable
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: faster-fixes-airtable-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Sync feedback into Airtable Findings
+        run: |
+          if [ -z "$FASTER_FIXES_AGENT_TOKEN" ] || [ -z "$AIRTABLE_TOKEN" ]; then
+            echo "::warning::FASTER_FIXES_AGENT_TOKEN and AIRTABLE_TOKEN must be configured; skipping sync"
+            exit 0
+          fi
+          node scripts/sync-faster-fixes-to-airtable.mjs
+        env:
+          FASTER_FIXES_AGENT_TOKEN: ${{ secrets.FASTER_FIXES_AGENT_TOKEN }}
+          FASTER_FIXES_PROJECT_ID: ${{ vars.VITE_FASTERFIXES_PROJECT_ID }}
+          AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
+          AIRTABLE_BASE_ID: appAINJtS6btK4dyo
+          AIRTABLE_TABLE_ID: tblsXY4HhYu3LJj0n

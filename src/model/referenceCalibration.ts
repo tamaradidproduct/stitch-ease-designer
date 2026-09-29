@@ -1,5 +1,5 @@
 import { CELL } from "../canvas/camera";
-import { markCentre, type CalibrationMark, type ReferenceImage } from "./types";
+import { markCentre, handleSigns, type BoxHandle, type CalibrationMark, type ReferenceImage } from "./types";
 
 /** Smallest the fit is allowed to scale an image to, in world units: one cell. */
 const MIN_SIZE = 24;
@@ -108,6 +108,35 @@ export function scaleFromCalibrationMarks(
 const clamp01 = (n: number): number => Math.max(0, Math.min(1, n));
 
 /**
+ * The rectangle, in image-fraction space (0..1, same units as a mark's own
+ * `u`/`v`/`w`/`h`), spanning every *named* mark on the image - the stitches
+ * the designer has boxed and typed a row/stitch number for, not just boxed.
+ * An unnamed box isn't a confirmed corner yet, so it's excluded the same way
+ * `scaleFromCalibrationMarks` excludes it from the fit.
+ *
+ * Null when nothing is named yet - an image with no confirmed stitches has
+ * no known region to crop to.
+ */
+export function calibratedImageBounds(
+  marks: CalibrationMark[],
+): { minU: number; maxU: number; minV: number; maxV: number } | null {
+  const named = marks.filter((m) => m.stitch !== null && m.row !== null);
+  if (!named.length) return null;
+
+  let minU = Infinity;
+  let maxU = -Infinity;
+  let minV = Infinity;
+  let maxV = -Infinity;
+  for (const m of named) {
+    minU = Math.min(minU, m.u);
+    maxU = Math.max(maxU, m.u + m.w);
+    minV = Math.min(minV, m.v);
+    maxV = Math.max(maxV, m.v + m.h);
+  }
+  return { minU, maxU, minV, maxV };
+}
+
+/**
  * Nudges a candidate image position so the calibrated stitch lands squarely
  * on a grid cell.
  *
@@ -151,3 +180,37 @@ export const withoutCalibrationMark = (
   marks: CalibrationMark[] | undefined,
   id: string,
 ): CalibrationMark[] => (marks ?? []).filter((m) => m.id !== id);
+
+/**
+ * `mark` with the side(s) named by `handle` moved to `cursor` (an image
+ * fraction, 0..1 from the bottom-left), the opposite side(s) held still.
+ * Clamped to the photo and to a minimum size, so a box can be shrunk or
+ * stretched onto exactly the stitch it names without ever collapsing or
+ * leaving the image. An edge handle only touches its own axis.
+ */
+export function resizeMark(
+  mark: Pick<CalibrationMark, "u" | "v" | "w" | "h">,
+  handle: BoxHandle,
+  cursor: { u: number; v: number },
+  minW: number,
+  minH: number,
+): Pick<CalibrationMark, "u" | "v" | "w" | "h"> {
+  const { sx, sy } = handleSigns(handle);
+  let left = mark.u;
+  let right = mark.u + mark.w;
+  let bottom = mark.v;
+  let top = mark.v + mark.h;
+  const cu = Math.max(0, Math.min(1, cursor.u));
+  const cv = Math.max(0, Math.min(1, cursor.v));
+  if (sx === -1) left = Math.min(cu, right - minW);
+  if (sx === 1) right = Math.max(cu, left + minW);
+  if (sy === -1) bottom = Math.min(cv, top - minH);
+  if (sy === 1) top = Math.max(cv, bottom + minH);
+  // The min-size floor can push a side past the photo edge; pull the
+  // moving side back inside rather than the fixed one.
+  left = Math.max(0, left);
+  bottom = Math.max(0, bottom);
+  right = Math.min(1, right);
+  top = Math.min(1, top);
+  return { u: left, v: bottom, w: right - left, h: top - bottom };
+}

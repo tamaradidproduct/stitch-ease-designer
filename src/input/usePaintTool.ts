@@ -1,11 +1,12 @@
 import { type RefObject, useEffect } from "react";
 import { type Cell, screenToCell, screenToInsertCell } from "../canvas/camera";
 import { RULER } from "../canvas/theme";
-import { DocIndex } from "../model/docIndex";
-import { cellKey, parseCellKey } from "../model/cellKey";
+import { type CellBounds, DocIndex } from "../model/docIndex";
+import { cellKey, parseCellKey, unoccupiedCellsFromKeys } from "../model/cellKey";
 import { stitchGroups } from "../model/stitchNumbers";
 import { insertTargetCol } from "../model/ops";
 import { getSharedReferenceImageCache } from "../canvas/referenceImageCache";
+import { effectiveContrast } from "../canvas/referenceImageContrast";
 import { cellWithinReferenceImage, cropReferenceImageCell } from "../canvas/referenceImageCrop";
 import { binarizeCrop, extractExemplars, matchCandidateStitch } from "../model/templateMatch";
 import { useDocStore } from "../state/docStore";
@@ -86,16 +87,71 @@ export function straightLineCells(from: Cell, to: Cell): Cell[] {
  * instead of each needing its own copy of it.
  */
 export type StrokeMode =
-  | { kind: "place"; symbolId: string }
+  | { kind: "place"; symbolId: string; colorId?: string | null }
   | { kind: "suggest" }
-  | { kind: "confirm"; overrideSymbolId?: string }
+  | { kind: "confirm"; overrideSymbolId?: string; overrideColorId?: string | null }
   | { kind: "erase" };
 
 /** Identifies a mode for the "is this a continuation of the same stroke" check - see `lastDrawn`. */
 export function strokeKey(mode: StrokeMode): string {
-  if (mode.kind === "place") return `place:${mode.symbolId}`;
-  if (mode.kind === "confirm") return `confirm:${mode.overrideSymbolId ?? ""}`;
+  if (mode.kind === "place") return `place:${mode.symbolId}:${mode.colorId ?? ""}`;
+  if (mode.kind === "confirm") return `confirm:${mode.overrideSymbolId ?? ""}:${mode.overrideColorId ?? ""}`;
   return mode.kind;
+}
+
+/**
+ * Expand queried placements to whole-group ids, resolving each group's
+ * membership once per call. If multiple queried placements belong to the same
+ * group, their shared members are returned each time; callers that need unique
+ * ids must dedupe afterward.
+ */
+export function resolveGroupIds(index: DocIndex, bounds: CellBounds): string[] {
+  const resolvedGroups = new Map<string, string[]>();
+  return index.query(bounds).flatMap((placement) => {
+    if (!placement.groupId) return [placement.id];
+    let members = resolvedGroups.get(placement.groupId);
+    if (!members) {
+      members = index.groupMembers(placement.groupId).map((member) => member.id);
+      resolvedGroups.set(placement.groupId, members);
+    }
+    return members;
+  });
+}
+
+/**
+ * Unidentified Suggest markers (`referenceImageUnrecognized`) within a
+ * marquee's bounds that don't already have a placement. A marker is a
+ * UI-side flag, not a `Placement`, so `resolveGroupIds` above never sees it
+ * - but a plain Cmd/Ctrl-drag should sweep one in just as easily as it does
+ * an identified suggestion, rather than requiring the deliberate
+ * `includeEmptyCells` chord that genuinely empty cells need (#268). They
+ * have no placement id of their own, so callers fold the result into
+ * `selectedEmptyCells`, matching the convention already used elsewhere for
+ * folding them into a selection (`SuggestReviewMenu`'s "Replace all").
+ */
+export function resolveUnrecognizedCellsInBounds(
+  unrecognized: ReadonlySet<string>,
+  bounds: CellBounds,
+  isOccupied: (col: number, row: number) => boolean,
+): Cell[] {
+  // Called on every pointermove while marqueeing, so the walk has to stay
+  // cheap for a large `unrecognized` set: a small drag over a big chart
+  // should cost the marquee's own area, not the whole document's unread
+  // markers. Below that crossover, parsing every key (as before) is still
+  // the cheaper of the two.
+  const boundsArea = (bounds.maxCol - bounds.minCol + 1) * (bounds.maxRow - bounds.minRow + 1);
+  if (boundsArea >= unrecognized.size) {
+    return unoccupiedCellsFromKeys(unrecognized, isOccupied).filter(
+      (c) => c.col >= bounds.minCol && c.col <= bounds.maxCol && c.row >= bounds.minRow && c.row <= bounds.maxRow,
+    );
+  }
+  const cells: Cell[] = [];
+  for (let col = bounds.minCol; col <= bounds.maxCol; col++) {
+    for (let row = bounds.minRow; row <= bounds.maxRow; row++) {
+      if (unrecognized.has(cellKey(col, row)) && !isOccupied(col, row)) cells.push({ col, row });
+    }
+  }
+  return cells;
 }
 
 /**
@@ -157,12 +213,13 @@ export function resolveSuggestAction(
  * a fixed "suggest" sticky value, which is a no-op default that only a live
  * modifier can turn into anything.
  *
- * A real armed stitch (not Suggest itself) rides along as `overrideSymbolId`
- * - confirming a suggestion as that specific stitch instead of whatever it
- * was guessed as. That override needs no modifier at all: landing on a
- * suggestion - by click or by dragging across it - confirms it as that
- * stitch outright, and takes precedence over everything below (pre-existing
- * behavior, unaffected by this feature - see FR-11).
+ * A real armed stitch (not Suggest itself) rides along as `overrideSymbolId`,
+ * with its armed color as `overrideColorId` - confirming a suggestion as that
+ * specific stitch (and color) instead of whatever it was guessed as. That
+ * override needs no modifier at all: landing on a suggestion - by click or by
+ * dragging across it - confirms it as that stitch outright, and takes
+ * precedence over everything below (pre-existing behavior, unaffected by
+ * this feature - see FR-11).
  */
 export function modeFor(
   e: { metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey: boolean },
@@ -170,6 +227,7 @@ export function modeFor(
   suggestAction: SuggestAction,
   target: { suggested?: boolean } | undefined,
   unrecognized: boolean,
+  activeColor: string | null = null,
 ): StrokeMode | null {
   const targetIsSuggested = !!target?.suggested;
   const confirmHeld = e.metaKey || e.ctrlKey;
@@ -195,7 +253,7 @@ export function modeFor(
   const overrideSymbolId =
     armedSymbolId && armedSymbolId !== SUGGEST_SYMBOL_ID ? armedSymbolId : null;
   if (targetIsSuggested && overrideSymbolId) {
-    return { kind: "confirm", overrideSymbolId };
+    return { kind: "confirm", overrideSymbolId, overrideColorId: activeColor };
   }
 
   const effective = resolveSuggestAction(
@@ -208,7 +266,7 @@ export function modeFor(
   if (effective === "confirm") return targetIsSuggested ? { kind: "confirm" } : null;
   if (effective === "dismiss") return isDismissable(target, unrecognized) ? { kind: "erase" } : null;
   if (armedSymbolId === SUGGEST_SYMBOL_ID) return { kind: "suggest" };
-  if (armedSymbolId) return { kind: "place", symbolId: armedSymbolId };
+  if (armedSymbolId) return { kind: "place", symbolId: armedSymbolId, colorId: activeColor };
   return null;
 }
 
@@ -233,6 +291,22 @@ export function shouldStartDismissStroke(
     !e.shiftKey &&
     !e.altKey;
   return !confirmHeld && (dismissHeld || stickyDismiss);
+}
+
+/**
+ * FR-41 (#225): whether a pointerdown on `existing` should be deferred as a
+ * review-vs-drag candidate rather than immediately starting a move. Only
+ * Suggest armed, landing on its own still-pending guess, with no selection
+ * modifier held - every other combination (a real stitch armed and
+ * confirming it, Shift's additive toggle, a confirmed/hand-drawn stitch)
+ * keeps the existing move-or-open-picker behavior untouched.
+ */
+export function isSuggestReviewCandidate(
+  armedSymbolId: string | null,
+  existing: { suggested?: boolean } | undefined,
+  shiftKey: boolean,
+): boolean {
+  return armedSymbolId === SUGGEST_SYMBOL_ID && !!existing?.suggested && !shiftKey;
 }
 
 /**
@@ -314,6 +388,12 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
     let selectionPointerDown: { x: number; y: number } | null = null;
     const DRAG_THRESHOLD_PX = 5;
     let movingSelection = false;
+    // A pointerdown on a pending Suggest guess is ambiguous until the
+    // gesture resolves: a click reviews it, a drag paints a fresh Suggest
+    // stroke across it. Deferred here instead of immediately becoming a
+    // move (see FR-41) - the bug #225 fixed, where dragging across a
+    // suggestion silently relocated it instead of leaving it in place.
+    let suggestReviewCandidate: { id: string; start: Cell; mode: StrokeMode | null } | null = null;
     let constrainedStroke = false;
     let straightAxis: StraightAxis | null = null;
     let lastDrawn: { cell: Cell; key: string } | null = null;
@@ -332,7 +412,6 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
     // so reuse this snapshot across that gesture instead of rebuilding it
     // after each placement has incremented the document revision.
     let suggestExemplars: ReturnType<typeof extractExemplars> | null = null;
-    let suggestExemplarImageRef: string | null = null;
 
     const finishSuggestBatch = () => {
       if (suggestBatchCells.length) {
@@ -347,7 +426,6 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       }
       suggestBatchCells = [];
       suggestExemplars = null;
-      suggestExemplarImageRef = null;
     };
 
     const cellAt = (e: PointerEvent | MouseEvent): Cell | null => {
@@ -386,14 +464,25 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       // Suggest never overwrites an existing stitch (confirmed or pending).
       // Skipping it here also avoids unnecessary image processing.
       if (doc().index.placementAt(cell.col, cell.row)) return;
-      const refImage = doc().referenceImage;
-      if (!refImage || !cellWithinReferenceImage(refImage, cell.col, cell.row)) return;
-      const cachedImg = getSharedReferenceImageCache().get(refImage.ref);
+      // A chart can carry more than one reference image now; the first
+      // (in array order) that actually covers this cell is the one Suggest
+      // matches against, same as if there were only ever one.
+      const refImage = doc().referenceImages.find((img) => cellWithinReferenceImage(img, cell.col, cell.row));
+      if (!refImage) return;
+      const cachedImg = getSharedReferenceImageCache().get(refImage.ref, effectiveContrast(refImage));
       if (!cachedImg) return;
 
-      if (!suggestExemplars || suggestExemplarImageRef !== refImage.ref) {
-        suggestExemplars = extractExemplars(doc().index, refImage, cachedImg, doc().revision);
-        suggestExemplarImageRef = refImage.ref;
+      if (!suggestExemplars) {
+        // Pooled across every reference image on the chart, not just this
+        // one - a stitch confirmed while tracing a different image still
+        // counts as taught (see extractExemplars).
+        suggestExemplars = extractExemplars(
+          doc().index,
+          doc().referenceImages,
+          (img) => getSharedReferenceImageCache().get(img.ref, effectiveContrast(img)),
+          doc().revision,
+          (ref) => getSharedReferenceImageCache().isReady(ref),
+        );
       }
       const crop = cropReferenceImageCell(refImage, cachedImg, cell.col, cell.row, 32);
       const grid = binarizeCrop(crop);
@@ -401,7 +490,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       const key = cellKey(cell.col, cell.row);
 
       if (match.symbolId) {
-        doc().place(match.symbolId, cell.col, cell.row, true, match.confidence);
+        doc().place(match.symbolId, cell.col, cell.row, true, match.confidence, match.colorId);
         ui().setReferenceImageUnrecognized(key, false);
       } else {
         ui().setReferenceImageUnrecognized(key, true);
@@ -414,14 +503,18 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
      * elsewhere, so dragging loosely across a row only ever touches the
      * cells that were actually pending review. With `overrideSymbolId` (a
      * real stitch armed alongside Cmd/Ctrl), the suggestion is replaced with
-     * that stitch and confirmed in the same step, rather than accepted as
-     * whatever it was originally guessed to be.
+     * that stitch - and its armed color, `overrideColorId` - confirmed in
+     * the same step, rather than accepted as whatever it was originally
+     * guessed to be.
      */
-    const confirmAt = (cell: Cell, overrideSymbolId?: string) => {
+    const confirmAt = (cell: Cell, overrideSymbolId?: string, overrideColorId?: string | null) => {
       const target = doc().index.placementAt(cell.col, cell.row);
       if (!target?.suggested) return;
-      if (overrideSymbolId && overrideSymbolId !== target.symbolId) {
-        doc().replacePlacements([target.id], overrideSymbolId);
+      if (
+        overrideSymbolId &&
+        (overrideSymbolId !== target.symbolId || (overrideColorId ?? null) !== (target.colorId ?? null))
+      ) {
+        doc().replacePlacements([target.id], overrideSymbolId, overrideColorId);
       } else {
         doc().acceptSuggestions([target.id]);
       }
@@ -454,25 +547,33 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
     /** Applies `mode` to one cell - the shared body Draw, Suggest, confirm, and erase all paint through. */
     const applyMode = (mode: StrokeMode, cell: Cell) => {
       switch (mode.kind) {
-        case "place":
+        case "place": {
           // Overwrite Safety Block: freehand drawing never overwrites a
           // cell that already holds a placement (confirmed or suggested) -
           // it's skipped, and the rest of the drag keeps going.
           if (doc().index.placementAt(cell.col, cell.row)) return;
-          doc().place(mode.symbolId, cell.col, cell.row);
           // An unreadable cell has no placement to trip the block above, so
-          // a drag can land here too - clear the stale mark rather than
-          // leaving it flagged as unread under a stitch that's now there.
-          {
-            const key = cellKey(cell.col, cell.row);
-            if (ui().referenceImageUnrecognized.has(key)) ui().setReferenceImageUnrecognized(key, false);
-          }
+          // a drag can land here too - clear the stale mark (undoably, via
+          // `place`'s `unrecognizedKeyCleared`) rather than leaving it
+          // flagged as unread under a stitch that's now there (#285).
+          const key = cellKey(cell.col, cell.row);
+          const unrecognizedKeyCleared = ui().referenceImageUnrecognized.has(key) ? key : undefined;
+          doc().place(
+            mode.symbolId,
+            cell.col,
+            cell.row,
+            undefined,
+            undefined,
+            mode.colorId,
+            unrecognizedKeyCleared,
+          );
           return;
+        }
         case "suggest":
           matchAndPlace(cell);
           return;
         case "confirm":
-          confirmAt(cell, mode.overrideSymbolId);
+          confirmAt(cell, mode.overrideSymbolId, mode.overrideColorId);
           return;
         case "erase":
           eraseAt(cell);
@@ -550,24 +651,13 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       return cells;
     };
 
-    /** Every placement id (whole groups) and empty cell inside the rectangle between `a` and `b`, inclusive - the click-then-Shift-click gap fill (nothing armed) and the Cmd/Ctrl+Shift click-then-click range select. */
+    /** Every placement id (whole groups) and empty cell inside the rectangle between `a` and `b`, inclusive - the click-then-Shift-click gap fill (nothing armed). */
     const cellsInBoundingBox = (a: Cell, b: Cell): { ids: string[]; emptyCells: Cell[] } => {
       const minCol = Math.min(a.col, b.col);
       const maxCol = Math.max(a.col, b.col);
       const minRow = Math.min(a.row, b.row);
       const maxRow = Math.max(a.row, b.row);
-      const resolvedGroups = new Map<string, string[]>();
-      const ids = doc()
-        .index.query({ minCol, maxCol, minRow, maxRow })
-        .flatMap((placement) => {
-          if (!placement.groupId) return [placement.id];
-          let members = resolvedGroups.get(placement.groupId);
-          if (!members) {
-            members = doc().index.groupMembers(placement.groupId).map((member) => member.id);
-            resolvedGroups.set(placement.groupId, members);
-          }
-          return members;
-        });
+      const ids = resolveGroupIds(doc().index, { minCol, maxCol, minRow, maxRow });
       const emptyCells: Cell[] = [];
       for (let col = minCol; col <= maxCol; col++) {
         for (let row = minRow; row <= maxRow; row++) {
@@ -610,6 +700,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         x: e.clientX - rect.left + 8,
         y: e.clientY - rect.top + 8,
         currentSymbolId: placement.symbolId,
+        ...(placement.colorId ? { currentColorId: placement.colorId } : {}),
         selectionIds: ids,
         selectionSpan: doc().index.spanOf(placement),
         reviewingSuggestion: !!placement.suggested,
@@ -653,6 +744,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
               ui().suggestAction,
               targetAtPickerCell,
               ui().referenceImageUnrecognized.has(cellKey(pickerCell.col, pickerCell.row)),
+              ui().activeColor,
             )
           : null;
 
@@ -748,6 +840,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         ui().suggestAction,
         existingAtCell,
         ui().referenceImageUnrecognized.has(cellKey(cell.col, cell.row)),
+        ui().activeColor,
       );
       const startsDismissStroke = shouldStartDismissStroke(e, ui().armedSymbolId, ui().suggestAction);
 
@@ -910,7 +1003,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         const armed = ui().armedSymbolId;
         if (armed) {
           const insertedCol = insertTargetCol(doc().index, armed, target.col, target.row);
-          doc().insertPlacement(armed, target.col, target.row);
+          doc().insertPlacement(armed, target.col, target.row, ui().activeColor);
           if (insertedCol !== null) {
             ui().setInsertAnimation({ col: insertedCol, row: target.row });
           }
@@ -924,6 +1017,18 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
             insert: true,
           });
         }
+        return;
+      }
+
+      // Suggest armed, landing on its own pending guess (FR-41): a plain
+      // move-on-drag here would silently relocate the suggestion instead of
+      // painting a new Suggest stroke across the cells the pointer actually
+      // crosses. Defer to the first real movement instead of deciding now.
+      if (existing && isSuggestReviewCandidate(ui().armedSymbolId, existing, e.shiftKey)) {
+        e.preventDefault();
+        suggestReviewCandidate = { id: existing.id, start: cell, mode: modeHere };
+        last = cell;
+        canvas.setPointerCapture(e.pointerId);
         return;
       }
 
@@ -976,7 +1081,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         last = null;
         constrainedStroke = canDrawStraight;
         straightAxis = null;
-        currentMode = { kind: "place", symbolId: unreadableOverride };
+        currentMode = { kind: "place", symbolId: unreadableOverride, colorId: ui().activeColor };
         canvas.setPointerCapture(e.pointerId);
         doc().beginStroke();
         paint(cell);
@@ -1029,6 +1134,34 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
     };
 
     const onPointerMove = (e: PointerEvent) => {
+      if (suggestReviewCandidate) {
+        const cell = cellAt(e);
+        if (!cell) return;
+        const { start, mode } = suggestReviewCandidate;
+        if (cell.col === start.col && cell.row === start.row) return;
+        // Real movement resolves the ambiguity as a Suggest stroke (#225):
+        // paint from the origin cell - a no-op there, since Suggest never
+        // overwrites an existing placement - through wherever the pointer
+        // has reached so far.
+        suggestReviewCandidate = null;
+        painting = true;
+        last = null;
+        constrainedStroke = false;
+        straightAxis = null;
+        currentMode = mode;
+        doc().beginStroke();
+        paint(start);
+        currentMode = modeFor(
+          e,
+          ui().armedSymbolId,
+          ui().suggestAction,
+          doc().index.placementAt(cell.col, cell.row),
+          ui().referenceImageUnrecognized.has(cellKey(cell.col, cell.row)),
+          ui().activeColor,
+        );
+        paint(cell);
+        return;
+      }
       if (movingSelection) {
         const cell = cellAt(e);
         if (!cell || !selectionStart) return;
@@ -1061,18 +1194,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         // once per matched placement: a marquee over many members of one
         // large group would otherwise re-walk that group's full membership
         // set once per member it happens to cross.
-        const resolvedGroups = new Map<string, string[]>();
-        const ids = doc()
-          .index.query({ minCol, maxCol, minRow, maxRow })
-          .flatMap((placement) => {
-            if (!placement.groupId) return [placement.id];
-            let members = resolvedGroups.get(placement.groupId);
-            if (!members) {
-              members = doc().index.groupMembers(placement.groupId).map((member) => member.id);
-              resolvedGroups.set(placement.groupId, members);
-            }
-            return members;
-          });
+        const ids = resolveGroupIds(doc().index, { minCol, maxCol, minRow, maxRow });
         const nextIds = [...new Set([...selectionBaseline, ...ids])];
 
         // Empty cells join a marquee only for the deliberate Cmd/Ctrl+
@@ -1093,6 +1215,26 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
             }
           }
           nextEmptyCells = [...emptyCells.values()];
+        }
+        // Unlike the includeEmptyCells chord above, unidentified Suggest
+        // markers always join the marquee - see `resolveUnrecognizedCellsInBounds`.
+        // Skipped when that chord is already active: its loop above just
+        // added every unoccupied cell in bounds to `nextEmptyCells`, and an
+        // unrecognized cell is by definition unoccupied, so it's already in
+        // there - resolving it again would just re-derive the same subset.
+        if (!includeEmptyCells(e)) {
+          const unrecognizedInBounds = resolveUnrecognizedCellsInBounds(
+            ui().referenceImageUnrecognized,
+            { minCol, maxCol, minRow, maxRow },
+            (col, row) => !!doc().index.placementAt(col, row),
+          );
+          if (unrecognizedInBounds.length) {
+            const emptyCells = new Map<string, Cell>(
+              nextEmptyCells.map((c) => [cellKey(c.col, c.row), c]),
+            );
+            for (const c of unrecognizedInBounds) emptyCells.set(cellKey(c.col, c.row), c);
+            nextEmptyCells = [...emptyCells.values()];
+          }
         }
         // Marquee previews update continuously but become one undoable
         // selection action only when the pointer is released.
@@ -1115,6 +1257,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
           ui().suggestAction,
           targetHere,
           ui().referenceImageUnrecognized.has(cellKey(cell.col, cell.row)),
+          ui().activeColor,
         );
       }
       if (pendingShiftFill) {
@@ -1143,6 +1286,17 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
     };
 
     const endStroke = (e: PointerEvent) => {
+      if (suggestReviewCandidate) {
+        const candidate = suggestReviewCandidate;
+        suggestReviewCandidate = null;
+        last = null;
+        if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
+        // Never moved - a genuine click on the suggestion, so open it for
+        // review instead of the Suggest stroke a real drag would have been.
+        const ids = selectExisting(candidate.id, false);
+        openPickerForSingleSelection(ids, e, false);
+        return;
+      }
       if (movingSelection) {
         const move = ui().selectionMove;
         const moved = !!move && (move.col !== 0 || move.row !== 0);
@@ -1183,18 +1337,13 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
           ui().setSelection(finalIds, finalEmptyCells, true);
         } else {
           if (selectionAdditive) {
-            // Cmd+Shift: the first click on a cell toggles it into the pool
-            // and becomes a range anchor; a second Cmd+Shift click on
-            // another cell completes a bounding-box select instead of just
-            // toggling that one too.
-            const anchor = ui().selectionAnchor;
-            if (anchor && (anchor.col !== start.col || anchor.row !== start.row)) {
-              const { ids, emptyCells } = cellsInBoundingBox(anchor, start);
-              ui().setSelection(ids, emptyCells, true);
-              ui().setSelectionAnchor(null);
-            } else if (existing) {
-              const ids = selectExisting(existing.id, true);
-              ui().setSelectionAnchor(ids.includes(existing.id) ? start : null);
+            // Cmd+Shift always toggles just the clicked cell into/out of the
+            // selection - it never completes a range. That's Shift alone's
+            // job (the click-then-Shift-click gap fill above, and marquee
+            // drag); Cmd+Shift is how a designer builds up a selection of
+            // disconnected stitches one at a time (#270, #269).
+            if (existing) {
+              selectExisting(existing.id, true);
             } else {
               const emptyCells = ui().selectedEmptyCells;
               const key = cellKey(start.col, start.row);
@@ -1203,7 +1352,6 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
                 ? emptyCells.filter((cell) => cellKey(cell.col, cell.row) !== key)
                 : [...emptyCells, start];
               ui().setSelectedEmptyCells(nextEmpty);
-              ui().setSelectionAnchor(exists ? null : start);
             }
           } else if (existing) {
             const ids = selectExisting(existing.id, false);
@@ -1216,12 +1364,14 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
               // regardless of what's armed, since Cmd always means "select."
               ui().setSelectedEmptyCells([start]);
               const rect = getRect();
+              const unreadable = ui().referenceImageUnrecognized.has(cellKey(start.col, start.row));
               ui().openPicker({
                 col: start.col,
                 row: start.row,
                 x: e.clientX - rect.left + 8,
                 y: e.clientY - rect.top + 8,
                 selectionEmptyCells: [start],
+                ...(unreadable ? { reviewingSuggestion: true } : null),
               });
             } else if (ui().tool === "select") {
               // Parked in the Select tool (not via Cmd): a quick single
@@ -1231,16 +1381,18 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
               if (armed === SUGGEST_SYMBOL_ID) {
                 applyMode({ kind: "suggest" }, start);
                 finishSuggestBatch();
-              } else if (armed) doc().place(armed, start.col, start.row);
+              } else if (armed) doc().place(armed, start.col, start.row, undefined, undefined, ui().activeColor);
               else {
                 ui().setSelectedEmptyCells([start]);
                 const rect = getRect();
+                const unreadable = ui().referenceImageUnrecognized.has(cellKey(start.col, start.row));
                 ui().openPicker({
                   col: start.col,
                   row: start.row,
                   x: e.clientX - rect.left + 8,
                   y: e.clientY - rect.top + 8,
                   selectionEmptyCells: [start],
+                  ...(unreadable ? { reviewingSuggestion: true } : null),
                 });
               }
             }
@@ -1316,7 +1468,8 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         row: cell.row,
         x: e.clientX - rect.left + 8,
         y: e.clientY - rect.top + 8,
-        ...(existing ? { currentSymbolId: existing.symbolId } : null),
+        ...(existing ? { currentSymbolId: existing.symbolId } : {}),
+        ...(existing?.colorId ? { currentColorId: existing.colorId } : {}),
       });
     };
 

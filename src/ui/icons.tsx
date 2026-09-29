@@ -62,3 +62,13 @@ export function CloseIcon({ width, height, strokeWidth }: IconProps) {
     </svg>
   );
 }
+
+export function DragHandleIcon({ width, height }: Pick<IconProps, "width" | "height">) {
+  return (
+    <svg viewBox="0 0 16 16" width={width} height={height} aria-hidden="true">
+      <circle cx="5" cy="3.5" r="1" /><circle cx="11" cy="3.5" r="1" />
+      <circle cx="5" cy="8" r="1" /><circle cx="11" cy="8" r="1" />
+      <circle cx="5" cy="12.5" r="1" /><circle cx="11" cy="12.5" r="1" />
+    </svg>
+  );
+}

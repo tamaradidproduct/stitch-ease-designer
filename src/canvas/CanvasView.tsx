@@ -64,7 +64,9 @@ export function CanvasView() {
       if (s.referenceImageCalibrating || s.referenceImageMarking) {
         return "crosshair";
       }
-      const image = useDocStore.getState().referenceImage;
+      const image = useDocStore
+        .getState()
+        .referenceImages.find((img) => img.id === s.activeReferenceImageId);
       // An expanded module isn't itself a canvas mode. Only an editable,
       // visible image takes over the cursor; otherwise the chosen stitch
       // tool below (including Erase) remains in control.
@@ -141,7 +143,7 @@ export function CanvasView() {
       const ok =
         !s.insertHover || canInsertAt(useDocStore.getState().index, s.insertHover.col, s.insertHover.row);
       if (!ok) return INSERT_BLOCKED_CURSOR;
-      return s.armedSymbolId ? insertStitchCursor(s.armedSymbolId) : INSERT_ADD_CURSOR;
+      return s.armedSymbolId ? insertStitchCursor(s.armedSymbolId, s.activeColor) : INSERT_ADD_CURSOR;
     }
     // Draw leaves existing stitches as plain-arrow selection targets. Empty
     // cells carry either the add badge or the armed-stitch preview.
@@ -151,7 +153,7 @@ export function CanvasView() {
     // badge, not the plain add-cursor a real armed stitch would show here,
     // nor an armed-stitch glyph preview (FR-8).
     if (s.armedSymbolId === SUGGEST_SYMBOL_ID) return SUGGEST_CURSOR;
-    return s.armedSymbolId ? armedStitchCursor(s.armedSymbolId) : ADD_CURSOR;
+    return s.armedSymbolId ? armedStitchCursor(s.armedSymbolId, s.activeColor) : ADD_CURSOR;
   });
 
   // Registered first of all so a second touch finger gets first refusal,
@@ -235,7 +237,8 @@ export function CanvasView() {
       dirty.current = false;
 
       const { picker, ...renderUiFields } = pickRenderUiFields(useUiStore.getState());
-      const { index, revision, referenceImage } = useDocStore.getState();
+      const { index, revision, referenceImages: docReferenceImages } = useDocStore.getState();
+      const activeImage = docReferenceImages.find((img) => img.id === renderUiFields.activeReferenceImageId);
       const dpr = window.devicePixelRatio || 1;
 
       ctx.save();
@@ -246,9 +249,9 @@ export function CanvasView() {
         index,
         revision,
         sprites,
-        referenceImage,
+        referenceImages: docReferenceImages,
         referenceImageCache: referenceImages,
-        referenceImageMarks: referenceImage?.calibrationMarks ?? [],
+        referenceImageMarks: activeImage?.calibrationMarks ?? [],
         pickerTarget: picker,
       });
       ctx.restore();

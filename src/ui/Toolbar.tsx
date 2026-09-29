@@ -8,7 +8,7 @@ import { CheckIcon, CrossIcon } from "./icons";
 
 export function Toolbar() {
   const referenceImagePanelOpen = useUiStore((s) => s.referenceImagePanelOpen);
-  const hasReferenceImage = useDocStore((s) => !!s.referenceImage);
+  const hasReferenceImage = useDocStore((s) => s.referenceImages.length > 0);
   const tool = useUiStore((s) => s.tool);
   const panEnabled = useUiStore((s) => s.panEnabled);
   const selectHeld = useUiStore((s) => s.selectHeld);
@@ -16,6 +16,7 @@ export function Toolbar() {
   const altHeld = useUiStore((s) => s.altHeld);
   const setTool = useUiStore((s) => s.setTool);
   const armedSymbolId = useUiStore((s) => s.armedSymbolId);
+  const activeColor = useUiStore((s) => s.activeColor);
   const setArmedSymbolId = useUiStore((s) => s.setArmedSymbolId);
   const suggestAction = useUiStore((s) => s.suggestAction);
   const setSuggestAction = useUiStore((s) => s.setSuggestAction);
@@ -95,7 +96,11 @@ export function Toolbar() {
               />
             </svg>
           ) : armedSymbol ? (
-            <SymbolGlyph symbol={armedSymbol} cell={Math.max(7, Math.min(17, 40 / armedSymbol.span))} />
+            <SymbolGlyph
+              symbol={armedSymbol}
+              cell={Math.max(7, Math.min(17, 40 / armedSymbol.span))}
+              colorId={activeColor ?? undefined}
+            />
           ) : (
             <svg viewBox="0 0 20 20" aria-hidden="true">
               <path d="m4 14-.7 3 3-.7L15.5 7 13 4.5 4 14Z" />

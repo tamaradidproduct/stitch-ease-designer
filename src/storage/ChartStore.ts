@@ -1,4 +1,4 @@
-import type { DocMeta, Placement, ReferenceImage, RepeatDefinition } from "../model/types";
+import type { DocMeta, PatternInfo, Placement, ReferenceImage, RepeatDefinition } from "../model/types";
 
 /**
  * Where charts live.
@@ -25,7 +25,10 @@ export interface ChartStore {
     placements: Placement[],
     expectedRev: string,
     repeats?: RepeatDefinition[],
-    referenceImage?: ReferenceImage,
+    referenceImages?: ReferenceImage[],
+    glossaryIds?: readonly string[],
+    quickSymbolIds?: readonly string[],
+    patternInfo?: PatternInfo,
   ): Promise<DocMeta>;
   rename(id: string, name: string): Promise<DocMeta>;
   remove(id: string): Promise<void>;
@@ -35,7 +38,17 @@ export type LoadedChart = {
   meta: DocMeta;
   placements: Placement[];
   repeats?: RepeatDefinition[];
-  referenceImage?: ReferenceImage;
+  referenceImages?: ReferenceImage[];
+  /**
+   * Chart-scoped glossary/quick-row membership - see `serialize.ts`'s
+   * `DecodedChart`. Optional here only so test fixtures can omit them;
+   * every real `ChartStore.load()` always provides concrete arrays (via
+   * `decode`'s own default), and `openChart` defaults them the same way.
+   */
+  glossaryIds?: string[];
+  quickSymbolIds?: string[];
+  /** See `PatternInfo`. Same "optional only for test fixtures" note as the fields above. */
+  patternInfo?: PatternInfo;
   /** Symbols this build's library no longer has. See `decode` in serialize.ts. */
   unknownSymbolIds: string[];
 };

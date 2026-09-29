@@ -98,7 +98,7 @@ is worse than a late one.
 
 ### Staging release flow
 
-The `staging` branch deploys to the separate
+Every push to `main` also deploys to the separate
 [`stitch-ease-designer-staging`](https://github.com/tamaradidproduct/stitch-ease-designer-staging)
 GitHub Pages site via `.github/workflows/deploy-staging.yml`. Its custom domain
 is `https://staging.designer.stitch-ease.com`.
@@ -111,21 +111,16 @@ the generated files to the staging site's `gh-pages` branch. The committed
 `public/CNAME` remains the production domain; the staging workflow replaces it
 inside `dist/` so the two Pages sites cannot claim each other's hostnames.
 
-After validating a staging deployment through the current QA process, open
-**Actions → Open staging promotion pull request**, choose **Run workflow**, and
-review the resulting `staging` → `main` pull request. The workflow reuses an
-existing open promotion pull request and stops with a clear error when staging
-has no new commits to promote. You can also create the same pull request
-manually from **Pull requests → New pull request**, choosing `main` as the base
-and `staging` as the compare branch.
+Staging and production build from the same `main` commit, so the version you
+QA on staging is exactly the version you approve for production. To promote it,
+finish QA on staging, then open the waiting **Deploy to GitHub Pages** run under
+**Actions**, choose **Review deployments**, and approve the `production`
+environment.
 
-The automation uses the repository's built-in Actions token. In **Settings →
-Actions → General → Workflow permissions**, enable **Allow GitHub Actions to
-create and approve pull requests** before running it for the first time.
-
-Merging that pull request triggers the production workflow. The protected
-`production` environment pauses the final Pages deployment until the release
-is approved.
+Each push to `main` cancels any older run still waiting for approval (the
+`pages` concurrency group uses `cancel-in-progress`). Only the newest `main`
+commit can be promoted, so approve or reject the current one before merging the
+next pull request if you want to promote changes one at a time.
 
 The former test-cases-as-code dashboard and synchronization workflows are
 retired. Their database migrations remain in version control as historical

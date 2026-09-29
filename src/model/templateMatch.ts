@@ -1,5 +1,6 @@
 import { cellWithinReferenceImage, cropReferenceImageCell } from "../canvas/referenceImageCrop";
 import type { DocIndex } from "./docIndex";
+import { parseQuickSlotId, quickSlotKey } from "./quickSlots";
 import type { ReferenceImage } from "./types";
 
 export type BinaryGrid = {
@@ -14,6 +15,8 @@ export type BinaryGrid = {
 export type MatchResult = {
   /** The identified symbol ID, or null if no exemplar exceeded minConfidence. */
   symbolId: string | null;
+  /** The color taught with the matched stitch, when it had one. */
+  colorId?: string;
   /** 0 to 1 confidence score (maximum translation-tolerant IoU). */
   confidence: number;
   /** True if the cell had negligible ink and was classified as an empty/knit cell. */
@@ -186,9 +189,12 @@ export function matchCandidateStitch(
   // exemplar ever being consulted. Blank is now a fallback for when nothing
   // else fits, not a shortcut that runs before matching gets a turn.
 
-  // Best score per symbol, not per exemplar - several exemplars of the same
-  // symbol competing with each other isn't a tie worth flagging, only two
-  // *different* symbols scoring close together is.
+  // Best score per swatch, not per exemplar - several samples of the same
+  // stitch-and-color identity competing with each other are not a tie worth
+  // flagging; different swatches scoring close together are.
+  // TODO(colorwork): BinaryGrid intentionally compares shape only. Two same-shape
+  // swatches in different colors therefore remain ambiguous until matching also
+  // carries a color feature.
   //
   // Which symbol a blank-looking cell should become isn't fixed to "knit" -
   // some charts draw knit as a mark and leave purl as the blank square (or
@@ -197,14 +203,14 @@ export function matchCandidateStitch(
   // for whichever symbol they were confirmed under, so a blank candidate
   // naturally scores 1.0 against a blank exemplar of the right symbol here,
   // with no special-casing needed.
-  const bestBySymbol = new Map<string, number>();
-  for (const [symbolId, grids] of exemplars.entries()) {
+  const bestBySlot = new Map<string, number>();
+  for (const [slotKey, grids] of exemplars.entries()) {
     let best = 0;
     for (const grid of grids) best = Math.max(best, computeGridSimilarity(candidate, grid));
-    if (best > 0) bestBySymbol.set(symbolId, best);
+    if (best > 0) bestBySlot.set(slotKey, best);
   }
 
-  const ranked = [...bestBySymbol.entries()].sort((a, b) => b[1] - a[1]);
+  const ranked = [...bestBySlot.entries()].sort((a, b) => b[1] - a[1]);
   const isBlank = isCellBlank(candidate);
   const defaultBlankToKnit = () =>
     isBlank ? { symbolId: "knit", confidence: DEFAULT_BLANK_KNIT_CONFIDENCE, isBlank: true } : null;
@@ -216,7 +222,7 @@ export function matchCandidateStitch(
   // scored 1.0 and therefore would not reach this fallback.
   if (ranked.length === 0) return defaultBlankToKnit() ?? { symbolId: null, confidence: 0, isBlank };
 
-  const [topSymbolId, topScore] = ranked[0]!;
+  const [topSlotKey, topScore] = ranked[0]!;
   const runnerUpScore = ranked[1]?.[1] ?? 0;
 
   if (topScore < minConfidence) {
@@ -228,7 +234,8 @@ export function matchCandidateStitch(
     return { symbolId: null, confidence: topScore, isBlank: false };
   }
 
-  return { symbolId: topSymbolId, confidence: topScore, isBlank: false };
+  const { symbolId, colorId } = parseQuickSlotId(topSlotKey);
+  return { symbolId, ...(colorId ? { colorId } : {}), confidence: topScore, isBlank: false };
 }
 
 /**
@@ -236,18 +243,18 @@ export function matchCandidateStitch(
  * within the reference image boundary.
  */
 /**
- * Most exemplars kept per symbol. Matching takes the *best* score across a
- * symbol's exemplars (see `matchCandidateStitch`), so more of them only ever
+ * Most exemplars kept per stitch-and-color swatch. Matching takes the *best* score across a
+ * swatch's exemplars (see `matchCandidateStitch`), so more of them only ever
  * helps by covering real variation the photo actually has - different
  * lighting or a slight tilt in one corner of the chart, say. Past a handful
- * that stops paying for itself: exemplars of one symbol drawn consistently
+ * that stops paying for itself: exemplars of one swatch drawn consistently
  * add nothing once one of them is already a good match, and every one of
  * them is re-cropped and re-binarized on every cell scanned (mitigated by
  * the cache below, but still real work). Six is enough room to cover a
- * symbol confirmed in a few different regions of the photo without a
+ * swatch confirmed in a few different regions of the photo without a
  * heavily-traced chart making every scan slower for no matching benefit.
  */
-export const MAX_EXEMPLARS_PER_SYMBOL = 6;
+export const MAX_EXEMPLARS_PER_SWATCH = 6;
 
 /**
  * Picks up to `cap` of `items`, preferring ones spread apart over ones
@@ -288,56 +295,74 @@ export function selectDiverseExemplars<T extends { col: number; row: number }>(
 }
 
 /**
- * Cached by the confirmed placements and the image geometry they sample.
- * Suggested placements deliberately do not affect this key, so adding a
- * suggestion during a drag does not re-crop every confirmed exemplar.
+ * Cached by the confirmed placements and the geometry of every reference
+ * image they might be sampled from - a single shared entry, not one per
+ * image, because a stitch taught under one image counts as taught for the
+ * whole chart (see `extractExemplars`). Suggested placements deliberately
+ * do not affect the key, so adding a suggestion during a drag does not
+ * re-crop every confirmed exemplar.
  */
-let cachedFor: { fingerprint: string; ref: string; imageGeometry: string } | null = null;
+let cachedFor: { fingerprint: string; imagesGeometry: string } | null = null;
 let cachedExemplars: Map<string, BinaryGrid[]> | null = null;
 
+/**
+ * Every confirmed placement anywhere on the chart that falls under one of
+ * `referenceImages` becomes an exemplar, regardless of which image is
+ * currently being matched against - a stitch confirmed while tracing one
+ * image (e.g. page 1 of a two-page chart) is stitches Suggest already
+ * knows when tracing another, not something it has to be taught again per
+ * image. `getImageElement` resolves an image to its decoded, contrast-corrected bitmap (e.g. the
+ * shared `ReferenceImageCache`) so each placement crops from whichever
+ * image it actually sits under.
+ */
 export function extractExemplars(
   index: DocIndex,
-  referenceImage: ReferenceImage,
-  imageElement: CanvasImageSource,
+  referenceImages: readonly ReferenceImage[],
+  getImageElement: (image: ReferenceImage) => CanvasImageSource | null,
   revision: number,
+  isImageReady?: (ref: string) => boolean,
 ): Map<string, BinaryGrid[]> {
   // Suggested-only changes deliberately do not invalidate this cache.
   void revision;
   const confirmedPlacements = index.toArray().filter((p) => !p.suggested);
   const fingerprint = confirmedPlacements
-    .map((p) => `${p.id}:${p.symbolId}:${p.col}:${p.row}`)
+    .map((p) => `${p.id}:${p.symbolId}:${p.colorId ?? ""}:${p.col}:${p.row}`)
     .join("|");
-  const imageGeometry = [
-    referenceImage.x,
-    referenceImage.y,
-    referenceImage.width,
-    referenceImage.height,
-    referenceImage.naturalWidth,
-    referenceImage.naturalHeight,
-  ].join(":");
-  if (
-    cachedExemplars &&
-    cachedFor?.fingerprint === fingerprint &&
-    cachedFor.ref === referenceImage.ref &&
-    cachedFor.imageGeometry === imageGeometry
-  ) {
+  const imagesGeometry = referenceImages
+    .map((img) => [img.ref, img.x, img.y, img.width, img.height, img.naturalWidth, img.naturalHeight, img.contrast ?? 1].join(":"))
+    .join("|");
+  if (cachedExemplars && cachedFor?.fingerprint === fingerprint && cachedFor.imagesGeometry === imagesGeometry) {
     return cachedExemplars;
   }
 
-  const bySymbol = new Map<string, Array<{ col: number; row: number }>>();
+  const bySlot = new Map<string, Array<{ col: number; row: number; image: ReferenceImage }>>();
   for (const p of confirmedPlacements) {
-    if (!cellWithinReferenceImage(referenceImage, p.col, p.row)) continue;
-    const list = bySymbol.get(p.symbolId) ?? [];
-    list.push({ col: p.col, row: p.row });
-    bySymbol.set(p.symbolId, list);
+    const image = referenceImages.find((img) => cellWithinReferenceImage(img, p.col, p.row));
+    if (!image) continue;
+    const slotKey = quickSlotKey(p.symbolId, p.colorId);
+    const list = bySlot.get(slotKey) ?? [];
+    list.push({ col: p.col, row: p.row, image });
+    bySlot.set(slotKey, list);
   }
 
   const map = new Map<string, BinaryGrid[]>();
-  for (const [symbolId, positions] of bySymbol.entries()) {
-    const chosen = selectDiverseExemplars(positions, MAX_EXEMPLARS_PER_SYMBOL);
+  let everyImageReady = true;
+  for (const [slotKey, positions] of bySlot.entries()) {
+    const chosen = selectDiverseExemplars(positions, MAX_EXEMPLARS_PER_SWATCH);
     const grids: BinaryGrid[] = [];
-    for (const { col, row } of chosen) {
-      const crop = cropReferenceImageCell(referenceImage, imageElement, col, row, 32);
+    for (const { col, row, image } of chosen) {
+      const imageElement = getImageElement(image);
+      if (!imageElement) {
+        // Still decoding - skip this exemplar rather than caching a map
+        // that's silently missing it forever. A permanently failed image
+        // (isImageReady says so) never produces this exemplar either way,
+        // so it shouldn't hold the cache hostage on every future call.
+        if (!isImageReady || !isImageReady(image.ref)) {
+          everyImageReady = false;
+        }
+        continue;
+      }
+      const crop = cropReferenceImageCell(image, imageElement, col, row, 32);
       const grid = binarizeCrop(crop);
       // A confirmed placement is trusted as-is, blank crop included - some
       // charts draw their blank-looking stitch as something other than
@@ -345,15 +370,11 @@ export function extractExemplars(
       // would silently refuse to learn it.
       grids.push(grid);
     }
-    if (grids.length) map.set(symbolId, grids);
+    if (grids.length) map.set(slotKey, grids);
   }
 
-  const imageLoaded =
-    typeof HTMLImageElement === "undefined" ||
-    !(imageElement instanceof HTMLImageElement) ||
-    (imageElement.complete && imageElement.naturalWidth > 0);
-  if (imageLoaded) {
-    cachedFor = { fingerprint, ref: referenceImage.ref, imageGeometry };
+  if (everyImageReady) {
+    cachedFor = { fingerprint, imagesGeometry };
     cachedExemplars = map;
   }
   return map;

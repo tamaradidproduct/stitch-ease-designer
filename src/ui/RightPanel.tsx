@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { allSymbols, getSymbol } from "../symbols/registry";
 import { CELL } from "../canvas/camera";
 import { exportChartCsv } from "../storage/exportCsv";
@@ -7,19 +7,25 @@ import { exportChart } from "../storage/exportImport";
 import { cellWithinReferenceImage } from "../canvas/referenceImageCrop";
 import { unoccupiedCellsFromKeys } from "../model/cellKey";
 import { useDocStore } from "../state/docStore";
-import { SUGGEST_SYMBOL_ID, useUiStore } from "../state/uiStore";
+import { RIGHT_PANEL_MAX_WIDTH, RIGHT_PANEL_MIN_WIDTH, SUGGEST_SYMBOL_ID, useUiStore } from "../state/uiStore";
 import { ReferenceImagePanel } from "./ReferenceImagePanel";
 import { SymbolGlyph } from "./SymbolGlyph";
 import { searchSymbols } from "./symbolSearch";
 import { tapActivate } from "./tapActivate";
 import {
-  collectGlossarySymbols,
+  collectColoredGlossaryEntries,
+  countConfirmedColoredStitches,
   countConfirmedStitches,
   saveGlossaryIds,
+  selectableGlossaryEntryPlacementIds,
   symbolsWithAnyPlacement,
   useGlossaryIds,
 } from "./chartGlossary";
-import { CheckIcon, CloseIcon, CrossIcon } from "./icons";
+import { parseQuickSlotId, quickSlotInsertEdge, quickSlotKey } from "../model/quickSlots";
+import { addColoredVariant } from "./colorwork";
+import { ColorChip } from "./ColorChip";
+import { CheckIcon, CloseIcon, CrossIcon, DragHandleIcon } from "./icons";
+import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
 
 /**
  * Section order for the glossary search dropdown; anything uncategorized
@@ -49,20 +55,23 @@ export function RightPanel() {
   const [exportOpen, setExportOpen] = useState(false);
   const [exportBusy, setExportBusy] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [includeReferenceImage, setIncludeReferenceImage] = useState(true);
   const glossarySearchRef = useRef<HTMLInputElement | null>(null);
   const inlineSearchRef = useRef<HTMLDivElement | null>(null);
   const meta = useDocStore((state) => state.meta);
   const index = useDocStore((state) => state.index);
   const repeats = useDocStore((state) => state.repeats);
-  const referenceImage = useDocStore((state) => state.referenceImage);
+  const referenceImages = useDocStore((state) => state.referenceImages);
+  const patternInfo = useDocStore((state) => state.patternInfo);
   const revision = useDocStore((state) => state.revision);
   const acceptSuggestions = useDocStore((state) => state.acceptSuggestions);
   const dismissSuggestions = useDocStore((state) => state.dismissSuggestions);
   const isAdmin = useUiStore((state) => state.role === "admin");
   const chooseSymbol = useUiStore((state) => state.chooseSymbol);
   const armedSymbolId = useUiStore((state) => state.armedSymbolId);
+  const activeColor = useUiStore((state) => state.activeColor);
   const tool = useUiStore((state) => state.tool);
-  const quickSymbolIds = useUiStore((state) => state.quickSymbolIds);
+  const quickSymbolIds = useDocStore((state) => state.quickSymbolIds);
   const removeQuickSymbol = useUiStore((state) => state.removeQuickSymbol);
   const moveQuickSymbolTo = useUiStore((state) => state.moveQuickSymbolTo);
   const setArmedSymbolId = useUiStore((state) => state.setArmedSymbolId);
@@ -73,8 +82,49 @@ export function RightPanel() {
   const centerViewAt100 = useUiStore((state) => state.centerViewAt100);
   const referenceImageUnrecognized = useUiStore((state) => state.referenceImageUnrecognized);
   const clearReferenceImageUnrecognized = useUiStore((state) => state.clearReferenceImageUnrecognized);
-  const chartId = meta?.id;
-  const addedGlossaryIds = useGlossaryIds(chartId);
+  const setSelection = useUiStore((state) => state.setSelection);
+  const rightPanelWidth = useUiStore((state) => state.rightPanelWidth);
+  const setRightPanelWidth = useUiStore((state) => state.setRightPanelWidth);
+  const addedGlossaryIds = useGlossaryIds();
+
+  // Drag-to-resize from the panel's left edge. Pointer capture keeps the
+  // handle receiving move/up events even once the cursor leaves its thin
+  // hit area mid-drag, the same pattern useReferenceImageTool.ts uses for
+  // canvas drags.
+  const onResizeHandlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const handle = e.currentTarget;
+    handle.setPointerCapture(e.pointerId);
+    const startX = e.clientX;
+    const startWidth = rightPanelWidth;
+    const onMove = (moveEvent: PointerEvent) => {
+      setRightPanelWidth(startWidth + (startX - moveEvent.clientX));
+    };
+    // A plain pointerup only fires on a clean release. A gesture the OS or
+    // browser interrupts (touch scroll takeover, a system dialog stealing
+    // focus) instead ends the drag with pointercancel/lostpointercapture and
+    // no pointerup at all - without listening for those too, the resize
+    // would get stuck mid-drag and these listeners would leak.
+    const cleanup = () => {
+      handle.removeEventListener("pointermove", onMove);
+      handle.removeEventListener("pointerup", onUp);
+      handle.removeEventListener("pointercancel", onUp);
+      handle.removeEventListener("lostpointercapture", cleanup);
+    };
+    const onUp = (upEvent: PointerEvent) => {
+      try {
+        handle.releasePointerCapture(upEvent.pointerId);
+      } catch {
+        // Already released (e.g. by the lostpointercapture that's about to fire).
+      }
+      cleanup();
+    };
+    handle.addEventListener("pointermove", onMove);
+    handle.addEventListener("pointerup", onUp);
+    handle.addEventListener("pointercancel", onUp);
+    handle.addEventListener("lostpointercapture", cleanup);
+  };
 
   const resetDragState = () => {
     setDraggingQuickId(null);
@@ -91,6 +141,34 @@ export function RightPanel() {
     if (searchSlot !== null) glossarySearchRef.current?.focus();
   }, [searchSlot]);
 
+  // The results dropdown anchors via a measured rect rather than plain CSS
+  // `position: absolute`, which is what let it render clipped away here:
+  // `.sideModule` (the "Stitch glossary" card) sets `overflow: hidden` so it
+  // can round its own corners, and an absolutely-positioned dropdown that
+  // extends past the card's bottom edge was cut off there instead of
+  // floating over the rest of the sidebar - the exact class of bug the
+  // picker's drawer popover already hit once (see ColorSwatchPopover's own
+  // doc comment). `position: fixed` escapes that ancestor's clipping
+  // entirely.
+  const [searchResultsRect, setSearchResultsRect] = useState<{ left: number; top: number; width: number } | null>(null);
+  useLayoutEffect(() => {
+    if (searchSlot === null) {
+      setSearchResultsRect(null);
+      return;
+    }
+    const updateSearchResultsRect = () => {
+      const rect = inlineSearchRef.current?.getBoundingClientRect();
+      setSearchResultsRect(rect ? { left: rect.left, top: rect.bottom + 4, width: rect.width } : null);
+    };
+    updateSearchResultsRect();
+    document.addEventListener("scroll", updateSearchResultsRect, true);
+    window.addEventListener("resize", updateSearchResultsRect);
+    return () => {
+      document.removeEventListener("scroll", updateSearchResultsRect, true);
+      window.removeEventListener("resize", updateSearchResultsRect);
+    };
+  }, [searchSlot]);
+
   // Search queries can remove the currently highlighted result. Start each
   // new query at its first visible match so Arrow navigation always has a
   // predictable target.
@@ -98,31 +176,18 @@ export function RightPanel() {
     setActiveGlossaryResult(0);
   }, [searchSlot, glossaryQuery]);
 
-  useEffect(() => {
-    if (searchSlot === null) return;
-    const dismissOutside = (event: PointerEvent) => {
-      if (!inlineSearchRef.current?.contains(event.target as Node)) {
-        // Dismissal is its own gesture: intercept it before the canvas sees
-        // the pointerdown, so an armed stitch is never placed as the menu
-        // closes.
-        event.preventDefault();
-        event.stopPropagation();
-        setSearchSlot(null);
-        setGlossaryQuery("");
-      }
-    };
-    const dismissOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+  useDismissOnOutsideOrEscape({
+    enabled: searchSlot !== null,
+    containerRef: inlineSearchRef,
+    onDismiss: () => {
       setSearchSlot(null);
       setGlossaryQuery("");
-    };
-    document.addEventListener("pointerdown", dismissOutside, true);
-    document.addEventListener("keydown", dismissOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", dismissOutside, true);
-      document.removeEventListener("keydown", dismissOnEscape);
-    };
-  }, [searchSlot]);
+    },
+    // Dismissal is its own gesture: intercept the outside pointerdown before
+    // the canvas sees it, so an armed stitch is never placed as the menu
+    // closes. Escape doesn't need this - it can't also place a stitch.
+    suppressDismissingPointerdown: true,
+  });
 
 
   // Shown in an armed row's trailing slot in place of whatever's normally
@@ -144,26 +209,29 @@ export function RightPanel() {
     </button>
   );
 
-  const { placements, glossary, glossaryIds, stitchCounts, symbolsPlaced } = useMemo(() => {
+  const { placements, glossary, plainGlossaryIds, stitchCounts, coloredCounts, symbolsPlaced } = useMemo(() => {
     // The document mutates its index in place; its revision invalidates this
     // cached snapshot when placements change.
     void revision;
     const chartPlacements = index.toArray();
-    const chartGlossary = collectGlossarySymbols(
-      addedGlossaryIds,
-      chartPlacements.map((placement) => placement.symbolId),
-    );
-    const chartGlossaryIds = new Set(chartGlossary.map((symbol) => symbol.id));
+    const chartGlossary = collectColoredGlossaryEntries(addedGlossaryIds, chartPlacements);
     return {
       placements: chartPlacements,
       glossary: chartGlossary,
-      glossaryIds: chartGlossaryIds,
-      // Displayed count excludes still-pending suggestions (FR-13, G-8) -
-      // but glossary removal-safety needs a separate "any placement at all"
+      // Which *plain* symbols already have a glossary row - what the
+      // search-to-add dropdown (always a plain add) needs to exclude.
+      plainGlossaryIds: new Set(
+        chartGlossary.filter((entry) => !entry.colorId).map((entry) => entry.symbol.id),
+      ),
+      // Displayed count excludes still-pending suggestions (FR-13, G-8) and,
+      // per DNT-13, excludes colored placements of the same symbol - a
+      // colored combo is a separate inventory line with its own count.
+      // Glossary removal-safety needs a separate "any placement at all"
       // check, confirmed or suggested, or a symbol with only a pending
-      // suggestion would look removable (FR-14, G-9). Two distinctly named
-      // values from the start, not one reused for both purposes.
+      // suggestion would look removable (FR-14, G-9). Distinctly named
+      // values from the start, not one reused for multiple purposes.
       stitchCounts: countConfirmedStitches(chartPlacements),
+      coloredCounts: countConfirmedColoredStitches(chartPlacements),
       symbolsPlaced: symbolsWithAnyPlacement(chartPlacements),
     };
   }, [addedGlossaryIds, index, revision]);
@@ -171,10 +239,14 @@ export function RightPanel() {
   // flat, so browsing the full library reads as a glossary instead of a wall
   // of stitches. Array.prototype.sort is stable, so search relevance order
   // (when there's a query) survives within each category bucket.
-  const glossaryResults = searchSlot === null
-    ? []
-    : (glossaryQuery.trim() ? searchSymbols(allSymbols(), glossaryQuery) : allSymbols())
-      .filter((symbol) => !glossaryIds.has(symbol.id))
+  const glossaryResults = useMemo(() => {
+    if (searchSlot === null) return [];
+    return (glossaryQuery.trim()
+      // A typed query should surface matches even if they're already in
+      // the glossary - selecting one just switches to its existing chip
+      // (see chooseSearchResult/addToGlossary) rather than duplicating it.
+      ? searchSymbols(allSymbols(), glossaryQuery)
+      : allSymbols().filter((symbol) => !plainGlossaryIds.has(symbol.id)))
       .sort((a, b) => {
         const ai = GLOSSARY_CATEGORY_ORDER.indexOf(a.category);
         const bi = GLOSSARY_CATEGORY_ORDER.indexOf(b.category);
@@ -183,6 +255,7 @@ export function RightPanel() {
           (bi === -1 ? GLOSSARY_CATEGORY_ORDER.length : bi)
         );
       });
+  }, [searchSlot, glossaryQuery, plainGlossaryIds]);
   const glossarySections: { key: string; title: string; symbols: typeof glossaryResults }[] = [];
   for (const symbol of glossaryResults) {
     const current = glossarySections[glossarySections.length - 1];
@@ -196,21 +269,23 @@ export function RightPanel() {
       });
     }
   }
-  const slottedIds = new Set(quickSymbolIds);
-  const remainingGlossary = glossary.filter((symbol) => !slottedIds.has(symbol.id));
+  const slottedKeys = new Set(quickSymbolIds);
+  const remainingGlossary = glossary.filter((entry) => !slottedKeys.has(entry.key));
   const slotCount = Math.max(5, quickSymbolIds.length + 1);
 
   // How many distinct stitches Suggest currently has an exemplar for -
-  // a confirmed (non-suggested) placement sitting inside the reference
+  // a confirmed (non-suggested) placement sitting inside any reference
   // image counts as one. Shown on the Suggest row so it's clear at a
   // glance whether there's anything to match against yet.
-  const suggestTaughtCount = referenceImage
-    ? new Set(
-        placements
-          .filter((p) => !p.suggested && cellWithinReferenceImage(referenceImage, p.col, p.row))
-          .map((p) => p.symbolId),
-      ).size
-    : 0;
+  const suggestTaughtCount = new Set(
+    placements
+      .filter(
+        (p) =>
+          !p.suggested &&
+          referenceImages.some((image) => cellWithinReferenceImage(image, p.col, p.row)),
+      )
+      .map((p) => p.symbolId),
+  ).size;
   const suggestedPlacements = placements.filter((p) => p.suggested);
   const suggestedCount = suggestedPlacements.length;
   // A marker is stale once something's been placed at its cell by any other
@@ -222,21 +297,27 @@ export function RightPanel() {
   const unrecognizedCount = unrecognizedCells.length;
 
   const addToGlossary = (id: string) => {
-    if (!meta || glossaryIds.has(id)) return;
+    if (!meta || plainGlossaryIds.has(id)) return;
     const next = [...addedGlossaryIds, id];
     setGlossaryQuery("");
     saveGlossaryIds(meta.id, next);
   };
-  const removeFromGlossary = (id: string) => {
-    if (!meta || symbolsPlaced.has(id)) return;
-    const next = addedGlossaryIds.filter((symbolId) => symbolId !== id);
-    removeQuickSymbol(id);
+  /** `key` is a full quick-slot key - a bare symbolId for a plain row, `symbolId::colorId` for a colored one. */
+  const removeFromGlossary = (key: string) => {
+    if (!meta || symbolsPlaced.has(key)) return;
+    const next = addedGlossaryIds.filter((existing) => existing !== key);
+    removeQuickSymbol(key);
     saveGlossaryIds(meta.id, next);
   };
   const chooseSearchResult = (id: string) => {
     addToGlossary(id);
     chooseSymbol(id);
     setSearchSlot(null);
+    // addToGlossary early-returns (without clearing the query) when the
+    // chosen result is already in the glossary, so clear it here too -
+    // otherwise the next "Add stitch" open would show this stale query
+    // instead of the browse-all view.
+    setGlossaryQuery("");
   };
   const searchForQuickStitch = (slot: number) => {
     setSearchSlot(slot);
@@ -288,7 +369,17 @@ export function RightPanel() {
   };
 
   return (
-    <aside className="rightPanel" aria-label="Pattern details">
+    <aside className="rightPanel" aria-label="Pattern details" style={{ width: rightPanelWidth }}>
+      <div
+        className="rightPanel__resizeHandle"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize panel"
+        aria-valuenow={Math.round(rightPanelWidth)}
+        aria-valuemin={RIGHT_PANEL_MIN_WIDTH}
+        aria-valuemax={RIGHT_PANEL_MAX_WIDTH}
+        onPointerDown={onResizeHandlePointerDown}
+      />
       <section className="sideModule">
         <div className="sideModule__header">
           <div>
@@ -326,16 +417,13 @@ export function RightPanel() {
                       />
                     </svg>
                   </span>
-                  <span className="glossary__label">Suggest</span>
-                  <span
-                    className="glossary__count"
-                    title={
-                      suggestTaughtCount > 0
-                        ? `Recognizes ${suggestTaughtCount} stitch type${suggestTaughtCount === 1 ? "" : "s"} you've confirmed over the reference image`
-                        : "Confirm at least one stitch over the reference image first"
-                    }
-                  >
-                    {suggestTaughtCount}
+                  <span className="glossary__labelGroup">
+                    <span className="glossary__label">Suggest</span>
+                    <span className="glossary__subtitle">
+                      {suggestTaughtCount > 0
+                        ? `Recognizes ${suggestTaughtCount} stitch type${suggestTaughtCount === 1 ? "" : "s"}`
+                        : "Confirm a stitch to enable Suggest"}
+                    </span>
                   </span>
                 </button>
                 {armedSymbolId === SUGGEST_SYMBOL_ID && tool === "stitch" ? (
@@ -419,26 +507,40 @@ export function RightPanel() {
               </div>
             )}
             {Array.from({ length: slotCount }, (_, slot) => {
-              const id = quickSymbolIds[slot];
-              const symbol = id ? getSymbol(id) : undefined;
-              return id && symbol ? (
+              const key = quickSymbolIds[slot];
+              const parsed = key ? parseQuickSlotId(key) : undefined;
+              const symbol = parsed ? getSymbol(parsed.symbolId) : undefined;
+              const armed = !!key && key === quickSlotKey(armedSymbolId ?? "", activeColor) && !!armedSymbolId;
+              const count = parsed?.colorId
+                ? (coloredCounts.get(key!) ?? 0)
+                : (stitchCounts.get(symbol?.id ?? "") ?? 0);
+              const selectAllLabel = `Select all ${count} placed ${symbol?.label} stitches`;
+              // #271: dropping onto an already-occupied quick slot pushes
+              // the existing stitches along (see promoteQuickSlot/
+              // moveQuickSlotTo) rather than filling in place, so it gets
+              // the insertion-line signifier instead of the empty-slot's
+              // full highlight.
+              const insertEdge = dragOverQuickId === key
+                ? quickSlotInsertEdge(draggingQuickId ? quickSymbolIds.indexOf(draggingQuickId) : -1, slot)
+                : null;
+              return key && symbol ? (
                 <div
-                  key={id}
+                  key={key}
                   className="glossary__item"
-                  data-on={id === armedSymbolId && tool === "stitch"}
-                  data-drag-over={dragOverQuickId === id}
+                  data-on={armed && tool === "stitch"}
+                  data-insert-edge={insertEdge ?? undefined}
                   onDragOver={(event) => {
-                    if (draggingQuickId && draggingQuickId !== id) {
+                    if (draggingQuickId && draggingQuickId !== key) {
                       event.preventDefault();
                       event.dataTransfer.dropEffect = "move";
-                      setDragOverQuickId(id);
+                      setDragOverQuickId(key);
                     }
                   }}
-                  onDragLeave={() => setDragOverQuickId((current) => current === id ? null : current)}
+                  onDragLeave={() => setDragOverQuickId((current) => current === key ? null : current)}
                   onDrop={(event) => {
                     event.preventDefault();
-                    const draggedId = draggingQuickId;
-                    if (draggedId && draggedId !== id) moveQuickSymbolTo(draggedId, slot);
+                    const draggedKey = draggingQuickId;
+                    if (draggedKey && draggedKey !== key) moveQuickSymbolTo(draggedKey, slot);
                     resetDragState();
                   }}
                 >
@@ -448,18 +550,14 @@ export function RightPanel() {
                     className="glossary__dragHandle"
                     onDragStart={(event) => {
                       event.dataTransfer.effectAllowed = "move";
-                      event.dataTransfer.setData("text/plain", symbol.id);
-                      setDraggingQuickId(symbol.id);
+                      event.dataTransfer.setData("text/plain", key);
+                      setDraggingQuickId(key);
                     }}
                     onDragEnd={resetDragState}
                     aria-label={`Drag to reorder ${symbol.label}`}
                     title="Drag to reorder"
                   >
-                    <svg viewBox="0 0 16 16" aria-hidden="true">
-                      <circle cx="5" cy="3.5" r="1" /><circle cx="11" cy="3.5" r="1" />
-                      <circle cx="5" cy="8" r="1" /><circle cx="11" cy="8" r="1" />
-                      <circle cx="5" cy="12.5" r="1" /><circle cx="11" cy="12.5" r="1" />
-                    </svg>
+                  <DragHandleIcon />
                   </button>
                   {slot < 5 ? (
                     <kbd className="glossary__shortcut" aria-label={`Shortcut ${slot + 1}`}>{slot + 1}</kbd>
@@ -468,25 +566,44 @@ export function RightPanel() {
                     type="button"
                     className="glossary__arm"
                     {...tapActivate(() =>
-                      setArmedSymbolId(id === armedSymbolId && tool === "stitch" ? null : id)
+                      armed && tool === "stitch"
+                        ? setArmedSymbolId(null)
+                        : setArmedSymbolId(symbol.id, parsed?.colorId ?? null)
                     )}
                     title={`Draw with ${symbol.label} (${slot + 1}) - tap again to stop drawing`}
                   >
                     <span className="glossary__glyph">
-                      <SymbolGlyph symbol={symbol} cell={Math.max(7, Math.min(20, 54 / symbol.span))} />
+                      <SymbolGlyph symbol={symbol} cell={Math.max(7, Math.min(20, 54 / symbol.span))} colorId={parsed?.colorId} />
                     </span>
                     <span className="glossary__label">{symbol.label}</span>
-                    <span className="glossary__count" title={`${stitchCounts.get(symbol.id) ?? 0} placed`}>
-                      {stitchCounts.get(symbol.id) ?? 0}
-                    </span>
                   </button>
-                  {id === armedSymbolId && tool === "stitch" ? (
+                  <button
+                    type="button"
+                    className="glossary__count glossary__selectEntry"
+                    disabled={!count}
+                    onClick={() => setSelection(selectableGlossaryEntryPlacementIds(placements, key), [], true)}
+                    aria-label={selectAllLabel}
+                    title={selectAllLabel}
+                  >
+                    All ({count})
+                  </button>
+                  {/* FR-34/Bug 8: the add-only chip belongs on every plain
+                      row, slotted or not - a colored row never gets it. */}
+                  {!parsed?.colorId && (
+                    <ColorChip
+                      mode="add-only"
+                      label={`Add a colored ${symbol.label}`}
+                      className="glossary__colorChip"
+                      onSelect={(colorId) => addColoredVariant(symbol.id, colorId)}
+                    />
+                  )}
+                  {armed && tool === "stitch" ? (
                     disarmButton
-                  ) : !symbolsPlaced.has(symbol.id) ? (
+                  ) : !symbolsPlaced.has(key) ? (
                     <button
                       type="button"
                       className="glossary__remove"
-                      onClick={() => removeFromGlossary(symbol.id)}
+                      onClick={() => removeFromGlossary(key)}
                       aria-label={`Remove ${symbol.label} from glossary`}
                       title="Remove from glossary"
                     >
@@ -517,10 +634,20 @@ export function RightPanel() {
                         : undefined
                     }
                   />
-                  {glossaryResults.length > 0 && (() => {
+                  {glossaryResults.length > 0 && searchResultsRect && (() => {
                     let resultIndex = -1;
                     return (
-                      <div id="glossary-search-results" className="glossarySearch__results" role="listbox">
+                      <div
+                        id="glossary-search-results"
+                        className="glossarySearch__results"
+                        role="listbox"
+                        style={{
+                          position: "fixed",
+                          left: searchResultsRect.left,
+                          top: searchResultsRect.top,
+                          width: searchResultsRect.width,
+                        }}
+                      >
                         {glossarySections.map((section) => (
                           <div key={section.key}>
                             <div className="glossarySearch__heading">{section.title}</div>
@@ -541,7 +668,8 @@ export function RightPanel() {
                                   <span className="glossarySearch__glyph">
                                     <SymbolGlyph symbol={result} cell={Math.max(7, Math.min(18, 48 / result.span))} />
                                   </span>
-                                  <span>{result.label}</span><strong>Add</strong>
+                                  <span>{result.label}</span>
+                                  <strong>{plainGlossaryIds.has(result.id) ? "Added" : "Add"}</strong>
                                 </button>
                               );
                             })}
@@ -577,11 +705,7 @@ export function RightPanel() {
                   title={slot < 5 ? `Choose a stitch for shortcut ${slot + 1}` : "Add another stitch"}
                 >
                   <span className="glossary__dragHandle glossary__dragHandle--empty" aria-hidden="true">
-                    <svg viewBox="0 0 16 16">
-                      <circle cx="5" cy="3.5" r="1" /><circle cx="11" cy="3.5" r="1" />
-                      <circle cx="5" cy="8" r="1" /><circle cx="11" cy="8" r="1" />
-                      <circle cx="5" cy="12.5" r="1" /><circle cx="11" cy="12.5" r="1" />
-                    </svg>
+                    <DragHandleIcon />
                   </span>
                   {slot < 5 ? <kbd className="glossary__shortcut">{slot + 1}</kbd> : <span className="glossary__shortcutSpacer" />}
                   <span className="glossary__emptyGlyph" aria-hidden="true">+</span>
@@ -589,47 +713,105 @@ export function RightPanel() {
                 </button>
               );
             })}
-            {remainingGlossary.map((symbol) => (
-              <div
-                key={symbol.id}
-                className="glossary__item"
-                data-on={symbol.id === armedSymbolId && tool === "stitch"}
-              >
-                <button
-                  type="button"
-                  className="glossary__arm"
-                  {...tapActivate(() =>
-                    symbol.id === armedSymbolId && tool === "stitch"
-                      ? setArmedSymbolId(null)
-                      : chooseSymbol(symbol.id)
-                  )}
-                  title={`Draw with ${symbol.label} - tap again to stop drawing`}
+            {remainingGlossary.map((entry) => {
+              const { symbol, colorId, key } = entry;
+              const armed = key === quickSlotKey(armedSymbolId ?? "", activeColor) && !!armedSymbolId;
+              const count = colorId ? (coloredCounts.get(key) ?? 0) : (stitchCounts.get(symbol.id) ?? 0);
+              const selectAllLabel = `Select all ${count} placed ${symbol.label} stitches`;
+              return (
+                <div
+                  key={key}
+                  className="glossary__item"
+                  data-on={armed && tool === "stitch"}
+                  data-drag-over={dragOverQuickId === key}
+                  onDragOver={(event) => {
+                    if (draggingQuickId && draggingQuickId !== key) {
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = "move";
+                      setDragOverQuickId(key);
+                    }
+                  }}
+                  onDragLeave={() => setDragOverQuickId((current) => current === key ? null : current)}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    const draggedKey = draggingQuickId;
+                    resetDragState();
+                    if (!draggedKey || draggedKey === key) return;
+                    // Reordering within the overflow list only - promoting a
+                    // slotted item out of the quick row isn't supported here
+                    // (it wouldn't render in this list to begin with).
+                    if (quickSymbolIds.includes(draggedKey)) return;
+                    const targetIndex = remainingGlossary.findIndex((candidate) => candidate.key === key);
+                    useDocStore.getState().moveGlossaryIdTo(draggedKey, targetIndex);
+                  }}
                 >
-                  <span className="glossary__glyph">
-                    <SymbolGlyph symbol={symbol} cell={Math.max(7, Math.min(20, 54 / symbol.span))} />
-                  </span>
-                  <span className="glossary__label">{symbol.label}</span>
-                  <span className="glossary__count" title={`${stitchCounts.get(symbol.id) ?? 0} placed`}>
-                    {stitchCounts.get(symbol.id) ?? 0}
-                  </span>
-                </button>
-                {symbol.id === armedSymbolId && tool === "stitch" ? (
-                  disarmButton
-                ) : !symbolsPlaced.has(symbol.id) ? (
                   <button
                     type="button"
-                    className="glossary__remove"
-                    onClick={() => removeFromGlossary(symbol.id)}
-                    aria-label={`Remove ${symbol.label} from glossary`}
-                    title="Remove from glossary"
+                    draggable
+                    className="glossary__dragHandle"
+                    onDragStart={(event) => {
+                      event.dataTransfer.effectAllowed = "move";
+                      event.dataTransfer.setData("text/plain", key);
+                      setDraggingQuickId(key);
+                    }}
+                    onDragEnd={resetDragState}
+                    aria-label={`Drag to reorder ${symbol.label}`}
+                    title="Drag to reorder, or onto a numbered slot above to pin it there"
                   >
-                    <CloseIcon />
+                      <DragHandleIcon />
+                    </button>
+                  <span className="glossary__shortcutSpacer" />
+                  <button
+                    type="button"
+                    className="glossary__arm"
+                    {...tapActivate(() =>
+                      armed && tool === "stitch"
+                        ? setArmedSymbolId(null)
+                        : chooseSymbol(symbol.id, undefined, undefined, colorId)
+                    )}
+                    title={`Draw with ${symbol.label} - tap again to stop drawing`}
+                  >
+                    <span className="glossary__glyph">
+                      <SymbolGlyph symbol={symbol} cell={Math.max(7, Math.min(20, 54 / symbol.span))} colorId={colorId} />
+                    </span>
+                    <span className="glossary__label">{symbol.label}</span>
                   </button>
-                ) : (
-                  <span className="glossary__removeSlot" aria-hidden="true" />
-                )}
-              </div>
-            ))}
+                  <button
+                    type="button"
+                    className="glossary__count glossary__selectEntry"
+                    disabled={!count}
+                    onClick={() => setSelection(selectableGlossaryEntryPlacementIds(placements, key), [], true)}
+                    aria-label={selectAllLabel}
+                    title={selectAllLabel}
+                  >
+                    All ({count})
+                  </button>
+                  {!colorId && (
+                    <ColorChip
+                      mode="add-only"
+                      label={`Add a colored ${symbol.label}`}
+                      className="glossary__colorChip"
+                      onSelect={(newColorId) => addColoredVariant(symbol.id, newColorId)}
+                    />
+                  )}
+                  {armed && tool === "stitch" ? (
+                    disarmButton
+                  ) : !symbolsPlaced.has(key) ? (
+                    <button
+                      type="button"
+                      className="glossary__remove"
+                      onClick={() => removeFromGlossary(key)}
+                      aria-label={`Remove ${symbol.label} from glossary`}
+                      title="Remove from glossary"
+                    >
+                      <CloseIcon />
+                    </button>
+                  ) : (
+                    <span className="glossary__removeSlot" aria-hidden="true" />
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -654,13 +836,34 @@ export function RightPanel() {
         </button>
         {exportOpen && (
           <div className="sideModule__body">
+            {referenceImages.length > 0 && (
+              <label className="refpanel__checkbox">
+                <input
+                  type="checkbox"
+                  checked={includeReferenceImage}
+                  onChange={(event) => setIncludeReferenceImage(event.target.checked)}
+                />
+                Include reference image{referenceImages.length > 1 ? "s" : ""}
+              </label>
+            )}
             <div className="refpanel__actions">
               <button
                 type="button"
                 className="btn"
                 disabled={!meta}
                 onClick={() => {
-                  if (meta) void exportChart(meta.name, index.toArray(), repeats, referenceImage ?? undefined);
+                  if (meta) {
+                    void exportChart(
+                      meta.name,
+                      index.toArray(),
+                      repeats,
+                      referenceImages,
+                      addedGlossaryIds,
+                      quickSymbolIds,
+                      patternInfo,
+                      includeReferenceImage,
+                    );
+                  }
                 }}
               >
                 Stitch Ease file
