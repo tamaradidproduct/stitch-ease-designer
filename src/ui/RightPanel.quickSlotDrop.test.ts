@@ -89,5 +89,9 @@ describe("RightPanel quick-slot drop targets (issue #308)", () => {
     fireDragEvent(searchBox!, "drop");
 
     expect(useDocStore.getState().quickSymbolIds[1]).toBe("ktbl");
+    // The drop must close the search box (searchSlot/glossaryQuery reset)
+    // the same way chooseSearchResult does, or it leaks back open the next
+    // time this slot becomes empty.
+    expect(container.querySelector(".glossary__inlineSearch")).toBeNull();
   });
 });

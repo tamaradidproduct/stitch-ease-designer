@@ -632,7 +632,11 @@ export function RightPanel() {
                   onDrop={(event) => {
                     event.preventDefault();
                     const draggedId = draggingQuickId;
-                    if (draggedId) moveQuickSymbolTo(draggedId, slot);
+                    if (draggedId) {
+                      moveQuickSymbolTo(draggedId, slot);
+                      setSearchSlot(null);
+                      setGlossaryQuery("");
+                    }
                     resetDragState();
                   }}
                 >
