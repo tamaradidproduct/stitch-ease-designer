@@ -15,8 +15,8 @@ export default defineConfig(() => ({
     environment: "node",
     // Almost everything here is plain store/logic tests that don't need a
     // DOM - "node" keeps those fast. A `.test.tsx` file renders a real
-    // component (e.g. StitchPicker.test.tsx, #305) and opts into jsdom
-    // itself via a `// @vitest-environment jsdom` docblock.
+    // component (e.g. StitchPicker.test.tsx, #305/#306) and opts into
+    // jsdom itself via a `// @vitest-environment jsdom` docblock.
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
   },
 }));

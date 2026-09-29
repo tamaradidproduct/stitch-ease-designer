@@ -534,6 +534,7 @@ export function StitchPicker() {
                   type="button"
                   className="picker__quickButton"
                   data-colored={!!entry.colorId}
+                  data-active={currentSlot?.key === entry.key}
                   onClick={() => choose(entry.symbol, entry.colorId)}
                   title={entry.symbol.label}
                   aria-label={entry.symbol.label}
@@ -591,6 +592,7 @@ export function StitchPicker() {
                   type="button"
                   className="picker__quickButton"
                   data-colored={!!dynamicSlot.colorId}
+                  data-active={currentSlot?.key === dynamicSlot.key}
                   onClick={() => choose(dynamicSlot.symbol, dynamicSlot.colorId)}
                   title={dynamicSlot.symbol.label}
                   aria-label={dynamicSlot.symbol.label}
