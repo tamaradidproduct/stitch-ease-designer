@@ -88,5 +88,13 @@ export function cellWithinCalibratedCrop(
   const maxX = image.x + bounds.maxU * image.width;
   const minY = image.y + bounds.minV * image.height;
   const maxY = image.y + bounds.maxV * image.height;
-  return world.x >= minX && world.x + CELL <= maxX && world.y >= minY && world.y + CELL <= maxY;
+  // A cell whose edge lands exactly on the calibrated boundary shouldn't be
+  // excluded over floating-point rounding noise from the u/v-to-world math.
+  const EPSILON = 1e-5;
+  return (
+    world.x >= minX - EPSILON &&
+    world.x + CELL <= maxX + EPSILON &&
+    world.y >= minY - EPSILON &&
+    world.y + CELL <= maxY + EPSILON
+  );
 }

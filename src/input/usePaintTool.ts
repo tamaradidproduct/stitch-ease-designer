@@ -8,7 +8,7 @@ import { insertTargetCol } from "../model/ops";
 import { getSharedReferenceImageCache } from "../canvas/referenceImageCache";
 import { effectiveContrast } from "../canvas/referenceImageContrast";
 import { cellWithinCalibratedCrop, cellWithinReferenceImage, cropReferenceImageCell } from "../canvas/referenceImageCrop";
-import { binarizeCrop, extractExemplars, type MatchResult, matchCandidateStitch } from "../model/templateMatch";
+import { binarizeCrop, extractExemplars, type MatchResult, matchCandidateStitch, pickBetterMatch } from "../model/templateMatch";
 import { useDocStore } from "../state/docStore";
 import { SUGGEST_SYMBOL_ID, type SuggestAction, useUiStore } from "../state/uiStore";
 import { registerListeners } from "./registerListeners";
@@ -495,7 +495,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         const crop = cropReferenceImageCell(refImage, cachedImg, cell.col, cell.row, 32);
         const grid = binarizeCrop(crop);
         const match = matchCandidateStitch(grid, suggestExemplars);
-        if (!best || match.confidence > best.confidence) best = match;
+        best = best ? pickBetterMatch(best, match) : match;
       }
       // Every candidate image is still decoding - leave the cell untouched
       // rather than guessing or flagging it unread; it'll be picked up on a

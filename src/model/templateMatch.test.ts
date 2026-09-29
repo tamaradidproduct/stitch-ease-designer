@@ -3,12 +3,14 @@ import { DocIndex } from "./docIndex";
 import type { Placement, ReferenceImage } from "./types";
 import {
   type BinaryGrid,
+  type MatchResult,
   MAX_EXEMPLARS_PER_SWATCH,
   binarizeCrop,
   computeGridSimilarity,
   extractExemplars,
   isCellBlank,
   matchCandidateStitch,
+  pickBetterMatch,
   selectDiverseExemplars,
 } from "./templateMatch";
 
@@ -282,6 +284,31 @@ describe("templateMatch", () => {
       expect(result.symbolId).toBeNull();
       expect(result.confidence).toBeLessThan(0.7);
     });
+  });
+});
+
+describe("pickBetterMatch", () => {
+  const resolved = (confidence: number, symbolId = "knit"): MatchResult => ({
+    symbolId,
+    confidence,
+    isBlank: false,
+  });
+  const unresolved = (confidence: number): MatchResult => ({ symbolId: null, confidence, isBlank: false });
+
+  it("prefers a resolved match over an unresolved one, even at lower confidence", () => {
+    // The exact regression #266 introduced: one covering image's ambiguous
+    // non-match scored higher than another image's real match.
+    expect(pickBetterMatch(resolved(0.6), unresolved(0.9))).toEqual(resolved(0.6));
+    expect(pickBetterMatch(unresolved(0.9), resolved(0.6))).toEqual(resolved(0.6));
+  });
+
+  it("prefers the higher-confidence result when both resolved", () => {
+    expect(pickBetterMatch(resolved(0.6, "knit"), resolved(0.8, "purl"))).toEqual(resolved(0.8, "purl"));
+    expect(pickBetterMatch(resolved(0.8, "purl"), resolved(0.6, "knit"))).toEqual(resolved(0.8, "purl"));
+  });
+
+  it("prefers the higher-confidence result when neither resolved", () => {
+    expect(pickBetterMatch(unresolved(0.3), unresolved(0.5))).toEqual(unresolved(0.5));
   });
 });
 

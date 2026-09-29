@@ -63,4 +63,15 @@ describe("cellWithinCalibratedCrop", () => {
     // The unnamed box covers the whole image, but only the named one counts.
     expect(cellWithinCalibratedCrop(img, 0, 0)).toBe(false);
   });
+
+  it("tolerates floating-point rounding noise at the exact boundary", () => {
+    // A mark landing exactly on a cell edge after the u/v-to-world
+    // multiplication can come out a hair off due to float precision -
+    // this must still count as inside, not be excluded by a hair's width.
+    const img = image({
+      cropToCalibration: true,
+      calibrationMarks: [namedMark({ u: 60 / 240 + 1e-9, v: 60 / 240, w: 0.5, h: 0.5 })],
+    });
+    expect(cellWithinCalibratedCrop(img, 3, 3)).toBe(true);
+  });
 });
