@@ -39,15 +39,43 @@ check first, and only skip closing if you have a specific, current reason to
 believe verification is still pending (e.g. the fix hasn't merged yet, or a
 human explicitly asked to verify by hand before closing).
 
-## Label a qa-flagged issue once it's been picked up
+## Label a qa-flagged issue once it's been picked up — and sync its Airtable Finding Status to match
 
-When you file a new issue against a `qa-flagged` report — a Bucket-A
-hand-off to Copilot, or a Bucket-B `needs-decision` write-up — add an
-`in-progress` label to the original `qa-flagged` issue itself (creating the
-label first if it doesn't exist yet). This makes it visible at a glance that
-a report isn't just sitting untouched, even though the actual fix lives on a
-separate issue. Leave the label on until the `qa-flagged` issue is closed
-(per the convention above) — don't remove it partway through.
+Every `qa-flagged` issue traces back to a record in the **Findings** table of
+the QA Airtable base (`appAINJtS6btK4dyo`/`tblsXY4HhYu3LJj0n`) — look it up
+by GitHub issue number via the `GitHub Issue # (parsed)` formula field (the
+plain `GitHub Issue Number` field is usually empty; don't filter on it). The
+GitHub label and the Finding's own `Status` field are two views of the same
+state and must be kept in sync — check the Finding's actual current `Status`
+before touching it; don't assume it already matches what GitHub shows.
+
+- The moment you file a new issue against a `qa-flagged` report — a Bucket-A
+  hand-off to Copilot, or a Bucket-B `needs-decision` write-up — add an
+  `in-progress` label to the `qa-flagged` issue itself (creating the label
+  first if it doesn't exist yet), **and** set its Finding's `Status` to
+  `In progress`.
+- If instead you reply on the issue asking a question, presenting a decision,
+  or requesting more info (rather than filing a companion issue) — still add
+  the `in-progress` label so it doesn't read as untouched, and set the
+  Finding's `Status` to `Need clarification`.
+- When you close the `qa-flagged` issue (per the convention above), set its
+  Finding's `Status` to `Resolved`.
+
+Leave the label on, and the Status out of `New`, until the issue is actually
+closed — don't remove or revert either partway through.
+
+## Mirror GitHub activity to Airtable comments
+
+Every comment you post on a `qa-flagged` issue — a clarifying question, a
+decision proposal, a closing summary with the fix's PR link — post the same
+content as an Airtable comment on that issue's linked Finding record (via
+the Comments API: `POST /v0/{baseId}/{tableId}/{recordId}/comments`), so
+someone reading only Airtable sees the same trail without checking GitHub.
+Airtable comments post under whoever's API token is used, not under
+"Claude" — always prefix the text with `[Claude Code, GitHub sync]` so it's
+never mistaken for a manually-written note. Do this alongside the Status
+sync above, not instead of it — the comment is the narrative, the Status
+field is the machine-readable state.
 
 ## New test cases go in Airtable, not GitHub issues
 
