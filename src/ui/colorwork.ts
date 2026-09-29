@@ -88,7 +88,7 @@ export function currentSlotForPicker(
     // `placementIds` unconditionally hid StitchPicker's dynamic 6th slot for
     // both of those entry points (#307).
     const existing = placementAt?.(target.col, target.row);
-    if (existing) {
+    if (existing && existing.symbolId === target.currentSymbolId) {
       return {
         key: quickSlotKey(existing.symbolId, existing.colorId),
         symbolId: existing.symbolId,

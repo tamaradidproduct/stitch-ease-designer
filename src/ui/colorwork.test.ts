@@ -137,4 +137,27 @@ describe("currentSlotForPicker (currentSymbolId-only branch - #307)", () => {
     expect(slot?.placementIds).toEqual([]);
     expect(slot?.colorId).toBe("red");
   });
+
+  it("falls back to the target-derived shape when the live placement's symbolId no longer matches (stale/replaced in the background)", () => {
+    const placements = [placement({ id: "a", symbolId: "knit", colorId: "red" })];
+    const target: PickerTarget = {
+      col: 0,
+      row: 0,
+      x: 0,
+      y: 0,
+      currentSymbolId: "purl",
+      currentColorId: "blue",
+    };
+    const slot = currentSlotForPicker(
+      target,
+      byId(placements),
+      null,
+      null,
+      [],
+      placementAtFor(placements),
+    );
+    expect(slot?.symbolId).toBe("purl");
+    expect(slot?.colorId).toBe("blue");
+    expect(slot?.placementIds).toEqual([]);
+  });
 });
