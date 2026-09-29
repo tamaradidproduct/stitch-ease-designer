@@ -20,6 +20,9 @@ const targetFor = (selectionIds: string[]): PickerTarget => ({
   selectionIds,
 });
 
+const placementAtFor = (placements: Placement[]) => (col: number, row: number) =>
+  placements.find((p) => p.col === col && p.row === row);
+
 describe("currentSlotForPicker (FR-40)", () => {
   it("returns a slot for a single selected stitch that is the only instance of its combo", () => {
     const placements = [placement({ id: "a" })];
@@ -91,5 +94,70 @@ describe("currentSlotForPicker (FR-40)", () => {
       placements,
     );
     expect(slot).toBeNull();
+  });
+});
+
+// #307: the double-click handler and the "/" shortcut both open the picker
+// with only `currentSymbolId`/`currentColorId` set - never `selectionIds` -
+// so they hit this branch instead of the FR-40 one above.
+describe("currentSlotForPicker (currentSymbolId-only branch - #307)", () => {
+  it("resolves real placementIds (and colorId) off the live placement at the target cell", () => {
+    const placements = [placement({ id: "a", colorId: "red" })];
+    const target: PickerTarget = {
+      col: 0,
+      row: 0,
+      x: 0,
+      y: 0,
+      currentSymbolId: "purl",
+      // Deliberately omitted, like the "/" shortcut does - the fix must not
+      // depend on it since it resolves color live off the placement instead.
+    };
+    const slot = currentSlotForPicker(
+      target,
+      byId(placements),
+      null,
+      null,
+      [],
+      placementAtFor(placements),
+    );
+    expect(slot?.placementIds).toEqual(["a"]);
+    expect(slot?.colorId).toBe("red");
+  });
+
+  it("falls back to the target's own currentSymbolId/currentColorId with empty placementIds when no live placement is found", () => {
+    const target: PickerTarget = {
+      col: 0,
+      row: 0,
+      x: 0,
+      y: 0,
+      currentSymbolId: "purl",
+      currentColorId: "red",
+    };
+    const slot = currentSlotForPicker(target, byId([]), null, null, [], () => undefined);
+    expect(slot?.placementIds).toEqual([]);
+    expect(slot?.colorId).toBe("red");
+  });
+
+  it("falls back to the target-derived shape when the live placement's symbolId no longer matches (stale/replaced in the background)", () => {
+    const placements = [placement({ id: "a", symbolId: "knit", colorId: "red" })];
+    const target: PickerTarget = {
+      col: 0,
+      row: 0,
+      x: 0,
+      y: 0,
+      currentSymbolId: "purl",
+      currentColorId: "blue",
+    };
+    const slot = currentSlotForPicker(
+      target,
+      byId(placements),
+      null,
+      null,
+      [],
+      placementAtFor(placements),
+    );
+    expect(slot?.symbolId).toBe("purl");
+    expect(slot?.colorId).toBe("blue");
+    expect(slot?.placementIds).toEqual([]);
   });
 });
