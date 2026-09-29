@@ -358,17 +358,24 @@ export function StitchPicker() {
     }
     if (target.selectionEmptyCells?.length) {
       const cells = target.selectionEmptyCells;
+      // Hoisted out of the loop below: `index` is mutated in place by each
+      // `place()` call (same object, higher revision), so a single
+      // reference stays current across iterations. `referenceImageUnrecognized`
+      // is a snapshot of which cells were unrecognized *before this batch*,
+      // which is exactly what each cell's own `unrecognizedKeyCleared` check
+      // needs - later cells' clears don't change an earlier/later cell's own
+      // original flagged status. Avoids a redundant store lookup per cell.
+      const docState = useDocStore.getState();
+      const unrecognizedSet = useUiStore.getState().referenceImageUnrecognized;
       beginStroke();
       for (const cell of cells) {
-        if (useDocStore.getState().index.placementAt(cell.col, cell.row)) continue;
+        if (docState.index.placementAt(cell.col, cell.row)) continue;
         // Same undoable clear as usePaintTool.ts's freehand `place` (#285) -
         // each cleared flag is banked onto this stroke's merged HistoryEntry
         // by `endStroke` below, so undo can re-flag every cell this batch
         // touched, not just the first one (#305).
         const key = cellKey(cell.col, cell.row);
-        const unrecognizedKeyCleared = useUiStore.getState().referenceImageUnrecognized.has(key)
-          ? key
-          : undefined;
+        const unrecognizedKeyCleared = unrecognizedSet.has(key) ? key : undefined;
         place(symbol.id, cell.col, cell.row, undefined, undefined, colorId, unrecognizedKeyCleared);
       }
       endStroke();
