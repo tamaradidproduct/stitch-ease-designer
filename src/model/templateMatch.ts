@@ -239,6 +239,20 @@ export function matchCandidateStitch(
 }
 
 /**
+ * Picks the better of two match results, e.g. when a cell is covered by
+ * more than one reference image and each is matched against separately
+ * (#266). A resolved symbol always outranks an unresolved one, whatever
+ * their raw confidence - comparing confidence directly could otherwise let
+ * a higher-scoring non-match (ambiguous or below threshold) from one image
+ * override a real match from another. Otherwise the higher-confidence
+ * result wins.
+ */
+export function pickBetterMatch(a: MatchResult, b: MatchResult): MatchResult {
+  if (!!b.symbolId !== !!a.symbolId) return b.symbolId ? b : a;
+  return b.confidence > a.confidence ? b : a;
+}
+
+/**
  * Extracts binary exemplars from all confirmed (non-suggested) placements that fall
  * within the reference image boundary.
  */

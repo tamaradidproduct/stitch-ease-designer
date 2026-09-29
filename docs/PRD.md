@@ -1009,6 +1009,38 @@ column, rather than a third button sharing that column's box.
 
 ---
 
+### Suggest: best-of-overlapping-images matching, crop to calibration
+
+**FR-62 (added #266).** When a cell falls under more than one reference
+image (overlapping images), Suggest no longer always matches against
+whichever image comes first in array order. It tries every covering image
+and keeps the highest-confidence result, so a misaligned or stale image
+stacked under another one can no longer silently win just by having been
+added first.
+
+**FR-63 (added #266, narrows FR-62).** Each covering image is additionally
+required to vouch for the cell via its own calibrated crop: a cell outside
+the region spanned by an image's named calibration marks is excluded from
+matching against that image entirely (not matched with degraded confidence -
+excluded outright), since positional error from the calibration fit grows
+with distance from the marks. If every covering image excludes the cell this
+way, the cell is left unmatched (not flagged unread) rather than guessed
+from an untrustworthy region. New reference images have crop-to-calibration
+on by default (see `cropToCalibration` in "Reference image panel: scale
+controls" above); this is unchanged for existing images unless a designer
+enables it.
+
+**Implementation.**
+- `src/canvas/referenceImageCrop.ts` (`cellWithinCalibratedCrop`) — the new
+  per-image, per-cell calibrated-crop check.
+- `src/input/usePaintTool.ts` (`matchAndPlace`) — matches against every
+  covering, in-crop image and keeps the best-confidence `MatchResult`,
+  instead of a single `Array.find`.
+- `src/ui/ReferenceImagePanel.tsx` — `cropToCalibration: true` on newly
+  uploaded images.
+
+---
+
 ## Known Platform Limitations (Desktop vs iPad)
 
 QA testing (2026-09-17) split test coverage by device (Desktop / iPad) and
