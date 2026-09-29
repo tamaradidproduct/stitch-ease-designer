@@ -38,3 +38,13 @@ issue open on the assumption that some other routine will close it later —
 check first, and only skip closing if you have a specific, current reason to
 believe verification is still pending (e.g. the fix hasn't merged yet, or a
 human explicitly asked to verify by hand before closing).
+
+## Label a qa-flagged issue once it's been picked up
+
+When you file a new issue against a `qa-flagged` report — a Bucket-A
+hand-off to Copilot, or a Bucket-B `needs-decision` write-up — add an
+`in-progress` label to the original `qa-flagged` issue itself (creating the
+label first if it doesn't exist yet). This makes it visible at a glance that
+a report isn't just sitting untouched, even though the actual fix lives on a
+separate issue. Leave the label on until the `qa-flagged` issue is closed
+(per the convention above) — don't remove it partway through.
