@@ -82,6 +82,7 @@ export function StitchPicker() {
       armedSymbolId,
       activeColor,
       allPlacements,
+      (col, row) => index.placementAt(col, row),
     );
   }, [target, index, armedSymbolId, activeColor, revision]);
 
