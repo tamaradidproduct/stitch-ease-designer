@@ -48,3 +48,21 @@ label first if it doesn't exist yet). This makes it visible at a glance that
 a report isn't just sitting untouched, even though the actual fix lives on a
 separate issue. Leave the label on until the `qa-flagged` issue is closed
 (per the convention above) — don't remove it partway through.
+
+## New test cases go in Airtable, not GitHub issues
+
+When a PR's review turns up a gap in manual QA coverage (a refactor or
+dependency bump that automated tests can't fully validate, a new code path
+nothing currently exercises, etc.), create the test case directly in the
+**Test Cases** table of the QA Airtable base
+(`appAINJtS6btK4dyo`/`tblWwtxagtDwxPvwD`) — not as a `[NEW TEST CASE]`
+GitHub issue. That table is the actual source of truth QA works from;
+a GitHub issue was just an extra hop nobody was reading.
+
+Fill in at minimum: `Title`, `Area`, `Platform`, `Test Priority`, `Steps`,
+`Expected Result`, and `Lifecycle: Ready`. Link `Requirements` when the case
+traces to an actual product spec/FR; leave it blank (and say why in `Notes`)
+for a pure regression check on a mechanical change with no corresponding
+requirement — don't invent a link just to satisfy the table's own
+`Readiness Check` formula, which will read `Incomplete` in that case and
+that's fine. Mention the source PR/issue number in `Notes` for traceability.
