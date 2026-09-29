@@ -462,11 +462,17 @@ body {
   bottom: 0;
 }
 
-.referenceImageQuickDock {
+.referenceImageQuickDockGroup {
   position: absolute;
   z-index: 18;
-  right: 328px;
   bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.referenceImageQuickDock {
   display: flex;
   align-items: center;
   gap: 5px;
@@ -482,10 +488,12 @@ body {
 
 /* Narrower canvases: the secondary actions (Hide / Bring to front)
    collapse to icons that expand while the dock is hovered or focused, then,
-   when very narrow, stack in a column above Save changes. Touch screens have
-   no hover, so the icons keep their titles/aria-labels there. */
+   when very narrow, stack in a column - with Save changes moved out into
+   its own full-width pill underneath (see .referenceDock--save-stacked).
+   Touch screens have no hover, so the icons keep their titles/aria-labels
+   there. */
 .referenceImageQuickDock--icons .toolDock__button,
-.referenceImageQuickDock--stacked .toolDock__button:not(.referenceDock__save) {
+.referenceImageQuickDock--stacked .toolDock__button {
   min-width: 38px;
   overflow: hidden;
   transition:
@@ -495,7 +503,7 @@ body {
 }
 
 .referenceImageQuickDock--icons .toolDock__button span,
-.referenceImageQuickDock--stacked .toolDock__button:not(.referenceDock__save) span {
+.referenceImageQuickDock--stacked .toolDock__button span {
   max-width: 0;
   overflow: hidden;
   opacity: 0;
@@ -506,7 +514,7 @@ body {
 }
 
 .referenceImageQuickDock--icons .toolDock__button,
-.referenceImageQuickDock--stacked .toolDock__button:not(.referenceDock__save) {
+.referenceImageQuickDock--stacked .toolDock__button {
   padding: 0 10px;
   gap: 0;
 }
@@ -529,6 +537,20 @@ body {
 .referenceImageQuickDock--stacked {
   flex-direction: column;
   align-items: stretch;
+}
+
+/* Save changes, pulled out of the icons-only dock above it once things get
+   very narrow, so it stays a full, unambiguous tap target of its own rather
+   than one more button sharing that dock's box. */
+.referenceDock--save-stacked {
+  width: 100%;
+  box-sizing: border-box;
+  max-width: none;
+  overflow: visible;
+}
+
+.referenceDock--save-stacked .toolDock__button {
+  width: 100%;
 }
 
 .referenceDock__apply {
