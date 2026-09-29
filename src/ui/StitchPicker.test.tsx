@@ -21,11 +21,7 @@ function resetDoc() {
 }
 
 function resetUi() {
-  useUiStore.setState({
-    picker: null,
-    armedSymbolId: null,
-    activeColor: null,
-  });
+  useUiStore.getState().resetForChart();
 }
 
 describe("StitchPicker quick-slot active highlight (#306)", () => {
@@ -48,8 +44,12 @@ describe("StitchPicker quick-slot active highlight (#306)", () => {
   });
 
   afterEach(() => {
-    act(() => root.unmount());
-    container.remove();
+    act(() => {
+      if (root) {
+        root.unmount();
+      }
+    });
+    container?.remove();
   });
 
   // Mirrors usePaintTool's openPickerForSingleSelection: selecting an
