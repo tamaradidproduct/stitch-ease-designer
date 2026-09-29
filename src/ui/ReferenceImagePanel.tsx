@@ -186,6 +186,11 @@ export function ReferenceImagePanel() {
         opacity: 0.5,
         visible: true,
         locked: false,
+        // Crop-to-calibration is on by default for new images (#266):
+        // positional error from the calibration fit grows with distance
+        // from the named marks, so both rendering and Suggest's matching
+        // trust only the region the designer actually calibrated against.
+        cropToCalibration: true,
         ...(replacing?.inFront ? { inFront: true } : {}),
       };
       // The replaced image's old file is deliberately left in Storage
@@ -720,7 +725,7 @@ export function ReferenceImagePanel() {
                 </p>
               </div>
             )}
-            <label className="refpanel__checkbox" title="Hide the parts of this image outside the stitches you've boxed and named on it. Display-only and fully reversible - never trims the image itself, and does nothing until at least one mark is named.">
+            <label className="refpanel__checkbox" title="Hide the parts of this image outside the stitches you've boxed and named on it, and exclude that same region from Suggest's matching. Fully reversible - never trims the image itself, and does nothing until at least one mark is named. On by default for new images.">
               <input
                 type="checkbox"
                 checked={!!image.cropToCalibration}

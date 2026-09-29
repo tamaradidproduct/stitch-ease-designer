@@ -1,4 +1,5 @@
 import { CELL, cellToWorld } from "./camera";
+import { calibratedImageBounds } from "../model/referenceCalibration";
 import type { ReferenceImage } from "../model/types";
 
 export const DEFAULT_CROP_SIZE = 32;
@@ -58,4 +59,34 @@ export function cellWithinReferenceImage(
     world.y >= image.y &&
     world.y + CELL <= image.y + image.height
   );
+}
+
+/**
+ * Whether a cell falls entirely within an image's *calibrated* crop -
+ * the region actually spanned by its named calibration marks - rather than
+ * just its overall bounds. Used to keep Suggest from trusting a region of
+ * the photo the designer never actually calibrated against: positional
+ * error from the calibration fit is smallest near the marks and grows with
+ * distance from them (#266), so a cell outside the calibrated region is
+ * excluded from matching entirely instead of matched with unreliable crop
+ * bounds.
+ *
+ * Images that don't opt into `cropToCalibration`, or that have no named
+ * marks yet, impose no restriction here - same as before this crop existed.
+ */
+export function cellWithinCalibratedCrop(
+  image: ReferenceImage,
+  col: number,
+  row: number,
+): boolean {
+  if (!image.cropToCalibration) return true;
+  const bounds = calibratedImageBounds(image.calibrationMarks ?? []);
+  if (!bounds) return true;
+
+  const world = cellToWorld(col, row);
+  const minX = image.x + bounds.minU * image.width;
+  const maxX = image.x + bounds.maxU * image.width;
+  const minY = image.y + bounds.minV * image.height;
+  const maxY = image.y + bounds.maxV * image.height;
+  return world.x >= minX && world.x + CELL <= maxX && world.y >= minY && world.y + CELL <= maxY;
 }

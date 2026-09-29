@@ -177,19 +177,21 @@ export type ReferenceImage = {
    */
   inFront?: boolean;
   /**
-   * Clip this image's *drawing* to the region spanned by its own named
-   * calibration marks (the stitches the designer boxed and typed a row/
-   * stitch number for) rather than showing its full extent - reference
-   * photos routinely carry their own grid past where the actual pattern
-   * ends, and that grid fighting the app's own grid outside the real chart
-   * is exactly the visual noise this is for. Deliberately keyed off this
-   * image's *own* calibration, not off wherever the chart's placements
-   * happen to sit - the two live in unrelated coordinate spaces, and an
-   * image can be calibrated before a single stitch is ever placed. Display-
-   * only: it never touches `x`/`y`/`width`/`height`, so it's freely
-   * reversible even if the marked corners later turn out wrong (e.g. a
-   * corner never got worked) - turning it off always shows the whole image
-   * again, nothing lost. A no-op until at least one mark is named.
+   * Clip this image to the region spanned by its own named calibration
+   * marks (the stitches the designer boxed and typed a row/stitch number
+   * for) rather than trusting its full extent, for both *drawing* and
+   * Suggest's matching (#266) - reference photos routinely carry their own
+   * grid past where the actual pattern ends, and positional error from the
+   * calibration fit grows with distance from the marks, so the uncalibrated
+   * margin is exactly the region neither should trust. Deliberately keyed
+   * off this image's *own* calibration, not off wherever the chart's
+   * placements happen to sit - the two live in unrelated coordinate spaces,
+   * and an image can be calibrated before a single stitch is ever placed.
+   * Never touches `x`/`y`/`width`/`height`, so it's freely reversible even
+   * if the marked corners later turn out wrong (e.g. a corner never got
+   * worked) - turning it off always shows/matches the whole image again,
+   * nothing lost. A no-op until at least one mark is named. On by default
+   * for images added after #266.
    */
   cropToCalibration?: boolean;
   /**

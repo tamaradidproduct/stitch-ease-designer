@@ -7,8 +7,8 @@ import { stitchGroups } from "../model/stitchNumbers";
 import { insertTargetCol } from "../model/ops";
 import { getSharedReferenceImageCache } from "../canvas/referenceImageCache";
 import { effectiveContrast } from "../canvas/referenceImageContrast";
-import { cellWithinReferenceImage, cropReferenceImageCell } from "../canvas/referenceImageCrop";
-import { binarizeCrop, extractExemplars, matchCandidateStitch } from "../model/templateMatch";
+import { cellWithinCalibratedCrop, cellWithinReferenceImage, cropReferenceImageCell } from "../canvas/referenceImageCrop";
+import { binarizeCrop, extractExemplars, type MatchResult, matchCandidateStitch } from "../model/templateMatch";
 import { useDocStore } from "../state/docStore";
 import { SUGGEST_SYMBOL_ID, type SuggestAction, useUiStore } from "../state/uiStore";
 import { registerListeners } from "./registerListeners";
@@ -464,13 +464,16 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       // Suggest never overwrites an existing stitch (confirmed or pending).
       // Skipping it here also avoids unnecessary image processing.
       if (doc().index.placementAt(cell.col, cell.row)) return;
-      // A chart can carry more than one reference image now; the first
-      // (in array order) that actually covers this cell is the one Suggest
-      // matches against, same as if there were only ever one.
-      const refImage = doc().referenceImages.find((img) => cellWithinReferenceImage(img, cell.col, cell.row));
-      if (!refImage) return;
-      const cachedImg = getSharedReferenceImageCache().get(refImage.ref, effectiveContrast(refImage));
-      if (!cachedImg) return;
+      // A chart can carry more than one reference image now, and they can
+      // overlap. Every image that both covers this cell and, per its own
+      // calibrated crop, actually vouches for this region is a candidate -
+      // the highest-confidence match among them wins, rather than always
+      // trusting whichever comes first in array order, which could silently
+      // read the wrong (or worse-calibrated) image's pixels here (#266).
+      const candidateImages = doc().referenceImages.filter(
+        (img) => cellWithinReferenceImage(img, cell.col, cell.row) && cellWithinCalibratedCrop(img, cell.col, cell.row),
+      );
+      if (!candidateImages.length) return;
 
       if (!suggestExemplars) {
         // Pooled across every reference image on the chart, not just this
@@ -484,13 +487,24 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
           (ref) => getSharedReferenceImageCache().isReady(ref),
         );
       }
-      const crop = cropReferenceImageCell(refImage, cachedImg, cell.col, cell.row, 32);
-      const grid = binarizeCrop(crop);
-      const match = matchCandidateStitch(grid, suggestExemplars);
-      const key = cellKey(cell.col, cell.row);
 
-      if (match.symbolId) {
-        doc().place(match.symbolId, cell.col, cell.row, true, match.confidence, match.colorId);
+      let best: MatchResult | null = null;
+      for (const refImage of candidateImages) {
+        const cachedImg = getSharedReferenceImageCache().get(refImage.ref, effectiveContrast(refImage));
+        if (!cachedImg) continue;
+        const crop = cropReferenceImageCell(refImage, cachedImg, cell.col, cell.row, 32);
+        const grid = binarizeCrop(crop);
+        const match = matchCandidateStitch(grid, suggestExemplars);
+        if (!best || match.confidence > best.confidence) best = match;
+      }
+      // Every candidate image is still decoding - leave the cell untouched
+      // rather than guessing or flagging it unread; it'll be picked up on a
+      // later pass once at least one has loaded.
+      if (!best) return;
+
+      const key = cellKey(cell.col, cell.row);
+      if (best.symbolId) {
+        doc().place(best.symbolId, cell.col, cell.row, true, best.confidence, best.colorId);
         ui().setReferenceImageUnrecognized(key, false);
       } else {
         ui().setReferenceImageUnrecognized(key, true);
