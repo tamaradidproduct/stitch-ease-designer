@@ -42,7 +42,21 @@ export function StitchPicker() {
   // ran its revision-driven index snapshots after every drawing operation.
   // Keep the closed state to this tiny selector so the full body unmounts
   // until a picker target actually exists (#325).
-  return target ? <StitchPickerBody target={target} /> : null;
+  // A direct switch between targets does not pass through the closed state.
+  // Key the body by the target identity so its local search/drawer state
+  // cannot flash from the previous target (#325).
+  const targetKey = target
+    ? [
+      target.col,
+      target.row,
+      target.currentSymbolId ?? "",
+      target.selectionIds?.join(",") ?? "",
+      target.selectionEmptyCells?.map((cell) => `${cell.col},${cell.row}`).join(";") ?? "",
+      target.armOnly ? "arm" : "",
+    ]
+      .join(":")
+    : "";
+  return target ? <StitchPickerBody key={targetKey} target={target} /> : null;
 }
 
 function StitchPickerBody({ target }: { target: PickerTarget }) {
