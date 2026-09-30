@@ -115,15 +115,16 @@ export function StitchPicker() {
 
   type QuickEntry = { key: string; symbol: StitchSymbol; colorId?: string };
   const quickSymbols = useMemo(
-    () => quickIds
+    () => quickIds.slice(0, 5)
       .map((key): QuickEntry | null => {
         const { symbolId, colorId } = parseQuickSlotId(key);
         const symbol = getSymbol(symbolId);
-        return symbol ? { key, symbol, ...(colorId ? { colorId } : {}) } : null;
-      })
-      .filter((entry): entry is QuickEntry =>
-        !!entry && (!selectionSpan || entry.symbol.span === selectionSpan))
-      .slice(0, 5),
+        return symbol && (!selectionSpan || symbol.span === selectionSpan)
+          ? { key, symbol, ...(colorId ? { colorId } : {}) }
+          : null;
+      }),
+      // Preserve holes and filtered positions: quick slot N must remain
+      // picker position N, rather than compacting later entries left (#322).
     [quickIds, selectionSpan],
   );
   // FR-30: a sixth, dynamic tile when the current selection is a real
@@ -132,7 +133,7 @@ export function StitchPicker() {
   // moves elsewhere.
   const dynamicSlot = useMemo(() => {
     if (!currentSlot || !currentSlot.placementIds.length) return null;
-    if (quickSymbols.some((entry) => entry.key === currentSlot.key)) return null;
+    if (quickSymbols.some((entry) => entry?.key === currentSlot.key)) return null;
     const symbol = getSymbol(currentSlot.symbolId);
     if (!symbol || (selectionSpan && symbol.span !== selectionSpan)) return null;
     return { key: currentSlot.key, symbol, ...(currentSlot.colorId ? { colorId: currentSlot.colorId } : {}) } satisfies QuickEntry;
@@ -141,7 +142,7 @@ export function StitchPicker() {
     // The document mutates its index in place; its revision invalidates this
     // cached snapshot when placements change.
     void revision;
-    const visibleKeys = new Set(quickSymbols.map((entry) => entry.key));
+    const visibleKeys = new Set(quickSymbols.flatMap((entry) => entry ? [entry.key] : []));
     // Color-aware (keyed by symbolId::colorId, not just symbolId) - a
     // colored variant is its own distinct glossary entry, same as it is in
     // RightPanel's glossary list, so it needs its own row here rather than

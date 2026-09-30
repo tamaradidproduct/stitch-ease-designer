@@ -39,6 +39,11 @@ describe("collectColoredGlossaryEntries", () => {
     );
     expect(entries).toHaveLength(1);
   });
+
+  it("includes a quick-only stitch in the shared glossary set", () => {
+    const entries = collectColoredGlossaryEntries(["knit", "purl"], []);
+    expect(entries.map((entry) => entry.key)).toEqual(["knit", "purl"]);
+  });
 });
 
 describe("selectableGlossaryEntryPlacementIds", () => {
