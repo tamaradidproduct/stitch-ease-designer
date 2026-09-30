@@ -192,7 +192,6 @@ type DocState = {
   setQuickSymbolIds: (ids: string[]) => void;
   /** Adds `id` to the glossary if it isn't already there. */
   addGlossaryId: (id: string) => void;
-  /** Removes `id` from the glossary. */
   /** Adds `key` to the next free quick slot; newly placed or colored swatches move ahead of unplaced plain slots. */
   addQuickSlot: (key: string) => void;
   /** Clears a quick-slot assignment without moving other slots. */
