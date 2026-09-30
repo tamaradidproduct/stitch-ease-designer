@@ -130,7 +130,20 @@ export function applyColorToSlot(slot: CurrentSlot, colorId: string): void {
   const ui = useUiStore.getState();
   const newKey = quickSlotKey(slot.symbolId, colorId);
   if (slot.key !== newKey) {
-    doc.recolorQuickSlot(slot.key, newKey, slot.placementIds);
+    // Recoloring a plain pen must mint a colored variant rather than rename
+    // the plain slot away. The plain pen remains useful for the next stitch,
+    // even when the placement being recolored was its only instance (#318,
+    // #319). A colored pen still uses the rename-vs-mint rule below so
+    // changing one existing color does not leave redundant swatches behind.
+    if (!slot.colorId) {
+      // A placement-only dynamic picker entry has no assigned quick slot.
+      // Recoloring it must not unexpectedly claim one; preserve/mint only
+      // when the plain pen was actually in the quick row.
+      if (doc.quickSymbolIds.includes(slot.key)) doc.addQuickSlot(newKey);
+      if (doc.glossaryIds.includes(slot.key)) doc.addGlossaryId(newKey);
+    } else {
+      doc.recolorQuickSlot(slot.key, newKey, slot.placementIds);
+    }
   }
   if (slot.placementIds.length) {
     doc.recolorPlacements(slot.placementIds, colorId);

@@ -62,7 +62,7 @@ describe("colored quick-slot promotion", () => {
     expect(useDocStore.getState().quickSymbolIds).toEqual(["purl::" + RED, "knit"]);
   });
 
-  it("keeps an already-promoted swatch in place instead of demoting it past the default it passed", () => {
+  it("keeps an already-promoted plain swatch and adds its colored variant after it", () => {
     // Place, promote (as above), then color the same placement - the
     // completely normal next step after placing a new stitch.
     useDocStore.getState().place("sl_wyif", 0, 0);
@@ -72,9 +72,10 @@ describe("colored quick-slot promotion", () => {
 
     applyColorToSlot({ key: "sl_wyif", symbolId: "sl_wyif", placementIds: [placement.id] }, RED);
 
-    // sl_wyif::RED must stay ahead of "knit", the unplaced default it was
-    // already ahead of - not get walked past it to slot 0's target index.
-    expect(useDocStore.getState().quickSymbolIds).toEqual(["sl_wyif::" + RED, "knit", "purl"]);
+    // Recoloring preserves the original plain pen and makes the new colored
+    // variant available immediately after it, rather than replacing either
+    // shortcut or demoting the placed stitch past an unplaced default.
+    expect(useDocStore.getState().quickSymbolIds).toEqual(["sl_wyif", "sl_wyif::" + RED, "knit", "purl"]);
   });
 
   it("does not let a still-pending Suggest guess block a genuinely placed stitch from promoting", () => {
@@ -164,6 +165,29 @@ describe("recolor during Suggest review", () => {
     expect(useDocStore.getState().index.placementAt(0, 0)?.colorId).toBe(RED);
     expect(useUiStore.getState().armedSymbolId).toBe(SUGGEST_SYMBOL_ID);
     expect(useUiStore.getState().activeColor).toBeNull();
+  });
+});
+
+describe("recoloring a plain quick slot (#318, #319)", () => {
+  it("keeps the plain pen and adds the new colored pen when recoloring its only placement", () => {
+    useDocStore.getState().place("knit", 0, 0);
+    const placement = useDocStore.getState().index.placementAt(0, 0)!;
+
+    applyColorToSlot({ key: "knit", symbolId: "knit", placementIds: [placement.id] }, RED);
+
+    expect(useDocStore.getState().quickSymbolIds).toEqual(["knit", "knit::" + RED, "purl"]);
+    expect(useDocStore.getState().index.placementAt(0, 0)?.colorId).toBe(RED);
+  });
+
+  it("does not create a quick slot for a placement-only dynamic picker entry", () => {
+    useDocStore.getState().setQuickSymbolIds(["purl"]);
+    useDocStore.getState().place("knit", 0, 0);
+    const placement = useDocStore.getState().index.placementAt(0, 0)!;
+
+    applyColorToSlot({ key: "knit", symbolId: "knit", placementIds: [placement.id] }, RED);
+
+    expect(useDocStore.getState().quickSymbolIds).toEqual(["purl"]);
+    expect(useDocStore.getState().index.placementAt(0, 0)?.colorId).toBe(RED);
   });
 });
 
