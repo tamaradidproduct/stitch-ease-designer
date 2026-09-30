@@ -136,7 +136,10 @@ export function applyColorToSlot(slot: CurrentSlot, colorId: string): void {
     // #319). A colored pen still uses the rename-vs-mint rule below so
     // changing one existing color does not leave redundant swatches behind.
     if (!slot.colorId) {
-      doc.addQuickSlot(newKey);
+      // A placement-only dynamic picker entry has no assigned quick slot.
+      // Recoloring it must not unexpectedly claim one; preserve/mint only
+      // when the plain pen was actually in the quick row.
+      if (doc.quickSymbolIds.includes(slot.key)) doc.addQuickSlot(newKey);
       if (doc.glossaryIds.includes(slot.key)) doc.addGlossaryId(newKey);
     } else {
       doc.recolorQuickSlot(slot.key, newKey, slot.placementIds);

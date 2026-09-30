@@ -178,6 +178,17 @@ describe("recoloring a plain quick slot (#318, #319)", () => {
     expect(useDocStore.getState().quickSymbolIds).toEqual(["knit", "knit::" + RED, "purl"]);
     expect(useDocStore.getState().index.placementAt(0, 0)?.colorId).toBe(RED);
   });
+
+  it("does not create a quick slot for a placement-only dynamic picker entry", () => {
+    useDocStore.getState().setQuickSymbolIds(["purl"]);
+    useDocStore.getState().place("knit", 0, 0);
+    const placement = useDocStore.getState().index.placementAt(0, 0)!;
+
+    applyColorToSlot({ key: "knit", symbolId: "knit", placementIds: [placement.id] }, RED);
+
+    expect(useDocStore.getState().quickSymbolIds).toEqual(["purl"]);
+    expect(useDocStore.getState().index.placementAt(0, 0)?.colorId).toBe(RED);
+  });
 });
 
 describe("recolorPlacements", () => {
