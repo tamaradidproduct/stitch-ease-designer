@@ -113,14 +113,19 @@ export function StitchPicker() {
       .filter((section) => section.symbols.length > 0);
   }, [query, selectionSpan]);
 
-  type QuickEntry = { key: string; symbol: StitchSymbol; colorId?: string };
+  type QuickEntry = { key: string; symbol: StitchSymbol; colorId?: string; disabled?: boolean };
   const quickSymbols = useMemo(
     () => quickIds.slice(0, 5)
       .map((key): QuickEntry | null => {
         const { symbolId, colorId } = parseQuickSlotId(key);
         const symbol = getSymbol(symbolId);
-        return symbol && (!selectionSpan || symbol.span === selectionSpan)
-          ? { key, symbol, ...(colorId ? { colorId } : {}) }
+        return symbol
+          ? {
+            key,
+            symbol,
+            ...(colorId ? { colorId } : {}),
+            ...(selectionSpan && symbol.span !== selectionSpan ? { disabled: true } : {}),
+          }
           : null;
       }),
       // Preserve holes and filtered positions: quick slot N must remain
@@ -536,9 +541,10 @@ export function StitchPicker() {
                   className="picker__quickButton"
                   data-colored={!!entry.colorId}
                   data-active={currentSlot?.key === entry.key}
+                  disabled={entry.disabled}
                   onClick={() => choose(entry.symbol, entry.colorId)}
-                  title={entry.symbol.label}
-                  aria-label={entry.symbol.label}
+                  title={entry.disabled ? `${entry.symbol.label} does not fit this selection` : entry.symbol.label}
+                  aria-label={entry.disabled ? `${entry.symbol.label} does not fit this selection` : entry.symbol.label}
                   data-label={entry.symbol.label}
                 >
                   <SymbolGlyph
