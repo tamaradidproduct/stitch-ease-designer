@@ -707,15 +707,17 @@ export function StitchPicker() {
                   {/* FR-34: add-only - picking a color here arms a new pen,
                       never touches anything already placed, no matter how
                       many plain instances of this symbol exist. */}
-                  <ColorChip
-                    mode="add-only"
-                    label={`Add a colored ${entry.symbol.label}`}
-                    className="picker__itemColorChip"
-                    onSelect={(colorId) => {
-                      addColoredVariant(entry.symbol.id, colorId);
-                      closePicker();
-                    }}
-                  />
+                  {!entry.colorId && (
+                    <ColorChip
+                      mode="add-only"
+                      label={`Add a colored ${entry.symbol.label}`}
+                      className="picker__itemColorChip"
+                      onSelect={(colorId) => {
+                        addColoredVariant(entry.symbol.id, colorId);
+                        closePicker();
+                      }}
+                    />
+                  )}
                 </div>
               ))}
             </div>
