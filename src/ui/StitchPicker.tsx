@@ -5,7 +5,7 @@ import { cellKey } from "../model/cellKey";
 import { allSymbols, getSymbol } from "../symbols/registry";
 import type { StitchSymbol } from "../symbols/types";
 import { useDocStore } from "../state/docStore";
-import { useUiStore } from "../state/uiStore";
+import { type PickerTarget, useUiStore } from "../state/uiStore";
 import { insertTargetCol } from "../model/ops";
 import { SymbolGlyph } from "./SymbolGlyph";
 import { searchSymbols } from "./symbolSearch";
@@ -38,6 +38,14 @@ const cellSizeFor = (symbol: StitchSymbol) =>
 
 export function StitchPicker() {
   const target = useUiStore((s) => s.picker);
+  // The picker used to stay mounted and merely return null below. That still
+  // ran its revision-driven index snapshots after every drawing operation.
+  // Keep the closed state to this tiny selector so the full body unmounts
+  // until a picker target actually exists (#325).
+  return target ? <StitchPickerBody target={target} /> : null;
+}
+
+function StitchPickerBody({ target }: { target: PickerTarget }) {
   const closePicker = useUiStore((s) => s.closePicker);
   const openPicker = useUiStore((s) => s.openPicker);
   const chooseSymbol = useUiStore((s) => s.chooseSymbol);
@@ -304,8 +312,6 @@ export function StitchPicker() {
     // best.
     closeOnEscape: false,
   });
-
-  if (!target) return null;
 
   const openSearch = (initialQuery = "", origin = 5) => {
     // Same synchronous-focus requirement as the auto-open effect above.
