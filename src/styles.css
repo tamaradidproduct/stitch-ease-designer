@@ -851,10 +851,6 @@ body {
   background: var(--border);
 }
 
-.picker__quickButton[data-colored="true"] {
-  border-color: rgb(15 23 42 / 12%);
-}
-
 /*
  * Shared color-chip affordance (FR-25/26/34 - see the colorwork spec's
  * Consolidation section). `--recolor` is the restrictive, current-selection-
