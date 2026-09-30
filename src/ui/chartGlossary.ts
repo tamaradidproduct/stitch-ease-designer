@@ -1,12 +1,8 @@
-import { useMemo } from "react";
 import { getSymbol } from "../symbols/registry";
 import type { StitchSymbol } from "../symbols/types";
 import type { Placement } from "../model/types";
-import { DEFAULT_STITCH_IDS, parseQuickSlotId, quickSlotKey } from "../model/quickSlots";
+import { parseQuickSlotId, quickSlotKey } from "../model/quickSlots";
 import { useDocStore } from "../state/docStore";
-
-/** Every fresh pattern starts with the two foundational knit stitches. */
-export const DEFAULT_GLOSSARY_IDS = DEFAULT_STITCH_IDS;
 
 /**
  * Chart-scoped, persisted with the chart itself (see `docStore`'s
@@ -19,7 +15,7 @@ export function useGlossaryIds(): string[] {
   return useDocStore((s) => s.glossaryIds);
 }
 
-export function saveGlossaryIds(_chartId: string | undefined, ids: readonly string[]): void {
+export function saveGlossaryIds(ids: readonly string[]): void {
   useDocStore.getState().setGlossaryIds([...ids]);
 }
 
@@ -92,9 +88,6 @@ export function countConfirmedColoredStitches(placements: readonly Placement[]):
   return counts;
 }
 
-/** Stable identity for a colored glossary/quick-slot entry - alias of `quickSlotKey` for call sites in glossary/picker code. */
-export const coloredEntryKey = quickSlotKey;
-
 /**
  * Which (symbol, color) combos have any placement at all, confirmed or
  * still-suggested - the separate check "safe to remove from glossary" must
@@ -108,10 +101,4 @@ export function symbolsWithAnyPlacement(placements: readonly Placement[]): Set<s
     keys.add(quickSlotKey(placement.symbolId, placement.colorId));
   }
   return keys;
-}
-
-/** Memoized glossary entries for the open chart - combines explicit + derived, dedup'd. */
-export function useColoredGlossary(placements: readonly Placement[]): GlossaryEntry[] {
-  const addedIds = useGlossaryIds();
-  return useMemo(() => collectColoredGlossaryEntries(addedIds, placements), [addedIds, placements]);
 }
