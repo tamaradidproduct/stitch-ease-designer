@@ -100,36 +100,39 @@ export function CanvasView() {
       : undefined;
     const hoveredUnrecognized =
       !!s.hover && s.referenceImageUnrecognized.has(cellKey(s.hover.col, s.hover.row));
-    // Holding both review chords at once is blocked outright (FR-4,
-    // revised) - checked before anything else, including Dismiss's own
-    // precedence over the no-modifier override just below.
-    if (s.selectHeld && s.shiftHeld && s.altHeld) return "not-allowed";
-    // Dismiss always wins, even over the no-modifier override just below -
-    // matches `modeFor`'s own precedence exactly (a deliberately held
-    // destructive chord should never be silently absorbed by whatever's
-    // armed), computed from the same live modifiers and sticky default
-    // rather than a second copy of the rule (Gotcha G-1, G-2; SR-1).
-    if (s.shiftHeld && s.altHeld) {
-      if (isDismissable(hovered, hoveredUnrecognized)) return DISMISS_SUGGESTION_CURSOR;
-      return s.tool === "eraser" ? ERASE_CURSOR : "default";
-    } else {
-      // A real armed stitch landing on a suggestion applies and confirms it
-      // outright with no modifier needed (pre-existing, unaffected - FR-11)
-      // - that override wins over the Confirm cursor below, the same way it
-      // wins in the paint logic.
-      const overrideSymbolId =
-        s.armedSymbolId && s.armedSymbolId !== SUGGEST_SYMBOL_ID ? s.armedSymbolId : null;
-      if (!(hovered?.suggested && overrideSymbolId)) {
-        const effective = resolveSuggestAction(
-          { confirmHeld: s.selectHeld, dismissHeld: false },
-          s.armedSymbolId === SUGGEST_SYMBOL_ID ? s.suggestAction : "suggest",
-        );
-        if (effective === "confirm" && hovered?.suggested) return CONFIRM_SUGGESTION_CURSOR;
-        // The sticky default can resolve to Dismiss too, with no live
-        // modifier held at all (the toolDock's Dismiss button) - mirrors
-        // `modeFor`'s own fallback check, not just its live-Shift+Opt path.
-        if (effective === "dismiss" && isDismissable(hovered, hoveredUnrecognized)) {
-          return DISMISS_SUGGESTION_CURSOR;
+    // Cmd/Ctrl+Shift+Opt/Alt all three held is the FR-21 marquee's
+    // empty-cell-pickup chord, not a Confirm+Dismiss conflict - DNT-5 is
+    // explicit that Confirm/Dismiss must never claim any part of it, so the
+    // whole review-chord block below is skipped and this falls straight
+    // through to the temporary-Select cursor logic just after it.
+    if (!(s.selectHeld && s.shiftHeld && s.altHeld)) {
+      // Dismiss always wins, even over the no-modifier override just below -
+      // matches `modeFor`'s own precedence exactly (a deliberately held
+      // destructive chord should never be silently absorbed by whatever's
+      // armed), computed from the same live modifiers and sticky default
+      // rather than a second copy of the rule (Gotcha G-1, G-2; SR-1).
+      if (s.shiftHeld && s.altHeld) {
+        if (isDismissable(hovered, hoveredUnrecognized)) return DISMISS_SUGGESTION_CURSOR;
+        return s.tool === "eraser" ? ERASE_CURSOR : "default";
+      } else {
+        // A real armed stitch landing on a suggestion applies and confirms it
+        // outright with no modifier needed (pre-existing, unaffected - FR-11)
+        // - that override wins over the Confirm cursor below, the same way it
+        // wins in the paint logic.
+        const overrideSymbolId =
+          s.armedSymbolId && s.armedSymbolId !== SUGGEST_SYMBOL_ID ? s.armedSymbolId : null;
+        if (!(hovered?.suggested && overrideSymbolId)) {
+          const effective = resolveSuggestAction(
+            { confirmHeld: s.selectHeld, dismissHeld: false },
+            s.armedSymbolId === SUGGEST_SYMBOL_ID ? s.suggestAction : "suggest",
+          );
+          if (effective === "confirm" && hovered?.suggested) return CONFIRM_SUGGESTION_CURSOR;
+          // The sticky default can resolve to Dismiss too, with no live
+          // modifier held at all (the toolDock's Dismiss button) - mirrors
+          // `modeFor`'s own fallback check, not just its live-Shift+Opt path.
+          if (effective === "dismiss" && isDismissable(hovered, hoveredUnrecognized)) {
+            return DISMISS_SUGGESTION_CURSOR;
+          }
         }
       }
     }
