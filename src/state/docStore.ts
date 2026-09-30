@@ -193,7 +193,6 @@ type DocState = {
   /** Adds `id` to the glossary if it isn't already there. */
   addGlossaryId: (id: string) => void;
   /** Removes `id` from the glossary. */
-  removeGlossaryId: (id: string) => void;
   /** Adds `key` to the next free quick slot; newly placed or colored swatches move ahead of unplaced plain slots. */
   addQuickSlot: (key: string) => void;
   /** Clears a quick-slot assignment without moving other slots. */
@@ -491,11 +490,6 @@ export const useDocStore = create<DocState>((set, get) => {
       const current = get().glossaryIds;
       if (current.includes(id)) return;
       get().setGlossaryIds([...current, id]);
-    },
-    removeGlossaryId: (id) => {
-      const current = get().glossaryIds;
-      if (!current.includes(id)) return;
-      get().setGlossaryIds(current.filter((existing) => existing !== id));
     },
     addQuickSlot: (key) => {
       const state = get();
