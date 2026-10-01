@@ -104,7 +104,7 @@ describe("countConfirmedColoredStitches", () => {
 
 describe("saveGlossaryIds", () => {
   it("writes through to the open chart's docStore state", () => {
-    saveGlossaryIds("any-chart-id", ["yo", "knit"]);
+    saveGlossaryIds(["yo", "knit"]);
     expect(useDocStore.getState().glossaryIds).toEqual(["yo", "knit"]);
   });
 });

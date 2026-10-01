@@ -306,14 +306,14 @@ export function RightPanel() {
     if (!meta || plainGlossaryIds.has(id)) return;
     const next = [...addedGlossaryIds, id];
     setGlossaryQuery("");
-    saveGlossaryIds(meta.id, next);
+    saveGlossaryIds(next);
   };
   /** `key` is a full quick-slot key - a bare symbolId for a plain row, `symbolId::colorId` for a colored one. */
   const removeFromGlossary = (key: string) => {
     if (!meta || symbolsPlaced.has(key)) return;
     const next = addedGlossaryIds.filter((existing) => existing !== key);
     removeQuickSymbol(key);
-    saveGlossaryIds(meta.id, next);
+    saveGlossaryIds(next);
   };
   const chooseSearchResult = (id: string) => {
     addToGlossary(id);
