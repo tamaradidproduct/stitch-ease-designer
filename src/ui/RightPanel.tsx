@@ -214,7 +214,13 @@ export function RightPanel() {
     // cached snapshot when placements change.
     void revision;
     const chartPlacements = index.toArray();
-    const chartGlossary = collectColoredGlossaryEntries(addedGlossaryIds, chartPlacements);
+    // Quick slots are glossary entries too, even when they have neither an
+    // explicit glossary id nor a placement yet. Keeping them in this one
+    // shared set makes the header, rows, and picker agree (#322).
+    const chartGlossary = collectColoredGlossaryEntries(
+      [...quickSymbolIds, ...addedGlossaryIds],
+      chartPlacements,
+    );
     return {
       placements: chartPlacements,
       glossary: chartGlossary,
@@ -234,7 +240,7 @@ export function RightPanel() {
       coloredCounts: countConfirmedColoredStitches(chartPlacements),
       symbolsPlaced: symbolsWithAnyPlacement(chartPlacements),
     };
-  }, [addedGlossaryIds, index, revision]);
+  }, [quickSymbolIds, addedGlossaryIds, index, revision]);
   // Grouped by category (basic, increases, decreases, ...) rather than left
   // flat, so browsing the full library reads as a glossary instead of a wall
   // of stitches. Array.prototype.sort is stable, so search relevance order
