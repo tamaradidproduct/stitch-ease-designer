@@ -9,6 +9,7 @@ import {
   type Worked,
 } from "../model/types";
 import { useDocStore } from "../state/docStore";
+import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
 
 /** Grid layout order (top row, then bottom row) for the first-stitch corner picker. */
 const CORNER_GRID_ORDER: Corner[] = ["tl", "tr", "bl", "br"];
@@ -82,29 +83,22 @@ export function PatternSettingsMenu() {
       if (rect) setPos({ left: rect.left, top: rect.bottom + 6 });
     };
     updatePosition();
-    const dismissOutside = (event: PointerEvent) => {
-      if (
-        popoverRef.current?.contains(event.target as Node) ||
-        triggerRef.current?.contains(event.target as Node)
-      ) {
-        return;
-      }
-      setOpen(false);
-    };
-    const dismissOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("pointerdown", dismissOutside, true);
     document.addEventListener("scroll", updatePosition, true);
     window.addEventListener("resize", updatePosition);
-    document.addEventListener("keydown", dismissOnEscape, true);
     return () => {
-      document.removeEventListener("pointerdown", dismissOutside, true);
       document.removeEventListener("scroll", updatePosition, true);
       window.removeEventListener("resize", updatePosition);
-      document.removeEventListener("keydown", dismissOnEscape, true);
     };
   }, [open]);
+
+  useDismissOnOutsideOrEscape({
+    onDismiss: () => setOpen(false),
+    containerRef: popoverRef,
+    enabled: open,
+    ignoreTarget: (target) =>
+      target !== null && triggerRef.current?.contains(target as Node) === true,
+    closeOnScroll: true,
+  });
 
   return (
     <div className="patternSettings">
