@@ -125,7 +125,7 @@ export function ChartEditor() {
   return (
     <div className="app">
       <header className="topbar">
-        <Link className="topbar__back" to="/" title="All charts">
+        <Link className="topbar__back" to="/" title="All charts" aria-label="All charts">
           ←
         </Link>
         {openMeta ? (
