@@ -295,5 +295,5 @@ export function CanvasView() {
     };
   }, []);
 
-  return <canvas ref={ref} className="canvas" style={{ cursor }} />;
+  return <canvas ref={ref} className="canvas" style={{ cursor }} aria-label="Stitch chart" />;
 }
