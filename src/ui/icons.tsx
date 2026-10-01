@@ -11,6 +11,8 @@ type IconProps = {
   width?: number | string;
   height?: number | string;
   strokeWidth?: number | string;
+  /** Only needed by call sites that target the svg itself with a CSS class (e.g. SearchIcon's `.picker__searchIcon` site). */
+  className?: string;
 };
 
 /** A checkmark, for "accept/apply all"/"confirm" actions. */
@@ -59,6 +61,21 @@ export function CloseIcon({ width, height, strokeWidth }: IconProps) {
         strokeWidth={strokeWidth}
         strokeLinecap="round"
       />
+    </svg>
+  );
+}
+
+/**
+ * A magnifying glass, for "search" affordances - used by the glossary
+ * panel's inline search box and both of the picker's search entry points
+ * (the morphed search field and its trigger button), which used to each
+ * inline their own identical copy.
+ */
+export function SearchIcon({ width, height, strokeWidth, className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 20 20" width={width} height={height} aria-hidden="true">
+      <circle cx="8.5" cy="8.5" r="5.25" fill="none" stroke="currentColor" strokeWidth={strokeWidth} />
+      <path d="m12.4 12.4 4 4" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" />
     </svg>
   );
 }
