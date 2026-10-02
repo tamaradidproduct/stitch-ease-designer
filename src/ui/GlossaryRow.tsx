@@ -212,27 +212,33 @@ export function GlossaryRow({
         />
       ) : (
       <div className="glossary__armWrap">
+        {/* The glyph is its own tap target (same action as the label) so the
+            add-colored-variant chip can sit on its corner, matching the
+            picker's quick tiles - a chip can't nest inside the arm button. */}
+        <span className="glossary__glyphWrap">
+          <span className="glossary__glyph" aria-hidden="true" {...tapActivate(() => (armed ? onDisarm() : onArm()))}>
+            {glyph}
+          </span>
+          {/* FR-34/Bug 8: every plain stitch row gets the add-only chip -
+              never a colored row or a motif row. */}
+          {onAddColoredVariant && !colorId && (
+            <ColorChip
+              mode="add-only"
+              label={`Add a colored ${label}`}
+              className="glossary__colorChip"
+              onSelect={onAddColoredVariant}
+            />
+          )}
+        </span>
         <button
           type="button"
           className="glossary__arm"
           {...tapActivate(() => (armed ? onDisarm() : onArm()))}
           title={`Draw with ${label} ${shortcutNumber !== null ? `(${shortcutNumber}) ` : ""}- tap again to stop drawing`}
         >
-          <span className="glossary__glyph">{glyph}</span>
           <span className="glossary__label">{label}</span>
           <span className="glossary__countText">({count})</span>
         </button>
-        {/* FR-34/Bug 8: the add-only chip belongs on every plain stitch row,
-            slotted or not - a colored row never gets it, nor a motif row.
-            Overlaid on the glyph, same as the picker's quick tiles. */}
-        {onAddColoredVariant && !colorId && (
-          <ColorChip
-            mode="add-only"
-            label={`Add a colored ${label}`}
-            className="glossary__colorChip"
-            onSelect={onAddColoredVariant}
-          />
-        )}
       </div>
       )}
       {armed ? (

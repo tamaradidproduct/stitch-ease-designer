@@ -3544,14 +3544,26 @@ body {
 }
 
 /* The add-colored-variant chip sits on the glyph's bottom-right corner,
-   matching the picker's quick tiles (.picker__quickColorChip). The glyph
-   box is 38px wide with the cell centered in it. */
-.glossary__armWrap .glossary__colorChip {
+   matching the picker's quick tiles (.picker__quickColorChip). */
+.glossary__armWrap {
+  gap: 9px;
+  align-items: center;
+}
+
+.glossary__glyphWrap {
+  position: relative;
+  display: grid;
+  flex: none;
+}
+
+.glossary__glyphWrap .glossary__glyph {
+  cursor: pointer;
+}
+
+.glossary__glyphWrap .glossary__colorChip {
   position: absolute;
-  top: calc(50% + 1px);
-  left: 22px;
-  right: auto;
-  bottom: auto;
+  right: -7px;
+  bottom: -5px;
   margin: 0;
   border-color: var(--border);
   box-shadow: 0 1px 3px rgb(15 23 42 / 20%);
@@ -3662,4 +3674,20 @@ body {
 .glossary__item .glossary__more,
 .glossary__item .glossary__disarm {
   width: 28px;
+}
+
+/* An 18px chip covers most of a 22px glyph, so on pointer devices it only
+   appears while the row is hovered or focused (the picker likewise shows its
+   chip only on the active tile). Touch has no hover, so it stays visible. */
+@media (hover: hover) {
+  .glossary__glyphWrap .glossary__colorChip {
+    opacity: 0;
+    transition: opacity 100ms ease;
+  }
+
+  .glossary__item:hover .glossary__glyphWrap .glossary__colorChip,
+  .glossary__item:focus-within .glossary__glyphWrap .glossary__colorChip,
+  .glossary__glyphWrap .glossary__colorChip[aria-expanded="true"] {
+    opacity: 1;
+  }
 }
