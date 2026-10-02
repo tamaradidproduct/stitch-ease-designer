@@ -13,6 +13,9 @@ import { CloseIcon, SearchIcon } from "./icons";
 import { collectColoredGlossaryEntries, useGlossaryIds } from "./chartGlossary";
 import { clamp } from "./utils";
 import { parseQuickSlotId } from "../model/quickSlots";
+import { motifIdFromKey, stampOrigin } from "../model/motifs";
+import { MotifCopyBubbles, MotifDrawerSection, MotifGlyph, MotifQuickTile } from "./motifUi";
+import { armMotifPen, selectedMotifCopy } from "./motifActions";
 import { addColoredVariant, applyColorToSlot, currentSlotForPicker } from "./colorwork";
 import { ColorChip } from "./ColorChip";
 import { QuickTile } from "./QuickTile";
@@ -82,7 +85,8 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
   const beginStroke = useDocStore((s) => s.beginStroke);
   const endStroke = useDocStore((s) => s.endStroke);
   const repeats = useDocStore((s) => s.repeats);
-  const instantiateRepeat = useDocStore((s) => s.instantiateRepeat);
+  const stampMotif = useDocStore((s) => s.stampMotif);
+  const armedMotif = useUiStore((s) => s.armedMotif);
   const index = useDocStore((s) => s.index);
   const revision = useDocStore((s) => s.revision);
   const addedGlossaryIds = useGlossaryIds();
@@ -159,6 +163,23 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
   // stitch whose combo isn't already one of the five visible slots. Not
   // persisted - just a view of `currentSlot`, gone the moment the picker
   // moves elsewhere.
+  // Quick slots holding a motif pen (FR-64), by slot position.
+  const quickMotifs = useMemo(
+    () => quickIds.slice(0, 5).map((key) => {
+      const motifId = key ? motifIdFromKey(key) : null;
+      return motifId ? repeats.find((r) => r.id === motifId) ?? null : null;
+    }),
+    [quickIds, repeats],
+  );
+  // Picking a motif on an empty cell stamps it there (anchored like the
+  // stamp ghost) and arms it; anywhere else it only arms.
+  const chooseMotif = (motifId: string) => {
+    const motif = repeats.find((r) => r.id === motifId);
+    if (motif && !target.selectionIds && !target.selectionEmptyCells && !target.insert && !target.armOnly && !target.currentSymbolId) {
+      stampMotif(motif.id, [stampOrigin(motif, target)]);
+    }
+    armMotifPen(motifId);
+  };
   const dynamicSlot = useMemo(() => {
     if (!currentSlot || !currentSlot.placementIds.length) return null;
     if (quickSymbols.some((entry) => entry?.key === currentSlot.key)) return null;
@@ -185,7 +206,11 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
     ).filter((entry) =>
       !visibleKeys.has(entry.key) && (!selectionSpan || entry.symbol.span === selectionSpan));
   }, [quickSymbols, quickIds, addedGlossaryIds, index, selectionSpan, revision]);
-  const hasMore = moreEntries.length > 0;
+  const hasMore = moreEntries.length > 0 || repeats.length > 0;
+  const copyInfo = useMemo(() => {
+    void revision;
+    return target.selectionIds ? selectedMotifCopy(target.selectionIds, index, repeats) : null;
+  }, [target, index, repeats, revision]);
   const menuWidth = MENU_WIDTH + (dynamicSlot ? 45 : 0) + (hasMore ? 45 : 0) + (canDelete ? 45 : 0);
   const expandedMenuWidth = menuWidth + SEARCH_SLOT_WIDTH - 40;
 
@@ -545,6 +570,17 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
       <div className="picker__quick" aria-label="Choose a recent stitch or search">
           {Array.from({ length: 5 }, (_, slot) => {
             if (searchOpen && searchOrigin === slot) return renderSearchField(`search:${slot}`);
+            const motif = quickMotifs[slot];
+            if (motif) {
+              return (
+                <MotifQuickTile
+                  key={`motif:${motif.id}`}
+                  motif={motif}
+                  armed={armedMotif?.id === motif.id}
+                  onChoose={() => chooseMotif(motif.id)}
+                />
+              );
+            }
             const entry = quickSymbols[slot];
             return entry ? (
               <QuickTile
@@ -657,8 +693,8 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
 
         {moreOpen && (
           <div id="picker-more-stitches" className="picker__moreDrawer" aria-label="More stitches in this chart">
-            <div className="picker__moreHeader">This chart</div>
-            <div className="picker__moreList">
+            {moreEntries.length > 0 && <div className="picker__moreHeader">This chart</div>}
+            <div className="picker__moreList" hidden={!moreEntries.length}>
               {moreEntries.map((entry) => (
                 <div key={entry.key} className="picker__item">
                   <button
@@ -694,23 +730,35 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
                 </div>
               ))}
             </div>
+            <MotifDrawerSection onArmed={closePicker} />
           </div>
         )}
 
-        {target.selectionIds && target.selectionIds.length > 1 && (
+        {target.selectionIds && (target.selectionIds.length > 1 || copyInfo) && (
           <div className="picker__selectionBubbles" aria-label="Selection actions">
+            {copyInfo ? (
+              <MotifCopyBubbles copyId={copyInfo.copy.id} overridden={copyInfo.overridden} onDone={() => {
+                clearSelection();
+                closePicker();
+              }} />
+            ) : (
             <button
               type="button"
-              onClick={() => createRepeat(target.selectionIds!)}
-              title="Create a chart-local repeat"
-              aria-label="Create repeat"
-              data-label="Repeat"
+              onClick={() => {
+                createRepeat(target.selectionIds!);
+                clearSelection();
+                closePicker();
+              }}
+              title="Make a motif from these stitches (⌘G)"
+              aria-label="Make motif"
+              data-label="Motif"
             >
               <svg viewBox="0 0 20 20" aria-hidden="true">
                 <rect x="3" y="5" width="9" height="9" rx="1.5" />
                 <path d="M8 3h6a3 3 0 0 1 3 3v6m0 0-2.5-2.5M17 12l-2.5 2.5" />
               </svg>
             </button>
+            )}
             <button
               type="button"
               onClick={() => {
@@ -751,17 +799,18 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
 
             {matchingRepeats.length > 0 && (
               <div>
-                <div className="picker__heading">This chart</div>
+                <div className="picker__heading">Motifs</div>
                 {matchingRepeats.map((repeat) => (
                   <button
                     key={repeat.id}
                     type="button"
                     className="picker__item"
                     onClick={() => {
-                      if (instantiateRepeat(repeat.id, target.col, target.row)) closePicker();
+                      chooseMotif(repeat.id);
+                      closePicker();
                     }}
                   >
-                    <span className="picker__repeatGlyph" aria-hidden="true">↻</span>
+                    <span className="picker__glyph"><MotifGlyph /></span>
                     <span className="picker__label">{repeat.name}</span>
                     <span className="picker__span">{repeat.width} × {repeat.height}</span>
                   </button>

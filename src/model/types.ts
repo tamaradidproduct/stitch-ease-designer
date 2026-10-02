@@ -38,6 +38,25 @@ export type RepeatDefinition = {
   width: number;
   height: number;
   stitches: RepeatStitch[];
+  /** Linked copies on the chart. Absent on charts saved before motifs were linked. */
+  copies?: MotifCopy[];
+};
+
+/**
+ * One linked copy of a motif on the chart. The copy's stitches are ordinary
+ * placements whose `groupId` equals `id`; this record only adds what the
+ * placements can't say themselves - where the motif's footprint sits and
+ * whether it's flipped - so overrides can be derived by comparing the two
+ * (see `model/motifs.ts`). Stored on its motif, so the chart format and
+ * every storage signature carry copies without a new top-level field.
+ */
+export type MotifCopy = {
+  id: string;
+  /** The footprint's bottom-left cell. */
+  col: number;
+  row: number;
+  /** Knitting-aware horizontal flip of the motif (see `mirrorSymbolId`). */
+  mirrored?: boolean;
 };
 
 /**

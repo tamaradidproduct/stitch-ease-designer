@@ -1,5 +1,5 @@
 # Product Requirements Document (PRD)
-*Last Updated: 2026-09-25*
+*Last Updated: 2026-10-02*
 
 ## Core App Overview
 
@@ -9,7 +9,8 @@ it is a chart editor: an infinite canvas that is itself a grid of square
 cells, where each cell can hold a stitch (some stitches span several cells).
 Clicking any cell places a stitch from the Figma symbol library.
 
-v1 is the working drawing interface only — no chart frames, repeat boxes,
+v1 is the working drawing interface only — no chart frames, repeat boxes
+(reusable motifs exist; see FR-64 — a knitter-facing "repeat ×N" box does not),
 stitch counts, or project-management side yet. A chart can record `worked`
 (flat/round) and `firstRow` (RS/WS) as plain metadata for a preview to read
 (see "Pattern info fields..." below), but the chart itself still renders
@@ -1087,3 +1088,60 @@ override a sticky selection at all, only discrete taps. Solving that once
 (e.g. a long-press-to-override pattern) would likely resolve all three
 rather than needing three separate gesture designs. This is a design
 decision, not something to build without product input.
+
+---
+
+### Motifs: reusable stitch groups with linked copies (FR-64)
+
+Spec: `docs/superpowers/specs/2026-10-02-motifs-phase1-design.md`.
+Conversation: `docs/conversations/2026-10-02-motifs-phase1.md`.
+
+**FR-64.** A designer can turn selected stitches into a **motif**
+(`⌘/Ctrl+G` or the selection's "Motif" bubble — formerly "Repeat") and place
+**linked copies** of it. Goal: build a chart fast — design once, stamp/tile
+many times, keep iterating.
+
+- **Data.** A motif is the existing `RepeatDefinition` (stored in the chart's
+  `repeats`, no migration). Its copies are `RepeatDefinition.copies`
+  (`MotifCopy { id, col, row, mirrored? }`, `col`/`row` = footprint
+  bottom-left). A copy's stitches are ordinary placements whose `groupId`
+  equals the copy's `id`, so every existing tool keeps working on them.
+- **Overrides are derived, never stored** — the diff between what the motif
+  puts in the footprint and what the copy actually has (`model/motifs.ts`).
+  Painting into an empty cell inside a copy's footprint joins that copy.
+- **Copy actions** (selection bubbles on a whole selected copy): **Push to
+  motif** (this copy becomes the motif; every other copy follows, keeping
+  its own overrides — a local override wins), **Reset** (both only shown
+  when the copy has overrides), **Mirror**, **Detach**.
+- **Mirror** is knitting-aware: columns flip within the footprint and
+  directional stitches swap (left↔right cables incl. purl/`_hr`,
+  `k2tog`↔`skpo`, `k2tog_alt`↔`ssk_alt`, `p2tog`↔`ssp`, `tk2tog`↔`tssk`,
+  `m1l`↔`m1r`, `m1lp`↔`m1rp`).
+- **Motifs are pens, not a panel.** Quick-slot/glossary key `motif:<id>`; a
+  new motif gets a quick slot automatically; number keys arm it; the picker's
+  More drawer lists motifs with rename / stamp mirrored / delete. Tiles show
+  a generic motif glyph + `W×H`, not a full preview.
+- **Stamp.** An armed motif shows a full-size ghost anchored at the hovered
+  cell's **row-start corner** of its bottom row (via `rowDirectionAt`, so
+  today bottom-right). Click places a linked copy; `X` toggles mirror; `Esc`
+  disarms. **Drag-fill** tiles as many whole copies as fit, edge to edge from
+  the row-start corner; one undo step.
+- **Never overwrites.** A copy that would cover any existing stitch is drawn
+  red and isn't placed; a fill skips such tiles and reports "N of M copies
+  didn't fit" in the status bar.
+- **Moving/duplicating/pasting** a whole copy keeps it linked (move shifts
+  its origin; duplicate/paste registers a new copy).
+- **Deleting a motif** asks: Detach copies · Delete copies · Cancel.
+- **Undo.** Every motif action is one undo step (the repeats list, copies
+  included, is snapshotted on the history entry).
+- Motifs never appear in the chart key/legend or the image export glossary.
+
+**DNT-15.** Footprints are fixed at motif creation; Push can't grow a motif.
+A stored motif stitch outside its footprint fails chart validation on load,
+so Push clips to the footprint — keep that clip if Push is reworked.
+
+**Deferred** (Airtable Findings #34–#37, Enhancement): swapping a copy / all
+copies for another motif (row-direction push, preview + confirm, shear
+conflicts); motif behavior across mixed-direction (flat RS/WS) rows and
+vertical stacking; an optional hidden-by-default Motifs panel; a cross-chart
+motif library.

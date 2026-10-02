@@ -15,6 +15,7 @@ import { ReferenceMarkEditor } from "./ReferenceMarkEditor";
 import { RightPanel } from "./RightPanel";
 import { StatusBar } from "./StatusBar";
 import { StitchPicker } from "./StitchPicker";
+import { MotifDeleteDialog } from "./motifUi";
 import { SuggestReviewMenu } from "./SuggestReviewMenu";
 import { SelectionActions } from "./SelectionActions";
 import { Toolbar } from "./Toolbar";
@@ -232,6 +233,7 @@ export function ChartEditor() {
         <ReferenceMarkEditor />
         <RightPanel />
         <StitchPicker />
+        <MotifDeleteDialog />
         <SuggestReviewMenu />
         <SelectionActions />
         <Toolbar />

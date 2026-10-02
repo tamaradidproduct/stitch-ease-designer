@@ -342,7 +342,18 @@ function validateRepeats(chart: Partial<StoredChart>): void {
           !isInteger(stitch.col) ||
           !isInteger(stitch.row) ||
           (stitch.colorId !== undefined && typeof stitch.colorId !== "string"),
-      )
+      ) ||
+      (repeat.copies !== undefined &&
+        (!Array.isArray(repeat.copies) ||
+          repeat.copies.some(
+            (copy) =>
+              typeof copy !== "object" ||
+              copy === null ||
+              typeof copy.id !== "string" ||
+              !isInteger(copy.col) ||
+              !isInteger(copy.row) ||
+              (copy.mirrored !== undefined && typeof copy.mirrored !== "boolean"),
+          )))
     ) {
       throw new ChartFormatError(`repeat ${i} is invalid`);
     }

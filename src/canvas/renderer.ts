@@ -3,7 +3,8 @@ import { canInsertAt } from "../model/ops";
 import { rowDirectionAt } from "../model/rowDirection";
 import { chartTopology, knittedRowNumbers, roundStitchNumbers } from "../model/stitchNumbers";
 import { calibratedImageBounds } from "../model/referenceCalibration";
-import { CORNERS, cornerPoint, stitchBoxRect, type CalibrationMark, type ReferenceImage } from "../model/types";
+import { CORNERS, cornerPoint, stitchBoxRect, type CalibrationMark, type ReferenceImage, type RepeatDefinition } from "../model/types";
+import { drawMotifOverlay } from "./motifOverlay";
 import { getSymbol } from "../symbols/registry";
 import { getSwatch, glyphInkFor } from "../model/colorPalette";
 import {
@@ -65,6 +66,11 @@ export type RenderState = {
   stitchHighlightOpacity: number;
   selectionBox: SelectionBox | null;
   selectionMove: SelectionMove | null;
+  /** Motifs and their linked copies - for copy outlines and the stamp ghost (FR-64). Absent in image export. */
+  repeats?: readonly RepeatDefinition[];
+  /** See uiStore's `armedMotif` / `motifFill`. */
+  armedMotif: { id: string; mirrored: boolean } | null;
+  motifFill: { start: Cell; end: Cell } | null;
   /**
    * True for a static, non-interactive render (image export) - suppresses
    * the ruler band, which otherwise always paints its background/border
@@ -851,6 +857,8 @@ function drawHover(ctx: CanvasRenderingContext2D, state: RenderState): void {
   }
 
   if (!hover) return;
+  // The armed motif's own ghost (motifOverlay.ts) is the hover preview.
+  if (state.armedMotif) return;
   if (state.pickerTarget && !state.pickerTarget.insert) {
     const active = pickerTargetFootprint(index, state.pickerTarget);
     if (
@@ -978,6 +986,9 @@ export function render(ctx: CanvasRenderingContext2D, state: RenderState): void 
   drawSelection(ctx, state);
   drawSelectionBox(ctx, state);
   drawHover(ctx, state);
+  if (!state.staticExport && !state.referenceImagePanelOpen && state.repeats?.length) {
+    drawMotifOverlay(ctx, { ...state, repeats: state.repeats });
+  }
   drawPickerTarget(ctx, state);
   drawUnrecognizedCells(ctx, state);
   drawReferenceImageOverlay(ctx, state);

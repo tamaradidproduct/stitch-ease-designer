@@ -192,6 +192,8 @@ export async function exportChartImage(
     pickerTarget: null,
     selectedPlacementIds: [],
     selectedEmptyCells: [],
+    armedMotif: null,
+    motifFill: null,
     tool: "stitch",
     selectHeld: false,
     keyboardSelectionActive: false,

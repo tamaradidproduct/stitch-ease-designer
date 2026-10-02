@@ -87,6 +87,24 @@ describe("round trip", () => {
     expect(decoded.repeats).toEqual(repeats);
   });
 
+  it("preserves a motif's linked copies and rejects malformed ones", () => {
+    const placements = [{ ...place("knit", 4, 2), groupId: "group-a" }];
+    const repeats = [
+      {
+        id: "repeat-a",
+        name: "Motif 1",
+        width: 1,
+        height: 1,
+        stitches: [{ symbolId: "knit", col: 0, row: 0 }],
+        copies: [{ id: "group-a", col: 4, row: 2, mirrored: true }],
+      },
+    ];
+    expect(decode(encode(placements, repeats), known).repeats).toEqual(repeats);
+
+    const bad = encode(placements, [{ ...repeats[0]!, copies: [{ id: "group-a", col: 0.5, row: 2 }] }]);
+    expect(() => decode(bad, known)).toThrow(ChartFormatError);
+  });
+
   const cases: Record<string, Placement[]> = {
     empty: [],
     "single stitch": [place("knit", 0, 0)],

@@ -285,6 +285,23 @@ type UiState = {
   closeSuggestReview: () => void;
 
   setTool: (tool: Tool) => void;
+  /**
+   * A motif armed as the pen (FR-64): the canvas shows a full-size ghost and
+   * a click/drag stamps linked copies. Mutually exclusive with
+   * `armedSymbolId` - arming either one disarms the other.
+   */
+  armedMotif: { id: string; mirrored: boolean } | null;
+  /** The cells a drag-fill with the armed motif currently spans. */
+  motifFill: { start: Cell; end: Cell } | null;
+  armMotif: (id: string | null, mirrored?: boolean) => void;
+  toggleArmedMotifMirror: () => void;
+  setMotifFill: (fill: { start: Cell; end: Cell } | null) => void;
+  /** A short-lived status-bar message from the last stamp/fill (e.g. copies that didn't fit). */
+  motifNotice: string | null;
+  setMotifNotice: (notice: string | null) => void;
+  /** The motif whose delete dialog is open (asks what to do with its copies). */
+  motifDeleteRequest: string | null;
+  setMotifDeleteRequest: (motifId: string | null) => void;
   /** `colorId` defaults to null (DNT-8) - arming is always a whole pen, never "keep whatever was active". */
   setArmedSymbolId: (id: string | null, colorId?: string | null) => void;
   /**
@@ -481,11 +498,40 @@ export const useUiStore = create<UiState>((set, get) => ({
         : {}),
       picker: null,
       selectionAnchor: null,
+      // A motif stamp only means anything in Draw.
+      ...(tool !== "stitch" ? { armedMotif: null, motifFill: null } : {}),
       ...(tool === "select" ? {} : { selectedPlacementIds: [], selectedEmptyCells: [] }),
     }));
   },
+  armedMotif: null,
+  motifFill: null,
+  armMotif: (id, mirrored = false) =>
+    set({
+      armedMotif: id ? { id, mirrored } : null,
+      motifFill: null,
+      armedSymbolId: null,
+      activeColor: null,
+      suggestAction: "suggest",
+      tool: "stitch",
+      picker: null,
+      selectedPlacementIds: [],
+      selectedEmptyCells: [],
+      lastClearedSelection: null,
+      lastClearedEmptyCells: null,
+      selectionAnchor: null,
+      ...(id ? { panEnabled: false } : null),
+    }),
+  toggleArmedMotifMirror: () =>
+    set((s) => (s.armedMotif ? { armedMotif: { ...s.armedMotif, mirrored: !s.armedMotif.mirrored } } : {})),
+  setMotifFill: (motifFill) => set({ motifFill }),
+  motifNotice: null,
+  setMotifNotice: (motifNotice) => set({ motifNotice }),
+  motifDeleteRequest: null,
+  setMotifDeleteRequest: (motifDeleteRequest) => set({ motifDeleteRequest }),
   setArmedSymbolId: (armedSymbolId, colorId = null) =>
     set({
+      armedMotif: null,
+      motifFill: null,
       armedSymbolId,
       activeColor: armedSymbolId ? colorId : null,
       // Disarming, arming a real stitch, and re-arming Suggest itself all
@@ -509,6 +555,8 @@ export const useUiStore = create<UiState>((set, get) => ({
   chooseSymbol: (id, tool = "stitch", preserveSelection = false, colorId = null) => {
     useDocStore.getState().addQuickSlot(quickSlotKey(id, colorId));
     set({
+      armedMotif: null,
+      motifFill: null,
       armedSymbolId: id,
       activeColor: colorId,
       // Arming a real stitch always moves away from the Suggest sentinel
@@ -762,6 +810,8 @@ export const useUiStore = create<UiState>((set, get) => ({
     camera: defaultCamera(),
     tool: "stitch",
     armedSymbolId: null,
+    armedMotif: null,
+    motifFill: null,
     activeColor: null,
     suggestAction: "suggest",
     picker: null,

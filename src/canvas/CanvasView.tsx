@@ -3,6 +3,7 @@ import { canInsertAt } from "../model/ops";
 import { isDismissable, resolveSuggestAction, usePaintTool } from "../input/usePaintTool";
 import { usePanZoom } from "../input/usePanZoom";
 import { useReferenceImageTool } from "../input/useReferenceImageTool";
+import { useMotifStampTool } from "../input/useMotifStampTool";
 import { useShortcuts } from "../input/useShortcuts";
 import { useTouchGestures } from "../input/useTouchGestures";
 import { useDocStore } from "../state/docStore";
@@ -87,6 +88,8 @@ export function CanvasView() {
       return s.selectionMove.duplicating ? DUPLICATE_CURSOR : GRABBING_CURSOR;
     }
     if (s.keyboardSelectionActive) return "default";
+    // The ghost itself is the preview; a plain pointer keeps it unobscured.
+    if (s.armedMotif && s.tool === "stitch" && !s.selectHeld) return "default";
     // An existing selection is draggable from any tool, so its own cells
     // always get the "grab" cursor - checked before the tool-specific cases.
     if (s.selectedPlacementIds.length) {
@@ -167,6 +170,8 @@ export function CanvasView() {
   // its panel is open and the click actually lands on the image.
   useReferenceImageTool(ref);
   usePanZoom(ref);
+  // Ahead of usePaintTool: an armed motif claims the click/drag outright.
+  useMotifStampTool(ref);
   usePaintTool(ref);
   useShortcuts();
 
@@ -240,7 +245,7 @@ export function CanvasView() {
       dirty.current = false;
 
       const { picker, ...renderUiFields } = pickRenderUiFields(useUiStore.getState());
-      const { index, revision, referenceImages: docReferenceImages } = useDocStore.getState();
+      const { index, revision, referenceImages: docReferenceImages, repeats } = useDocStore.getState();
       const activeImage = docReferenceImages.find((img) => img.id === renderUiFields.activeReferenceImageId);
       const dpr = window.devicePixelRatio || 1;
 
@@ -253,6 +258,7 @@ export function CanvasView() {
         revision,
         sprites,
         referenceImages: docReferenceImages,
+        repeats,
         referenceImageCache: referenceImages,
         referenceImageMarks: activeImage?.calibrationMarks ?? [],
         pickerTarget: picker,

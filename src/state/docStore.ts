@@ -17,10 +17,22 @@ import {
   type DocMeta,
   type PatternInfo,
   type ReferenceImage,
+  type MotifCopy,
   type RepeatDefinition,
   type Placement,
 } from "../model/types";
 import { newUuid } from "../uuid";
+import {
+  expectedStitches,
+  footprintContains,
+  footprintOf,
+  mirrorSymbolId,
+  motifIdFromKey,
+  motifKey,
+  motifStitchesFromMembers,
+  rematerialize,
+  type WorldStitch,
+} from "../model/motifs";
 import type { LoadedChart } from "../storage/ChartStore";
 import { nextHistorySequence } from "./historySequence";
 import { useUiStore } from "./uiStore";
@@ -158,9 +170,34 @@ type DocState = {
   movePlacements: (ids: string[], deltaCol: number, deltaRow: number) => void;
   /** Whether `movePlacements` would actually move anything, without doing it. */
   canMovePlacements: (ids: string[], deltaCol: number, deltaRow: number) => boolean;
-  createRepeat: (ids: string[]) => void;
+  /** Makes a motif from `ids`, which become its first linked copy. Returns the motif's id. */
+  createRepeat: (ids: string[]) => string | null;
   /** Returns whether the repeat was actually placed (false on a collision). */
   instantiateRepeat: (repeatId: string, col: number, row: number) => boolean;
+  /**
+   * Places a linked copy of `motifId` at each origin (footprint bottom-left)
+   * that's entirely free - never overwriting anything. One undo step.
+   * Returns how many copies were placed.
+   */
+  stampMotif: (motifId: string, origins: { col: number; row: number }[], mirrored?: boolean) => number;
+  /** Whether a copy at `origin` would fit without touching anything. */
+  canStampMotif: (motifId: string, origin: { col: number; row: number }, mirrored?: boolean) => boolean;
+  /** This copy's stitches become the motif; every other copy follows, keeping its own overrides. */
+  pushMotifCopy: (copyId: string) => void;
+  /** Discards this copy's overrides. */
+  resetMotifCopy: (copyId: string) => void;
+  /** Unlinks this copy; its stitches become plain placements. */
+  detachMotifCopy: (copyId: string) => void;
+  /** Flips this copy (stitches and directional symbols) within its footprint. */
+  mirrorMotifCopy: (copyId: string) => void;
+  renameMotif: (motifId: string, name: string) => void;
+  /** Removes a motif; its copies are either detached (stitches stay) or deleted. */
+  deleteMotif: (motifId: string, copies: "detach" | "delete") => void;
+  /**
+   * Gives freshly pasted stitches the grouping their sources had, linking a
+   * pasted copy of a motif copy as a new copy. Call inside the paste's stroke.
+   */
+  linkPastedPlacements: (sources: Placement[], deltaCol: number, deltaRow: number) => void;
   duplicatePlacements: (ids: string[]) => string[];
   /** Inserts a copy beside the selection in knitting order, shifting the row to make room. */
   duplicatePlacementsInRow: (ids: string[]) => string[];
@@ -334,6 +371,75 @@ function applyReferenceImageChange(
   return [...without.slice(0, at), change.before, ...without.slice(at)];
 }
 
+/**
+ * Stitches added without a group inside a motif copy's footprint join that
+ * copy - painting into a copy's empty cell is an override of that copy, the
+ * same as repainting one of its stitches (see `model/motifs.ts`).
+ */
+function joinCopyFootprints(change: Change, repeats: readonly RepeatDefinition[]): Change {
+  if (!change.added.some((p) => !p.groupId)) return change;
+  const footprints = repeats.flatMap((motif) =>
+    (motif.copies ?? []).map((copy) => ({ id: copy.id, fp: footprintOf(motif, copy) })));
+  if (!footprints.length) return change;
+  let joined = false;
+  const added = change.added.map((p) => {
+    if (p.groupId) return p;
+    const home = footprints.find(({ fp }) => footprintContains(fp, p.symbolId, p.col, p.row));
+    if (!home) return p;
+    joined = true;
+    return { ...p, groupId: home.id };
+  });
+  return joined ? { ...change, added } : change;
+}
+
+/**
+ * Keeps copy records in step with an applied `change`: a copy whose every
+ * stitch moved by one shared offset moved with them, and a copy with no
+ * stitches left is gone. Returns `repeats` itself when nothing changed.
+ */
+function reconcileCopies(
+  repeats: RepeatDefinition[],
+  change: Change,
+  index: DocIndex,
+): RepeatDefinition[] {
+  const touched = new Set<string>();
+  for (const p of [...change.added, ...change.removed]) if (p.groupId) touched.add(p.groupId);
+  if (!touched.size) return repeats;
+  const removedById = new Map(change.removed.map((p) => [p.id, p]));
+  let changed = false;
+  const next = repeats.map((motif) => {
+    if (!motif.copies?.some((copy) => touched.has(copy.id))) return motif;
+    const copies = motif.copies.flatMap((copy): MotifCopy[] => {
+      if (!touched.has(copy.id)) return [copy];
+      const members = index.groupMembers(copy.id);
+      if (!members.length) return [];
+      let delta: [number, number] | null = null;
+      for (const member of members) {
+        const was = removedById.get(member.id);
+        if (!was || was.groupId !== copy.id) return [copy];
+        const d: [number, number] = [member.col - was.col, member.row - was.row];
+        if (!delta) delta = d;
+        else if (d[0] !== delta[0] || d[1] !== delta[1]) return [copy];
+      }
+      if (!delta || (delta[0] === 0 && delta[1] === 0)) return [copy];
+      return [{ ...copy, col: copy.col + delta[0], row: copy.row + delta[1] }];
+    });
+    if (copies.length === motif.copies.length && copies.every((c, i) => c === motif.copies![i])) return motif;
+    changed = true;
+    return { ...motif, copies };
+  });
+  return changed ? next : repeats;
+}
+
+/** Drops copy records whose stitches are all gone, e.g. from a hand-edited import. */
+function pruneOrphanCopies(repeats: RepeatDefinition[], placements: readonly Placement[]): RepeatDefinition[] {
+  const groups = new Set(placements.flatMap((p) => (p.groupId ? [p.groupId] : [])));
+  return repeats.map((motif) =>
+    motif.copies?.some((copy) => !groups.has(copy.id))
+      ? { ...motif, copies: motif.copies.filter((copy) => groups.has(copy.id)) }
+      : motif);
+}
+
 export const useDocStore = create<DocState>((set, get) => {
   // Kept in the store closure rather than rendered state: it is only a
   // history bookkeeping boundary for a live drag, not UI data.
@@ -344,6 +450,9 @@ export const useDocStore = create<DocState>((set, get) => {
   // bank them all onto the stroke's single merged HistoryEntry (a stroke
   // can cross several unidentified cells in one drag).
   let strokeUnrecognizedCleared: Set<string> | null = null;
+  // The repeats list as it stood when the current stroke began, so a stroke
+  // that touched motif copies (a paste, a drag through a copy) can bank it.
+  let strokeRepeatsBefore: RepeatDefinition[] | null = null;
 
   /**
    * A new document edit truncates the *whole* unified timeline's future, not
@@ -375,9 +484,13 @@ export const useDocStore = create<DocState>((set, get) => {
    * otherwise banked directly on this single-commit entry.
    */
   const commit = (change: Change, repeatsAfter?: RepeatDefinition[], unrecognizedKeyCleared?: string) => {
-    if (isEmptyChange(change)) return;
     const { index, stroke, revision, undoStack, repeats } = get();
+    const baseRepeats = repeatsAfter ?? repeats;
+    change = joinCopyFootprints(change, baseRepeats);
+    if (isEmptyChange(change) && repeatsAfter === undefined) return;
     const inverse = apply(index, change);
+    const nextRepeats = reconcileCopies(baseRepeats, change, index);
+    const repeatsChanged = nextRepeats !== repeats;
 
     if (unrecognizedKeyCleared) {
       useUiStore.getState().setReferenceImageUnrecognized(unrecognizedKeyCleared, false);
@@ -387,22 +500,90 @@ export const useDocStore = create<DocState>((set, get) => {
       if (unrecognizedKeyCleared) {
         (strokeUnrecognizedCleared ??= new Set()).add(unrecognizedKeyCleared);
       }
-      set({ revision: revision + 1, stroke: [...stroke, change], redoStack: [] });
+      set({
+        revision: revision + 1,
+        stroke: [...stroke, change],
+        redoStack: [],
+        ...(repeatsChanged ? { repeats: nextRepeats } : {}),
+      });
     } else {
       const entry: HistoryEntry = {
         sequence: nextHistorySequence(),
         change: inverse,
-        ...(repeatsAfter !== undefined ? { repeats } : {}),
+        ...(repeatsChanged ? { repeats } : {}),
         ...(unrecognizedKeyCleared ? { unrecognizedKeysCleared: [unrecognizedKeyCleared] } : {}),
       };
       set({
         revision: revision + 1,
         undoStack: [...undoStack, entry],
         redoStack: [],
-        ...(repeatsAfter !== undefined ? { repeats: repeatsAfter } : {}),
+        ...(repeatsChanged ? { repeats: nextRepeats } : {}),
       });
     }
     clearSelectionRedo();
+  };
+
+  /** The motif and copy record for a copy id (its stitches' `groupId`). */
+  const findCopy = (copyId: string): { motif: RepeatDefinition; copy: MotifCopy } | null => {
+    for (const motif of get().repeats) {
+      const copy = motif.copies?.find((candidate) => candidate.id === copyId);
+      if (copy) return { motif, copy };
+    }
+    return null;
+  };
+
+  const withCopies = (
+    repeats: RepeatDefinition[],
+    motifId: string,
+    update: (copies: MotifCopy[]) => MotifCopy[],
+    patch: Partial<RepeatDefinition> = {},
+  ): RepeatDefinition[] =>
+    repeats.map((motif) =>
+      motif.id === motifId ? { ...motif, ...patch, copies: update(motif.copies ?? []) } : motif);
+
+  const toPlacements = (stitches: WorldStitch[], groupId: string): Placement[] =>
+    stitches.map((stitch) => ({ id: newPlacementId(), groupId, ...stitch }));
+
+  /** A cell held by anything other than copy `copyId`'s own stitches. */
+  const blockedFor = (copyId: string) => (col: number, row: number): boolean => {
+    const hit = get().index.placementAt(col, row);
+    return !!hit && hit.groupId !== copyId;
+  };
+
+  /**
+   * The repeats list with a new linked copy registered for every source
+   * copy that was duplicated whole and rigidly (one shared offset) - or
+   * undefined when nothing duplicated was a motif copy.
+   */
+  const linkDuplicatedCopies = (
+    pairs: { from: Placement; to: Placement }[],
+  ): RepeatDefinition[] | undefined => {
+    const { index } = get();
+    const bySource = new Map<string, { from: Placement; to: Placement }[]>();
+    for (const pair of pairs) {
+      if (!pair.from.groupId) continue;
+      const list = bySource.get(pair.from.groupId) ?? [];
+      list.push(pair);
+      bySource.set(pair.from.groupId, list);
+    }
+    let next: RepeatDefinition[] | undefined;
+    for (const [sourceId, list] of bySource) {
+      const found = findCopy(sourceId);
+      if (!found || list.length !== index.groupMembers(sourceId).length) continue;
+      const first = list[0]!;
+      const targetId = first.to.groupId;
+      const deltaCol = first.to.col - first.from.col;
+      const deltaRow = first.to.row - first.from.row;
+      if (!targetId || list.some((pair) =>
+        pair.to.groupId !== targetId ||
+        pair.to.col - pair.from.col !== deltaCol ||
+        pair.to.row - pair.from.row !== deltaRow)) continue;
+      next = withCopies(next ?? get().repeats, found.motif.id, (copies) => [
+        ...copies,
+        { ...found.copy, id: targetId, col: found.copy.col + deltaCol, row: found.copy.row + deltaRow },
+      ]);
+    }
+    return next;
   };
 
   /**
@@ -749,14 +930,15 @@ export const useDocStore = create<DocState>((set, get) => {
       const placements = ids
         .map((id) => get().index.placements.get(id))
         .filter((p): p is NonNullable<typeof p> => !!p);
-      if (!placements.length) return;
+      if (!placements.length) return null;
       const minCol = Math.min(...placements.map((p) => p.col));
       const minRow = Math.min(...placements.map((p) => p.row));
       const maxCol = Math.max(...placements.map((p) => p.col + get().index.spanOf(p) - 1));
       const maxRow = Math.max(...placements.map((p) => p.row));
+      const groupId = newUuid("group_");
       const repeat: RepeatDefinition = {
         id: newUuid("repeat_"),
-        name: `Repeat ${get().repeats.length + 1}`,
+        name: `Motif ${get().repeats.length + 1}`,
         width: maxCol - minCol + 1,
         height: maxRow - minRow + 1,
         stitches: placements.map((p) => ({
@@ -765,8 +947,8 @@ export const useDocStore = create<DocState>((set, get) => {
           row: p.row - minRow,
           ...(p.colorId ? { colorId: p.colorId } : {}),
         })),
+        copies: [{ id: groupId, col: minCol, row: minRow }],
       };
-      const groupId = newUuid("group_");
       // Both the placement grouping and the new repeat definition are one
       // logical action; passing the resulting repeats list to commit makes
       // undo restore both together, instead of leaving an orphaned,
@@ -778,26 +960,177 @@ export const useDocStore = create<DocState>((set, get) => {
         },
         [...get().repeats, repeat],
       );
+      // A new motif is a pen like any picked stitch: it gets a quick slot.
+      get().addQuickSlot(motifKey(repeat.id));
+      return repeat.id;
     },
-    instantiateRepeat: (repeatId, col, row) => {
-      const repeat = get().repeats.find((candidate) => candidate.id === repeatId);
-      if (!repeat) return false;
-      const groupId = newUuid("group_");
-      const added = repeat.stitches.map((stitch) => ({
-        id: newPlacementId(),
-        symbolId: stitch.symbolId,
-        col: col + stitch.col,
-        row: row + stitch.row,
-        groupId,
-        ...(stitch.colorId ? { colorId: stitch.colorId } : {}),
-      }));
-      for (const placement of added) {
-        for (let offset = 0; offset < spanOf(placement.symbolId); offset++) {
-          if (get().index.placementAt(placement.col + offset, placement.row)) return false;
+    instantiateRepeat: (repeatId, col, row) => get().stampMotif(repeatId, [{ col, row }]) > 0,
+    canStampMotif: (motifId, origin, mirrored) => {
+      const motif = get().repeats.find((candidate) => candidate.id === motifId);
+      if (!motif) return false;
+      const { index } = get();
+      return expectedStitches(motif, { ...origin, mirrored }).every((stitch) => {
+        for (let c = stitch.col; c < stitch.col + spanOf(stitch.symbolId); c++) {
+          if (index.placementAt(c, stitch.row)) return false;
         }
+        return true;
+      });
+    },
+    stampMotif: (motifId, origins, mirrored) => {
+      const motif = get().repeats.find((candidate) => candidate.id === motifId);
+      if (!motif) return 0;
+      const { index } = get();
+      const claimed = new Set<string>();
+      const added: Placement[] = [];
+      const copies: MotifCopy[] = [];
+      for (const origin of origins) {
+        const stitches = expectedStitches(motif, { ...origin, mirrored });
+        const cells: string[] = [];
+        const fits = stitches.every((stitch) => {
+          for (let c = stitch.col; c < stitch.col + spanOf(stitch.symbolId); c++) {
+            const key = `${c},${stitch.row}`;
+            if (index.placementAt(c, stitch.row) || claimed.has(key)) return false;
+            cells.push(key);
+          }
+          return true;
+        });
+        if (!fits) continue;
+        for (const key of cells) claimed.add(key);
+        const groupId = newUuid("group_");
+        added.push(...toPlacements(stitches, groupId));
+        copies.push({ id: groupId, col: origin.col, row: origin.row, ...(mirrored ? { mirrored: true } : {}) });
       }
-      commit({ added, removed: [] });
-      return true;
+      if (!copies.length) return 0;
+      commit({ added, removed: [] }, withCopies(get().repeats, motifId, (existing) => [...existing, ...copies]));
+      return copies.length;
+    },
+    pushMotifCopy: (copyId) => {
+      const found = findCopy(copyId);
+      if (!found) return;
+      const { motif, copy } = found;
+      const { index } = get();
+      const fp = footprintOf(motif, { col: 0, row: 0 });
+      const after: RepeatDefinition = {
+        ...motif,
+        // Clipped to the footprint: a stored motif with a stitch outside
+        // it is rejected on load (see serialize.ts's validateRepeats).
+        stitches: motifStitchesFromMembers(motif, copy, index.groupMembers(copyId))
+          .filter((stitch) => footprintContains(fp, stitch.symbolId, stitch.col, stitch.row)),
+      };
+      const removed: Placement[] = [];
+      const added: Placement[] = [];
+      for (const other of motif.copies ?? []) {
+        if (other.id === copyId) continue;
+        const result = rematerialize(motif, after, other, index.groupMembers(other.id), blockedFor(other.id));
+        removed.push(...result.remove);
+        added.push(...toPlacements(result.add, other.id));
+      }
+      commit(
+        { removed, added },
+        get().repeats.map((candidate) => (candidate.id === motif.id ? after : candidate)),
+      );
+    },
+    resetMotifCopy: (copyId) => {
+      const found = findCopy(copyId);
+      if (!found) return;
+      const result = rematerialize(
+        found.motif,
+        found.motif,
+        found.copy,
+        get().index.groupMembers(copyId),
+        blockedFor(copyId),
+        false,
+      );
+      commit({ removed: result.remove, added: toPlacements(result.add, copyId) });
+    },
+    detachMotifCopy: (copyId) => {
+      const found = findCopy(copyId);
+      if (!found) return;
+      const members = get().index.groupMembers(copyId);
+      commit(
+        { removed: members, added: members.map(({ groupId: _dropped, ...rest }) => rest) },
+        withCopies(get().repeats, found.motif.id, (copies) => copies.filter((c) => c.id !== copyId)),
+      );
+    },
+    mirrorMotifCopy: (copyId) => {
+      const found = findCopy(copyId);
+      if (!found) return;
+      const { motif, copy } = found;
+      const members = get().index.groupMembers(copyId);
+      // Mirrors what's actually there, overrides included, rather than
+      // re-stamping the motif - flipping a copy shouldn't undo its edits.
+      const added = members.map((member) => ({
+        ...member,
+        id: newPlacementId(),
+        symbolId: mirrorSymbolId(member.symbolId),
+        col: copy.col + motif.width - (member.col - copy.col + spanOf(member.symbolId)),
+      }));
+      commit(
+        { removed: members, added },
+        withCopies(get().repeats, motif.id, (copies) =>
+          copies.map((c) => {
+            if (c.id !== copyId) return c;
+            const { mirrored, ...rest } = c;
+            return mirrored ? rest : { ...rest, mirrored: true };
+          })),
+      );
+    },
+    renameMotif: (motifId, name) => {
+      const trimmed = name.trim();
+      const motif = get().repeats.find((candidate) => candidate.id === motifId);
+      if (!motif || !trimmed || trimmed === motif.name) return;
+      commit(
+        { added: [], removed: [] },
+        get().repeats.map((candidate) => (candidate.id === motifId ? { ...candidate, name: trimmed } : candidate)),
+      );
+    },
+    deleteMotif: (motifId, mode) => {
+      const motif = get().repeats.find((candidate) => candidate.id === motifId);
+      if (!motif) return;
+      const members = (motif.copies ?? []).flatMap((copy) => get().index.groupMembers(copy.id));
+      commit(
+        mode === "delete"
+          ? { removed: members, added: [] }
+          : { removed: members, added: members.map(({ groupId: _dropped, ...rest }) => rest) },
+        get().repeats.filter((candidate) => candidate.id !== motifId),
+      );
+      // Its pen goes with it - chart settings, outside undo like every other
+      // quick-row/glossary edit.
+      const isThisMotif = (key: string) => motifIdFromKey(key) === motifId;
+      const state = get();
+      if (state.quickSymbolIds.some(isThisMotif)) {
+        state.setQuickSymbolIds(state.quickSymbolIds.map((key) => (isThisMotif(key) ? "" : key)));
+      }
+      if (state.glossaryIds.some(isThisMotif)) {
+        state.setGlossaryIds(state.glossaryIds.filter((key) => !isThisMotif(key)));
+      }
+    },
+    linkPastedPlacements: (sources, deltaCol, deltaRow) => {
+      const { index } = get();
+      const pairs: { from: Placement; to: Placement }[] = [];
+      for (const source of sources) {
+        if (!source.groupId) continue;
+        const pasted = index.placementAt(source.col + deltaCol, source.row + deltaRow);
+        if (!pasted || pasted.symbolId !== source.symbolId || pasted.col !== source.col + deltaCol) continue;
+        pairs.push({ from: source, to: pasted });
+      }
+      if (!pairs.length) return;
+      const groupIds = new Map<string, string>();
+      const regrouped = pairs.map(({ from, to }) => {
+        let groupId = groupIds.get(from.groupId!);
+        if (!groupId) groupIds.set(from.groupId!, (groupId = newUuid("group_")));
+        return { from, to: { ...to, groupId } };
+      });
+      // Link only a whole pasted copy: the clipboard holding every stitch of
+      // a copy that still exists, all landing at one shared offset.
+      const repeatsAfter = linkDuplicatedCopies(regrouped.filter(({ from }) => {
+        const found = findCopy(from.groupId!);
+        return !!found;
+      }));
+      commit(
+        { removed: pairs.map((pair) => pair.to), added: regrouped.map((pair) => pair.to) },
+        repeatsAfter,
+      );
     },
     duplicatePlacements: (ids) => {
       const placements = ids
@@ -830,7 +1163,10 @@ export const useDocStore = create<DocState>((set, get) => {
           if (get().index.placementAt(placement.col + offset, placement.row)) return [];
         }
       }
-      commit({ added, removed: [] });
+      commit(
+        { added, removed: [] },
+        linkDuplicatedCopies(placements.map((from, i) => ({ from, to: added[i]! }))),
+      );
       return added.map((p) => p.id);
     },
     duplicatePlacementsInRow: (ids) => {
@@ -851,6 +1187,7 @@ export const useDocStore = create<DocState>((set, get) => {
       const shifted: Placement[] = [];
       const copies: Placement[] = [];
       const copiedGroups = new Map<string, string>();
+      const pairs: { from: Placement; to: Placement }[] = [];
 
       for (const [row, rowSelection] of rows) {
         const minCol = Math.min(...rowSelection.map((placement) => placement.col));
@@ -876,16 +1213,18 @@ export const useDocStore = create<DocState>((set, get) => {
             ? (copiedGroups.get(sourceGroupId) ?? newUuid("group_"))
             : undefined;
           if (sourceGroupId && groupId) copiedGroups.set(sourceGroupId, groupId);
-          copies.push({
+          const copy = {
             ...rest,
             id: newPlacementId(),
             col: placement.col + direction * width,
             ...(groupId ? { groupId } : null),
-          });
+          };
+          copies.push(copy);
+          pairs.push({ from: placement, to: copy });
         }
       }
 
-      commit({ removed, added: [...shifted, ...copies] });
+      commit({ removed, added: [...shifted, ...copies] }, linkDuplicatedCopies(pairs));
       return copies.map((placement) => placement.id);
     },
     canDuplicatePlacements: (ids, deltaCol, deltaRow) => {
@@ -933,18 +1272,24 @@ export const useDocStore = create<DocState>((set, get) => {
         };
       });
 
-      commit({ removed: [], added });
+      commit(
+        { removed: [], added },
+        linkDuplicatedCopies(selected.map((from, i) => ({ from, to: added[i]! }))),
+      );
       return added.map((p) => p.id);
     },
 
     beginStroke: () => {
       strokeUnrecognizedCleared = null;
+      strokeRepeatsBefore = get().repeats;
       set({ stroke: [] });
     },
 
     endStroke: () => {
-      const { stroke, undoStack } = get();
+      const { stroke, undoStack, repeats } = get();
       if (!stroke) return;
+      const repeatsBefore = strokeRepeatsBefore;
+      strokeRepeatsBefore = null;
       if (stroke.length === 0) {
         set({ stroke: null });
         strokeUnrecognizedCleared = null;
@@ -962,6 +1307,7 @@ export const useDocStore = create<DocState>((set, get) => {
           {
             sequence: nextHistorySequence(),
             change: inverse,
+            ...(repeatsBefore && repeatsBefore !== repeats ? { repeats: repeatsBefore } : {}),
             ...(unrecognizedKeysCleared ? { unrecognizedKeysCleared } : {}),
           },
         ],
@@ -1052,7 +1398,7 @@ export const useDocStore = create<DocState>((set, get) => {
         status: "idle",
         statusDetail: null,
         unknownSymbolIds,
-        repeats,
+        repeats: pruneOrphanCopies(repeats, placements),
         referenceImages,
         glossaryIds,
         quickSymbolIds,

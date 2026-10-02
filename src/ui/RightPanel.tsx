@@ -22,6 +22,8 @@ import {
   useGlossaryIds,
 } from "./chartGlossary";
 import { parseQuickSlotId, quickSlotInsertEdge, quickSlotKey } from "../model/quickSlots";
+import { motifIdFromKey } from "../model/motifs";
+import { MotifGlossaryRow } from "./motifUi";
 import { addColoredVariant } from "./colorwork";
 import { CheckIcon, CrossIcon, DragHandleIcon, SearchIcon } from "./icons";
 import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
@@ -531,6 +533,11 @@ export function RightPanel() {
                 ? quickSlotInsertEdge(draggingQuickId ? quickSymbolIds.indexOf(draggingQuickId) : -1, slot)
                 : null;
               const rowDrop = key ? forFilledSlot(key, slot) : null;
+              const motifId = key ? motifIdFromKey(key) : null;
+              const motif = motifId ? repeats.find((r) => r.id === motifId) : undefined;
+              if (motif) {
+                return <MotifGlossaryRow key={key} motif={motif} shortcutSlot={slot < 5 ? slot : undefined} />;
+              }
               return key && symbol ? (
                 <GlossaryRow
                   key={key}
@@ -857,7 +864,7 @@ export function RightPanel() {
               <dt><kbd>Shift click</kbd></dt><dd>Add or remove from selection</dd>
               <dt><kbd>⌘/Ctrl C</kbd> <kbd>X</kbd> <kbd>V</kbd></dt><dd>Copy or cut selection · paste at hovered cell</dd>
               <dt><kbd>⌘/Ctrl D</kbd></dt><dd>Duplicate selection</dd>
-              <dt><kbd>⌘/Ctrl G</kbd></dt><dd>Create repeat</dd>
+              <dt><kbd>⌘/Ctrl G</kbd></dt><dd>Make motif</dd>
               <dt><kbd>⌘/Ctrl Z</kbd></dt><dd>Undo</dd>
               <dt><kbd>Shift ⌘/Ctrl Z</kbd></dt><dd>Redo</dd>
               <dt><kbd>Delete</kbd></dt><dd>Erase selection</dd>

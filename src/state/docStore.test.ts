@@ -217,7 +217,7 @@ describe("selection edits", () => {
     useDocStore.getState().createRepeat(["a", "b"]);
     const state = useDocStore.getState();
     expect(state.repeats).toHaveLength(1);
-    expect(state.repeats[0]).toMatchObject({ name: "Repeat 1", width: 2, height: 1 });
+    expect(state.repeats[0]).toMatchObject({ name: "Motif 1", width: 2, height: 1 });
     expect(state.repeats[0]!.stitches).toEqual([
       { symbolId: "knit", col: 0, row: 0 },
       { symbolId: "purl", col: 1, row: 0 },
