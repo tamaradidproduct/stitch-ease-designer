@@ -3675,19 +3675,3 @@ body {
 .glossary__item .glossary__disarm {
   width: 28px;
 }
-
-/* An 18px chip covers most of a 22px glyph, so on pointer devices it only
-   appears while the row is hovered or focused (the picker likewise shows its
-   chip only on the active tile). Touch has no hover, so it stays visible. */
-@media (hover: hover) {
-  .glossary__glyphWrap .glossary__colorChip {
-    opacity: 0;
-    transition: opacity 100ms ease;
-  }
-
-  .glossary__item:hover .glossary__glyphWrap .glossary__colorChip,
-  .glossary__item:focus-within .glossary__glyphWrap .glossary__colorChip,
-  .glossary__glyphWrap .glossary__colorChip[aria-expanded="true"] {
-    opacity: 1;
-  }
-}
