@@ -521,3 +521,33 @@ describe("reference images", () => {
     expect(useDocStore.getState().revision).toBe(r0);
   });
 });
+
+// #326: the keyboard/touch reorder path's docStore wiring - the model-level
+// swap itself (`moveQuickSlot`) is already covered in quickSlots.test.ts,
+// this just confirms the store action actually calls it and commits the
+// result, the same way moveQuickSlotTo's own wiring works.
+describe("moveQuickSlotDirection (#326)", () => {
+  beforeEach(() => {
+    useDocStore.setState({ quickSymbolIds: ["knit", "purl", "yo"] });
+  });
+
+  it("swaps a slot with its neighbour in the given direction", () => {
+    useDocStore.getState().moveQuickSlotDirection("purl", -1);
+    expect(useDocStore.getState().quickSymbolIds).toEqual(["purl", "knit", "yo"]);
+  });
+
+  it("moves toward the end of the row with direction 1", () => {
+    useDocStore.getState().moveQuickSlotDirection("purl", 1);
+    expect(useDocStore.getState().quickSymbolIds).toEqual(["knit", "yo", "purl"]);
+  });
+
+  it("does not move a slot before the first position", () => {
+    useDocStore.getState().moveQuickSlotDirection("knit", -1);
+    expect(useDocStore.getState().quickSymbolIds).toEqual(["knit", "purl", "yo"]);
+  });
+
+  it("is a no-op for a key that isn't a quick slot", () => {
+    useDocStore.getState().moveQuickSlotDirection("cable_4", -1);
+    expect(useDocStore.getState().quickSymbolIds).toEqual(["knit", "purl", "yo"]);
+  });
+});

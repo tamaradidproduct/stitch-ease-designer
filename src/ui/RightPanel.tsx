@@ -391,7 +391,7 @@ export function RightPanel() {
           <div>
             <h2>Stitch glossary</h2>
             <span>
-              {glossary.length} stitch type{glossary.length === 1 ? "" : "s"} in this pattern
+              {glossary.length} stitch type{glossary.length === 1 ? "" : "s"} in this chart
             </span>
           </div>
         </div>
@@ -565,6 +565,39 @@ export function RightPanel() {
                   >
                   <DragHandleIcon />
                   </button>
+                  {/* #326: keyboard/touch-friendly reorder, alongside drag -
+                      dragging stays available, this is the primary path.
+                      Bounded to the actual quickSymbolIds array (not the
+                      padded display slotCount), matching moveQuickSlotDirection's
+                      own early-outs. The same move is also reachable via
+                      Alt+Up/Down while this exact (symbol, color) pen is
+                      armed - see useShortcuts.ts. */}
+                  <div className="glossary__moveGroup">
+                    <button
+                      type="button"
+                      className="glossary__move"
+                      disabled={!quickSymbolIds.slice(0, slot).some(Boolean)}
+                      onClick={() => useDocStore.getState().moveQuickSlotDirection(key, -1)}
+                      aria-label={`Move ${symbol.label} up`}
+                      title="Move up (Alt+Up while armed)"
+                    >
+                      <svg viewBox="0 0 20 20" aria-hidden="true">
+                        <path d="M5 12l5-5 5 5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      className="glossary__move"
+                      disabled={!quickSymbolIds.slice(slot + 1).some(Boolean)}
+                      onClick={() => useDocStore.getState().moveQuickSlotDirection(key, 1)}
+                      aria-label={`Move ${symbol.label} down`}
+                      title="Move down (Alt+Down while armed)"
+                    >
+                      <svg viewBox="0 0 20 20" aria-hidden="true">
+                        <path d="M5 8l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                  </div>
                   {slot < 5 ? (
                     <kbd className="glossary__shortcut" aria-label={`Shortcut ${slot + 1}`}>{slot + 1}</kbd>
                   ) : <span className="glossary__shortcutSpacer" />}
@@ -616,7 +649,20 @@ export function RightPanel() {
                       <CloseIcon />
                     </button>
                   ) : (
-                    <span className="glossary__removeSlot" aria-hidden="true" />
+                    // #326: previously a blank spacer with no hint why removal
+                    // was unavailable - now a disabled control carrying the
+                    // same affordance/classes as the real remove button, so
+                    // it reads as "not removable right now" instead of
+                    // nothing at all.
+                    <button
+                      type="button"
+                      className="glossary__remove"
+                      disabled
+                      aria-label={`Remove placed stitches of this kind first (${symbol.label})`}
+                      title="Remove placed stitches of this kind first"
+                    >
+                      <CloseIcon />
+                    </button>
                   )}
                 </div>
               ) : searchSlot === slot ? (
@@ -744,7 +790,7 @@ export function RightPanel() {
                 </button>
               );
             })}
-            {remainingGlossary.map((entry) => {
+            {remainingGlossary.map((entry, overflowIndex) => {
               const { symbol, colorId, key } = entry;
               const armed = key === quickSlotKey(armedSymbolId ?? "", activeColor) && !!armedSymbolId;
               const count = colorId ? (coloredCounts.get(key) ?? 0) : (stitchCounts.get(symbol.id) ?? 0);
@@ -772,8 +818,8 @@ export function RightPanel() {
                     // slotted item out of the quick row isn't supported here
                     // (it wouldn't render in this list to begin with).
                     if (quickSymbolIds.includes(draggedKey)) return;
-                    const targetIndex = remainingGlossary.findIndex((candidate) => candidate.key === key);
-                    useDocStore.getState().moveGlossaryIdTo(draggedKey, targetIndex);
+                    const targetIndex = addedGlossaryIds.indexOf(key);
+                    if (targetIndex !== -1) useDocStore.getState().moveGlossaryIdTo(draggedKey, targetIndex);
                   }}
                 >
                   <button
@@ -791,6 +837,46 @@ export function RightPanel() {
                   >
                       <DragHandleIcon />
                     </button>
+                  {/* #326: keyboard/touch-friendly reorder, within the
+                      overflow list only - mirrors the overflow drag/drop's
+                      own guard above, which refuses to move a slotted item
+                      via this path. No global keyboard shortcut covers this
+                      list (unlike the numbered quick row's Alt+Up/Down), so
+                      the tooltip doesn't claim one. */}
+                  <div className="glossary__moveGroup">
+                    <button
+                      type="button"
+                      className="glossary__move"
+                      disabled={overflowIndex === 0}
+                      onClick={() => {
+                        const targetKey = remainingGlossary[overflowIndex - 1]?.key;
+                        const targetIndex = targetKey ? addedGlossaryIds.indexOf(targetKey) : -1;
+                        if (targetIndex !== -1) useDocStore.getState().moveGlossaryIdTo(key, targetIndex);
+                      }}
+                      aria-label={`Move ${symbol.label} up`}
+                      title="Move up"
+                    >
+                      <svg viewBox="0 0 20 20" aria-hidden="true">
+                        <path d="M5 12l5-5 5 5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      className="glossary__move"
+                      disabled={overflowIndex === remainingGlossary.length - 1}
+                      onClick={() => {
+                        const targetKey = remainingGlossary[overflowIndex + 1]?.key;
+                        const targetIndex = targetKey ? addedGlossaryIds.indexOf(targetKey) : -1;
+                        if (targetIndex !== -1) useDocStore.getState().moveGlossaryIdTo(key, targetIndex);
+                      }}
+                      aria-label={`Move ${symbol.label} down`}
+                      title="Move down"
+                    >
+                      <svg viewBox="0 0 20 20" aria-hidden="true">
+                        <path d="M5 8l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                  </div>
                   <span className="glossary__shortcutSpacer" />
                   <button
                     type="button"
@@ -838,7 +924,16 @@ export function RightPanel() {
                       <CloseIcon />
                     </button>
                   ) : (
-                    <span className="glossary__removeSlot" aria-hidden="true" />
+                    // #326: see the matching slotted-row comment above.
+                    <button
+                      type="button"
+                      className="glossary__remove"
+                      disabled
+                      aria-label={`Remove placed stitches of this kind first (${symbol.label})`}
+                      title="Remove placed stitches of this kind first"
+                    >
+                      <CloseIcon />
+                    </button>
                   )}
                 </div>
               );

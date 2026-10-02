@@ -27,6 +27,7 @@ import { useUiStore } from "./uiStore";
 import {
   DEFAULT_STITCH_IDS,
   assignQuickSlot,
+  moveQuickSlot,
   moveQuickSlotTo,
   parseQuickSlotId,
   quickSlotKey,
@@ -198,6 +199,13 @@ type DocState = {
   removeQuickSlot: (key: string) => void;
   /** Reorders a quick slot, updating its number-key shortcut. */
   moveQuickSlotTo: (key: string, targetSlot: number) => void;
+  /**
+   * Swaps `key` with its immediate neighbour (issue #326's keyboard/touch
+   * reorder path) - the direct counterpart to dragging a quick slot one
+   * position over. A no-op past either end, same as the underlying model
+   * function.
+   */
+  moveQuickSlotDirection: (key: string, direction: -1 | 1) => void;
   /**
    * Moves `key` into the quick row at `targetSlot`, adding it first if it
    * isn't already a quick slot - the drag-and-drop path for promoting a
@@ -504,6 +512,11 @@ export const useDocStore = create<DocState>((set, get) => {
     moveQuickSlotTo: (key, targetSlot) => {
       const current = get().quickSymbolIds;
       const next = moveQuickSlotTo(current, key, targetSlot);
+      if (next !== current) get().setQuickSymbolIds(next);
+    },
+    moveQuickSlotDirection: (key, direction) => {
+      const current = get().quickSymbolIds;
+      const next = moveQuickSlot(current, key, direction);
       if (next !== current) get().setQuickSymbolIds(next);
     },
     promoteQuickSlot: (key, targetSlot) => {
