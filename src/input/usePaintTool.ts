@@ -1,3 +1,4 @@
+import type { Placement } from "../model/types";
 import { type RefObject, useEffect } from "react";
 import { type Cell, screenToCell, screenToInsertCell } from "../canvas/camera";
 import { RULER } from "../canvas/theme";
@@ -9,7 +10,7 @@ import { getSharedReferenceImageCache } from "../canvas/referenceImageCache";
 import { effectiveContrast } from "../canvas/referenceImageContrast";
 import { cellWithinCalibratedCrop, cellWithinReferenceImage, cropReferenceImageCell } from "../canvas/referenceImageCrop";
 import { binarizeCrop, extractExemplars, type MatchResult, matchCandidateStitch, pickBetterMatch } from "../model/templateMatch";
-import { useDocStore } from "../state/docStore";
+import { motifOfPlacement, useDocStore } from "../state/docStore";
 import { SUGGEST_SYMBOL_ID, type SuggestAction, useUiStore } from "../state/uiStore";
 import { registerListeners } from "./registerListeners";
 import { useCanvasRect } from "./useCanvasRect";
@@ -599,6 +600,12 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       if (last && last.col === cell.col && last.row === cell.row) return;
       last = cell;
       if (erasing) {
+        const target = doc().index.placementAt(cell.col, cell.row);
+        const motif = motifOfPlacement(target);
+        if (motif) {
+          ui().flashMotifNotice(`Part of ${motif.name} - double-click or ⌘-click a stitch to change it`);
+          return;
+        }
         doc().erase(cell.col, cell.row);
         return;
       }
@@ -703,6 +710,20 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       return next;
     };
 
+    /**
+     * A stitch inside a motif copy normally selects with its whole copy.
+     * Double-click (any tool) or Cmd/Ctrl-click picks out just that one
+     * stitch to edit - the explicit way into a copy (FR-64), since editing
+     * one makes a local change only that copy has.
+     */
+    const selectMotifStitch = (placement: Placement, e: MouseEvent): boolean => {
+      if (!motifOfPlacement(placement)) return false;
+      ui().closePicker();
+      ui().setSelection([placement.id], [], true);
+      openPickerForSingleSelection([placement.id], e as PointerEvent, false);
+      return true;
+    };
+
     const openPickerForSingleSelection = (ids: string[], e: PointerEvent, additive: boolean) => {
       if (!shouldOpenPickerForSelection(ids, additive)) return;
       const placement = doc().index.placements.get(ids[0]!);
@@ -784,6 +805,10 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
           ? doc().index.placementAt(pickerCell.col, pickerCell.row)
           : undefined;
 
+        if (!e.shiftKey && (e.metaKey || e.ctrlKey) && modifierTarget && selectMotifStitch(modifierTarget, e)) {
+          e.preventDefault();
+          return;
+        }
         if (modifierSelect && modifierTarget) {
           e.preventDefault();
           ui().closePicker();
@@ -1319,6 +1344,12 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
           if (copyIds.length) ui().setSelectedPlacementIds(copyIds);
         } else if (moved) {
           doc().movePlacements(ui().selectedPlacementIds, move.col, move.row);
+        } else if (
+          (e.metaKey || e.ctrlKey) &&
+          selectionStart &&
+          selectMotifStitch(doc().index.placementAt(selectionStart.col, selectionStart.row)!, e)
+        ) {
+          // Cmd/Ctrl-click inside an already-selected copy: just that stitch.
         } else {
           // Pointerdown on an existing selection is provisionally a move.
           // If it never leaves the cell, it was a click instead: edit the
@@ -1368,8 +1399,10 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
               ui().setSelectedEmptyCells(nextEmpty);
             }
           } else if (existing) {
-            const ids = selectExisting(existing.id, false);
-            openPickerForSingleSelection(ids, e, false);
+            if (!((e.metaKey || e.ctrlKey) && selectMotifStitch(existing, e))) {
+              const ids = selectExisting(existing.id, false);
+              openPickerForSingleSelection(ids, e, false);
+            }
           } else if (!selectionAdditive) {
             ui().clearSelectionWithUndo();
             if (ui().selectHeld) {
@@ -1461,6 +1494,10 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
     };
 
     const onDoubleClick = (e: MouseEvent) => {
+      if (ui().panEnabled) return;
+      const hitCell = cellAt(e);
+      const hit = hitCell ? doc().index.placementAt(hitCell.col, hitCell.row) : undefined;
+      if (hit && selectMotifStitch(hit, e)) return;
       // Insert's own click already opens the (differently-worded) picker
       // when nothing's armed - a "replace in place" picker here would
       // contradict what a single click just did.

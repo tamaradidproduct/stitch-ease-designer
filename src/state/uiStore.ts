@@ -40,6 +40,8 @@ export type Role = "admin" | "designer";
  * Armed like any other stitch, but painting with it runs template matching
  * against user exemplars from the reference image instead of placing a fixed symbol.
  */
+let motifNoticeTimer: ReturnType<typeof setTimeout> | undefined;
+
 export const SUGGEST_SYMBOL_ID = "__suggest__";
 
 /**
@@ -299,6 +301,8 @@ type UiState = {
   /** A short-lived status-bar message from the last stamp/fill (e.g. copies that didn't fit). */
   motifNotice: string | null;
   setMotifNotice: (notice: string | null) => void;
+  /** Shows `notice` in the status bar for a few seconds. */
+  flashMotifNotice: (notice: string) => void;
   /** The motif whose delete dialog is open (asks what to do with its copies). */
   motifDeleteRequest: string | null;
   setMotifDeleteRequest: (motifId: string | null) => void;
@@ -526,6 +530,11 @@ export const useUiStore = create<UiState>((set, get) => ({
   setMotifFill: (motifFill) => set({ motifFill }),
   motifNotice: null,
   setMotifNotice: (motifNotice) => set({ motifNotice }),
+  flashMotifNotice: (motifNotice) => {
+    clearTimeout(motifNoticeTimer);
+    set({ motifNotice });
+    motifNoticeTimer = setTimeout(() => set({ motifNotice: null }), 4000);
+  },
   motifDeleteRequest: null,
   setMotifDeleteRequest: (motifDeleteRequest) => set({ motifDeleteRequest }),
   setArmedSymbolId: (armedSymbolId, colorId = null) =>

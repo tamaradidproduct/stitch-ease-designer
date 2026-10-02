@@ -298,6 +298,13 @@ type DocState = {
   setMeta: (meta: DocMeta) => void;
 };
 
+/** The motif a placement belongs to as a linked copy's stitch, if any. */
+export function motifOfPlacement(placement: Placement | undefined): RepeatDefinition | null {
+  if (!placement?.groupId) return null;
+  return useDocStore.getState().repeats.find((motif) =>
+    motif.copies?.some((copy) => copy.id === placement.groupId)) ?? null;
+}
+
 export const selectIsDirty = (s: DocState): boolean => s.revision !== s.savedRevision;
 
 /**

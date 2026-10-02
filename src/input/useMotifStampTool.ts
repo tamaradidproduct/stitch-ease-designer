@@ -23,7 +23,6 @@ export function useMotifStampTool(ref: RefObject<HTMLCanvasElement | null>): voi
     const ui = useUiStore.getState;
     const doc = useDocStore.getState;
     let gesture: { pointerId: number; start: Cell } | null = null;
-    let noticeTimer: ReturnType<typeof setTimeout> | undefined;
 
     const cellAt = (e: PointerEvent): Cell | null => {
       const rect = getRect();
@@ -81,25 +80,19 @@ export function useMotifStampTool(ref: RefObject<HTMLCanvasElement | null>): voi
       const placed = doc().stampMotif(motif.id, origins, armed.mirrored);
       const skipped = origins.length - placed;
       if (skipped > 0) {
-        ui().setMotifNotice(
+        ui().flashMotifNotice(
           origins.length === 1
             ? "Doesn't fit here - it would cover existing stitches"
             : `${skipped} of ${origins.length} copies didn't fit`,
         );
-        clearTimeout(noticeTimer);
-        noticeTimer = setTimeout(() => ui().setMotifNotice(null), 4000);
       }
     };
 
-    const unregister = registerListeners(canvas, [
+    return registerListeners(canvas, [
       ["pointerdown", onPointerDown],
       ["pointermove", onPointerMove],
       ["pointerup", finish],
       ["pointercancel", finish],
     ]);
-    return () => {
-      clearTimeout(noticeTimer);
-      unregister();
-    };
   }, [ref, getRect]);
 }
