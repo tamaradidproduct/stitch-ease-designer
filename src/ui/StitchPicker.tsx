@@ -9,12 +9,13 @@ import { type PickerTarget, useUiStore } from "../state/uiStore";
 import { insertTargetCol } from "../model/ops";
 import { SymbolGlyph } from "./SymbolGlyph";
 import { searchSymbols } from "./symbolSearch";
-import { CloseIcon } from "./icons";
+import { CloseIcon, SearchIcon } from "./icons";
 import { collectColoredGlossaryEntries, useGlossaryIds } from "./chartGlossary";
 import { clamp } from "./utils";
 import { parseQuickSlotId } from "../model/quickSlots";
 import { addColoredVariant, applyColorToSlot, currentSlotForPicker } from "./colorwork";
 import { ColorChip } from "./ColorChip";
+import { QuickTile } from "./QuickTile";
 import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
 
 const MENU_WIDTH = 284;
@@ -355,6 +356,25 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
         ? `Replace ${currentSymbol.label} at col ${target.col}, row ${target.row}`
         : `Add a stitch at col ${target.col}, row ${target.row}`;
 
+  // The three branches below that resolve onto an existing target
+  // (selection, a batch of empty cells, or a single cell) all finish the
+  // same way (issue #323): reviewing a suggestion never arms whatever was
+  // just picked - Suggest stays armed so a review pass can keep going cell
+  // by cell - it only parks the pick in a quick slot, exactly like any
+  // other pick belongs in the glossary/quick row. Otherwise, the pick gets
+  // armed as normal (`shouldArm` lets the empty-cells branch skip that when
+  // the whole batch turned out to already be occupied - see its own call
+  // below). Pulled out once so that shared rule can't quietly drift between
+  // what used to be three separately hand-written copies of it.
+  const finishResolve = (symbol: StitchSymbol, colorId: string | undefined, tool: "stitch" | "insert" = "stitch", shouldArm = true) => {
+    if (target.reviewingSuggestion) {
+      useUiStore.getState().addQuickSymbol(symbol.id, colorId);
+    } else if (shouldArm) {
+      chooseSymbol(symbol.id, tool, undefined, colorId);
+    }
+    closePicker();
+  };
+
   // `colorId` defaults to undefined (DNT-8): a plain pick from search or the
   // drawer is always a whole new uncolored pen, never whatever color
   // happened to be active. Only a quick-slot tile click passes its own
@@ -369,18 +389,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
     if (target.selectionIds) {
       replacePlacements(target.selectionIds, symbol.id, colorId);
       clearSelection();
-      // Same rule as the reviewingSuggestion checks below: resolving a
-      // suggested placement shouldn't arm whatever was picked for it -
-      // Suggest stays armed so a review pass can keep going cell by cell.
-      // It still belongs in the glossary and the quick row exactly like any
-      // other pick, though - only the arming (and the tool switch that
-      // comes with it) is what a review resolve skips.
-      if (target.reviewingSuggestion) {
-        useUiStore.getState().addQuickSymbol(symbol.id, colorId);
-      } else {
-        chooseSymbol(symbol.id, "stitch", undefined, colorId);
-      }
-      closePicker();
+      finishResolve(symbol, colorId);
       return;
     }
     if (target.selectionEmptyCells?.length) {
@@ -410,17 +419,11 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
         .map((cell) => useDocStore.getState().index.placementAt(cell.col, cell.row)?.id)
         .filter((id): id is string => !!id))];
       clearSelection();
-      // Same rule as the reviewingSuggestion check further down: resolving
-      // an unrecognized cell shouldn't arm whatever was picked for it -
-      // this branch used to return before ever reaching that check, so
-      // Suggest was silently getting swapped out on every unrecognized-cell
-      // fix instead of staying armed for the rest of the review pass.
-      if (target.reviewingSuggestion) {
-        useUiStore.getState().addQuickSymbol(symbol.id, colorId);
-      } else if (newIds.length) {
-        chooseSymbol(symbol.id, "stitch", undefined, colorId);
-      }
-      closePicker();
+      // `shouldArm: newIds.length > 0` - this branch used to skip arming
+      // outright (by never reaching the check at all) when every cell in
+      // the batch was already occupied; nothing was actually just picked
+      // for anything, so there's nothing to arm.
+      finishResolve(symbol, colorId, "stitch", newIds.length > 0);
       return;
     }
     if (target.insert) {
@@ -439,15 +442,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
         : undefined;
       place(symbol.id, target.col, target.row, undefined, undefined, colorId, unrecognizedKeyCleared);
     }
-    // Resolving a suggestion review (confirmed or unrecognized) shouldn't
-    // arm whatever the designer just picked - Suggest stays armed so a
-    // review pass can keep going cell by cell.
-    if (target.reviewingSuggestion) {
-      useUiStore.getState().addQuickSymbol(symbol.id, colorId);
-      closePicker();
-      return;
-    }
-    chooseSymbol(symbol.id, target.insert ? "insert" : "stitch", undefined, colorId);
+    finishResolve(symbol, colorId, target.insert ? "insert" : "stitch");
   };
 
   const clear = () => {
@@ -496,10 +491,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
 
   const renderSearchField = (key: string) => (
     <div key={key} className="picker__morphSearch" data-origin={searchOrigin}>
-      <svg className="picker__searchIcon" viewBox="0 0 20 20" width="17" height="17" aria-hidden="true">
-        <circle cx="8.5" cy="8.5" r="5.25" fill="none" stroke="currentColor" strokeWidth="1.6" />
-        <path d="m12.4 12.4 4 4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-      </svg>
+      <SearchIcon className="picker__searchIcon" width={17} height={17} strokeWidth={1.6} />
       <input
         ref={inputRef}
         className="picker__search"
@@ -555,40 +547,17 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
             if (searchOpen && searchOrigin === slot) return renderSearchField(`search:${slot}`);
             const entry = quickSymbols[slot];
             return entry ? (
-              <div key={entry.key} className="picker__quickTile">
-                <button
-                  type="button"
-                  className="picker__quickButton"
-                  data-colored={!!entry.colorId}
-                  data-active={currentSlot?.key === entry.key}
-                  disabled={entry.disabled}
-                  onClick={() => choose(entry.symbol, entry.colorId)}
-                  title={entry.disabled ? `${entry.symbol.label} does not fit this selection` : entry.symbol.label}
-                  aria-label={entry.disabled ? `${entry.symbol.label} does not fit this selection` : entry.symbol.label}
-                  data-label={entry.symbol.label}
-                >
-                  <SymbolGlyph
-                    symbol={entry.symbol}
-                    cell={Math.max(7, Math.min(22, 58 / entry.symbol.span))}
-                    colorId={entry.colorId}
-                  />
-                </button>
-                {/* FR-25: a colored slot's color is fixed - no chip. Only the
-                    current, uncolored slot gets one, and only this exact tile. */}
-                {!entry.colorId && currentSlot?.key === entry.key && (
-                  <ColorChip
-                    mode="recolor"
-                    label={`Color ${entry.symbol.label}`}
-                    className="picker__quickColorChip"
-                    popoverPlacement="above-first"
-                    getPopoverBoundaryRect={() => rootRef.current?.getBoundingClientRect() ?? null}
-                    onSelect={(colorId) => {
-                      applyColorToSlot(currentSlot, colorId);
-                      closePicker();
-                    }}
-                  />
-                )}
-              </div>
+              <QuickTile
+                key={entry.key}
+                entry={entry}
+                active={currentSlot?.key === entry.key}
+                onChoose={choose}
+                onRecolor={(colorId) => {
+                  if (currentSlot) applyColorToSlot(currentSlot, colorId);
+                  closePicker();
+                }}
+                getPopoverBoundaryRect={() => rootRef.current?.getBoundingClientRect() ?? null}
+              />
             ) : (
               <button
                 key={`empty:${slot}`}
@@ -614,37 +583,17 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
           {dynamicSlot && !(searchOpen && searchOrigin !== 5) && (
             <>
               <span className="picker__quickDivider" aria-hidden="true" />
-              <div key={`dynamic:${dynamicSlot.key}`} className="picker__quickTile">
-                <button
-                  type="button"
-                  className="picker__quickButton"
-                  data-colored={!!dynamicSlot.colorId}
-                  data-active={currentSlot?.key === dynamicSlot.key}
-                  onClick={() => choose(dynamicSlot.symbol, dynamicSlot.colorId)}
-                  title={dynamicSlot.symbol.label}
-                  aria-label={dynamicSlot.symbol.label}
-                  data-label={dynamicSlot.symbol.label}
-                >
-                  <SymbolGlyph
-                    symbol={dynamicSlot.symbol}
-                    cell={Math.max(7, Math.min(22, 58 / dynamicSlot.symbol.span))}
-                    colorId={dynamicSlot.colorId}
-                  />
-                </button>
-                {!dynamicSlot.colorId && currentSlot && (
-                  <ColorChip
-                    mode="recolor"
-                    label={`Color ${dynamicSlot.symbol.label}`}
-                    className="picker__quickColorChip"
-                    popoverPlacement="above-first"
-                    getPopoverBoundaryRect={() => rootRef.current?.getBoundingClientRect() ?? null}
-                    onSelect={(colorId) => {
-                      applyColorToSlot(currentSlot, colorId);
-                      closePicker();
-                    }}
-                  />
-                )}
-              </div>
+              <QuickTile
+                key={`dynamic:${dynamicSlot.key}`}
+                entry={dynamicSlot}
+                active={currentSlot?.key === dynamicSlot.key}
+                onChoose={choose}
+                onRecolor={(colorId) => {
+                  if (currentSlot) applyColorToSlot(currentSlot, colorId);
+                  closePicker();
+                }}
+                getPopoverBoundaryRect={() => rootRef.current?.getBoundingClientRect() ?? null}
+              />
               <span className="picker__quickDivider" aria-hidden="true" />
             </>
           )}
@@ -658,10 +607,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
               aria-label="Search all stitches"
               data-label="Search stitches"
             >
-              <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
-                <circle cx="8.5" cy="8.5" r="5.25" fill="none" stroke="currentColor" strokeWidth="1.6" />
-                <path d="m12.4 12.4 4 4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-              </svg>
+              <SearchIcon width={18} height={18} strokeWidth={1.6} />
             </button>
           )}
           {hasMore && (

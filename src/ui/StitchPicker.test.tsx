@@ -110,6 +110,106 @@ describe("StitchPicker quick-slot active highlight (#306)", () => {
 });
 
 /**
+ * Characterization coverage for issue #323's `QuickTile` extraction: the
+ * quick-slot tile's recolor `ColorChip` guard was `!entry.colorId &&
+ * currentSlot?.key === entry.key`, while the dynamic 6th tile's was
+ * `!dynamicSlot.colorId && currentSlot` (no key match) - equivalent in
+ * practice since the dynamic tile only ever exists when it *is* the
+ * current slot, but still two different guards to keep in sync by hand.
+ * These pin the chip's actual visibility (not just its stated condition)
+ * for both tile kinds before `QuickTile` standardized on one guard.
+ */
+describe("StitchPicker quick-tile recolor chip (issue #323)", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  function resetDoc() {
+    useDocStore.setState({
+      index: DocIndex.from([]),
+      undoStack: [],
+      redoStack: [],
+      stroke: null,
+      revision: 0,
+      glossaryIds: ["knit", "purl"],
+      quickSymbolIds: ["knit", "purl"],
+    });
+  }
+
+  function resetUi() {
+    useUiStore.getState().resetForChart();
+  }
+
+  beforeEach(() => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    resetDoc();
+    resetUi();
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    act(() => {
+      root = createRoot(container);
+      root.render(<StitchPicker />);
+    });
+  });
+
+  afterEach(() => {
+    act(() => {
+      if (root) root.unmount();
+    });
+    container?.remove();
+  });
+
+  const selectPlacement = (placement: { col: number; row: number; symbolId: string; id: string }) => {
+    act(() => {
+      useUiStore.getState().openPicker({
+        col: placement.col,
+        row: placement.row,
+        x: 0,
+        y: 0,
+        currentSymbolId: placement.symbolId,
+        selectionIds: [placement.id],
+        selectionSpan: 1,
+      });
+    });
+  };
+
+  it("shows the recolor chip only on the active, plain quick-slot tile - not an inactive one", () => {
+    act(() => {
+      useDocStore.getState().place("knit", 0, 0);
+    });
+    selectPlacement(useDocStore.getState().index.placementAt(0, 0)!);
+
+    const knitLabel = getSymbol("knit")!.label;
+    const purlLabel = getSymbol("purl")!.label;
+    const knitTile = container
+      .querySelector<HTMLButtonElement>(`.picker__quickButton[aria-label="${knitLabel}"]`)
+      ?.closest(".picker__quickTile");
+    const purlTile = container
+      .querySelector<HTMLButtonElement>(`.picker__quickButton[aria-label="${purlLabel}"]`)
+      ?.closest(".picker__quickTile");
+
+    expect(knitTile?.querySelector(".picker__quickColorChip")).toBeTruthy();
+    expect(purlTile?.querySelector(".picker__quickColorChip")).toBeNull();
+    // Exactly one chip in the whole quick row - the active tile's.
+    expect(container.querySelectorAll(".picker__quickColorChip").length).toBe(1);
+  });
+
+  it("shows the recolor chip on the dynamic 6th tile when it's the active (plain) selection", () => {
+    act(() => {
+      useDocStore.getState().place("yarn_over", 1, 0);
+    });
+    selectPlacement(useDocStore.getState().index.placementAt(1, 0)!);
+
+    const yarnOverLabel = getSymbol("yarn_over")!.label;
+    const dynamicTile = container
+      .querySelector<HTMLButtonElement>(`.picker__quickButton[aria-label="${yarnOverLabel}"]`)
+      ?.closest(".picker__quickTile");
+
+    expect(dynamicTile?.querySelector(".picker__quickColorChip")).toBeTruthy();
+    expect(container.querySelectorAll(".picker__quickColorChip").length).toBe(1);
+  });
+});
+
+/**
  * Regression coverage for #305: #296 wired `unrecognizedKeyCleared` into
  * `docStore.place()`/`commit()` (see docStore.test.ts's "#285" suite), but
  * only threaded it into usePaintTool.ts's freehand-paint call site. This

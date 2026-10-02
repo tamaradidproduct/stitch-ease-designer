@@ -698,8 +698,12 @@ armed at once.
 | `src/ui/SymbolGlyph.tsx` | `colorId` prop — the fourth FR-28 render site (see Gotchas) |
 | `src/ui/colorwork.ts` | `currentSlotForPicker` (FR-25 identity), `applyColorToSlot`, `addColoredVariant` |
 | `src/ui/ColorChip.tsx`, `ColorSwatchPopover.tsx` | Shared chip + popover, consolidated across all three call sites from the start |
-| `src/ui/StitchPicker.tsx` | `currentSlot`; quick tiles + dynamic sixth; drawer chip; FR-31 context label |
-| `src/ui/RightPanel.tsx` | Quick-slot rows, glossary rows (slotted + overflow), drag/promote, search dropdown |
+| `src/ui/StitchPicker.tsx` | `currentSlot`; quick-row layout, `finishResolve` (`choose()`'s shared reviewingSuggestion/arm step); drawer chip; FR-31 context label |
+| `src/ui/QuickTile.tsx` | Quick-slot tile + dynamic sixth markup, including the recolor `ColorChip` — shared by `StitchPicker.tsx`'s two call sites (issue #323) |
+| `src/ui/RightPanel.tsx` | Quick-row/glossary layout, search dropdown |
+| `src/ui/GlossaryRow.tsx` | One glossary row (slotted or overflow) — glyph, label, select-all, add-only chip, disarm/remove tri-state. Takes an explicit `armMode: "arm-only" \| "arm-and-promote"` plus an `onArm` callback the caller builds per row kind, rather than arming behavior being an implicit side effect of which row markup renders (issue #323's "arming unification" — see RightPanel.tsx's two call sites: slotted rows stay arm-only since the item's already in a quick slot, overflow rows stay arm-and-promote since choosing one also needs to assign it a slot; this split is deliberately preserved, not merged) |
+| `src/ui/useQuickSlotDropTarget.ts` | Shared drag state + drop-target handlers for the quick row's filled/empty slots (issue #323) |
+| `src/ui/glyphSize.ts` | `glyphCellSize` — the one shared formula behind the glyph-size literals (58/54/48, max 22/20/18) at `QuickTile.tsx`'s, `GlossaryRow.tsx`'s, and `RightPanel.tsx`'s search-result rows' call sites (issue #323); each site keeps its own existing numbers |
 | `src/ui/chartGlossary.ts` | `collectColoredGlossaryEntries`, `countConfirmedStitches`/`countConfirmedColoredStitches` (DNT-13), `symbolsWithAnyPlacement` |
 
 ### Color-aware Suggest, quick slots, and glossary selection

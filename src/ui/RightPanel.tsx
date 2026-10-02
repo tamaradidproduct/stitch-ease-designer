@@ -23,9 +23,11 @@ import {
 } from "./chartGlossary";
 import { parseQuickSlotId, quickSlotInsertEdge, quickSlotKey } from "../model/quickSlots";
 import { addColoredVariant } from "./colorwork";
-import { ColorChip } from "./ColorChip";
-import { CheckIcon, CloseIcon, CrossIcon, DragHandleIcon } from "./icons";
+import { CheckIcon, CrossIcon, DragHandleIcon, SearchIcon } from "./icons";
 import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
+import { useQuickSlotDropTarget } from "./useQuickSlotDropTarget";
+import { GlossaryRow } from "./GlossaryRow";
+import { glyphCellSize } from "./glyphSize";
 
 /**
  * Section order for the glossary search dropdown; anything uncategorized
@@ -49,9 +51,6 @@ export function RightPanel() {
   const [glossaryQuery, setGlossaryQuery] = useState("");
   const [searchSlot, setSearchSlot] = useState<number | null>(null);
   const [activeGlossaryResult, setActiveGlossaryResult] = useState(0);
-  const [draggingQuickId, setDraggingQuickId] = useState<string | null>(null);
-  const [dragOverQuickId, setDragOverQuickId] = useState<string | null>(null);
-  const [dragOverQuickSlot, setDragOverQuickSlot] = useState<number | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [exportBusy, setExportBusy] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -86,6 +85,16 @@ export function RightPanel() {
   const rightPanelWidth = useUiStore((state) => state.rightPanelWidth);
   const setRightPanelWidth = useUiStore((state) => state.setRightPanelWidth);
   const addedGlossaryIds = useGlossaryIds();
+  const {
+    draggingQuickId,
+    dragOverQuickId,
+    dragOverQuickSlot,
+    startDragging,
+    resetDragState,
+    trackDragOverKey,
+    forFilledSlot,
+    forEmptySlot,
+  } = useQuickSlotDropTarget(moveQuickSymbolTo);
 
   // Drag-to-resize from the panel's left edge. Pointer capture keeps the
   // handle receiving move/up events even once the cursor leaves its thin
@@ -124,12 +133,6 @@ export function RightPanel() {
     handle.addEventListener("pointerup", onUp);
     handle.addEventListener("pointercancel", onUp);
     handle.addEventListener("lostpointercapture", cleanup);
-  };
-
-  const resetDragState = () => {
-    setDraggingQuickId(null);
-    setDragOverQuickId(null);
-    setDragOverQuickSlot(null);
   };
 
   // Plain useEffect defers to a paint-independent scheduler tick, which
@@ -318,12 +321,11 @@ export function RightPanel() {
   const chooseSearchResult = (id: string) => {
     addToGlossary(id);
     chooseSymbol(id);
-    setSearchSlot(null);
     // addToGlossary early-returns (without clearing the query) when the
     // chosen result is already in the glossary, so clear it here too -
     // otherwise the next "Add stitch" open would show this stale query
     // instead of the browse-all view.
-    setGlossaryQuery("");
+    closeGlossarySearch();
   };
   const searchForQuickStitch = (slot: number) => {
     setSearchSlot(slot);
@@ -520,7 +522,6 @@ export function RightPanel() {
               const count = parsed?.colorId
                 ? (coloredCounts.get(key!) ?? 0)
                 : (stitchCounts.get(symbol?.id ?? "") ?? 0);
-              const selectAllLabel = `Select all ${count} placed ${symbol?.label} stitches`;
               // #271: dropping onto an already-occupied quick slot pushes
               // the existing stitches along (see promoteQuickSlot/
               // moveQuickSlotTo) rather than filling in place, so it gets
@@ -529,173 +530,65 @@ export function RightPanel() {
               const insertEdge = dragOverQuickId === key
                 ? quickSlotInsertEdge(draggingQuickId ? quickSymbolIds.indexOf(draggingQuickId) : -1, slot)
                 : null;
+              const rowDrop = key ? forFilledSlot(key, slot) : null;
               return key && symbol ? (
-                <div
+                <GlossaryRow
                   key={key}
-                  className="glossary__item"
-                  data-on={armed && tool === "stitch"}
-                  data-insert-edge={insertEdge ?? undefined}
-                  onDragOver={(event) => {
-                    if (draggingQuickId && draggingQuickId !== key) {
-                      event.preventDefault();
-                      event.dataTransfer.dropEffect = "move";
-                      setDragOverQuickId(key);
-                    }
+                  symbol={symbol}
+                  colorId={parsed?.colorId}
+                  // Pure arm: this item is already in a quick slot, so
+                  // nothing needs promoting (issue #323's arming
+                  // unification - see GlossaryRow's own `armMode` doc).
+                  armed={armed && tool === "stitch"}
+                  armMode="arm-only"
+                  onArm={() => setArmedSymbolId(symbol.id, parsed?.colorId ?? null)}
+                  onDisarm={() => setArmedSymbolId(null)}
+                  disarmButton={disarmButton}
+                  count={count}
+                  onSelectAll={() => setSelection(selectableGlossaryEntryPlacementIds(placements, key), [], true)}
+                  onAddColoredVariant={(colorId) => addColoredVariant(symbol.id, colorId)}
+                  removable={!symbolsPlaced.has(key)}
+                  onRemove={() => removeFromGlossary(key)}
+                  shortcutSlot={slot < 5 ? slot : undefined}
+                  dragHandleTitle="Drag to reorder"
+                  onDragHandleStart={(event) => {
+                    event.dataTransfer.effectAllowed = "move";
+                    event.dataTransfer.setData("text/plain", key);
+                    startDragging(key);
                   }}
-                  onDragLeave={() => setDragOverQuickId((current) => current === key ? null : current)}
-                  onDrop={(event) => {
-                    event.preventDefault();
-                    const draggedKey = draggingQuickId;
-                    if (draggedKey && draggedKey !== key) moveQuickSymbolTo(draggedKey, slot);
-                    resetDragState();
+                  onDragHandleEnd={resetDragState}
+                  // #326: keyboard/touch-friendly reorder, alongside drag -
+                  // dragging stays available, this is the primary path.
+                  // Bounded to the actual quickSymbolIds array (not the
+                  // padded display slotCount), matching moveQuickSlotDirection's
+                  // own early-outs. The same move is also reachable via
+                  // Alt+Up/Down while this exact (symbol, color) pen is
+                  // armed - see useShortcuts.ts.
+                  moveUp={{
+                    disabled: !quickSymbolIds.slice(0, slot).some(Boolean),
+                    onClick: () => useDocStore.getState().moveQuickSlotDirection(key, -1),
+                    title: "Move up (Alt+Up while armed)",
                   }}
-                >
-                  <button
-                    type="button"
-                    draggable
-                    className="glossary__dragHandle"
-                    onDragStart={(event) => {
-                      event.dataTransfer.effectAllowed = "move";
-                      event.dataTransfer.setData("text/plain", key);
-                      setDraggingQuickId(key);
-                    }}
-                    onDragEnd={resetDragState}
-                    aria-label={`Drag to reorder ${symbol.label}`}
-                    title="Drag to reorder"
-                  >
-                  <DragHandleIcon />
-                  </button>
-                  {/* #326: keyboard/touch-friendly reorder, alongside drag -
-                      dragging stays available, this is the primary path.
-                      Bounded to the actual quickSymbolIds array (not the
-                      padded display slotCount), matching moveQuickSlotDirection's
-                      own early-outs. The same move is also reachable via
-                      Alt+Up/Down while this exact (symbol, color) pen is
-                      armed - see useShortcuts.ts. */}
-                  <div className="glossary__moveGroup">
-                    <button
-                      type="button"
-                      className="glossary__move"
-                      disabled={!quickSymbolIds.slice(0, slot).some(Boolean)}
-                      onClick={() => useDocStore.getState().moveQuickSlotDirection(key, -1)}
-                      aria-label={`Move ${symbol.label} up`}
-                      title="Move up (Alt+Up while armed)"
-                    >
-                      <svg viewBox="0 0 20 20" aria-hidden="true">
-                        <path d="M5 12l5-5 5 5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      className="glossary__move"
-                      disabled={!quickSymbolIds.slice(slot + 1).some(Boolean)}
-                      onClick={() => useDocStore.getState().moveQuickSlotDirection(key, 1)}
-                      aria-label={`Move ${symbol.label} down`}
-                      title="Move down (Alt+Down while armed)"
-                    >
-                      <svg viewBox="0 0 20 20" aria-hidden="true">
-                        <path d="M5 8l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </button>
-                  </div>
-                  {slot < 5 ? (
-                    <kbd className="glossary__shortcut" aria-label={`Shortcut ${slot + 1}`}>{slot + 1}</kbd>
-                  ) : <span className="glossary__shortcutSpacer" />}
-                  <button
-                    type="button"
-                    className="glossary__arm"
-                    {...tapActivate(() =>
-                      armed && tool === "stitch"
-                        ? setArmedSymbolId(null)
-                        : setArmedSymbolId(symbol.id, parsed?.colorId ?? null)
-                    )}
-                    title={`Draw with ${symbol.label} (${slot + 1}) - tap again to stop drawing`}
-                  >
-                    <span className="glossary__glyph">
-                      <SymbolGlyph symbol={symbol} cell={Math.max(7, Math.min(20, 54 / symbol.span))} colorId={parsed?.colorId} />
-                    </span>
-                    <span className="glossary__label">{symbol.label}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="glossary__count glossary__selectEntry"
-                    disabled={!count}
-                    onClick={() => setSelection(selectableGlossaryEntryPlacementIds(placements, key), [], true)}
-                    aria-label={selectAllLabel}
-                    title={selectAllLabel}
-                  >
-                    All ({count})
-                  </button>
-                  {/* FR-34/Bug 8: the add-only chip belongs on every plain
-                      row, slotted or not - a colored row never gets it. */}
-                  {!parsed?.colorId && (
-                    <ColorChip
-                      mode="add-only"
-                      label={`Add a colored ${symbol.label}`}
-                      className="glossary__colorChip"
-                      onSelect={(colorId) => addColoredVariant(symbol.id, colorId)}
-                    />
-                  )}
-                  {armed && tool === "stitch" ? (
-                    disarmButton
-                  ) : !symbolsPlaced.has(key) ? (
-                    <button
-                      type="button"
-                      className="glossary__remove"
-                      onClick={() => removeFromGlossary(key)}
-                      aria-label={`Remove ${symbol.label} from glossary`}
-                      title="Remove from glossary"
-                    >
-                      <CloseIcon />
-                    </button>
-                  ) : (
-                    // #326: previously a blank spacer with no hint why removal
-                    // was unavailable - now a disabled control carrying the
-                    // same affordance/classes as the real remove button, so
-                    // it reads as "not removable right now" instead of
-                    // nothing at all.
-                    <button
-                      type="button"
-                      className="glossary__remove"
-                      disabled
-                      aria-label={`Remove placed stitches of this kind first (${symbol.label})`}
-                      title="Remove placed stitches of this kind first"
-                    >
-                      <CloseIcon />
-                    </button>
-                  )}
-                </div>
+                  moveDown={{
+                    disabled: !quickSymbolIds.slice(slot + 1).some(Boolean),
+                    onClick: () => useDocStore.getState().moveQuickSlotDirection(key, 1),
+                    title: "Move down (Alt+Down while armed)",
+                  }}
+                  onRowDragOver={rowDrop!.onDragOver}
+                  onRowDragLeave={rowDrop!.onDragLeave}
+                  onRowDrop={rowDrop!.onDrop}
+                  dragIndicator={{ kind: "insert-edge", edge: insertEdge }}
+                />
               ) : searchSlot === slot ? (
                 <div
                   ref={inlineSearchRef}
                   key={`search:${slot}`}
                   className="glossary__inlineSearch"
                   data-drag-over={dragOverQuickSlot === slot}
-                  onDragOver={(event) => {
-                    if (draggingQuickId) {
-                      event.preventDefault();
-                      event.dataTransfer.dropEffect = "move";
-                      if (dragOverQuickSlot !== slot) setDragOverQuickSlot(slot);
-                    }
-                  }}
-                  onDragLeave={() =>
-                    setDragOverQuickSlot((current) => current === slot ? null : current)
-                  }
-                  onDrop={(event) => {
-                    event.preventDefault();
-                    const draggedId = draggingQuickId;
-                    if (draggedId) {
-                      moveQuickSymbolTo(draggedId, slot);
-                      setSearchSlot(null);
-                      setGlossaryQuery("");
-                    }
-                    resetDragState();
-                  }}
+                  {...forEmptySlot(slot, closeGlossarySearch)}
                 >
                   {slot < 5 ? <kbd className="glossary__shortcut">{slot + 1}</kbd> : <span className="glossary__shortcutSpacer" />}
-                  <svg viewBox="0 0 20 20" aria-hidden="true">
-                    <circle cx="8.5" cy="8.5" r="5.25" /><path d="m12.4 12.4 4 4" />
-                  </svg>
+                  <SearchIcon />
                   <input
                     ref={glossarySearchRef}
                     type="search"
@@ -743,7 +636,7 @@ export function RightPanel() {
                                   onClick={() => chooseSearchResult(result.id)}
                                 >
                                   <span className="glossarySearch__glyph">
-                                    <SymbolGlyph symbol={result} cell={Math.max(7, Math.min(18, 48 / result.span))} />
+                                    <SymbolGlyph symbol={result} cell={glyphCellSize(result.span, 48, 18)} />
                                   </span>
                                   <span>{result.label}</span>
                                   <strong>{plainGlossaryIds.has(result.id) ? "Added" : "Add"}</strong>
@@ -762,22 +655,7 @@ export function RightPanel() {
                   type="button"
                   className="glossary__item glossary__item--empty"
                   data-drag-over={dragOverQuickSlot === slot}
-                  onDragOver={(event) => {
-                    if (draggingQuickId) {
-                      event.preventDefault();
-                      event.dataTransfer.dropEffect = "move";
-                      if (dragOverQuickSlot !== slot) setDragOverQuickSlot(slot);
-                    }
-                  }}
-                  onDragLeave={() =>
-                    setDragOverQuickSlot((current) => current === slot ? null : current)
-                  }
-                  onDrop={(event) => {
-                    event.preventDefault();
-                    const draggedId = draggingQuickId;
-                    if (draggedId) moveQuickSymbolTo(draggedId, slot);
-                    resetDragState();
-                  }}
+                  {...forEmptySlot(slot)}
                   onClick={() => searchForQuickStitch(slot)}
                   title={slot < 5 ? `Choose a stitch for shortcut ${slot + 1}` : "Add another stitch"}
                 >
@@ -794,22 +672,36 @@ export function RightPanel() {
               const { symbol, colorId, key } = entry;
               const armed = key === quickSlotKey(armedSymbolId ?? "", activeColor) && !!armedSymbolId;
               const count = colorId ? (coloredCounts.get(key) ?? 0) : (stitchCounts.get(symbol.id) ?? 0);
-              const selectAllLabel = `Select all ${count} placed ${symbol.label} stitches`;
+              const dragHandlers = trackDragOverKey(key);
               return (
-                <div
+                <GlossaryRow
                   key={key}
-                  className="glossary__item"
-                  data-on={armed && tool === "stitch"}
-                  data-drag-over={dragOverQuickId === key}
-                  onDragOver={(event) => {
-                    if (draggingQuickId && draggingQuickId !== key) {
-                      event.preventDefault();
-                      event.dataTransfer.dropEffect = "move";
-                      setDragOverQuickId(key);
-                    }
+                  symbol={symbol}
+                  colorId={colorId}
+                  // Arm-and-promote: this item isn't in a quick slot yet, so
+                  // choosing it also assigns one (issue #323's arming
+                  // unification - see GlossaryRow's own `armMode` doc).
+                  armed={armed && tool === "stitch"}
+                  armMode="arm-and-promote"
+                  onArm={() => chooseSymbol(symbol.id, undefined, undefined, colorId)}
+                  onDisarm={() => setArmedSymbolId(null)}
+                  disarmButton={disarmButton}
+                  count={count}
+                  onSelectAll={() => setSelection(selectableGlossaryEntryPlacementIds(placements, key), [], true)}
+                  onAddColoredVariant={(newColorId) => addColoredVariant(symbol.id, newColorId)}
+                  removable={!symbolsPlaced.has(key)}
+                  onRemove={() => removeFromGlossary(key)}
+                  // Overflow rows have no numbered shortcut - always the spacer.
+                  dragHandleTitle="Drag to reorder, or onto a numbered slot above to pin it there"
+                  onDragHandleStart={(event) => {
+                    event.dataTransfer.effectAllowed = "move";
+                    event.dataTransfer.setData("text/plain", key);
+                    startDragging(key);
                   }}
-                  onDragLeave={() => setDragOverQuickId((current) => current === key ? null : current)}
-                  onDrop={(event) => {
+                  onDragHandleEnd={resetDragState}
+                  onRowDragOver={dragHandlers.onDragOver}
+                  onRowDragLeave={dragHandlers.onDragLeave}
+                  onRowDrop={(event) => {
                     event.preventDefault();
                     const draggedKey = draggingQuickId;
                     resetDragState();
@@ -821,121 +713,32 @@ export function RightPanel() {
                     const targetIndex = addedGlossaryIds.indexOf(key);
                     if (targetIndex !== -1) useDocStore.getState().moveGlossaryIdTo(draggedKey, targetIndex);
                   }}
-                >
-                  <button
-                    type="button"
-                    draggable
-                    className="glossary__dragHandle"
-                    onDragStart={(event) => {
-                      event.dataTransfer.effectAllowed = "move";
-                      event.dataTransfer.setData("text/plain", key);
-                      setDraggingQuickId(key);
-                    }}
-                    onDragEnd={resetDragState}
-                    aria-label={`Drag to reorder ${symbol.label}`}
-                    title="Drag to reorder, or onto a numbered slot above to pin it there"
-                  >
-                      <DragHandleIcon />
-                    </button>
-                  {/* #326: keyboard/touch-friendly reorder, within the
-                      overflow list only - mirrors the overflow drag/drop's
-                      own guard above, which refuses to move a slotted item
-                      via this path. No global keyboard shortcut covers this
-                      list (unlike the numbered quick row's Alt+Up/Down), so
-                      the tooltip doesn't claim one. */}
-                  <div className="glossary__moveGroup">
-                    <button
-                      type="button"
-                      className="glossary__move"
-                      disabled={overflowIndex === 0}
-                      onClick={() => {
-                        const targetKey = remainingGlossary[overflowIndex - 1]?.key;
-                        const targetIndex = targetKey ? addedGlossaryIds.indexOf(targetKey) : -1;
-                        if (targetIndex !== -1) useDocStore.getState().moveGlossaryIdTo(key, targetIndex);
-                      }}
-                      aria-label={`Move ${symbol.label} up`}
-                      title="Move up"
-                    >
-                      <svg viewBox="0 0 20 20" aria-hidden="true">
-                        <path d="M5 12l5-5 5 5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      className="glossary__move"
-                      disabled={overflowIndex === remainingGlossary.length - 1}
-                      onClick={() => {
-                        const targetKey = remainingGlossary[overflowIndex + 1]?.key;
-                        const targetIndex = targetKey ? addedGlossaryIds.indexOf(targetKey) : -1;
-                        if (targetIndex !== -1) useDocStore.getState().moveGlossaryIdTo(key, targetIndex);
-                      }}
-                      aria-label={`Move ${symbol.label} down`}
-                      title="Move down"
-                    >
-                      <svg viewBox="0 0 20 20" aria-hidden="true">
-                        <path d="M5 8l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </button>
-                  </div>
-                  <span className="glossary__shortcutSpacer" />
-                  <button
-                    type="button"
-                    className="glossary__arm"
-                    {...tapActivate(() =>
-                      armed && tool === "stitch"
-                        ? setArmedSymbolId(null)
-                        : chooseSymbol(symbol.id, undefined, undefined, colorId)
-                    )}
-                    title={`Draw with ${symbol.label} - tap again to stop drawing`}
-                  >
-                    <span className="glossary__glyph">
-                      <SymbolGlyph symbol={symbol} cell={Math.max(7, Math.min(20, 54 / symbol.span))} colorId={colorId} />
-                    </span>
-                    <span className="glossary__label">{symbol.label}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="glossary__count glossary__selectEntry"
-                    disabled={!count}
-                    onClick={() => setSelection(selectableGlossaryEntryPlacementIds(placements, key), [], true)}
-                    aria-label={selectAllLabel}
-                    title={selectAllLabel}
-                  >
-                    All ({count})
-                  </button>
-                  {!colorId && (
-                    <ColorChip
-                      mode="add-only"
-                      label={`Add a colored ${symbol.label}`}
-                      className="glossary__colorChip"
-                      onSelect={(newColorId) => addColoredVariant(symbol.id, newColorId)}
-                    />
-                  )}
-                  {armed && tool === "stitch" ? (
-                    disarmButton
-                  ) : !symbolsPlaced.has(key) ? (
-                    <button
-                      type="button"
-                      className="glossary__remove"
-                      onClick={() => removeFromGlossary(key)}
-                      aria-label={`Remove ${symbol.label} from glossary`}
-                      title="Remove from glossary"
-                    >
-                      <CloseIcon />
-                    </button>
-                  ) : (
-                    // #326: see the matching slotted-row comment above.
-                    <button
-                      type="button"
-                      className="glossary__remove"
-                      disabled
-                      aria-label={`Remove placed stitches of this kind first (${symbol.label})`}
-                      title="Remove placed stitches of this kind first"
-                    >
-                      <CloseIcon />
-                    </button>
-                  )}
-                </div>
+                  // #326: keyboard/touch-friendly reorder, within the
+                  // overflow list only - mirrors the overflow drag/drop's
+                  // own guard above, which refuses to move a slotted item
+                  // via this path. No global keyboard shortcut covers this
+                  // list (unlike the numbered quick row's Alt+Up/Down), so
+                  // the tooltip doesn't claim one.
+                  moveUp={{
+                    disabled: overflowIndex === 0,
+                    onClick: () => {
+                      const targetKey = remainingGlossary[overflowIndex - 1]?.key;
+                      const targetIndex = targetKey ? addedGlossaryIds.indexOf(targetKey) : -1;
+                      if (targetIndex !== -1) useDocStore.getState().moveGlossaryIdTo(key, targetIndex);
+                    },
+                    title: "Move up",
+                  }}
+                  moveDown={{
+                    disabled: overflowIndex === remainingGlossary.length - 1,
+                    onClick: () => {
+                      const targetKey = remainingGlossary[overflowIndex + 1]?.key;
+                      const targetIndex = targetKey ? addedGlossaryIds.indexOf(targetKey) : -1;
+                      if (targetIndex !== -1) useDocStore.getState().moveGlossaryIdTo(key, targetIndex);
+                    },
+                    title: "Move down",
+                  }}
+                  dragIndicator={{ kind: "drag-over", active: dragOverQuickId === key }}
+                />
               );
             })}
           </div>

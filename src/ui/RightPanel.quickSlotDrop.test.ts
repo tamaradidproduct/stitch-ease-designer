@@ -94,4 +94,66 @@ describe("RightPanel quick-slot drop targets (issue #308)", () => {
     // time this slot becomes empty.
     expect(container.querySelector(".glossary__inlineSearch")).toBeNull();
   });
+
+  /**
+   * Characterization coverage for issue #323's `useQuickSlotDropTarget`
+   * extraction: pins each of the 3 consolidated drop targets' pre-refactor
+   * behavior (a filled slot's push/reorder, a plain empty slot's fill, and
+   * - above - the inline-search-slot's fill) so none of them silently
+   * changed shape when their three hand-rolled copies became one hook.
+   */
+  it("pushes/reorders via a filled quick slot's own drop target (#271)", () => {
+    useDocStore.setState({
+      quickSymbolIds: ["knit", "purl", "ktbl", "", ""],
+      glossaryIds: ["knit", "purl", "ktbl"],
+    });
+
+    act(() => {
+      root.render(createElement(RightPanel));
+    });
+
+    // DOM order of filled quick-row drag handles matches quickSymbolIds:
+    // knit (0), purl (1), ktbl (2).
+    const handles = container.querySelectorAll('.glossary__dragHandle[title="Drag to reorder"]');
+    expect(handles.length).toBe(3);
+    const rows = container.querySelectorAll('div.glossary__item[data-arm-mode="arm-only"]');
+    expect(rows.length).toBe(3);
+    const draggedHandle = handles[2]!; // ktbl
+    const targetRow = rows[0]!; // knit
+
+    fireDragEvent(draggedHandle, "dragstart");
+    fireDragEvent(targetRow, "dragover");
+    fireDragEvent(targetRow, "drop");
+
+    // Dropping ktbl onto knit's slot pushes everything between them along
+    // rather than swapping in place (moveQuickSlotTo's walk-by-neighbour).
+    expect(useDocStore.getState().quickSymbolIds.slice(0, 3)).toEqual(["ktbl", "knit", "purl"]);
+  });
+
+  it("fills a plain empty quick slot via its own drop target", () => {
+    // Slot 1 stays empty and its search box is never opened here, unlike
+    // the inline-search-slot test above - this is the plain empty-slot
+    // button branch.
+    useDocStore.setState({
+      quickSymbolIds: ["knit", "", "purl"],
+      glossaryIds: ["knit", "purl", "ktbl"],
+    });
+
+    act(() => {
+      root.render(createElement(RightPanel));
+    });
+
+    const overflowHandle = container.querySelector(
+      '.glossary__dragHandle[title^="Drag to reorder, or onto a numbered slot"]',
+    );
+    expect(overflowHandle).toBeTruthy();
+    const emptySlotButton = container.querySelector(".glossary__item--empty");
+    expect(emptySlotButton).toBeTruthy();
+
+    fireDragEvent(overflowHandle!, "dragstart");
+    fireDragEvent(emptySlotButton!, "dragover");
+    fireDragEvent(emptySlotButton!, "drop");
+
+    expect(useDocStore.getState().quickSymbolIds[1]).toBe("ktbl");
+  });
 });
