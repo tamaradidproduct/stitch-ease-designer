@@ -4,6 +4,7 @@ import type { Placement } from "../model/types";
 import { patchCalibrationMark } from "../model/referenceCalibration";
 import { parseQuickSlotId, quickSlotKey } from "../model/quickSlots";
 import { motifIdFromKey } from "../model/motifs";
+import { eraseKeepingMotifStitches } from "../ui/motifActions";
 import { registerListeners } from "./registerListeners";
 import { useDocStore } from "../state/docStore";
 import { redoLatest, undoLatest } from "../state/editorHistory";
@@ -153,7 +154,9 @@ export function useShortcuts(): void {
         e.preventDefault();
         ui.setClipboardPlacements(selectedPlacementsSnapshot());
         if (ui.selectedPlacementIds.length) {
-          doc.erasePlacements(ui.selectedPlacementIds);
+          // Cut copies everything, but - like Delete - never silently
+          // removes stitches from motif copies it only partly covers.
+          eraseKeepingMotifStitches(ui.selectedPlacementIds);
           ui.clearSelection();
         }
         return;
@@ -230,7 +233,7 @@ export function useShortcuts(): void {
 
       if ((e.key === "Backspace" || e.key === "Delete") && ui.selectedPlacementIds.length) {
         e.preventDefault();
-        doc.erasePlacements(ui.selectedPlacementIds);
+        eraseKeepingMotifStitches(ui.selectedPlacementIds);
         ui.clearSelection();
         return;
       }

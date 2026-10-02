@@ -16,7 +16,7 @@ import { parseQuickSlotId } from "../model/quickSlots";
 import { motifIdFromKey, stampOrigin } from "../model/motifs";
 import { rowDirectionAt } from "../model/rowDirection";
 import { MotifCopyBubbles, MotifDrawerSection, MotifGlyph, MotifQuickTile } from "./motifUi";
-import { armMotifPen, selectedMotifCopy } from "./motifActions";
+import { armMotifPen, eraseKeepingMotifStitches, selectedMotifCopy } from "./motifActions";
 import { addColoredVariant, applyColorToSlot, currentSlotForPicker } from "./colorwork";
 import { ColorChip } from "./ColorChip";
 import { QuickTile } from "./QuickTile";
@@ -79,7 +79,6 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
   const viewport = useUiStore((s) => s.viewport);
   const place = useDocStore((s) => s.place);
   const erase = useDocStore((s) => s.erase);
-  const erasePlacements = useDocStore((s) => s.erasePlacements);
   const createRepeat = useDocStore((s) => s.createRepeat);
   const duplicateSelection = useDocStore((s) => s.duplicatePlacementsInRow);
   const insertPlacement = useDocStore((s) => s.insertPlacement);
@@ -494,7 +493,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
       useDocStore.getState().setStitchBase(baseCell.placementId, baseCell.offset, null);
       clearSelection();
     } else if (target.selectionIds?.length) {
-      erasePlacements(target.selectionIds);
+      eraseKeepingMotifStitches(target.selectionIds);
       clearSelection();
     } else if (target.selectionEmptyCells?.length) {
       // Nothing's been placed yet - there's nothing to erase, just drop the selection.

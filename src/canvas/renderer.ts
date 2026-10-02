@@ -536,6 +536,8 @@ export function pickerTargetFootprint(
   target: PickerTarget,
 ): { col: number; row: number; span: number } {
   const placement = index.placementAt(target.col, target.row);
+  // A cable's base cell (FR-65) is one stitch, not the whole cable.
+  if (target.baseCell) return { col: target.col, row: target.row, span: 1 };
   return placement
     ? { col: placement.col, row: placement.row, span: index.spanOf(placement) }
     : { col: target.col, row: target.row, span: 1 };
