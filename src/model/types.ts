@@ -12,6 +12,13 @@ export type Placement = {
   /** Independent repeat/group instance this placement belongs to. */
   groupId?: string;
   /**
+   * A multi-cell stitch's per-cell base layer (FR-65): `base[i]` is the
+   * one-cell stitch worked in cell `col + i` underneath it - e.g. the purl
+   * background of a purl cable - drawn under the stitch's own glyph. Null
+   * (or absent) means no base stitch for that cell.
+   */
+  base?: (string | null)[];
+  /**
    * Color is a property of a stitch, never a second kind of stitch (FR-22).
    * Absent means uncolored - a chart that never uses color encodes
    * byte-identically to the pre-colorwork format.
@@ -29,7 +36,7 @@ export type Placement = {
   confidence?: number;
 };
 
-export type RepeatStitch = { symbolId: string; col: number; row: number; colorId?: string };
+export type RepeatStitch = { symbolId: string; col: number; row: number; colorId?: string; base?: (string | null)[] };
 
 /** A reusable stitch sequence stored only with the chart that created it. */
 export type RepeatDefinition = {

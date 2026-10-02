@@ -56,7 +56,12 @@ export function mirrorSymbolId(symbolId: string): string {
 }
 
 /** A stitch at a concrete grid position. */
-export type WorldStitch = { symbolId: string; col: number; row: number; colorId?: string };
+export type WorldStitch = { symbolId: string; col: number; row: number; colorId?: string; base?: (string | null)[] };
+
+/** A multi-cell stitch's base layer, flipped with it: cells reversed, each base stitch mirrored too. */
+export function mirrorBase(base: (string | null)[] | undefined): (string | null)[] | undefined {
+  return base && [...base].reverse().map((id) => (id ? mirrorSymbolId(id) : null));
+}
 
 /** `stitch` (motif-relative) flipped within a footprint `width` wide. */
 function mirrorStitch(stitch: RepeatStitch, width: number): RepeatStitch {
@@ -64,6 +69,7 @@ function mirrorStitch(stitch: RepeatStitch, width: number): RepeatStitch {
     ...stitch,
     symbolId: mirrorSymbolId(stitch.symbolId),
     col: width - (stitch.col + spanOf(stitch.symbolId)),
+    ...(stitch.base ? { base: mirrorBase(stitch.base)! } : {}),
   };
 }
 
@@ -79,6 +85,7 @@ export function expectedStitches(
       col: instance.col + local.col,
       row: instance.row + local.row,
       ...(local.colorId ? { colorId: local.colorId } : {}),
+      ...(local.base ? { base: local.base } : {}),
     };
   });
 }
@@ -100,8 +107,8 @@ export function footprintContains(fp: Footprint, symbolId: string, col: number, 
   );
 }
 
-const stitchKey = (s: { symbolId: string; col: number; row: number; colorId?: string }) =>
-  `${s.col},${s.row}|${s.symbolId}|${s.colorId ?? ""}`;
+const stitchKey = (s: { symbolId: string; col: number; row: number; colorId?: string; base?: (string | null)[] }) =>
+  `${s.col},${s.row}|${s.symbolId}|${s.colorId ?? ""}|${(s.base ?? []).map((id) => id ?? "").join(",")}`;
 
 function coveredCells(s: { symbolId: string; col: number; row: number }): string[] {
   const cells: string[] = [];
@@ -158,6 +165,7 @@ export function motifStitchesFromMembers(
         col: m.col - instance.col,
         row: m.row - instance.row,
         ...(m.colorId ? { colorId: m.colorId } : {}),
+        ...(m.base ? { base: m.base } : {}),
       };
       return instance.mirrored ? mirrorStitch(local, motif.width) : local;
     })

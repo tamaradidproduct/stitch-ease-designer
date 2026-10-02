@@ -129,6 +129,14 @@ describe("motif copies", () => {
     expect(at(1, 4)).toBeUndefined();
   });
 
+  it("never pushes a motif's quick slot aside for a newly placed stitch", () => {
+    const id = makeMotif();
+    doc().setQuickSymbolIds([motifKey(id), ""]);
+    doc().place("ssp", 0, 9);
+    doc().addQuickSlot("ssp");
+    expect(doc().quickSymbolIds).toEqual([motifKey(id), "ssp"]);
+  });
+
   it("renames, and deletes a motif either detaching or deleting its copies", () => {
     const id = makeMotif();
     doc().renameMotif(id, "  Leaf  ");
@@ -151,3 +159,35 @@ describe("motif copies", () => {
     expect(doc().index.size).toBe(0);
   });
 });
+
+describe("cable base layer (FR-65)", () => {
+  beforeEach(() => useDocStore.setState({ meta: null }));
+
+  it("sets, clears and undoes one cell's base stitch", () => {
+    open([{ id: "c", symbolId: "2_2_left_purl_cable", col: 0, row: 0 }]);
+    const id = doc().setStitchBase("c", 3, "purl")!;
+    expect(at(0, 0)!.base).toEqual([null, null, null, "purl"]);
+    expect(doc().setStitchBase(id, 1, "2_2_left_cable")).toBeNull(); // only one-cell stitches
+    const cleared = doc().setStitchBase(id, 3, null)!;
+    expect(doc().index.placements.get(cleared)!.base).toBeUndefined();
+    doc().undo();
+    expect(at(0, 0)!.base).toEqual([null, null, null, "purl"]);
+  });
+
+  it("mirrors a cable's base with it and treats a base change as a copy override", () => {
+    open([
+      { id: "c", symbolId: "1_1_left_cable", col: 0, row: 0, base: ["k2tog", null] },
+      { id: "k", symbolId: "knit", col: 2, row: 0 },
+    ]);
+    const motifId = doc().createRepeat(["c", "k"])!;
+    doc().stampMotif(motifId, [{ col: 0, row: 4 }], true);
+    // Mirrored: cable flips to right, its base reverses and k2tog -> skpo.
+    expect(at(1, 4)).toMatchObject({ symbolId: "1_1_right_cable", base: [null, "skpo"] });
+
+    doc().setStitchBase(at(0, 0)!.id, 1, "purl");
+    doc().pushMotifCopy(at(0, 0)!.groupId!);
+    expect(motif(motifId).stitches[0]!.base).toEqual(["k2tog", "purl"]);
+    expect(at(1, 4)!.base).toEqual(["purl", "skpo"]);
+  });
+});
+

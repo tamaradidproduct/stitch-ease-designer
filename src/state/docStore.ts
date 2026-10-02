@@ -26,6 +26,7 @@ import {
   expectedStitches,
   footprintContains,
   footprintOf,
+  mirrorBase,
   mirrorSymbolId,
   motifIdFromKey,
   motifKey,
@@ -167,6 +168,12 @@ type DocState = {
   /** Returns the replaced placements' new ids, or the original `ids` unchanged if nothing was replaced. */
   replacePlacements: (ids: string[], symbolId: string, colorId?: string | null) => string[];
   erasePlacements: (ids: string[]) => void;
+  /**
+   * Sets (or, with null, clears) the base stitch under one cell of a
+   * multi-cell stitch (FR-65). `symbolId` must be a one-cell stitch.
+   * Returns the edited placement's new id.
+   */
+  setStitchBase: (placementId: string, offset: number, symbolId: string | null) => string | null;
   movePlacements: (ids: string[], deltaCol: number, deltaRow: number) => void;
   /** Whether `movePlacements` would actually move anything, without doing it. */
   canMovePlacements: (ids: string[], deltaCol: number, deltaRow: number) => boolean;
@@ -338,7 +345,8 @@ function promoteQuickSlotOverUnplacedPlainSlots(
   }
   if (!keyColorId && !placedSwatches.has(key)) return [...slots];
   const targetSlot = slots.findIndex((slot) => {
-    if (!slot) return false;
+    // A motif pen is never an "unplaced plain stitch" to be pushed past.
+    if (!slot || motifIdFromKey(slot)) return false;
     const { symbolId, colorId } = parseQuickSlotId(slot);
     return !colorId && !placedPlainSymbols.has(symbolId);
   });
@@ -907,6 +915,19 @@ export const useDocStore = create<DocState>((set, get) => {
       commit({ removed: selected, added });
       return added.map((p) => p.id);
     },
+    setStitchBase: (placementId, offset, symbolId) => {
+      const placement = get().index.placements.get(placementId);
+      const span = placement ? spanOf(placement.symbolId) : 0;
+      if (!placement || span < 2 || offset < 0 || offset >= span) return null;
+      if (symbolId && spanOf(symbolId) !== 1) return null;
+      const base = Array.from({ length: span }, (_, i) => placement.base?.[i] ?? null);
+      if (base[offset] === symbolId) return placementId;
+      base[offset] = symbolId;
+      const next: Placement = { ...placement, id: newPlacementId(), base };
+      if (!base.some(Boolean)) delete next.base;
+      commit({ removed: [placement], added: [next] });
+      return next.id;
+    },
     erasePlacements: (ids) => {
       const removed = ids
         .map((id) => get().index.placements.get(id))
@@ -968,6 +989,7 @@ export const useDocStore = create<DocState>((set, get) => {
           col: p.col - minCol,
           row: p.row - minRow,
           ...(p.colorId ? { colorId: p.colorId } : {}),
+          ...(p.base ? { base: p.base } : {}),
         })),
         copies: [{ id: groupId, col: minCol, row: minRow }],
       };
@@ -1086,6 +1108,7 @@ export const useDocStore = create<DocState>((set, get) => {
         id: newPlacementId(),
         symbolId: mirrorSymbolId(member.symbolId),
         col: copy.col + motif.width - (member.col - copy.col + spanOf(member.symbolId)),
+        ...(member.base ? { base: mirrorBase(member.base)! } : {}),
       }));
       commit(
         { removed: members, added },

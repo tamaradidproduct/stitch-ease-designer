@@ -253,6 +253,20 @@ function drawPlacements(ctx: CanvasRenderingContext2D, state: RenderState): void
       }
     }
 
+    // FR-65: a multi-cell stitch's base layer, one faint glyph per cell,
+    // under the stitch's own glyph so the cable still reads first.
+    if (p.base) {
+      ctx.save();
+      ctx.globalAlpha = 0.4;
+      p.base.forEach((baseId, offset) => {
+        const baseSymbol = baseId ? getSymbol(baseId) : undefined;
+        if (!baseSymbol || offset >= span) return;
+        const sprite = sprites.get(baseSymbol, size, glyphInkFor(p.colorId, theme.symbol));
+        if (sprite) ctx.drawImage(sprite, r.x + offset * size, r.y, size, size);
+      });
+      ctx.restore();
+    }
+
     // knit and empty are pure cell chrome in the library, so they have no
     // glyph to draw — the bordered cell above is the whole symbol.
     if (symbol) {

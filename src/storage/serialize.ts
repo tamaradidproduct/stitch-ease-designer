@@ -42,6 +42,8 @@ export type StoredChart = {
   colorPalette?: string[];
   /** [col, row, colorPaletteIndex] - sparse, only cells that have a color (FR-22). */
   colors?: [number, number, number][];
+  /** [col, row, cellOffset, paletteIndex] - a multi-cell stitch's base layer (FR-65), sparse. */
+  bases?: [number, number, number, number][];
   /**
    * Chart-scoped glossary/quick-row membership (FR-32). Omitted entirely
    * only for a chart that has never been saved since this field existed -
@@ -122,15 +124,23 @@ export function encode(
   const colorPalette: string[] = [];
   const colorIndexOf = new Map<string, number>();
   const colors: [number, number, number][] = [];
+  const bases: [number, number, number, number][] = [];
+  const paletteIndexFor = (symbolId: string): number => {
+    let at = indexOf.get(symbolId);
+    if (at === undefined) {
+      at = palette.length;
+      palette.push(symbolId);
+      indexOf.set(symbolId, at);
+    }
+    return at;
+  };
 
   for (const p of sorted) {
     if (p.suggested) suggested.push([p.col, p.row]);
-    let paletteIndex = indexOf.get(p.symbolId);
-    if (paletteIndex === undefined) {
-      paletteIndex = palette.length;
-      palette.push(p.symbolId);
-      indexOf.set(p.symbolId, paletteIndex);
-    }
+    const paletteIndex = paletteIndexFor(p.symbolId);
+    p.base?.forEach((symbolId, offset) => {
+      if (symbolId) bases.push([p.col, p.row, offset, paletteIndexFor(symbolId)]);
+    });
     if (p.colorId) {
       let colorIndex = colorIndexOf.get(p.colorId);
       if (colorIndex === undefined) {
@@ -163,6 +173,7 @@ export function encode(
     quickSymbolIds: [...quickSymbolIds],
     ...(suggested.length ? { suggested } : null),
     ...(colors.length ? { colorPalette, colors } : null),
+    ...(bases.length ? { bases } : null),
     ...(referenceImages.length ? { referenceImages } : null),
     ...(patternInfo.worked ? { worked: patternInfo.worked } : null),
     ...(patternInfo.firstRow ? { firstRow: patternInfo.firstRow } : null),
@@ -266,6 +277,24 @@ function validateColors(chart: Partial<StoredChart>): void {
       throw new ChartFormatError(`colors entry ${i} references colorPalette index ${colorIndex}`);
     }
   });
+}
+
+function validateBases(chart: Partial<StoredChart>): void {
+  if (chart.bases === undefined) return;
+  if (
+    !Array.isArray(chart.bases) ||
+    chart.bases.some(
+      (entry) =>
+        !Array.isArray(entry) ||
+        entry.length !== 4 ||
+        !entry.every(isInteger) ||
+        entry[2]! < 0 ||
+        entry[3]! < 0 ||
+        entry[3]! >= (chart.palette?.length ?? 0),
+    )
+  ) {
+    throw new ChartFormatError("bases must be an array of [col, row, cellOffset, paletteIndex] tuples");
+  }
 }
 
 function validateGlossaryIds(chart: Partial<StoredChart>): void {
@@ -506,6 +535,7 @@ function validate(stored: unknown): StoredChart {
   validateSuggested(chart);
   validateColorPalette(chart);
   validateColors(chart);
+  validateBases(chart);
   validateGlossaryIds(chart);
   validateQuickSymbolIds(chart);
   validateStitchGroupReferences(chart);
@@ -582,8 +612,17 @@ export function decode(stored: unknown, knownSymbol: (id: string) => boolean): D
     const colorId = chart.colorPalette?.[colorIndex];
     if (colorId) colorByCell.set(cellKey(col, row), colorId);
   }
+  const baseByCell = new Map<string, (string | null)[]>();
+  for (const [col, row, offset, paletteIndex] of chart.bases ?? []) {
+    const key = cellKey(col, row);
+    const base = baseByCell.get(key) ?? [];
+    while (base.length <= offset) base.push(null);
+    base[offset] = chart.palette[paletteIndex]!;
+    baseByCell.set(key, base);
+  }
   const placements = stitches.map(([col, row, paletteIndex, groupIndex]) => {
     const colorId = colorByCell.get(cellKey(col, row));
+    const base = baseByCell.get(cellKey(col, row));
     return {
       id: newPlacementId(),
       symbolId: chart.palette[paletteIndex]!,
@@ -592,6 +631,7 @@ export function decode(stored: unknown, knownSymbol: (id: string) => boolean): D
       ...(groupIndex === undefined ? {} : { groupId: chart.groups![groupIndex] }),
       ...(suggestedCells.has(cellKey(col, row)) ? { suggested: true } : {}),
       ...(colorId ? { colorId } : {}),
+      ...(base ? { base } : {}),
     };
   });
 

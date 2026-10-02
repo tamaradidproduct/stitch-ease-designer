@@ -77,6 +77,12 @@ export type PickerTarget = {
    * without re-arming, so Suggest stays armed through a whole review pass.
    */
   reviewingSuggestion?: boolean;
+  /**
+   * When present, this picker edits the base stitch under one cell of a
+   * multi-cell stitch (FR-65) rather than the stitch itself. Always paired
+   * with `selectionSpan: 1` - only one-cell stitches can be a base.
+   */
+  baseCell?: { placementId: string; offset: number };
 };
 
 /** Inclusive cell bounds a Suggest stroke's review menu is anchored over. */

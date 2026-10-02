@@ -87,6 +87,14 @@ describe("round trip", () => {
     expect(decoded.repeats).toEqual(repeats);
   });
 
+  it("preserves a multi-cell stitch's base layer (FR-65)", () => {
+    const placements = [{ ...place("2_2_left_purl_cable", 0, 0), base: [null, null, "purl", "purl"] }];
+    const stored = encode(placements);
+    expect(stored.bases).toEqual([[0, 0, 2, 1], [0, 0, 3, 1]]);
+    expect(decode(stored, known).placements[0]!.base).toEqual([null, null, "purl", "purl"]);
+    expect(() => decode({ ...stored, bases: [[0, 0, 1, 99]] }, known)).toThrow(ChartFormatError);
+  });
+
   it("preserves a motif's linked copies and rejects malformed ones", () => {
     const placements = [{ ...place("knit", 4, 2), groupId: "group-a" }];
     const repeats = [

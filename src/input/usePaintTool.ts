@@ -711,17 +711,39 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
     };
 
     /**
-     * A stitch inside a motif copy normally selects with its whole copy.
-     * Double-click (any tool) or Cmd/Ctrl-click picks out just that one
-     * stitch to edit - the explicit way into a copy (FR-64), since editing
-     * one makes a local change only that copy has.
+     * The explicit way *into* a stitch made of stitches, on double-click
+     * (any tool) or Cmd/Ctrl-click. A stitch inside a motif copy normally
+     * selects with its whole copy: this picks out just that stitch (FR-64),
+     * since editing it makes a local change only that copy has. A
+     * multi-cell stitch (a cable) is treated the same way by default: this
+     * opens the picker for the base stitch under the clicked cell (FR-65).
+     * Inside a motif, the first gesture picks the cable out of its copy and
+     * the next one goes into the cable.
      */
-    const selectMotifStitch = (placement: Placement, e: MouseEvent): boolean => {
-      if (!motifOfPlacement(placement)) return false;
-      ui().closePicker();
-      ui().setSelection([placement.id], [], true);
-      openPickerForSingleSelection([placement.id], e as PointerEvent, false);
-      return true;
+    const selectMotifStitch = (placement: Placement, e: MouseEvent, cell?: Cell | null): boolean => {
+      const selected = ui().selectedPlacementIds;
+      const alone = selected.length === 1 && selected[0] === placement.id;
+      if (motifOfPlacement(placement) && !alone) {
+        ui().closePicker();
+        ui().setSelection([placement.id], [], true);
+        openPickerForSingleSelection([placement.id], e as PointerEvent, false);
+        return true;
+      }
+      if (cell && doc().index.spanOf(placement) > 1) {
+        const rect = getRect();
+        ui().closePicker();
+        ui().setSelection([placement.id], [], true);
+        ui().openPicker({
+          col: cell.col,
+          row: cell.row,
+          x: e.clientX - rect.left + 8,
+          y: e.clientY - rect.top + 8,
+          selectionSpan: 1,
+          baseCell: { placementId: placement.id, offset: cell.col - placement.col },
+        });
+        return true;
+      }
+      return false;
     };
 
     const openPickerForSingleSelection = (ids: string[], e: PointerEvent, additive: boolean) => {
@@ -805,7 +827,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
           ? doc().index.placementAt(pickerCell.col, pickerCell.row)
           : undefined;
 
-        if (!e.shiftKey && (e.metaKey || e.ctrlKey) && modifierTarget && selectMotifStitch(modifierTarget, e)) {
+        if (!e.shiftKey && (e.metaKey || e.ctrlKey) && modifierTarget && selectMotifStitch(modifierTarget, e, pickerCell)) {
           e.preventDefault();
           return;
         }
@@ -1347,7 +1369,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
         } else if (
           (e.metaKey || e.ctrlKey) &&
           selectionStart &&
-          selectMotifStitch(doc().index.placementAt(selectionStart.col, selectionStart.row)!, e)
+          selectMotifStitch(doc().index.placementAt(selectionStart.col, selectionStart.row)!, e, selectionStart)
         ) {
           // Cmd/Ctrl-click inside an already-selected copy: just that stitch.
         } else {
@@ -1399,7 +1421,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
               ui().setSelectedEmptyCells(nextEmpty);
             }
           } else if (existing) {
-            if (!((e.metaKey || e.ctrlKey) && selectMotifStitch(existing, e))) {
+            if (!((e.metaKey || e.ctrlKey) && selectMotifStitch(existing, e, start))) {
               const ids = selectExisting(existing.id, false);
               openPickerForSingleSelection(ids, e, false);
             }
@@ -1497,7 +1519,7 @@ export function usePaintTool(ref: RefObject<HTMLCanvasElement | null>): void {
       if (ui().panEnabled) return;
       const hitCell = cellAt(e);
       const hit = hitCell ? doc().index.placementAt(hitCell.col, hitCell.row) : undefined;
-      if (hit && selectMotifStitch(hit, e)) return;
+      if (hit && selectMotifStitch(hit, e, hitCell)) return;
       // Insert's own click already opens the (differently-worded) picker
       // when nothing's armed - a "replace in place" picker here would
       // contradict what a single click just did.
