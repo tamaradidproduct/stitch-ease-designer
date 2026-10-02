@@ -4,7 +4,7 @@ import { rowDirectionAt } from "../model/rowDirection";
 import { chartTopology, knittedRowNumbers, roundStitchNumbers } from "../model/stitchNumbers";
 import { calibratedImageBounds } from "../model/referenceCalibration";
 import { CORNERS, cornerPoint, stitchBoxRect, type CalibrationMark, type ReferenceImage, type RepeatDefinition } from "../model/types";
-import { drawMotifOverlay } from "./motifOverlay";
+import { drawCopyFrames, drawMotifOverlay } from "./motifOverlay";
 import { getSymbol } from "../symbols/registry";
 import { getSwatch, glyphInkFor } from "../model/colorPalette";
 import {
@@ -980,6 +980,9 @@ export function render(ctx: CanvasRenderingContext2D, state: RenderState): void 
   drawPlacements(ctx, state);
   for (const image of state.referenceImages) {
     if (image.inFront && !forceBehind) drawReferenceImage(ctx, image, state.referenceImageCache, state.camera, vp);
+  }
+  if (state.repeats?.length) {
+    drawCopyFrames(ctx, { ...state, repeats: state.repeats }, !!state.staticExport);
   }
   drawGroupNumbering(ctx, state);
   drawInsertAnimation(ctx, state);

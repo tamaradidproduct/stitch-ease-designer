@@ -153,6 +153,33 @@ function drawCopyOutlines(ctx: CanvasRenderingContext2D, state: MotifOverlayStat
   }
 }
 
+/**
+ * Every placed copy's footprint, framed - always on, so where a copy starts
+ * and ends reads at a glance on the canvas and in an exported image
+ * (FR-64). Quiet on the canvas; solid ink in an export, where it doubles as
+ * the printed repeat outline.
+ */
+export function drawCopyFrames(
+  ctx: CanvasRenderingContext2D,
+  state: Pick<MotifOverlayState, "camera" | "viewport" | "repeats">,
+  forExport = false,
+): void {
+  const { camera: cam, viewport: vp } = state;
+  const size = cellPx(cam);
+  if (size < 3) return;
+  ctx.save();
+  ctx.strokeStyle = forExport ? theme.symbol : "rgba(0, 156, 240, 0.55)";
+  ctx.lineWidth = forExport ? Math.max(2, size / 12) : 1.5;
+  for (const motif of state.repeats) {
+    for (const copy of motif.copies ?? []) {
+      const r = footprintRect(footprintOf(motif, copy), cam, vp);
+      if (r.x > vp.width || r.y > vp.height || r.x + r.w < 0 || r.y + r.h < 0) continue;
+      ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1);
+    }
+  }
+  ctx.restore();
+}
+
 export function drawMotifOverlay(ctx: CanvasRenderingContext2D, state: MotifOverlayState): void {
   if (cellPx(state.camera) < 3) return;
   drawCopyOutlines(ctx, state);

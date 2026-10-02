@@ -128,7 +128,7 @@ describe("RightPanel move up/down controls (issue #326)", () => {
     expect(useDocStore.getState().glossaryIds).toEqual(["knit", "yarn_over", "purl"]);
   });
 
-  it("shows a disabled remove control with the explanatory tooltip once a quick-slotted stitch has placements", () => {
+  it("swaps the remove button for a more menu holding a disabled, explained Remove once a stitch has placements", () => {
     useDocStore.setState({
       index: DocIndex.from([{ id: "p1", symbolId: "knit", col: 0, row: 0 }]),
       quickSymbolIds: ["knit"],
@@ -139,14 +139,38 @@ describe("RightPanel move up/down controls (issue #326)", () => {
       root.render(createElement(RightPanel));
     });
 
-    const removeButton = container.querySelector<HTMLButtonElement>(
-      'button[aria-label^="Remove placed stitches of this kind first"]',
-    );
-    expect(removeButton).not.toBeNull();
-    expect(removeButton?.disabled).toBe(true);
-    expect(removeButton?.title).toBe("Remove placed stitches of this kind first");
-    // The old unexplained blank spacer must be gone for this row.
-    expect(container.querySelector(".glossary__removeSlot")).toBeNull();
+    expect(container.querySelector('button[aria-label="Remove Knit from glossary"]')).toBeNull();
+    const more = container.querySelector<HTMLButtonElement>('button[aria-label="More actions for Knit"]');
+    expect(more).not.toBeNull();
+    act(() => more!.click());
+
+    const items = [...document.querySelectorAll<HTMLButtonElement>('.glossary__menu [role="menuitem"]')];
+    expect(items.map((item) => item.querySelector("span")?.textContent)).toEqual([
+      "Select all 1 placed",
+      "Remove from glossary",
+    ]);
+    const remove = items[1]!;
+    expect(remove.disabled).toBe(true);
+    expect(remove.title).toBe("Placed on the chart - erase those stitches first");
+  });
+
+  it("blocks removing a stitch that's only used inside a motif, naming the motif", () => {
+    useDocStore.setState({
+      index: DocIndex.from([]),
+      quickSymbolIds: ["knit", "purl"],
+      glossaryIds: ["knit", "purl"],
+      repeats: [{ id: "m", name: "Leaf", width: 1, height: 1, stitches: [{ symbolId: "purl", col: 0, row: 0 }] }],
+    });
+
+    act(() => {
+      root.render(createElement(RightPanel));
+    });
+
+    expect(container.querySelector('button[aria-label="Remove Purl from glossary"]')).toBeNull();
+    act(() => container.querySelector<HTMLButtonElement>('button[aria-label="More actions for Purl"]')!.click());
+    const remove = [...document.querySelectorAll<HTMLButtonElement>('.glossary__menu [role="menuitem"]')].at(-1)!;
+    expect(remove.disabled).toBe(true);
+    expect(remove.title).toBe("Used in Leaf");
   });
 
   it("still shows an active remove button for a quick-slotted stitch with no placements", () => {

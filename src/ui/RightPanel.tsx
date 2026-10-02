@@ -22,8 +22,9 @@ import {
   useGlossaryIds,
 } from "./chartGlossary";
 import { parseQuickSlotId, quickSlotInsertEdge, quickSlotKey } from "../model/quickSlots";
-import { motifIdFromKey } from "../model/motifs";
-import { MotifGlossaryRow } from "./motifUi";
+import { motifIdFromKey, motifKey } from "../model/motifs";
+import { MotifCellGlyph } from "./motifUi";
+import { armMotifPen } from "./motifActions";
 import { addColoredVariant } from "./colorwork";
 import { CheckIcon, CrossIcon, DragHandleIcon, SearchIcon } from "./icons";
 import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
@@ -72,6 +73,7 @@ export function RightPanel() {
   const armedSymbolId = useUiStore((state) => state.armedSymbolId);
   const activeColor = useUiStore((state) => state.activeColor);
   const tool = useUiStore((state) => state.tool);
+  const armedMotif = useUiStore((state) => state.armedMotif);
   const quickSymbolIds = useDocStore((state) => state.quickSymbolIds);
   const removeQuickSymbol = useUiStore((state) => state.removeQuickSymbol);
   const moveQuickSymbolTo = useUiStore((state) => state.moveQuickSymbolTo);
@@ -282,6 +284,47 @@ export function RightPanel() {
   }
   const slottedKeys = new Set(quickSymbolIds);
   const remainingGlossary = glossary.filter((entry) => !slottedKeys.has(entry.key));
+  // Motifs not in a quick slot still belong in the glossary, after the
+  // stitches, the same way an unslotted stitch does (FR-64).
+  const remainingMotifs = repeats.filter((motif) => !slottedKeys.has(motifKey(motif.id)));
+  // A stitch used inside a motif can't leave the glossary even with nothing
+  // placed loose on the chart - the motif still draws with it (FR-64).
+  const motifsUsing = new Map<string, string[]>();
+  for (const motif of repeats) {
+    for (const key of new Set(motif.stitches.map((s) => quickSlotKey(s.symbolId, s.colorId)))) {
+      motifsUsing.set(key, [...(motifsUsing.get(key) ?? []), motif.name]);
+    }
+  }
+  const stitchRemoval = (key: string) => {
+    const usedIn = motifsUsing.get(key);
+    if (symbolsPlaced.has(key)) {
+      return { removable: false, removeBlockedReason: "Placed on the chart - erase those stitches first" };
+    }
+    if (usedIn?.length) return { removable: false, removeBlockedReason: `Used in ${usedIn.join(", ")}` };
+    return { removable: true, removeBlockedReason: undefined };
+  };
+  const motifRowProps = (motif: (typeof repeats)[number], key: string) => {
+    const copies = motif.copies ?? [];
+    return {
+      label: motif.name,
+      glyph: <MotifCellGlyph />,
+      armed: armedMotif?.id === motif.id && tool === "stitch",
+      onDisarm: () => setArmedSymbolId(null),
+      disarmButton,
+      count: copies.length,
+      selectAllLabel: `Select all ${copies.length} ${copies.length === 1 ? "copy" : "copies"}`,
+      onSelectAll: () =>
+        setSelection(copies.flatMap((copy) => index.groupMembers(copy.id).map((p) => p.id)), [], true),
+      removable: copies.length === 0,
+      removeBlockedReason: "Has copies on the chart - delete the motif instead",
+      onRemove: () => removeFromGlossary(key),
+      onRename: (name: string) => useDocStore.getState().renameMotif(motif.id, name),
+      menuItems: [
+        { label: "Stamp mirrored", onSelect: () => armMotifPen(motif.id, true) },
+        { label: "Delete motif…", onSelect: () => useUiStore.getState().setMotifDeleteRequest(motif.id) },
+      ],
+    };
+  };
   const slotCount = Math.max(5, quickSymbolIds.length + 1);
 
   // How many distinct stitches Suggest currently has an exemplar for -
@@ -535,13 +578,46 @@ export function RightPanel() {
               const rowDrop = key ? forFilledSlot(key, slot) : null;
               const motifId = key ? motifIdFromKey(key) : null;
               const motif = motifId ? repeats.find((r) => r.id === motifId) : undefined;
-              if (motif) {
-                return <MotifGlossaryRow key={key} motif={motif} shortcutSlot={slot < 5 ? slot : undefined} />;
+              const slotMoves = key ? {
+                moveUp: {
+                  disabled: !quickSymbolIds.slice(0, slot).some(Boolean),
+                  onClick: () => useDocStore.getState().moveQuickSlotDirection(key, -1),
+                  title: "Move up (Alt+Up while armed)",
+                },
+                moveDown: {
+                  disabled: !quickSymbolIds.slice(slot + 1).some(Boolean),
+                  onClick: () => useDocStore.getState().moveQuickSlotDirection(key, 1),
+                  title: "Move down (Alt+Down while armed)",
+                },
+              } : null;
+              if (key && motif) {
+                return (
+                  <GlossaryRow
+                    key={key}
+                    {...motifRowProps(motif, key)}
+                    armMode="arm-only"
+                    onArm={() => useUiStore.getState().armMotif(motif.id)}
+                    shortcutSlot={slot < 5 ? slot : undefined}
+                    dragHandleTitle="Drag to reorder"
+                    onDragHandleStart={(event) => {
+                      event.dataTransfer.effectAllowed = "move";
+                      event.dataTransfer.setData("text/plain", key);
+                      startDragging(key);
+                    }}
+                    onDragHandleEnd={resetDragState}
+                    {...slotMoves!}
+                    onRowDragOver={rowDrop!.onDragOver}
+                    onRowDragLeave={rowDrop!.onDragLeave}
+                    onRowDrop={rowDrop!.onDrop}
+                    dragIndicator={{ kind: "insert-edge", edge: insertEdge }}
+                  />
+                );
               }
               return key && symbol ? (
                 <GlossaryRow
                   key={key}
-                  symbol={symbol}
+                  label={symbol.label}
+                  glyph={<SymbolGlyph symbol={symbol} cell={glyphCellSize(symbol.span, 54, 20)} colorId={parsed?.colorId} />}
                   colorId={parsed?.colorId}
                   // Pure arm: this item is already in a quick slot, so
                   // nothing needs promoting (issue #323's arming
@@ -552,9 +628,10 @@ export function RightPanel() {
                   onDisarm={() => setArmedSymbolId(null)}
                   disarmButton={disarmButton}
                   count={count}
+                  selectAllLabel={`Select all ${count} placed`}
                   onSelectAll={() => setSelection(selectableGlossaryEntryPlacementIds(placements, key), [], true)}
                   onAddColoredVariant={(colorId) => addColoredVariant(symbol.id, colorId)}
-                  removable={!symbolsPlaced.has(key)}
+                  {...stitchRemoval(key)}
                   onRemove={() => removeFromGlossary(key)}
                   shortcutSlot={slot < 5 ? slot : undefined}
                   dragHandleTitle="Drag to reorder"
@@ -683,7 +760,8 @@ export function RightPanel() {
               return (
                 <GlossaryRow
                   key={key}
-                  symbol={symbol}
+                  label={symbol.label}
+                  glyph={<SymbolGlyph symbol={symbol} cell={glyphCellSize(symbol.span, 54, 20)} colorId={colorId} />}
                   colorId={colorId}
                   // Arm-and-promote: this item isn't in a quick slot yet, so
                   // choosing it also assigns one (issue #323's arming
@@ -694,9 +772,10 @@ export function RightPanel() {
                   onDisarm={() => setArmedSymbolId(null)}
                   disarmButton={disarmButton}
                   count={count}
+                  selectAllLabel={`Select all ${count} placed`}
                   onSelectAll={() => setSelection(selectableGlossaryEntryPlacementIds(placements, key), [], true)}
                   onAddColoredVariant={(newColorId) => addColoredVariant(symbol.id, newColorId)}
-                  removable={!symbolsPlaced.has(key)}
+                  {...stitchRemoval(key)}
                   onRemove={() => removeFromGlossary(key)}
                   // Overflow rows have no numbered shortcut - always the spacer.
                   dragHandleTitle="Drag to reorder, or onto a numbered slot above to pin it there"
@@ -745,6 +824,33 @@ export function RightPanel() {
                     title: "Move down",
                   }}
                   dragIndicator={{ kind: "drag-over", active: dragOverQuickId === key }}
+                />
+              );
+            })}
+            {remainingMotifs.map((motif) => {
+              const key = motifKey(motif.id);
+              return (
+                <GlossaryRow
+                  key={key}
+                  {...motifRowProps(motif, key)}
+                  // Not in a quick slot and never placed: removing it from
+                  // the glossary is deleting it (undoable).
+                  onRemove={() => useDocStore.getState().deleteMotif(motif.id, "detach")}
+                  armMode="arm-and-promote"
+                  onArm={() => armMotifPen(motif.id)}
+                  dragHandleTitle="Drag onto a numbered slot above to pin it there"
+                  onDragHandleStart={(event) => {
+                    event.dataTransfer.effectAllowed = "move";
+                    event.dataTransfer.setData("text/plain", key);
+                    startDragging(key);
+                  }}
+                  onDragHandleEnd={resetDragState}
+                  onRowDragOver={() => {}}
+                  onRowDragLeave={() => {}}
+                  onRowDrop={(event) => event.preventDefault()}
+                  moveUp={{ disabled: true, onClick: () => {}, title: "Move up" }}
+                  moveDown={{ disabled: true, onClick: () => {}, title: "Move down" }}
+                  dragIndicator={{ kind: "drag-over", active: false }}
                 />
               );
             })}
@@ -824,7 +930,7 @@ export function RightPanel() {
                     if (!meta) return;
                     setExportError(null);
                     setExportBusy(format);
-                    exportChartImage(meta.name, index.toArray(), format)
+                    exportChartImage(meta.name, index.toArray(), format, repeats)
                       .catch((error: unknown) =>
                         setExportError(error instanceof Error ? error.message : "Could not export the image"),
                       )

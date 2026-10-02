@@ -1,12 +1,9 @@
 import { useState } from "react";
-import { motifKey } from "../model/motifs";
 import type { RepeatDefinition } from "../model/types";
 import { armMotifPen } from "./motifActions";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
 import { ConfirmDialog } from "./ConfirmDialog";
-import { CloseIcon } from "./icons";
-import { tapActivate } from "./tapActivate";
 
 /**
  * Motifs are pens (FR-64): they share the quick row and the picker's More
@@ -229,58 +226,15 @@ export function MotifDeleteDialog() {
   );
 }
 
-/** A quick-row slot holding a motif, in the right panel's stitch list. */
-export function MotifGlossaryRow({ motif, shortcutSlot }: { motif: RepeatDefinition; shortcutSlot?: number | undefined }) {
-  const armed = useUiStore((s) => s.armedMotif?.id === motif.id && s.tool === "stitch");
-  const index = useDocStore((s) => s.index);
-  useDocStore((s) => s.revision);
-  const copies = motif.copies ?? [];
-  const shortcutNumber = shortcutSlot !== undefined ? shortcutSlot + 1 : null;
+/**
+ * The motif glyph inside the same bordered cell a one-stitch glyph sits in,
+ * so a motif row's icon matches every stitch row's (FR-64).
+ */
+export function MotifCellGlyph({ cell = 20 }: { cell?: number }) {
   return (
-    <div className="glossary__item motifGlossaryRow" data-on={armed}>
-      <span className="glossary__dragHandle glossary__dragHandle--empty" aria-hidden="true" />
-      {shortcutNumber !== null ? (
-        <kbd className="glossary__shortcut" aria-label={`Shortcut ${shortcutNumber}`}>{shortcutNumber}</kbd>
-      ) : (
-        <span className="glossary__shortcutSpacer" />
-      )}
-      <button
-        type="button"
-        className="glossary__arm"
-        {...tapActivate(() => (armed ? useUiStore.getState().armMotif(null) : armMotifPen(motif.id)))}
-        title={`Stamp ${motif.name} (${motif.width}×${motif.height}) - tap again to stop`}
-      >
-        <span className="glossary__glyph"><MotifGlyph /></span>
-        <span className="glossary__label">{motif.name}</span>
-      </button>
-      <button
-        type="button"
-        className="glossary__count glossary__selectEntry"
-        disabled={!copies.length}
-        onClick={() =>
-          useUiStore.getState().setSelection(
-            copies.flatMap((copy) => index.groupMembers(copy.id).map((p) => p.id)),
-            [],
-            true,
-          )}
-        title={`Select all copies of ${motif.name}`}
-      >
-        All ({copies.length})
-      </button>
-      <button
-        type="button"
-        className="glossary__remove"
-        onClick={() => {
-          // Never drop a motif that still has copies on the chart without
-          // asking what happens to them (FR-64).
-          if (copies.length) useUiStore.getState().setMotifDeleteRequest(motif.id);
-          else useDocStore.getState().removeQuickSlot(motifKey(motif.id));
-        }}
-        aria-label={copies.length ? `Delete ${motif.name}` : `Remove ${motif.name} from the quick row`}
-        title={copies.length ? "Delete motif…" : "Remove from quick row (the motif stays in More)"}
-      >
-        <CloseIcon />
-      </button>
-    </div>
+    <span className="glyph" style={{ width: cell, height: cell }}>
+      <span className="glyph__cell" style={{ left: 0, width: cell, height: cell }} />
+      <span className="motifCellGlyph"><MotifGlyph size={Math.round(cell * 0.75)} /></span>
+    </span>
   );
 }
