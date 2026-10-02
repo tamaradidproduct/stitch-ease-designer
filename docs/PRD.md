@@ -1118,20 +1118,40 @@ many times, keep iterating.
   `k2tog`↔`skpo`, `k2tog_alt`↔`ssk_alt`, `p2tog`↔`ssp`, `tk2tog`↔`tssk`,
   `m1l`↔`m1r`, `m1lp`↔`m1rp`).
 - **Motifs are pens, not a panel.** Quick-slot/glossary key `motif:<id>`; a
-  new motif gets a quick slot automatically; number keys arm it; the picker's
+  new motif gets the next free quick slot; number keys arm it; the picker's
   More drawer lists motifs with rename / stamp mirrored / delete. Tiles show
-  a generic motif glyph + `W×H`, not a full preview.
+  a generic motif glyph + `W×H`, not a full preview. A slot pointing at a
+  deleted motif renders and fills as empty, and deleting a motif keeps its
+  slot so undo restores it in place. Promoting a newly placed stitch never
+  pushes a motif's slot aside.
+- **One glossary row for everything.** Stitch and motif rows (slotted or
+  not) are the same `GlossaryRow`: drag/move/shortcut, a single arm target
+  reading "Name (n)", the color chip on stitch rows, and a motif icon in the
+  same bordered cell as a stitch glyph. The remove button only shows when
+  nothing of that kind is placed and no motif uses it; otherwise a "more"
+  menu holds Select all and a disabled Remove with the reason ("Placed on
+  the chart" / "Used in <motif>"). Motif rows add Rename, Stamp mirrored and
+  Delete motif there.
 - **Stamp.** An armed motif shows a full-size ghost anchored at the hovered
   cell's **row-start corner** of its bottom row (via `rowDirectionAt`, so
   today bottom-right). Click places a linked copy; `X` toggles mirror; `Esc`
-  disarms. **Drag-fill** tiles as many whole copies as fit, edge to edge from
-  the row-start corner; one undo step.
+  disarms. **Drag-fill** keeps the first copy exactly where the pointer went
+  down and tiles further copies edge to edge in the drag's direction, one
+  more as the pointer enters each next footprint; one undo step.
+- **Editing inside a copy is explicit.** A plain click selects the whole
+  copy. Double-click (any tool) or Cmd/Ctrl-click selects just one stitch
+  inside it and opens its picker. The eraser skips copy stitches and says so
+  in the status bar instead of silently creating an override.
+- **Outline.** Every placed copy is framed on the canvas at all times, and in
+  PNG/JPG export as solid ink.
 - **Never overwrites.** A copy that would cover any existing stitch is drawn
   red and isn't placed; a fill skips such tiles and reports "N of M copies
   didn't fit" in the status bar.
 - **Moving/duplicating/pasting** a whole copy keeps it linked (move shifts
   its origin; duplicate/paste registers a new copy).
-- **Deleting a motif** asks: Detach copies · Delete copies · Cancel.
+- **Deleting a motif** asks: Detach copies · Delete copies · Cancel - from
+  the More drawer, the glossary row's menu, or its remove button when the
+  motif still has copies.
 - **Undo.** Every motif action is one undo step (the repeats list, copies
   included, is snapshotted on the history entry).
 - Motifs never appear in the chart key/legend or the image export glossary.
@@ -1140,8 +1160,34 @@ many times, keep iterating.
 A stored motif stitch outside its footprint fails chart validation on load,
 so Push clips to the footprint — keep that clip if Push is reworked.
 
-**Deferred** (Airtable Findings #34–#37, Enhancement): swapping a copy / all
+**Deferred** (Airtable Findings #34–#39, Enhancement): revisiting Insert
+now that copies can be sheared by it (#38); a mirror counterpart for p3tog
+(#39); swapping a copy / all
 copies for another motif (row-direction push, preview + confirm, shear
 conflicts); motif behavior across mixed-direction (flat RS/WS) rows and
 vertical stacking; an optional hidden-by-default Motifs panel; a cross-chart
 motif library.
+
+---
+
+### Cables: per-cell base stitch layer (FR-65)
+
+**FR-65.** A multi-cell stitch (a cable) can carry a **base stitch per
+cell** - e.g. the purl background worked under a purl cable - without being
+broken apart. Cables are treated like motif stitches by default: no outline,
+but you can go into one.
+
+- `Placement.base?: (string | null)[]`, one entry per cell; only one-cell
+  stitches can be a base. Stored sparsely as `bases: [col, row, offset,
+  paletteIndex][]` against the chart's symbol palette.
+- Drawn faintly under the cable's own glyph.
+- Double-click / Cmd-click a cable cell opens "Base stitch under <cable>
+  (stitch n)", numbered in knitting order like the ruler; the picker's
+  delete clears it. Inside a motif copy the first gesture picks the cable
+  out of the copy, the next goes into it.
+- Motifs carry base layers through create/stamp/push; mirroring reverses a
+  cable's base and mirrors each base stitch; a base change is a copy
+  override.
+- Not yet: base stitches aren't counted in the glossary, nor written to the
+  CSV export.
+
