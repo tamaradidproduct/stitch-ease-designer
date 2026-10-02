@@ -93,7 +93,7 @@ export function GlossaryRow({
   dragIndicator,
 }: GlossaryRowProps) {
   const selectAllLabel = `Select all ${count} placed ${symbol.label} stitches`;
-  const hasShortcut = shortcutSlot !== undefined;
+  const shortcutNumber = shortcutSlot !== undefined ? shortcutSlot + 1 : null;
   return (
     <div
       className="glossary__item"
@@ -117,9 +117,9 @@ export function GlossaryRow({
       >
         <DragHandleIcon />
       </button>
-      {hasShortcut ? (
-        <kbd className="glossary__shortcut" aria-label={`Shortcut ${shortcutSlot! + 1}`}>
-          {shortcutSlot! + 1}
+      {shortcutNumber !== null ? (
+        <kbd className="glossary__shortcut" aria-label={`Shortcut ${shortcutNumber}`}>
+          {shortcutNumber}
         </kbd>
       ) : (
         <span className="glossary__shortcutSpacer" />
@@ -128,7 +128,7 @@ export function GlossaryRow({
         type="button"
         className="glossary__arm"
         {...tapActivate(() => (armed ? onDisarm() : onArm()))}
-        title={`Draw with ${symbol.label} ${hasShortcut ? `(${shortcutSlot! + 1}) ` : ""}- tap again to stop drawing`}
+        title={`Draw with ${symbol.label} ${shortcutNumber !== null ? `(${shortcutNumber}) ` : ""}- tap again to stop drawing`}
       >
         <span className="glossary__glyph">
           <SymbolGlyph symbol={symbol} cell={glyphCellSize(symbol.span, 54, 20)} colorId={colorId} />

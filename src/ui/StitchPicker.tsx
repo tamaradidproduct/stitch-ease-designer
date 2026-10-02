@@ -553,7 +553,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
                 active={currentSlot?.key === entry.key}
                 onChoose={choose}
                 onRecolor={(colorId) => {
-                  applyColorToSlot(currentSlot!, colorId);
+                  if (currentSlot) applyColorToSlot(currentSlot, colorId);
                   closePicker();
                 }}
                 getPopoverBoundaryRect={() => rootRef.current?.getBoundingClientRect() ?? null}
@@ -589,7 +589,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
                 active={currentSlot?.key === dynamicSlot.key}
                 onChoose={choose}
                 onRecolor={(colorId) => {
-                  applyColorToSlot(currentSlot!, colorId);
+                  if (currentSlot) applyColorToSlot(currentSlot, colorId);
                   closePicker();
                 }}
                 getPopoverBoundaryRect={() => rootRef.current?.getBoundingClientRect() ?? null}

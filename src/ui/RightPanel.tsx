@@ -655,6 +655,7 @@ export function RightPanel() {
               const { symbol, colorId, key } = entry;
               const armed = key === quickSlotKey(armedSymbolId ?? "", activeColor) && !!armedSymbolId;
               const count = colorId ? (coloredCounts.get(key) ?? 0) : (stitchCounts.get(symbol.id) ?? 0);
+              const dragHandlers = trackDragOverKey(key);
               return (
                 <GlossaryRow
                   key={key}
@@ -681,8 +682,8 @@ export function RightPanel() {
                     startDragging(key);
                   }}
                   onDragHandleEnd={resetDragState}
-                  onRowDragOver={trackDragOverKey(key).onDragOver}
-                  onRowDragLeave={trackDragOverKey(key).onDragLeave}
+                  onRowDragOver={dragHandlers.onDragOver}
+                  onRowDragLeave={dragHandlers.onDragLeave}
                   onRowDrop={(event) => {
                     event.preventDefault();
                     const draggedKey = draggingQuickId;
