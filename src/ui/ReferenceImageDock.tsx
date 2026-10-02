@@ -142,7 +142,7 @@ export function ReferenceImageDock() {
       <button
         type="button"
         className={marking ? "toolDock__button referenceDock__cancel" : "toolDock__button"}
-        aria-pressed={false}
+        aria-pressed={marking}
         {...tapActivate(toggleMarking)}
         title={marking ? "Leave scale setup and keep these reference points" : "Set reference scale"}
       >
