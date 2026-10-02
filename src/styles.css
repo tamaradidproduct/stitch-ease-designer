@@ -2102,6 +2102,15 @@ body {
   cursor: pointer;
 }
 
+/* #326: the disabled state replacing the old unexplained blank spacer -
+   dimmed rather than the active danger color, with the tooltip doing the
+   explaining. */
+.glossary__remove:disabled {
+  color: var(--text-muted);
+  opacity: 0.4;
+  cursor: default;
+}
+
 .glossary__removeSlot {
   width: 34px;
   height: 34px;
@@ -2169,6 +2178,45 @@ body {
   width: 13px;
   height: 13px;
   fill: currentColor;
+}
+
+/* #326: keyboard/touch reorder, beside the drag handle - a parallel path,
+   not a replacement, so drag-and-drop keeps working unchanged. */
+.glossary__moveGroup {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.glossary__move {
+  display: grid;
+  width: 18px;
+  height: 15px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.glossary__move:hover:not(:disabled),
+.glossary__move:focus-visible {
+  background: var(--bg);
+  color: var(--accent);
+  outline: none;
+}
+
+.glossary__move:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.glossary__move svg {
+  width: 11px;
+  height: 11px;
 }
 
 .glossary__remove svg {

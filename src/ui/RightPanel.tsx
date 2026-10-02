@@ -393,7 +393,7 @@ export function RightPanel() {
           <div>
             <h2>Stitch glossary</h2>
             <span>
-              {glossary.length} stitch type{glossary.length === 1 ? "" : "s"} in this pattern
+              {glossary.length} stitch type{glossary.length === 1 ? "" : "s"} in this chart
             </span>
           </div>
         </div>
@@ -557,6 +557,23 @@ export function RightPanel() {
                     startDragging(key);
                   }}
                   onDragHandleEnd={resetDragState}
+                  // #326: keyboard/touch-friendly reorder, alongside drag -
+                  // dragging stays available, this is the primary path.
+                  // Bounded to the actual quickSymbolIds array (not the
+                  // padded display slotCount), matching moveQuickSlotDirection's
+                  // own early-outs. The same move is also reachable via
+                  // Alt+Up/Down while this exact (symbol, color) pen is
+                  // armed - see useShortcuts.ts.
+                  moveUp={{
+                    disabled: !quickSymbolIds.slice(0, slot).some(Boolean),
+                    onClick: () => useDocStore.getState().moveQuickSlotDirection(key, -1),
+                    title: "Move up (Alt+Up while armed)",
+                  }}
+                  moveDown={{
+                    disabled: !quickSymbolIds.slice(slot + 1).some(Boolean),
+                    onClick: () => useDocStore.getState().moveQuickSlotDirection(key, 1),
+                    title: "Move down (Alt+Down while armed)",
+                  }}
                   onRowDragOver={rowDrop!.onDragOver}
                   onRowDragLeave={rowDrop!.onDragLeave}
                   onRowDrop={rowDrop!.onDrop}
@@ -651,7 +668,7 @@ export function RightPanel() {
                 </button>
               );
             })}
-            {remainingGlossary.map((entry) => {
+            {remainingGlossary.map((entry, overflowIndex) => {
               const { symbol, colorId, key } = entry;
               const armed = key === quickSlotKey(armedSymbolId ?? "", activeColor) && !!armedSymbolId;
               const count = colorId ? (coloredCounts.get(key) ?? 0) : (stitchCounts.get(symbol.id) ?? 0);
@@ -693,8 +710,32 @@ export function RightPanel() {
                     // slotted item out of the quick row isn't supported here
                     // (it wouldn't render in this list to begin with).
                     if (quickSymbolIds.includes(draggedKey)) return;
-                    const targetIndex = remainingGlossary.findIndex((candidate) => candidate.key === key);
-                    useDocStore.getState().moveGlossaryIdTo(draggedKey, targetIndex);
+                    const targetIndex = addedGlossaryIds.indexOf(key);
+                    if (targetIndex !== -1) useDocStore.getState().moveGlossaryIdTo(draggedKey, targetIndex);
+                  }}
+                  // #326: keyboard/touch-friendly reorder, within the
+                  // overflow list only - mirrors the overflow drag/drop's
+                  // own guard above, which refuses to move a slotted item
+                  // via this path. No global keyboard shortcut covers this
+                  // list (unlike the numbered quick row's Alt+Up/Down), so
+                  // the tooltip doesn't claim one.
+                  moveUp={{
+                    disabled: overflowIndex === 0,
+                    onClick: () => {
+                      const targetKey = remainingGlossary[overflowIndex - 1]?.key;
+                      const targetIndex = targetKey ? addedGlossaryIds.indexOf(targetKey) : -1;
+                      if (targetIndex !== -1) useDocStore.getState().moveGlossaryIdTo(key, targetIndex);
+                    },
+                    title: "Move up",
+                  }}
+                  moveDown={{
+                    disabled: overflowIndex === remainingGlossary.length - 1,
+                    onClick: () => {
+                      const targetKey = remainingGlossary[overflowIndex + 1]?.key;
+                      const targetIndex = targetKey ? addedGlossaryIds.indexOf(targetKey) : -1;
+                      if (targetIndex !== -1) useDocStore.getState().moveGlossaryIdTo(key, targetIndex);
+                    },
+                    title: "Move down",
                   }}
                   dragIndicator={{ kind: "drag-over", active: dragOverQuickId === key }}
                 />

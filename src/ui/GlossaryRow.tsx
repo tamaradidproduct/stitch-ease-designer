@@ -51,6 +51,15 @@ export type GlossaryRowProps = {
   onRemove: () => void;
   /** 0-4 renders that numbered shortcut kbd; omitted always renders the spacer (overflow rows have no shortcut). */
   shortcutSlot?: number | undefined;
+  /**
+   * Issue #326's keyboard/touch-friendly reorder controls, alongside drag -
+   * dragging stays available on both row kinds, this is the primary path.
+   * Each row kind computes its own disabled bounds and target (the quick
+   * row's own slot bounds vs. the overflow list's), so the caller builds the
+   * whole descriptor rather than `GlossaryRow` reaching into row-kind state.
+   */
+  moveUp: { disabled: boolean; onClick: () => void; title: string };
+  moveDown: { disabled: boolean; onClick: () => void; title: string };
   dragHandleTitle: string;
   onDragHandleStart: (event: DragEvent<HTMLButtonElement>) => void;
   onDragHandleEnd: () => void;
@@ -65,10 +74,12 @@ export type GlossaryRowProps = {
  * ~90-line near-identical copies - a slotted quick-row row and an overflow
  * glossary row - that differed in a few deliberate ways (see each prop's own
  * doc comment above): whether arming promotes the item into a quick slot,
- * whether a numbered shortcut shows, the drag handle's title, and the
- * drop-target/hover signifier. Everything else (the glyph, label, "All (n)"
- * select-all button, the add-only color chip on a plain row, and the
- * disarm/remove/spacer trailing slot) is identical and lives here once.
+ * whether a numbered shortcut shows, the drag handle's title, the
+ * drop-target/hover signifier, and the move up/down buttons' bounds/target
+ * (issue #326). Everything else (the glyph, label, "All (n)" select-all
+ * button, the add-only color chip on a plain row, and the
+ * disarm/remove/disabled-remove trailing slot) is identical and lives here
+ * once.
  */
 export function GlossaryRow({
   symbol,
@@ -84,6 +95,8 @@ export function GlossaryRow({
   removable,
   onRemove,
   shortcutSlot,
+  moveUp,
+  moveDown,
   dragHandleTitle,
   onDragHandleStart,
   onDragHandleEnd,
@@ -117,6 +130,32 @@ export function GlossaryRow({
       >
         <DragHandleIcon />
       </button>
+      <div className="glossary__moveGroup">
+        <button
+          type="button"
+          className="glossary__move"
+          disabled={moveUp.disabled}
+          onClick={moveUp.onClick}
+          aria-label={`Move ${symbol.label} up`}
+          title={moveUp.title}
+        >
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <path d="M5 12l5-5 5 5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          className="glossary__move"
+          disabled={moveDown.disabled}
+          onClick={moveDown.onClick}
+          aria-label={`Move ${symbol.label} down`}
+          title={moveDown.title}
+        >
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <path d="M5 8l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      </div>
       {shortcutNumber !== null ? (
         <kbd className="glossary__shortcut" aria-label={`Shortcut ${shortcutNumber}`}>
           {shortcutNumber}
@@ -168,7 +207,19 @@ export function GlossaryRow({
           <CloseIcon />
         </button>
       ) : (
-        <span className="glossary__removeSlot" aria-hidden="true" />
+        // #326: previously a blank spacer with no hint why removal was
+        // unavailable - now a disabled control carrying the same
+        // affordance/classes as the real remove button, so it reads as
+        // "not removable right now" instead of nothing at all.
+        <button
+          type="button"
+          className="glossary__remove"
+          disabled
+          aria-label={`Remove placed stitches of this kind first (${symbol.label})`}
+          title="Remove placed stitches of this kind first"
+        >
+          <CloseIcon />
+        </button>
       )}
     </div>
   );

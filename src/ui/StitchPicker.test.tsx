@@ -307,3 +307,90 @@ describe("StitchPicker clearing the unrecognized-cell flag undoably (#305)", () 
     expect(useUiStore.getState().referenceImageUnrecognized.has("1,0")).toBe(true);
   });
 });
+
+/**
+ * Issue #326's affordance-matrix bullet: characterizes (doesn't change) the
+ * intentional three-way split confirmed against FR-25/FR-34 - see
+ * docs/PRD.md's "Multicolor stitches (colorwork)" section. A quick tile
+ * gets no color chip unless it's the current/selected one, which gets the
+ * restrictive "recolor" chip; the drawer's rows always get the permissive
+ * "add-only" chip for a plain entry, slotted or not.
+ */
+describe("color affordance matrix (issue #326, FR-25/FR-34 - no behavior change)", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    useDocStore.setState({
+      index: DocIndex.from([{ id: "p1", symbolId: "knit", col: 0, row: 0 }]),
+      undoStack: [],
+      redoStack: [],
+      stroke: null,
+      revision: 0,
+      glossaryIds: ["knit", "purl", "yarn_over"],
+      quickSymbolIds: ["knit", "purl"],
+    });
+    useUiStore.getState().resetForChart();
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    act(() => {
+      root = createRoot(container);
+      root.render(<StitchPicker />);
+    });
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("gives only the current quick tile a color chip, and it's the restrictive recolor one", () => {
+    const placement = useDocStore.getState().index.placementAt(0, 0)!;
+    act(() => {
+      useUiStore.getState().openPicker({
+        col: 0,
+        row: 0,
+        x: 0,
+        y: 0,
+        currentSymbolId: placement.symbolId,
+        selectionIds: [placement.id],
+        selectionSpan: 1,
+      });
+    });
+
+    const knitTile = container
+      .querySelector<HTMLButtonElement>(`.picker__quickButton[aria-label="${getSymbol("knit")!.label}"]`)
+      ?.closest(".picker__quickTile");
+    const purlTile = container
+      .querySelector<HTMLButtonElement>(`.picker__quickButton[aria-label="${getSymbol("purl")!.label}"]`)
+      ?.closest(".picker__quickTile");
+
+    expect(knitTile?.querySelector(".colorChip--recolor")).not.toBeNull();
+    expect(knitTile?.querySelector(".colorChip")).not.toBeNull();
+    expect(purlTile?.querySelector(".colorChip")).toBeNull();
+  });
+
+  it("gives a plain drawer row the permissive add-only chip, never the recolor one", () => {
+    act(() => {
+      useUiStore.getState().openPicker({ col: 1, row: 0, x: 0, y: 0 });
+    });
+
+    const moreButton = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="More stitches from this chart"]',
+    );
+    expect(moreButton).not.toBeNull();
+    act(() => {
+      moreButton!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    });
+
+    const yarnOverRow = Array.from(container.querySelectorAll(".picker__item")).find((row) =>
+      row.textContent?.includes(getSymbol("yarn_over")!.label),
+    );
+    expect(yarnOverRow).toBeTruthy();
+    expect(yarnOverRow?.querySelector(".colorChip--add-only")).not.toBeNull();
+    expect(yarnOverRow?.querySelector(".colorChip--recolor")).toBeNull();
+  });
+});

@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { CELL, cellToScreenRect } from "../canvas/camera";
 import type { Placement } from "../model/types";
 import { patchCalibrationMark } from "../model/referenceCalibration";
-import { parseQuickSlotId } from "../model/quickSlots";
+import { parseQuickSlotId, quickSlotKey } from "../model/quickSlots";
 import { registerListeners } from "./registerListeners";
 import { useDocStore } from "../state/docStore";
 import { redoLatest, undoLatest } from "../state/editorHistory";
@@ -215,6 +215,29 @@ export function useShortcuts(): void {
         e.preventDefault();
         doc.erasePlacements(ui.selectedPlacementIds);
         ui.clearSelection();
+        return;
+      }
+
+      // #326: keyboard reorder for the armed quick slot - the documented
+      // counterpart to the glossary's own "Move up"/"Move down" buttons
+      // (see RightPanel.tsx), and to dragging a quick slot one position
+      // over. Scoped to the numbered quick row only, matching those
+      // buttons: an armed stitch that's only in the overflow list has no
+      // keyboard shortcut for reordering (its own buttons are mouse/touch
+      // only, same as the overflow drag/drop). The reference panel owns
+      // Alt+arrows for its own calibration box while it's open.
+      if (
+        e.altKey &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !ui.referenceImagePanelOpen &&
+        (e.key === "ArrowUp" || e.key === "ArrowDown")
+      ) {
+        const armedKey = ui.armedSymbolId ? quickSlotKey(ui.armedSymbolId, ui.activeColor) : null;
+        if (armedKey && doc.quickSymbolIds.includes(armedKey)) {
+          e.preventDefault();
+          doc.moveQuickSlotDirection(armedKey, e.key === "ArrowUp" ? -1 : 1);
+        }
         return;
       }
 

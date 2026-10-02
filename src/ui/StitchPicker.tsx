@@ -621,8 +621,8 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
               }}
               aria-expanded={moreOpen}
               aria-controls="picker-more-stitches"
-              aria-label="More stitches from this pattern"
-              title="More stitches from this pattern"
+              aria-label="More stitches from this chart"
+              title="More stitches from this chart"
               data-label="More stitches"
             >
               <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
@@ -656,8 +656,8 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
         </div>
 
         {moreOpen && (
-          <div id="picker-more-stitches" className="picker__moreDrawer" aria-label="More stitches in this pattern">
-            <div className="picker__moreHeader">This pattern</div>
+          <div id="picker-more-stitches" className="picker__moreDrawer" aria-label="More stitches in this chart">
+            <div className="picker__moreHeader">This chart</div>
             <div className="picker__moreList">
               {moreEntries.map((entry) => (
                 <div key={entry.key} className="picker__item">

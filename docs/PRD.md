@@ -564,6 +564,16 @@ when a user hovers over that slot, highlight the entire slot. Otherwise,
 show a highlighted line in the same hover color between two stitch slots to
 indicate the new stitch placement."
 
+**Color affordance matrix — confirmed intentional (#326).** A code scan
+flagged that the color chip differs by surface: picker quick tiles show none
+unless the tile is the current/selected one; drawer and glossary rows always
+show the add-only chip for a plain entry; the current/selected tile shows
+the recolor chip. Reviewed against FR-25 (chip lives on the current
+selection, recolor) and FR-34 (drawer/glossary rows get an add-only chip,
+additive only) — this is the matrix those two FRs already specify, not
+drift, so no behavior changed. Characterized in
+`src/ui/StitchPicker.test.tsx`.
+
 #### Storage
 
 **FR-37.** Mirrors how `suggested` is already stored — a sparse
