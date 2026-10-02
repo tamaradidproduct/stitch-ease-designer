@@ -270,9 +270,14 @@ export function MotifGlossaryRow({ motif, shortcutSlot }: { motif: RepeatDefinit
       <button
         type="button"
         className="glossary__remove"
-        onClick={() => useDocStore.getState().removeQuickSlot(motifKey(motif.id))}
-        aria-label={`Remove ${motif.name} from the quick row`}
-        title="Remove from quick row (the motif stays in More)"
+        onClick={() => {
+          // Never drop a motif that still has copies on the chart without
+          // asking what happens to them (FR-64).
+          if (copies.length) useUiStore.getState().setMotifDeleteRequest(motif.id);
+          else useDocStore.getState().removeQuickSlot(motifKey(motif.id));
+        }}
+        aria-label={copies.length ? `Delete ${motif.name}` : `Remove ${motif.name} from the quick row`}
+        title={copies.length ? "Delete motif…" : "Remove from quick row (the motif stays in More)"}
       >
         <CloseIcon />
       </button>

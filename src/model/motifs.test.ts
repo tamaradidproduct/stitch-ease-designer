@@ -133,15 +133,18 @@ describe("stampOrigin / fillOrigins", () => {
     expect(stampOrigin(motif, { col: 20, row: 3 })).toEqual({ col: 18, row: 3 });
   });
 
-  it("tiles whole copies from the row-start corner of the drag", () => {
-    const { origins, across, up } = fillOrigins(motif, { col: 0, row: 0 }, { col: 7, row: 4 });
-    expect([across, up]).toEqual([2, 2]);
-    expect(origins).toEqual([
-      { col: 5, row: 0 },
-      { col: 2, row: 0 },
-      { col: 5, row: 2 },
-      { col: 2, row: 2 },
-    ]);
+  it("keeps the first copy where the drag started and tiles in the drag direction", () => {
+    // 3x2 motif, pointer down at (20, 3): first copy spans cols 18..20.
+    const right = fillOrigins(motif, { col: 20, row: 3 }, { col: 21, row: 3 });
+    expect(right.origins).toEqual([{ col: 18, row: 3 }, { col: 21, row: 3 }]);
+
+    const leftAndUp = fillOrigins(motif, { col: 20, row: 3 }, { col: 14, row: 6 });
+    expect([leftAndUp.across, leftAndUp.up]).toEqual([3, 2]);
+    expect(leftAndUp.origins[0]).toEqual({ col: 18, row: 3 });
+    expect(leftAndUp.origins).toContainEqual({ col: 12, row: 5 });
+
+    const down = fillOrigins(motif, { col: 20, row: 3 }, { col: 20, row: 2 });
+    expect(down.origins).toEqual([{ col: 18, row: 3 }, { col: 18, row: 1 }]);
   });
 
   it("a click-sized drag is a single stamp", () => {

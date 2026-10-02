@@ -212,29 +212,34 @@ export function stampOrigin(
 }
 
 /**
- * Origins for as many whole copies as fit in the rectangle a drag spans
- * from `start` to `end` (inclusive cells), tiled edge to edge outward from
- * the drag's row-start bottom corner. Always at least one: a click-sized
- * drag stamps a single copy exactly like a click.
+ * Origins for a drag-fill from `start` (where the pointer went down) to
+ * `end`. The first copy is always exactly the click stamp at `start` - it
+ * never moves while dragging - and further copies tile edge to edge in the
+ * drag's direction, one more each time the pointer enters the next
+ * footprint's columns/rows.
  */
 export function fillOrigins(
   motif: Pick<RepeatDefinition, "width" | "height">,
   start: { col: number; row: number },
   end: { col: number; row: number },
 ): { origins: { col: number; row: number }[]; across: number; up: number } {
-  const minCol = Math.min(start.col, end.col);
-  const maxCol = Math.max(start.col, end.col);
-  const minRow = Math.min(start.row, end.row);
-  const maxRow = Math.max(start.row, end.row);
-  const across = Math.max(1, Math.floor((maxCol - minCol + 1) / motif.width));
-  const up = Math.max(1, Math.floor((maxRow - minRow + 1) / motif.height));
-  const rtl = rowDirectionAt(minRow) === "rtl";
+  const first = stampOrigin(motif, start);
+  const lastCol = first.col + motif.width - 1;
+  const lastRow = first.row + motif.height - 1;
+  const beyondRight = end.col - lastCol;
+  const beyondLeft = first.col - end.col;
+  const beyondUp = end.row - lastRow;
+  const beyondDown = first.row - end.row;
+  const stepCol = beyondRight > 0 ? 1 : beyondLeft > 0 ? -1 : 0;
+  const stepRow = beyondUp > 0 ? 1 : beyondDown > 0 ? -1 : 0;
+  const across = 1 + Math.ceil(Math.max(beyondRight, beyondLeft, 0) / motif.width);
+  const up = 1 + Math.ceil(Math.max(beyondUp, beyondDown, 0) / motif.height);
   const origins: { col: number; row: number }[] = [];
   for (let j = 0; j < up; j++) {
     for (let i = 0; i < across; i++) {
       origins.push({
-        col: rtl ? maxCol - (i + 1) * motif.width + 1 : minCol + i * motif.width,
-        row: minRow + j * motif.height,
+        col: first.col + stepCol * i * motif.width,
+        row: first.row + stepRow * j * motif.height,
       });
     }
   }

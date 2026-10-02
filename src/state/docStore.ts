@@ -431,6 +431,21 @@ function reconcileCopies(
   return changed ? next : repeats;
 }
 
+/**
+ * Quick slots pointing at a motif that no longer exists (deleted, or its
+ * creation undone) render as empty - so they must also *fill* as empty, or
+ * the next new pen lands after a slot that looks free (#6 in the motifs
+ * follow-up). Kept as keys rather than cleared so an undo that brings the
+ * motif back finds its slot where it was.
+ */
+function freeDanglingMotifSlots(slots: readonly string[], repeats: readonly RepeatDefinition[]): string[] {
+  const live = new Set(repeats.map((r) => r.id));
+  return slots.map((key) => {
+    const motifId = motifIdFromKey(key);
+    return motifId && !live.has(motifId) ? "" : key;
+  });
+}
+
 /** Drops copy records whose stitches are all gone, e.g. from a hand-edited import. */
 function pruneOrphanCopies(repeats: RepeatDefinition[], placements: readonly Placement[]): RepeatDefinition[] {
   const groups = new Set(placements.flatMap((p) => (p.groupId ? [p.groupId] : [])));
@@ -681,7 +696,7 @@ export const useDocStore = create<DocState>((set, get) => {
     },
     addQuickSlot: (key) => {
       const state = get();
-      const assigned = assignQuickSlot(state.quickSymbolIds, key);
+      const assigned = assignQuickSlot(freeDanglingMotifSlots(state.quickSymbolIds, state.repeats), key);
       const next = promoteQuickSlotOverUnplacedPlainSlots(assigned, state.index, key);
       if (next !== state.quickSymbolIds) state.setQuickSymbolIds(next);
     },
@@ -1094,16 +1109,9 @@ export const useDocStore = create<DocState>((set, get) => {
           : { removed: members, added: members.map(({ groupId: _dropped, ...rest }) => rest) },
         get().repeats.filter((candidate) => candidate.id !== motifId),
       );
-      // Its pen goes with it - chart settings, outside undo like every other
-      // quick-row/glossary edit.
-      const isThisMotif = (key: string) => motifIdFromKey(key) === motifId;
-      const state = get();
-      if (state.quickSymbolIds.some(isThisMotif)) {
-        state.setQuickSymbolIds(state.quickSymbolIds.map((key) => (isThisMotif(key) ? "" : key)));
-      }
-      if (state.glossaryIds.some(isThisMotif)) {
-        state.setGlossaryIds(state.glossaryIds.filter((key) => !isThisMotif(key)));
-      }
+      // Its quick slot is deliberately left alone: undo restores the motif,
+      // and a slot pointing at a missing motif already reads (and fills) as
+      // empty - see `freeDanglingMotifSlots`.
     },
     linkPastedPlacements: (sources, deltaCol, deltaRow) => {
       const { index } = get();

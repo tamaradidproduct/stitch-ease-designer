@@ -138,9 +138,15 @@ describe("motif copies", () => {
     doc().deleteMotif(id, "detach");
     expect(doc().repeats).toEqual([]);
     expect(at(0, 0)!.groupId).toBeUndefined();
-    expect(doc().quickSymbolIds).toEqual(["knit", ""]);
+    // The slot keeps pointing at the motif so undo brings it back in place...
+    expect(doc().quickSymbolIds).toEqual(["knit", motifKey(id)]);
+    // ...while reading as free for the next pen.
+    doc().addQuickSlot("purl");
+    expect(doc().quickSymbolIds).toEqual(["knit", "purl"]);
+    doc().setQuickSymbolIds(["knit", motifKey(id)]);
 
     doc().undo();
+    expect(motif(id).name).toBe("Leaf");
     doc().deleteMotif(id, "delete");
     expect(doc().index.size).toBe(0);
   });
