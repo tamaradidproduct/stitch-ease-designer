@@ -106,6 +106,28 @@ describe("RightPanel move up/down controls (issue #326)", () => {
     expect(downButton("Yarn over")?.disabled).toBe(true);
   });
 
+  it("moves an overflow glossary item when its Move up/down control is activated", () => {
+    // "knit" is slotted and so excluded from the overflow list entirely -
+    // its presence ahead of "purl"/"yarn_over" in glossaryIds is exactly
+    // the case the overflow index must be translated past (the fix for the
+    // reported index-mapping bug).
+    useDocStore.setState({
+      quickSymbolIds: ["knit"],
+      glossaryIds: ["knit", "purl", "yarn_over"],
+    });
+
+    act(() => {
+      root.render(createElement(RightPanel));
+    });
+
+    const purlDown = container.querySelector<HTMLButtonElement>('button[aria-label="Move Purl down"]')!;
+    act(() => {
+      purlDown.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    });
+
+    expect(useDocStore.getState().glossaryIds).toEqual(["knit", "yarn_over", "purl"]);
+  });
+
   it("shows a disabled remove control with the explanatory tooltip once a quick-slotted stitch has placements", () => {
     useDocStore.setState({
       index: DocIndex.from([{ id: "p1", symbolId: "knit", col: 0, row: 0 }]),

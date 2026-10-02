@@ -576,7 +576,7 @@ export function RightPanel() {
                     <button
                       type="button"
                       className="glossary__move"
-                      disabled={slot === 0}
+                      disabled={!quickSymbolIds.slice(0, slot).some(Boolean)}
                       onClick={() => useDocStore.getState().moveQuickSlotDirection(key, -1)}
                       aria-label={`Move ${symbol.label} up`}
                       title="Move up (Alt+Up while armed)"
@@ -588,7 +588,7 @@ export function RightPanel() {
                     <button
                       type="button"
                       className="glossary__move"
-                      disabled={slot === quickSymbolIds.length - 1}
+                      disabled={!quickSymbolIds.slice(slot + 1).some(Boolean)}
                       onClick={() => useDocStore.getState().moveQuickSlotDirection(key, 1)}
                       aria-label={`Move ${symbol.label} down`}
                       title="Move down (Alt+Down while armed)"
@@ -818,8 +818,8 @@ export function RightPanel() {
                     // slotted item out of the quick row isn't supported here
                     // (it wouldn't render in this list to begin with).
                     if (quickSymbolIds.includes(draggedKey)) return;
-                    const targetIndex = remainingGlossary.findIndex((candidate) => candidate.key === key);
-                    useDocStore.getState().moveGlossaryIdTo(draggedKey, targetIndex);
+                    const targetIndex = addedGlossaryIds.indexOf(key);
+                    if (targetIndex !== -1) useDocStore.getState().moveGlossaryIdTo(draggedKey, targetIndex);
                   }}
                 >
                   <button
@@ -848,7 +848,11 @@ export function RightPanel() {
                       type="button"
                       className="glossary__move"
                       disabled={overflowIndex === 0}
-                      onClick={() => useDocStore.getState().moveGlossaryIdTo(key, overflowIndex - 1)}
+                      onClick={() => {
+                        const targetKey = remainingGlossary[overflowIndex - 1]?.key;
+                        const targetIndex = targetKey ? addedGlossaryIds.indexOf(targetKey) : -1;
+                        if (targetIndex !== -1) useDocStore.getState().moveGlossaryIdTo(key, targetIndex);
+                      }}
                       aria-label={`Move ${symbol.label} up`}
                       title="Move up"
                     >
@@ -860,7 +864,11 @@ export function RightPanel() {
                       type="button"
                       className="glossary__move"
                       disabled={overflowIndex === remainingGlossary.length - 1}
-                      onClick={() => useDocStore.getState().moveGlossaryIdTo(key, overflowIndex + 1)}
+                      onClick={() => {
+                        const targetKey = remainingGlossary[overflowIndex + 1]?.key;
+                        const targetIndex = targetKey ? addedGlossaryIds.indexOf(targetKey) : -1;
+                        if (targetIndex !== -1) useDocStore.getState().moveGlossaryIdTo(key, targetIndex);
+                      }}
                       aria-label={`Move ${symbol.label} down`}
                       title="Move down"
                     >
