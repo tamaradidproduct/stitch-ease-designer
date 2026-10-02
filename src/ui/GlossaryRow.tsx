@@ -136,6 +136,9 @@ export function GlossaryRow({
 }: GlossaryRowProps) {
   const shortcutNumber = shortcutSlot !== undefined ? shortcutSlot + 1 : null;
   const [renaming, setRenaming] = useState<string | null>(null);
+  const [stepperOpen, setStepperOpen] = useState(false);
+  const reorderRef = useRef<HTMLDivElement | null>(null);
+  useDismissOnOutsideOrEscape({ enabled: stepperOpen, onDismiss: () => setStepperOpen(false), containerRef: reorderRef });
   const commitRename = () => {
     if (renaming !== null) onRename?.(renaming);
     setRenaming(null);
@@ -152,42 +155,58 @@ export function GlossaryRow({
       onDragLeave={onRowDragLeave}
       onDrop={onRowDrop}
     >
-      <button
-        type="button"
-        draggable
-        className="glossary__dragHandle"
-        onDragStart={onDragHandleStart}
-        onDragEnd={onDragHandleEnd}
-        aria-label={`Drag to reorder ${label}`}
-        title={dragHandleTitle}
-      >
-        <DragHandleIcon />
-      </button>
-      <div className="glossary__moveGroup">
+      {/* One reorder control (#326 follow-up): the grip drags with a mouse,
+          moves the row with ↑/↓ once focused, and on a tap/click opens a
+          small ↑↓ stepper beside it - the touch path the separate arrows
+          used to be, without spending a second control on every row. */}
+      <div className="glossary__reorder" ref={reorderRef}>
         <button
           type="button"
-          className="glossary__move"
-          disabled={moveUp.disabled}
-          onClick={moveUp.onClick}
-          aria-label={`Move ${label} up`}
-          title={moveUp.title}
+          draggable
+          className="glossary__dragHandle"
+          onDragStart={onDragHandleStart}
+          onDragEnd={onDragHandleEnd}
+          onClick={() => setStepperOpen((open) => !open)}
+          onKeyDown={(e) => {
+            const move = e.key === "ArrowUp" ? moveUp : e.key === "ArrowDown" ? moveDown : null;
+            if (!move) return;
+            e.preventDefault();
+            if (!move.disabled) move.onClick();
+          }}
+          aria-label={`Drag to reorder ${label}`}
+          aria-expanded={stepperOpen}
+          title={`${dragHandleTitle} - or ↑/↓`}
         >
-          <svg viewBox="0 0 20 20" aria-hidden="true">
-            <path d="M5 12l5-5 5 5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          <DragHandleIcon />
         </button>
-        <button
-          type="button"
-          className="glossary__move"
-          disabled={moveDown.disabled}
-          onClick={moveDown.onClick}
-          aria-label={`Move ${label} down`}
-          title={moveDown.title}
-        >
-          <svg viewBox="0 0 20 20" aria-hidden="true">
-            <path d="M5 8l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
+        {stepperOpen && (
+          <div className="glossary__moveGroup">
+            <button
+              type="button"
+              className="glossary__move"
+              disabled={moveUp.disabled}
+              onClick={moveUp.onClick}
+              aria-label={`Move ${label} up`}
+              title={moveUp.title}
+            >
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M5 12l5-5 5 5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className="glossary__move"
+              disabled={moveDown.disabled}
+              onClick={moveDown.onClick}
+              aria-label={`Move ${label} down`}
+              title={moveDown.title}
+            >
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M5 8l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          </div>
+        )}
       </div>
       {shortcutNumber !== null ? (
         <kbd className="glossary__shortcut" aria-label={`Shortcut ${shortcutNumber}`}>

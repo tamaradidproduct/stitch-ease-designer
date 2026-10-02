@@ -3675,3 +3675,27 @@ body {
 .glossary__item .glossary__disarm {
   width: 28px;
 }
+
+/* The grip is the row's one reorder control; its ↑↓ stepper only shows
+   once it's tapped/clicked. */
+.glossary__reorder {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+}
+
+.glossary__reorder .glossary__moveGroup {
+  position: absolute;
+  left: calc(100% + 2px);
+  z-index: 5;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  box-shadow: 0 4px 12px rgb(15 23 42 / 12%);
+}
+
+.glossary__dragHandle[aria-expanded="true"] {
+  color: var(--accent);
+}

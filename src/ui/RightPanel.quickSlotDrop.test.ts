@@ -114,7 +114,7 @@ describe("RightPanel quick-slot drop targets (issue #308)", () => {
 
     // DOM order of filled quick-row drag handles matches quickSymbolIds:
     // knit (0), purl (1), ktbl (2).
-    const handles = container.querySelectorAll('.glossary__dragHandle[title="Drag to reorder"]');
+    const handles = container.querySelectorAll('.glossary__dragHandle[title="Drag to reorder - or ↑/↓"]');
     expect(handles.length).toBe(3);
     const rows = container.querySelectorAll('div.glossary__item[data-arm-mode="arm-only"]');
     expect(rows.length).toBe(3);

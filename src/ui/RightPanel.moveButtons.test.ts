@@ -34,6 +34,28 @@ describe("RightPanel move up/down controls (issue #326)", () => {
     container.remove();
   });
 
+  /** Up/down live in each row's grip stepper, opened by tapping the grip. */
+  const openSteppers = () =>
+    act(() => {
+      for (const grip of container.querySelectorAll<HTMLButtonElement>("button.glossary__dragHandle")) grip.click();
+    });
+
+  it("moves a row with the arrow keys once its grip is focused", () => {
+    useDocStore.setState({
+      quickSymbolIds: ["knit", "purl", "yarn_over"],
+      glossaryIds: ["knit", "purl", "yarn_over"],
+    });
+    act(() => {
+      root.render(createElement(RightPanel));
+    });
+    const grip = container.querySelector<HTMLButtonElement>('button[aria-label="Drag to reorder Purl"]')!;
+    expect(container.querySelector('button[aria-label="Move Purl up"]')).toBeNull();
+    act(() => {
+      grip.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
+    });
+    expect(useDocStore.getState().quickSymbolIds.slice(0, 3)).toEqual(["purl", "knit", "yarn_over"]);
+  });
+
   it("disables Move up on the first quick slot and Move down on the last, enabling everything in between", () => {
     useDocStore.setState({
       quickSymbolIds: ["knit", "purl", "yarn_over"],
@@ -43,6 +65,7 @@ describe("RightPanel move up/down controls (issue #326)", () => {
     act(() => {
       root.render(createElement(RightPanel));
     });
+    openSteppers();
 
     const upButton = (label: string) =>
       container.querySelector<HTMLButtonElement>(`button[aria-label="Move ${label} up"]`);
@@ -68,6 +91,7 @@ describe("RightPanel move up/down controls (issue #326)", () => {
     act(() => {
       root.render(createElement(RightPanel));
     });
+    openSteppers();
 
     const purlUp = container.querySelector<HTMLButtonElement>('button[aria-label="Move Purl up"]')!;
     act(() => {
@@ -88,6 +112,7 @@ describe("RightPanel move up/down controls (issue #326)", () => {
     act(() => {
       root.render(createElement(RightPanel));
     });
+    openSteppers();
 
     const upButton = (label: string) =>
       container.querySelector<HTMLButtonElement>(`button[aria-label="Move ${label} up"]`);
@@ -119,6 +144,7 @@ describe("RightPanel move up/down controls (issue #326)", () => {
     act(() => {
       root.render(createElement(RightPanel));
     });
+    openSteppers();
 
     const purlDown = container.querySelector<HTMLButtonElement>('button[aria-label="Move Purl down"]')!;
     act(() => {
