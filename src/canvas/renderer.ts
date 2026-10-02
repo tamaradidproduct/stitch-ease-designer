@@ -5,6 +5,7 @@ import { chartTopology, knittedRowNumbers, roundStitchNumbers } from "../model/s
 import { calibratedImageBounds } from "../model/referenceCalibration";
 import { CORNERS, cornerPoint, stitchBoxRect, type CalibrationMark, type ReferenceImage, type RepeatDefinition } from "../model/types";
 import { drawCopyFrames, drawMotifOverlay } from "./motifOverlay";
+import { changedBaseCells } from "../model/cableComposition";
 import { getSymbol } from "../symbols/registry";
 import { getSwatch, glyphInkFor } from "../model/colorPalette";
 import {
@@ -253,26 +254,31 @@ function drawPlacements(ctx: CanvasRenderingContext2D, state: RenderState): void
       }
     }
 
-    // FR-65: a multi-cell stitch's base layer, one faint glyph per cell,
-    // under the stitch's own glyph so the cable still reads first.
-    if (p.base) {
-      ctx.save();
-      ctx.globalAlpha = 0.4;
-      p.base.forEach((baseId, offset) => {
-        const baseSymbol = baseId ? getSymbol(baseId) : undefined;
-        if (!baseSymbol || offset >= span) return;
-        const sprite = sprites.get(baseSymbol, size, glyphInkFor(p.colorId, theme.symbol));
-        if (sprite) ctx.drawImage(sprite, r.x + offset * size, r.y, size, size);
-      });
-      ctx.restore();
-    }
-
     // knit and empty are pure cell chrome in the library, so they have no
     // glyph to draw — the bordered cell above is the whole symbol.
     if (symbol) {
       const ink = glyphInkFor(p.colorId, theme.symbol);
       const sprite = sprites.get(symbol, size, ink);
       if (sprite) ctx.drawImage(sprite, r.x, r.y, width, size);
+    }
+
+    // FR-65: a cable cell the designer changed from what the cable implies
+    // gets a small corner mark - the stitch itself isn't drawn over the
+    // cable's own picture, which already shows its knits and purls.
+    if (p.base && size >= 8) {
+      ctx.save();
+      ctx.fillStyle = "#f59e0b";
+      const mark = Math.max(4, Math.min(7, size * 0.22));
+      for (const offset of changedBaseCells(p)) {
+        const x = r.x + offset * size;
+        ctx.beginPath();
+        ctx.moveTo(x + 1, r.y + 1);
+        ctx.lineTo(x + 1 + mark, r.y + 1);
+        ctx.lineTo(x + 1, r.y + 1 + mark);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
     }
 
     if (p.suggested) {

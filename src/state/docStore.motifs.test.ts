@@ -169,34 +169,35 @@ describe("motif copies", () => {
   });
 });
 
-describe("cable base layer (FR-65)", () => {
+describe("cable composition (FR-65)", () => {
   beforeEach(() => useDocStore.setState({ meta: null }));
 
-  it("sets, clears and undoes one cell's base stitch", () => {
+  it("changes, clears and undoes one cell's stitch, and only to a knit/purl-family stitch", () => {
+    // 2/2 left purl cable: knit, knit, purl, purl (left to right).
     open([{ id: "c", symbolId: "2_2_left_purl_cable", col: 0, row: 0 }]);
-    const id = doc().setStitchBase("c", 3, "purl")!;
-    expect(at(0, 0)!.base).toEqual([null, null, null, "purl"]);
-    expect(doc().setStitchBase(id, 1, "2_2_left_cable")).toBeNull(); // only one-cell stitches
+    expect(doc().setStitchBase("c", 3, "purl")).toBe("c"); // what it already is: no change
+    const id = doc().setStitchBase("c", 3, "ptbl")!;
+    expect(at(0, 0)!.base).toEqual([null, null, null, "ptbl"]);
+    expect(doc().setStitchBase(id, 1, "k2tog")).toBeNull();
+    expect(doc().setStitchBase(id, 1, "2_2_left_cable")).toBeNull();
     const cleared = doc().setStitchBase(id, 3, null)!;
     expect(doc().index.placements.get(cleared)!.base).toBeUndefined();
     doc().undo();
-    expect(at(0, 0)!.base).toEqual([null, null, null, "purl"]);
+    expect(at(0, 0)!.base).toEqual([null, null, null, "ptbl"]);
   });
 
-  it("mirrors a cable's base with it and treats a base change as a copy override", () => {
+  it("mirrors a cable's changed cells with it and treats a change as a copy override", () => {
     open([
-      { id: "c", symbolId: "1_1_left_cable", col: 0, row: 0, base: ["k2tog", null] },
+      { id: "c", symbolId: "1_1_left_cable", col: 0, row: 0, base: ["ptbl", null] },
       { id: "k", symbolId: "knit", col: 2, row: 0 },
     ]);
     const motifId = doc().createRepeat(["c", "k"])!;
     doc().stampMotif(motifId, [{ col: 0, row: 4 }], true);
-    // Mirrored: cable flips to right, its base reverses and k2tog -> skpo.
-    expect(at(1, 4)).toMatchObject({ symbolId: "1_1_right_cable", base: [null, "skpo"] });
+    expect(at(1, 4)).toMatchObject({ symbolId: "1_1_right_cable", base: [null, "ptbl"] });
 
     doc().setStitchBase(at(0, 0)!.id, 1, "purl");
     doc().pushMotifCopy(at(0, 0)!.groupId!);
-    expect(motif(motifId).stitches[0]!.base).toEqual(["k2tog", "purl"]);
-    expect(at(1, 4)!.base).toEqual(["purl", "skpo"]);
+    expect(motif(motifId).stitches[0]!.base).toEqual(["ptbl", "purl"]);
+    expect(at(1, 4)!.base).toEqual(["purl", "ptbl"]);
   });
 });
-

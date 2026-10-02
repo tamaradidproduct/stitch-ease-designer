@@ -211,28 +211,29 @@ export function GlossaryRow({
           }}
         />
       ) : (
-      <button
-        type="button"
-        className="glossary__arm"
-        {...tapActivate(() => (armed ? onDisarm() : onArm()))}
-        title={`Draw with ${label} ${shortcutNumber !== null ? `(${shortcutNumber}) ` : ""}- tap again to stop drawing`}
-      >
-        <span className="glossary__glyph">{glyph}</span>
-        <span className="glossary__label">{label}</span>
-        <span className="glossary__countText">({count})</span>
-      </button>
-      )}
-      {/* FR-34/Bug 8: the add-only chip belongs on every plain stitch row,
-          slotted or not - a colored row never gets it, nor a motif row. */}
-      {onAddColoredVariant && !colorId ? (
-        <ColorChip
-          mode="add-only"
-          label={`Add a colored ${label}`}
-          className="glossary__colorChip"
-          onSelect={onAddColoredVariant}
-        />
-      ) : (
-        <span className="glossary__colorChipSpacer" aria-hidden="true" />
+      <div className="glossary__armWrap">
+        <button
+          type="button"
+          className="glossary__arm"
+          {...tapActivate(() => (armed ? onDisarm() : onArm()))}
+          title={`Draw with ${label} ${shortcutNumber !== null ? `(${shortcutNumber}) ` : ""}- tap again to stop drawing`}
+        >
+          <span className="glossary__glyph">{glyph}</span>
+          <span className="glossary__label">{label}</span>
+          <span className="glossary__countText">({count})</span>
+        </button>
+        {/* FR-34/Bug 8: the add-only chip belongs on every plain stitch row,
+            slotted or not - a colored row never gets it, nor a motif row.
+            Overlaid on the glyph, same as the picker's quick tiles. */}
+        {onAddColoredVariant && !colorId && (
+          <ColorChip
+            mode="add-only"
+            label={`Add a colored ${label}`}
+            className="glossary__colorChip"
+            onSelect={onAddColoredVariant}
+          />
+        )}
+      </div>
       )}
       {armed ? (
         disarmButton

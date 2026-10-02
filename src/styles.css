@@ -3536,10 +3536,25 @@ body {
   color: var(--accent);
 }
 
-.glossary__colorChipSpacer {
-  width: 18px;
-  flex: none;
-  margin-left: auto;
+.glossary__armWrap {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex: 1;
+}
+
+/* The add-colored-variant chip sits on the glyph's bottom-right corner,
+   matching the picker's quick tiles (.picker__quickColorChip). The glyph
+   box is 38px wide with the cell centered in it. */
+.glossary__armWrap .glossary__colorChip {
+  position: absolute;
+  top: calc(50% + 1px);
+  left: 22px;
+  right: auto;
+  bottom: auto;
+  margin: 0;
+  border-color: var(--border);
+  box-shadow: 0 1px 3px rgb(15 23 42 / 20%);
 }
 
 .glossary__menuRoot {

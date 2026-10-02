@@ -216,11 +216,16 @@ export function RightPanel() {
     </button>
   );
 
-  const { placements, glossary, plainGlossaryIds, stitchCounts, coloredCounts, symbolsPlaced } = useMemo(() => {
+  const { placements, loosePlacements, glossary, plainGlossaryIds, stitchCounts, coloredCounts, symbolsPlaced, looseSymbolsPlaced } = useMemo(() => {
     // The document mutates its index in place; its revision invalidates this
     // cached snapshot when placements change.
     void revision;
     const chartPlacements = index.toArray();
+    // FR-64: a stitch's count (and its Select all) covers only stitches
+    // outside motif copies - a copy's stitches belong to its motif, which
+    // has its own row and count.
+    const copyIds = new Set(repeats.flatMap((motif) => (motif.copies ?? []).map((copy) => copy.id)));
+    const looseOnly = chartPlacements.filter((p) => !p.groupId || !copyIds.has(p.groupId));
     // Quick slots are glossary entries too, even when they have neither an
     // explicit glossary id nor a placement yet. Keeping them in this one
     // shared set makes the header, rows, and picker agree (#322).
@@ -230,6 +235,7 @@ export function RightPanel() {
     );
     return {
       placements: chartPlacements,
+      loosePlacements: looseOnly,
       glossary: chartGlossary,
       // Which *plain* symbols already have a glossary row - what the
       // search-to-add dropdown (always a plain add) needs to exclude.
@@ -243,11 +249,12 @@ export function RightPanel() {
       // check, confirmed or suggested, or a symbol with only a pending
       // suggestion would look removable (FR-14, G-9). Distinctly named
       // values from the start, not one reused for multiple purposes.
-      stitchCounts: countConfirmedStitches(chartPlacements),
-      coloredCounts: countConfirmedColoredStitches(chartPlacements),
+      stitchCounts: countConfirmedStitches(looseOnly),
+      coloredCounts: countConfirmedColoredStitches(looseOnly),
       symbolsPlaced: symbolsWithAnyPlacement(chartPlacements),
+      looseSymbolsPlaced: symbolsWithAnyPlacement(looseOnly),
     };
-  }, [quickSymbolIds, addedGlossaryIds, index, revision]);
+  }, [quickSymbolIds, addedGlossaryIds, index, revision, repeats]);
   // Grouped by category (basic, increases, decreases, ...) rather than left
   // flat, so browsing the full library reads as a glossary instead of a wall
   // of stitches. Array.prototype.sort is stable, so search relevance order
@@ -297,8 +304,11 @@ export function RightPanel() {
   }
   const stitchRemoval = (key: string) => {
     const usedIn = motifsUsing.get(key);
-    if (symbolsPlaced.has(key)) {
+    if (looseSymbolsPlaced.has(key)) {
       return { removable: false, removeBlockedReason: "Placed on the chart - erase those stitches first" };
+    }
+    if (symbolsPlaced.has(key)) {
+      return { removable: false, removeBlockedReason: "Used inside motif copies" };
     }
     if (usedIn?.length) return { removable: false, removeBlockedReason: `Used in ${usedIn.join(", ")}` };
     return { removable: true, removeBlockedReason: undefined };
@@ -724,7 +734,7 @@ export function RightPanel() {
                   disarmButton={disarmButton}
                   count={count}
                   selectAllLabel={`Select all ${count} placed`}
-                  onSelectAll={() => setSelection(selectableGlossaryEntryPlacementIds(placements, key), [], true)}
+                  onSelectAll={() => setSelection(selectableGlossaryEntryPlacementIds(loosePlacements, key), [], true)}
                   onAddColoredVariant={(colorId) => addColoredVariant(symbol.id, colorId)}
                   {...stitchRemoval(key)}
                   onRemove={() => removeFromGlossary(key)}
@@ -781,7 +791,7 @@ export function RightPanel() {
                   disarmButton={disarmButton}
                   count={count}
                   selectAllLabel={`Select all ${count} placed`}
-                  onSelectAll={() => setSelection(selectableGlossaryEntryPlacementIds(placements, key), [], true)}
+                  onSelectAll={() => setSelection(selectableGlossaryEntryPlacementIds(loosePlacements, key), [], true)}
                   onAddColoredVariant={(newColorId) => addColoredVariant(symbol.id, newColorId)}
                   {...stitchRemoval(key)}
                   onRemove={() => removeFromGlossary(key)}

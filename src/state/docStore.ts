@@ -34,6 +34,7 @@ import {
   rematerialize,
   type WorldStitch,
 } from "../model/motifs";
+import { defaultBase, isBaseStitch } from "../model/cableComposition";
 import type { LoadedChart } from "../storage/ChartStore";
 import { nextHistorySequence } from "./historySequence";
 import { useUiStore } from "./uiStore";
@@ -933,10 +934,13 @@ export const useDocStore = create<DocState>((set, get) => {
       const placement = get().index.placements.get(placementId);
       const span = placement ? spanOf(placement.symbolId) : 0;
       if (!placement || span < 2 || offset < 0 || offset >= span) return null;
-      if (symbolId && spanOf(symbolId) !== 1) return null;
+      if (symbolId && !isBaseStitch(symbolId)) return null;
+      // Choosing what the cable already implies there is no change at all.
+      const implied = defaultBase(placement.symbolId)?.[offset] ?? null;
+      const value = symbolId === implied ? null : symbolId;
       const base = Array.from({ length: span }, (_, i) => placement.base?.[i] ?? null);
-      if (base[offset] === symbolId) return placementId;
-      base[offset] = symbolId;
+      if (base[offset] === value) return placementId;
+      base[offset] = value;
       const next: Placement = { ...placement, id: newPlacementId(), base };
       if (!base.some(Boolean)) delete next.base;
       commit({ removed: [placement], added: [next] });

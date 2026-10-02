@@ -1124,6 +1124,11 @@ many times, keep iterating.
   deleted motif renders and fills as empty, and deleting a motif keeps its
   slot so undo restores it in place. Promoting a newly placed stitch never
   pushes a motif's slot aside.
+- **Counts are loose stitches only.** A stitch row's "(n)" and its Select
+  all cover stitches outside motif copies; each motif row counts its copies.
+  A stitch used only inside copies can't be removed ("Used inside motif
+  copies"). Delete/Cut/the picker's delete still never strip stitches from
+  a copy the selection only partly covers.
 - **One glossary row for everything.** Stitch and motif rows (slotted or
   not) are the same `GlossaryRow`: drag/move/shortcut, a single arm target
   reading "Name (n)", the color chip on stitch rows, and a motif icon in the
@@ -1170,24 +1175,28 @@ motif library.
 
 ---
 
-### Cables: per-cell base stitch layer (FR-65)
+### Cables: per-cell composition (FR-65)
 
-**FR-65.** A multi-cell stitch (a cable) can carry a **base stitch per
-cell** - e.g. the purl background worked under a purl cable - without being
-broken apart. Cables are treated like motif stitches by default: no outline,
-but you can go into one.
+**FR-65.** A cable's cells are the stitches it's made of. The library draws
+each cable as one picture, so its composition is **implied by its name**
+(`model/cableComposition.ts`): an `a_b_left|right[_purl]_cable` crosses `a`
+knit stitches over `b` knit (or, for a purl cable, purl) stitches - left
+crosses end with the knits on the left, right crosses on the right. The
+"(HR)" variants are 4 cells wider than their cross, so they imply nothing
+and start unset.
 
-- `Placement.base?: (string | null)[]`, one entry per cell; only one-cell
-  stitches can be a base. Stored sparsely as `bases: [col, row, offset,
-  paletteIndex][]` against the chart's symbol palette.
-- Drawn faintly under the cable's own glyph.
-- Double-click / Cmd-click a cable cell opens "Base stitch under <cable>
-  (stitch n)", numbered in knitting order like the ruler; the picker's
-  delete clears it. Inside a motif copy the first gesture picks the cable
-  out of the copy, the next goes into it.
-- Motifs carry base layers through create/stamp/push; mirroring reverses a
-  cable's base and mirrors each base stitch; a base change is a copy
-  override.
-- Not yet: base stitches aren't counted in the glossary, nor written to the
-  CSV export.
-
+- A designer can change one cell to another **knit/purl-family** stitch
+  (one-cell `basic`/`brioche` symbols: knit, purl, tbl, slipped, brioche) -
+  never a decrease, increase or cable, which would change the count or the
+  cross. Choosing what the cable already implies is no change.
+- Stored only where it differs: `Placement.base?: (string | null)[]`, saved
+  sparsely as `bases: [col, row, offset, paletteIndex][]`.
+- **Not drawn over the cable** (it would collide with the cable's own
+  knit/purl marks). A changed cell gets a small corner mark; the picker
+  names the cell's stitch ("Purl in 2/2 purl cable, left (stitch 2)") and
+  its delete resets the cell.
+- Double-click / Cmd-click on a cable cell goes straight to that cell, in or
+  out of a motif copy, highlighting only that cell.
+- Motifs carry changed cells through create/stamp/push; mirroring reverses
+  them (mirroring each stitch too); a change counts as a copy override.
+- Not yet: changed cells aren't shown in the legend, CSV, or glossary counts.

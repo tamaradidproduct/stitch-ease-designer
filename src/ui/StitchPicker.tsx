@@ -15,6 +15,7 @@ import { clamp } from "./utils";
 import { parseQuickSlotId } from "../model/quickSlots";
 import { motifIdFromKey, stampOrigin } from "../model/motifs";
 import { rowDirectionAt } from "../model/rowDirection";
+import { effectiveBase, isBaseStitch } from "../model/cableComposition";
 import { MotifCopyBubbles, MotifDrawerSection, MotifGlyph, MotifQuickTile } from "./motifUi";
 import { armMotifPen, eraseKeepingMotifStitches, selectedMotifCopy } from "./motifActions";
 import { addColoredVariant, applyColorToSlot, currentSlotForPicker } from "./colorwork";
@@ -129,8 +130,10 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
   const currentSymbol = target?.currentSymbolId ? getSymbol(target.currentSymbolId) : undefined;
   const baseCell = target?.baseCell;
   const basePlacement = baseCell ? index.placements.get(baseCell.placementId) : undefined;
-  const currentBase = basePlacement?.base?.[baseCell!.offset] ?? null;
-  const canDelete = baseCell ? !!currentBase : !!currentSymbol || !!target?.selectionIds?.length;
+  // Only a cell the designer changed has anything to clear back to.
+  const changedBase = basePlacement?.base?.[baseCell!.offset] ?? null;
+  const cellStitch = basePlacement ? effectiveBase(basePlacement)[baseCell!.offset] : null;
+  const canDelete = baseCell ? !!changedBase : !!currentSymbol || !!target?.selectionIds?.length;
 
   const sections = useMemo(() => {
     if (!query.trim()) return [];
@@ -139,10 +142,11 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
     return built
       .map((section) => ({
         ...section,
-        symbols: section.symbols.filter((symbol) => symbol.span === selectionSpan),
+        symbols: section.symbols.filter((symbol) =>
+          symbol.span === selectionSpan && (!target.baseCell || isBaseStitch(symbol.id))),
       }))
       .filter((section) => section.symbols.length > 0);
-  }, [query, selectionSpan]);
+  }, [query, selectionSpan, target.baseCell]);
 
   type QuickEntry = { key: string; symbol: StitchSymbol; colorId?: string; disabled?: boolean };
   const quickSymbols = useMemo(
@@ -155,13 +159,15 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
             key,
             symbol,
             ...(colorId ? { colorId } : {}),
-            ...(selectionSpan && symbol.span !== selectionSpan ? { disabled: true } : {}),
+            ...((selectionSpan && symbol.span !== selectionSpan) || (target.baseCell && !isBaseStitch(symbol.id))
+              ? { disabled: true }
+              : {}),
           }
           : null;
       }),
       // Preserve holes and filtered positions: quick slot N must remain
       // picker position N, rather than compacting later entries left (#322).
-    [quickIds, selectionSpan],
+    [quickIds, selectionSpan, target.baseCell],
   );
   // FR-30: a sixth, dynamic tile when the current selection is a real
   // stitch whose combo isn't already one of the five visible slots. Not
@@ -377,7 +383,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
   };
 
   const placeholder = baseCell
-    ? `Base stitch under ${getSymbol(basePlacement?.symbolId ?? "")?.label ?? "this stitch"} (stitch ${
+    ? `${getSymbol(cellStitch ?? "")?.label ?? "Stitch"} in ${getSymbol(basePlacement?.symbolId ?? "")?.label ?? "this cable"} (stitch ${
       // Numbered in knitting order, matching the ruler, not left to right.
       rowDirectionAt(target.row) === "rtl"
         ? index.spanOf(basePlacement!) - baseCell.offset
@@ -418,7 +424,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
   // combo's color explicitly.
   const choose = (symbol: StitchSymbol, colorId?: string) => {
     if (baseCell) {
-      if (symbol.span === 1) useDocStore.getState().setStitchBase(baseCell.placementId, baseCell.offset, symbol.id);
+      if (isBaseStitch(symbol.id)) useDocStore.getState().setStitchBase(baseCell.placementId, baseCell.offset, symbol.id);
       clearSelection();
       closePicker();
       return;
