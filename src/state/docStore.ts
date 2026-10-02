@@ -46,6 +46,7 @@ import {
   quickSlotKey,
   removeQuickSlot,
   renameQuickSlot,
+  compactOverflowSlots,
 } from "../model/quickSlots";
 
 /**
@@ -453,6 +454,15 @@ function reconcileCopies(
  * follow-up). Kept as keys rather than cleared so an undo that brings the
  * motif back finds its slot where it was.
  */
+/** A quick-slot key still pointing at something: any stitch key, or a motif that exists. */
+function isLiveSlotIn(repeats: readonly RepeatDefinition[]): (key: string) => boolean {
+  const live = new Set(repeats.map((r) => r.id));
+  return (key) => {
+    const motifId = motifIdFromKey(key);
+    return !motifId || live.has(motifId);
+  };
+}
+
 function freeDanglingMotifSlots(slots: readonly string[], repeats: readonly RepeatDefinition[]): string[] {
   const live = new Set(repeats.map((r) => r.id));
   return slots.map((key) => {
@@ -703,7 +713,11 @@ export const useDocStore = create<DocState>((set, get) => {
       get().setPatternInfo({ colorNames: next });
     },
     setGlossaryIds: (glossaryIds) => set((s) => ({ glossaryIds, revision: s.revision + 1 })),
-    setQuickSymbolIds: (quickSymbolIds) => set((s) => ({ quickSymbolIds, revision: s.revision + 1 })),
+    setQuickSymbolIds: (quickSymbolIds) =>
+      set((s) => ({
+        quickSymbolIds: compactOverflowSlots(quickSymbolIds, isLiveSlotIn(s.repeats)),
+        revision: s.revision + 1,
+      })),
     addGlossaryId: (id) => {
       const current = get().glossaryIds;
       if (current.includes(id)) return;
@@ -1139,9 +1153,11 @@ export const useDocStore = create<DocState>((set, get) => {
           : { removed: members, added: members.map(({ groupId: _dropped, ...rest }) => rest) },
         get().repeats.filter((candidate) => candidate.id !== motifId),
       );
-      // Its quick slot is deliberately left alone: undo restores the motif,
-      // and a slot pointing at a missing motif already reads (and fills) as
-      // empty - see `freeDanglingMotifSlots`.
+      // A numbered quick slot is deliberately left pointing at it: undo
+      // restores the motif in place, and meanwhile the slot reads (and
+      // fills) as empty - see `freeDanglingMotifSlots`. Past the numbered
+      // slots there's no position to keep, so that row just closes up.
+      get().setQuickSymbolIds(get().quickSymbolIds);
     },
     linkPastedPlacements: (sources, deltaCol, deltaRow) => {
       const { index } = get();
@@ -1437,9 +1453,9 @@ export const useDocStore = create<DocState>((set, get) => {
         statusDetail: null,
         unknownSymbolIds,
         repeats: pruneOrphanCopies(repeats, placements),
+        quickSymbolIds: compactOverflowSlots(quickSymbolIds, isLiveSlotIn(repeats)),
         referenceImages,
         glossaryIds,
-        quickSymbolIds,
         patternInfo,
       });
     },

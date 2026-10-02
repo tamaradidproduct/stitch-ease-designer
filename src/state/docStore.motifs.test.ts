@@ -129,6 +129,15 @@ describe("motif copies", () => {
     expect(at(1, 4)).toBeUndefined();
   });
 
+  it("closes up the glossary list past the numbered slots when an entry goes", () => {
+    const id = makeMotif();
+    doc().setQuickSymbolIds(["knit", "purl", "", "", "", "m1l", motifKey(id), "ktbl"]);
+    doc().removeQuickSlot("m1l");
+    expect(doc().quickSymbolIds).toEqual(["knit", "purl", "", "", "", motifKey(id), "ktbl"]);
+    doc().deleteMotif(id, "detach");
+    expect(doc().quickSymbolIds).toEqual(["knit", "purl", "", "", "", "ktbl"]);
+  });
+
   it("never pushes a motif's quick slot aside for a newly placed stitch", () => {
     const id = makeMotif();
     doc().setQuickSymbolIds([motifKey(id), ""]);

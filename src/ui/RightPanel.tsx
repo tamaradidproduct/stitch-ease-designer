@@ -421,6 +421,101 @@ export function RightPanel() {
     centerViewAt100(((minCol + maxCol) / 2) * CELL, ((minRow + maxRow) / 2) * CELL);
   };
 
+  // An open quick slot: the inline search while it's open, else its
+  // "Add stitch" row. The numbered five render in place (position is their
+  // shortcut); the one open slot past them renders once, at the very end of
+  // the list, so the glossary never shows a blank row partway down.
+  const renderOpenSlot = (slot: number) => (
+    searchSlot === slot ? (
+                <div
+                  ref={inlineSearchRef}
+                  key={`search:${slot}`}
+                  className="glossary__inlineSearch"
+                  data-drag-over={dragOverQuickSlot === slot}
+                  {...forEmptySlot(slot, closeGlossarySearch)}
+                >
+                  {slot < 5 ? <kbd className="glossary__shortcut">{slot + 1}</kbd> : <span className="glossary__shortcutSpacer" />}
+                  <SearchIcon />
+                  <input
+                    ref={glossarySearchRef}
+                    type="search"
+                    value={glossaryQuery}
+                    onChange={(event) => setGlossaryQuery(event.target.value)}
+                    onKeyDown={navigateGlossarySearch}
+                    placeholder="Search stitches…"
+                    aria-label="Search stitches to add"
+                    aria-controls="glossary-search-results"
+                    aria-activedescendant={
+                      glossaryResults[activeGlossaryResult]
+                        ? `glossary-search-result-${glossaryResults[activeGlossaryResult]!.id}`
+                        : undefined
+                    }
+                  />
+                  {glossaryResults.length > 0 && searchResultsRect && (() => {
+                    let resultIndex = -1;
+                    return (
+                      <div
+                        id="glossary-search-results"
+                        className="glossarySearch__results"
+                        role="listbox"
+                        style={{
+                          position: "fixed",
+                          left: searchResultsRect.left,
+                          top: searchResultsRect.top,
+                          width: searchResultsRect.width,
+                        }}
+                      >
+                        {glossarySections.map((section) => (
+                          <div key={section.key}>
+                            <div className="glossarySearch__heading">{section.title}</div>
+                            {section.symbols.map((result) => {
+                              resultIndex += 1;
+                              const at = resultIndex;
+                              return (
+                                <button
+                                  id={`glossary-search-result-${result.id}`}
+                                  key={result.id}
+                                  type="button"
+                                  role="option"
+                                  aria-selected={at === activeGlossaryResult}
+                                  data-active={at === activeGlossaryResult}
+                                  onPointerEnter={() => setActiveGlossaryResult(at)}
+                                  onClick={() => chooseSearchResult(result.id)}
+                                >
+                                  <span className="glossarySearch__glyph">
+                                    <SymbolGlyph symbol={result} cell={glyphCellSize(result.span, 48, 18)} />
+                                  </span>
+                                  <span>{result.label}</span>
+                                  <strong>{plainGlossaryIds.has(result.id) ? "Added" : "Add"}</strong>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </div>
+              ) : (
+                <button
+                  key={`empty:${slot}`}
+                  type="button"
+                  className="glossary__item glossary__item--empty"
+                  data-drag-over={dragOverQuickSlot === slot}
+                  {...forEmptySlot(slot)}
+                  onClick={() => searchForQuickStitch(slot)}
+                  title={slot < 5 ? `Choose a stitch for shortcut ${slot + 1}` : "Add another stitch"}
+                >
+                  <span className="glossary__dragHandle glossary__dragHandle--empty" aria-hidden="true">
+                    <DragHandleIcon />
+                  </span>
+                  {slot < 5 ? <kbd className="glossary__shortcut">{slot + 1}</kbd> : <span className="glossary__shortcutSpacer" />}
+                  <span className="glossary__emptyGlyph" aria-hidden="true">+</span>
+                  <span className="glossary__label">Add stitch</span>
+                </button>
+              )
+  );
+
   return (
     <aside className="rightPanel" aria-label="Pattern details" style={{ width: rightPanelWidth }}>
       <div
@@ -663,94 +758,7 @@ export function RightPanel() {
                   onRowDrop={rowDrop!.onDrop}
                   dragIndicator={{ kind: "insert-edge", edge: insertEdge }}
                 />
-              ) : searchSlot === slot ? (
-                <div
-                  ref={inlineSearchRef}
-                  key={`search:${slot}`}
-                  className="glossary__inlineSearch"
-                  data-drag-over={dragOverQuickSlot === slot}
-                  {...forEmptySlot(slot, closeGlossarySearch)}
-                >
-                  {slot < 5 ? <kbd className="glossary__shortcut">{slot + 1}</kbd> : <span className="glossary__shortcutSpacer" />}
-                  <SearchIcon />
-                  <input
-                    ref={glossarySearchRef}
-                    type="search"
-                    value={glossaryQuery}
-                    onChange={(event) => setGlossaryQuery(event.target.value)}
-                    onKeyDown={navigateGlossarySearch}
-                    placeholder="Search stitches…"
-                    aria-label="Search stitches to add"
-                    aria-controls="glossary-search-results"
-                    aria-activedescendant={
-                      glossaryResults[activeGlossaryResult]
-                        ? `glossary-search-result-${glossaryResults[activeGlossaryResult]!.id}`
-                        : undefined
-                    }
-                  />
-                  {glossaryResults.length > 0 && searchResultsRect && (() => {
-                    let resultIndex = -1;
-                    return (
-                      <div
-                        id="glossary-search-results"
-                        className="glossarySearch__results"
-                        role="listbox"
-                        style={{
-                          position: "fixed",
-                          left: searchResultsRect.left,
-                          top: searchResultsRect.top,
-                          width: searchResultsRect.width,
-                        }}
-                      >
-                        {glossarySections.map((section) => (
-                          <div key={section.key}>
-                            <div className="glossarySearch__heading">{section.title}</div>
-                            {section.symbols.map((result) => {
-                              resultIndex += 1;
-                              const at = resultIndex;
-                              return (
-                                <button
-                                  id={`glossary-search-result-${result.id}`}
-                                  key={result.id}
-                                  type="button"
-                                  role="option"
-                                  aria-selected={at === activeGlossaryResult}
-                                  data-active={at === activeGlossaryResult}
-                                  onPointerEnter={() => setActiveGlossaryResult(at)}
-                                  onClick={() => chooseSearchResult(result.id)}
-                                >
-                                  <span className="glossarySearch__glyph">
-                                    <SymbolGlyph symbol={result} cell={glyphCellSize(result.span, 48, 18)} />
-                                  </span>
-                                  <span>{result.label}</span>
-                                  <strong>{plainGlossaryIds.has(result.id) ? "Added" : "Add"}</strong>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })()}
-                </div>
-              ) : (
-                <button
-                  key={`empty:${slot}`}
-                  type="button"
-                  className="glossary__item glossary__item--empty"
-                  data-drag-over={dragOverQuickSlot === slot}
-                  {...forEmptySlot(slot)}
-                  onClick={() => searchForQuickStitch(slot)}
-                  title={slot < 5 ? `Choose a stitch for shortcut ${slot + 1}` : "Add another stitch"}
-                >
-                  <span className="glossary__dragHandle glossary__dragHandle--empty" aria-hidden="true">
-                    <DragHandleIcon />
-                  </span>
-                  {slot < 5 ? <kbd className="glossary__shortcut">{slot + 1}</kbd> : <span className="glossary__shortcutSpacer" />}
-                  <span className="glossary__emptyGlyph" aria-hidden="true">+</span>
-                  <span className="glossary__label">Add stitch</span>
-                </button>
-              );
+              ) : slot < 5 ? renderOpenSlot(slot) : null;
             })}
             {remainingGlossary.map((entry, overflowIndex) => {
               const { symbol, colorId, key } = entry;
@@ -854,6 +862,7 @@ export function RightPanel() {
                 />
               );
             })}
+            {slotCount > 5 && renderOpenSlot(slotCount - 1)}
           </div>
         </div>
       </section>

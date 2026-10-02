@@ -6,6 +6,7 @@ import {
   parseQuickSlotId,
   quickSlotInsertEdge,
   quickSlotKey,
+  compactOverflowSlots,
 } from "./quickSlots";
 
 describe("quickSlotKey / parseQuickSlotId", () => {
@@ -95,5 +96,19 @@ describe("quickSlotInsertEdge (issue #271: occupied-slot drag-over signifier)", 
 
   it("shows no line when hovering the slot the drag already started from", () => {
     expect(quickSlotInsertEdge(1, 1)).toBeNull();
+  });
+});
+
+describe("compactOverflowSlots", () => {
+  it("keeps holes in the five numbered slots but closes them up after", () => {
+    expect(compactOverflowSlots(["knit", "", "purl", "", "", "m1l", "", "", "ktbl"])).toEqual([
+      "knit", "", "purl", "", "", "m1l", "ktbl",
+    ]);
+  });
+
+  it("drops overflow keys that no longer point at anything", () => {
+    expect(compactOverflowSlots(["a", "b", "c", "d", "gone", "e", "gone"], (key) => key !== "gone")).toEqual([
+      "a", "b", "c", "d", "gone", "e",
+    ]);
   });
 });
