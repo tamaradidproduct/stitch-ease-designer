@@ -5,7 +5,7 @@ import { SpriteCache } from "../canvas/spriteCache";
 import { theme } from "../canvas/theme";
 import { chartBounds } from "../model/chartBounds";
 import { DocIndex } from "../model/docIndex";
-import type { Placement } from "../model/types";
+import type { Placement, RepeatDefinition } from "../model/types";
 import { symbolsByCategory } from "../symbols/registry";
 import type { StitchSymbol } from "../symbols/types";
 import { downloadBlob, safeFilename } from "./download";
@@ -114,6 +114,8 @@ export async function exportChartImage(
   name: string,
   placements: Iterable<Placement>,
   format: ImageFormat,
+  /** Motifs whose placed copies get framed in the image (FR-64). */
+  repeats: readonly RepeatDefinition[] = [],
 ): Promise<void> {
   const list = [...placements];
   const bounds = chartBounds(list);
@@ -192,6 +194,9 @@ export async function exportChartImage(
     pickerTarget: null,
     selectedPlacementIds: [],
     selectedEmptyCells: [],
+    armedMotif: null,
+    motifFill: null,
+    repeats,
     tool: "stitch",
     selectHeld: false,
     keyboardSelectionActive: false,

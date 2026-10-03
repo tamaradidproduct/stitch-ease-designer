@@ -12,6 +12,13 @@ export type Placement = {
   /** Independent repeat/group instance this placement belongs to. */
   groupId?: string;
   /**
+   * A multi-cell stitch's per-cell base layer (FR-65): `base[i]` is the
+   * one-cell stitch worked in cell `col + i` underneath it - e.g. the purl
+   * background of a purl cable - drawn under the stitch's own glyph. Null
+   * (or absent) means no base stitch for that cell.
+   */
+  base?: (string | null)[];
+  /**
    * Color is a property of a stitch, never a second kind of stitch (FR-22).
    * Absent means uncolored - a chart that never uses color encodes
    * byte-identically to the pre-colorwork format.
@@ -29,7 +36,7 @@ export type Placement = {
   confidence?: number;
 };
 
-export type RepeatStitch = { symbolId: string; col: number; row: number; colorId?: string };
+export type RepeatStitch = { symbolId: string; col: number; row: number; colorId?: string; base?: (string | null)[] };
 
 /** A reusable stitch sequence stored only with the chart that created it. */
 export type RepeatDefinition = {
@@ -38,6 +45,25 @@ export type RepeatDefinition = {
   width: number;
   height: number;
   stitches: RepeatStitch[];
+  /** Linked copies on the chart. Absent on charts saved before motifs were linked. */
+  copies?: MotifCopy[];
+};
+
+/**
+ * One linked copy of a motif on the chart. The copy's stitches are ordinary
+ * placements whose `groupId` equals `id`; this record only adds what the
+ * placements can't say themselves - where the motif's footprint sits and
+ * whether it's flipped - so overrides can be derived by comparing the two
+ * (see `model/motifs.ts`). Stored on its motif, so the chart format and
+ * every storage signature carry copies without a new top-level field.
+ */
+export type MotifCopy = {
+  id: string;
+  /** The footprint's bottom-left cell. */
+  col: number;
+  row: number;
+  /** Knitting-aware horizontal flip of the motif (see `mirrorSymbolId`). */
+  mirrored?: boolean;
 };
 
 /**

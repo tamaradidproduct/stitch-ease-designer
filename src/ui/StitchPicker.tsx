@@ -13,6 +13,11 @@ import { CloseIcon, SearchIcon } from "./icons";
 import { collectColoredGlossaryEntries, useGlossaryIds } from "./chartGlossary";
 import { clamp } from "./utils";
 import { parseQuickSlotId } from "../model/quickSlots";
+import { motifIdFromKey, stampOrigin } from "../model/motifs";
+import { rowDirectionAt } from "../model/rowDirection";
+import { effectiveBase, isBaseStitch } from "../model/cableComposition";
+import { MotifCopyBubbles, MotifDrawerSection, MotifGlyph, MotifQuickTile } from "./motifUi";
+import { armMotifPen, eraseKeepingMotifStitches, selectedMotifCopy } from "./motifActions";
 import { addColoredVariant, applyColorToSlot, currentSlotForPicker } from "./colorwork";
 import { ColorChip } from "./ColorChip";
 import { QuickTile } from "./QuickTile";
@@ -54,6 +59,7 @@ export function StitchPicker() {
       target.selectionIds?.join(",") ?? "",
       target.selectionEmptyCells?.map((cell) => `${cell.col},${cell.row}`).join(";") ?? "",
       target.armOnly ? "arm" : "",
+      target.baseCell ? `base:${target.baseCell.placementId}:${target.baseCell.offset}` : "",
     ]
       .join(":")
     : "";
@@ -74,7 +80,6 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
   const viewport = useUiStore((s) => s.viewport);
   const place = useDocStore((s) => s.place);
   const erase = useDocStore((s) => s.erase);
-  const erasePlacements = useDocStore((s) => s.erasePlacements);
   const createRepeat = useDocStore((s) => s.createRepeat);
   const duplicateSelection = useDocStore((s) => s.duplicatePlacementsInRow);
   const insertPlacement = useDocStore((s) => s.insertPlacement);
@@ -82,7 +87,8 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
   const beginStroke = useDocStore((s) => s.beginStroke);
   const endStroke = useDocStore((s) => s.endStroke);
   const repeats = useDocStore((s) => s.repeats);
-  const instantiateRepeat = useDocStore((s) => s.instantiateRepeat);
+  const stampMotif = useDocStore((s) => s.stampMotif);
+  const armedMotif = useUiStore((s) => s.armedMotif);
   const index = useDocStore((s) => s.index);
   const revision = useDocStore((s) => s.revision);
   const addedGlossaryIds = useGlossaryIds();
@@ -122,7 +128,12 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
   const [resultsMaxHeight, setResultsMaxHeight] = useState(MAX_HEIGHT_RESULTS);
   const selectionSpan = target?.selectionSpan;
   const currentSymbol = target?.currentSymbolId ? getSymbol(target.currentSymbolId) : undefined;
-  const canDelete = !!currentSymbol || !!target?.selectionIds?.length;
+  const baseCell = target?.baseCell;
+  const basePlacement = baseCell ? index.placements.get(baseCell.placementId) : undefined;
+  // Only a cell the designer changed has anything to clear back to.
+  const changedBase = basePlacement?.base?.[baseCell!.offset] ?? null;
+  const cellStitch = basePlacement ? effectiveBase(basePlacement)[baseCell!.offset] : null;
+  const canDelete = baseCell ? !!changedBase : !!currentSymbol || !!target?.selectionIds?.length;
 
   const sections = useMemo(() => {
     if (!query.trim()) return [];
@@ -131,10 +142,11 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
     return built
       .map((section) => ({
         ...section,
-        symbols: section.symbols.filter((symbol) => symbol.span === selectionSpan),
+        symbols: section.symbols.filter((symbol) =>
+          symbol.span === selectionSpan && (!target.baseCell || isBaseStitch(symbol.id))),
       }))
       .filter((section) => section.symbols.length > 0);
-  }, [query, selectionSpan]);
+  }, [query, selectionSpan, target.baseCell]);
 
   type QuickEntry = { key: string; symbol: StitchSymbol; colorId?: string; disabled?: boolean };
   const quickSymbols = useMemo(
@@ -147,18 +159,38 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
             key,
             symbol,
             ...(colorId ? { colorId } : {}),
-            ...(selectionSpan && symbol.span !== selectionSpan ? { disabled: true } : {}),
+            ...((selectionSpan && symbol.span !== selectionSpan) || (target.baseCell && !isBaseStitch(symbol.id))
+              ? { disabled: true }
+              : {}),
           }
           : null;
       }),
       // Preserve holes and filtered positions: quick slot N must remain
       // picker position N, rather than compacting later entries left (#322).
-    [quickIds, selectionSpan],
+    [quickIds, selectionSpan, target.baseCell],
   );
   // FR-30: a sixth, dynamic tile when the current selection is a real
   // stitch whose combo isn't already one of the five visible slots. Not
   // persisted - just a view of `currentSlot`, gone the moment the picker
   // moves elsewhere.
+  // Quick slots holding a motif pen (FR-64), by slot position.
+  const quickMotifs = useMemo(
+    () => quickIds.slice(0, 5).map((key) => {
+      // A base cell only takes a one-cell stitch, never a motif.
+      const motifId = key && !target.baseCell ? motifIdFromKey(key) : null;
+      return motifId ? repeats.find((r) => r.id === motifId) ?? null : null;
+    }),
+    [quickIds, repeats, target.baseCell],
+  );
+  // Picking a motif on an empty cell stamps it there (anchored like the
+  // stamp ghost) and arms it; anywhere else it only arms.
+  const chooseMotif = (motifId: string) => {
+    const motif = repeats.find((r) => r.id === motifId);
+    if (motif && !target.selectionIds && !target.selectionEmptyCells && !target.insert && !target.armOnly && !target.currentSymbolId) {
+      stampMotif(motif.id, [stampOrigin(motif, target)]);
+    }
+    armMotifPen(motifId);
+  };
   const dynamicSlot = useMemo(() => {
     if (!currentSlot || !currentSlot.placementIds.length) return null;
     if (quickSymbols.some((entry) => entry?.key === currentSlot.key)) return null;
@@ -185,7 +217,11 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
     ).filter((entry) =>
       !visibleKeys.has(entry.key) && (!selectionSpan || entry.symbol.span === selectionSpan));
   }, [quickSymbols, quickIds, addedGlossaryIds, index, selectionSpan, revision]);
-  const hasMore = moreEntries.length > 0;
+  const hasMore = moreEntries.length > 0 || repeats.length > 0;
+  const copyInfo = useMemo(() => {
+    void revision;
+    return target.selectionIds ? selectedMotifCopy(target.selectionIds, index, repeats) : null;
+  }, [target, index, repeats, revision]);
   const menuWidth = MENU_WIDTH + (dynamicSlot ? 45 : 0) + (hasMore ? 45 : 0) + (canDelete ? 45 : 0);
   const expandedMenuWidth = menuWidth + SEARCH_SLOT_WIDTH - 40;
 
@@ -346,7 +382,14 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
     inputRef.current?.focus();
   };
 
-  const placeholder = target.armOnly
+  const placeholder = baseCell
+    ? `${getSymbol(cellStitch ?? "")?.label ?? "Stitch"} in ${getSymbol(basePlacement?.symbolId ?? "")?.label ?? "this cable"} (stitch ${
+      // Numbered in knitting order, matching the ruler, not left to right.
+      rowDirectionAt(target.row) === "rtl"
+        ? (basePlacement ? index.spanOf(basePlacement) : 0) - baseCell.offset
+        : baseCell.offset + 1
+    })`
+    : target.armOnly
     ? "Choose a stitch to draw"
     : target.selectionIds
     ? `Replace ${target.selectionIds.length} selected stitch${target.selectionIds.length === 1 ? "" : "es"}`
@@ -380,6 +423,12 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
   // happened to be active. Only a quick-slot tile click passes its own
   // combo's color explicitly.
   const choose = (symbol: StitchSymbol, colorId?: string) => {
+    if (baseCell) {
+      if (isBaseStitch(symbol.id)) useDocStore.getState().setStitchBase(baseCell.placementId, baseCell.offset, symbol.id);
+      clearSelection();
+      closePicker();
+      return;
+    }
     if (target.armOnly) {
       chooseSymbol(symbol.id, undefined, undefined, colorId);
       return;
@@ -446,8 +495,11 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
   };
 
   const clear = () => {
-    if (target.selectionIds?.length) {
-      erasePlacements(target.selectionIds);
+    if (baseCell) {
+      useDocStore.getState().setStitchBase(baseCell.placementId, baseCell.offset, null);
+      clearSelection();
+    } else if (target.selectionIds?.length) {
+      eraseKeepingMotifStitches(target.selectionIds);
       clearSelection();
     } else if (target.selectionEmptyCells?.length) {
       // Nothing's been placed yet - there's nothing to erase, just drop the selection.
@@ -533,7 +585,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
       role="dialog"
       aria-label={placeholder}
     >
-      {(target.currentSymbolId || target.selectionIds) && (
+      {(target.currentSymbolId || target.selectionIds || baseCell) && (
         // FR-31: a persistent label whenever the picker is open on an
         // existing stitch or selection, rather than buried in the search
         // placeholder (an extra click to see, gone the moment you type).
@@ -545,12 +597,23 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
       <div className="picker__quick" aria-label="Choose a recent stitch or search">
           {Array.from({ length: 5 }, (_, slot) => {
             if (searchOpen && searchOrigin === slot) return renderSearchField(`search:${slot}`);
+            const motif = quickMotifs[slot];
+            if (motif) {
+              return (
+                <MotifQuickTile
+                  key={`motif:${motif.id}`}
+                  motif={motif}
+                  armed={armedMotif?.id === motif.id}
+                  onChoose={() => chooseMotif(motif.id)}
+                />
+              );
+            }
             const entry = quickSymbols[slot];
             return entry ? (
               <QuickTile
                 key={entry.key}
                 entry={entry}
-                active={currentSlot?.key === entry.key}
+                active={baseCell ? entry.symbol.id === cellStitch : currentSlot?.key === entry.key}
                 onChoose={choose}
                 onRecolor={(colorId) => {
                   if (currentSlot) applyColorToSlot(currentSlot, colorId);
@@ -657,8 +720,8 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
 
         {moreOpen && (
           <div id="picker-more-stitches" className="picker__moreDrawer" aria-label="More stitches in this chart">
-            <div className="picker__moreHeader">This chart</div>
-            <div className="picker__moreList">
+            {moreEntries.length > 0 && <div className="picker__moreHeader">This chart</div>}
+            <div className="picker__moreList" hidden={!moreEntries.length}>
               {moreEntries.map((entry) => (
                 <div key={entry.key} className="picker__item">
                   <button
@@ -694,23 +757,35 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
                 </div>
               ))}
             </div>
+            <MotifDrawerSection onArmed={closePicker} />
           </div>
         )}
 
-        {target.selectionIds && target.selectionIds.length > 1 && (
+        {target.selectionIds && (target.selectionIds.length > 1 || copyInfo) && (
           <div className="picker__selectionBubbles" aria-label="Selection actions">
+            {copyInfo ? (
+              <MotifCopyBubbles copyId={copyInfo.copy.id} overridden={copyInfo.overridden} onDone={() => {
+                clearSelection();
+                closePicker();
+              }} />
+            ) : (
             <button
               type="button"
-              onClick={() => createRepeat(target.selectionIds!)}
-              title="Create a chart-local repeat"
-              aria-label="Create repeat"
-              data-label="Repeat"
+              onClick={() => {
+                createRepeat(target.selectionIds!);
+                clearSelection();
+                closePicker();
+              }}
+              title="Make a motif from these stitches (⌘G)"
+              aria-label="Make motif"
+              data-label="Motif"
             >
               <svg viewBox="0 0 20 20" aria-hidden="true">
                 <rect x="3" y="5" width="9" height="9" rx="1.5" />
                 <path d="M8 3h6a3 3 0 0 1 3 3v6m0 0-2.5-2.5M17 12l-2.5 2.5" />
               </svg>
             </button>
+            )}
             <button
               type="button"
               onClick={() => {
@@ -751,17 +826,18 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
 
             {matchingRepeats.length > 0 && (
               <div>
-                <div className="picker__heading">This chart</div>
+                <div className="picker__heading">Motifs</div>
                 {matchingRepeats.map((repeat) => (
                   <button
                     key={repeat.id}
                     type="button"
                     className="picker__item"
                     onClick={() => {
-                      if (instantiateRepeat(repeat.id, target.col, target.row)) closePicker();
+                      chooseMotif(repeat.id);
+                      closePicker();
                     }}
                   >
-                    <span className="picker__repeatGlyph" aria-hidden="true">↻</span>
+                    <span className="picker__glyph"><MotifGlyph /></span>
                     <span className="picker__label">{repeat.name}</span>
                     <span className="picker__span">{repeat.width} × {repeat.height}</span>
                   </button>

@@ -22,6 +22,9 @@ import {
   useGlossaryIds,
 } from "./chartGlossary";
 import { parseQuickSlotId, quickSlotInsertEdge, quickSlotKey } from "../model/quickSlots";
+import { motifIdFromKey, motifKey } from "../model/motifs";
+import { MotifCellGlyph } from "./motifUi";
+import { armMotifPen } from "./motifActions";
 import { addColoredVariant } from "./colorwork";
 import { CheckIcon, CrossIcon, DragHandleIcon, SearchIcon } from "./icons";
 import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
@@ -70,6 +73,7 @@ export function RightPanel() {
   const armedSymbolId = useUiStore((state) => state.armedSymbolId);
   const activeColor = useUiStore((state) => state.activeColor);
   const tool = useUiStore((state) => state.tool);
+  const armedMotif = useUiStore((state) => state.armedMotif);
   const quickSymbolIds = useDocStore((state) => state.quickSymbolIds);
   const removeQuickSymbol = useUiStore((state) => state.removeQuickSymbol);
   const moveQuickSymbolTo = useUiStore((state) => state.moveQuickSymbolTo);
@@ -212,11 +216,16 @@ export function RightPanel() {
     </button>
   );
 
-  const { placements, glossary, plainGlossaryIds, stitchCounts, coloredCounts, symbolsPlaced } = useMemo(() => {
+  const { placements, loosePlacements, glossary, plainGlossaryIds, stitchCounts, coloredCounts, symbolsPlaced, looseSymbolsPlaced } = useMemo(() => {
     // The document mutates its index in place; its revision invalidates this
     // cached snapshot when placements change.
     void revision;
     const chartPlacements = index.toArray();
+    // FR-64: a stitch's count (and its Select all) covers only stitches
+    // outside motif copies - a copy's stitches belong to its motif, which
+    // has its own row and count.
+    const copyIds = new Set(repeats.flatMap((motif) => (motif.copies ?? []).map((copy) => copy.id)));
+    const looseOnly = chartPlacements.filter((p) => !p.groupId || !copyIds.has(p.groupId));
     // Quick slots are glossary entries too, even when they have neither an
     // explicit glossary id nor a placement yet. Keeping them in this one
     // shared set makes the header, rows, and picker agree (#322).
@@ -226,6 +235,7 @@ export function RightPanel() {
     );
     return {
       placements: chartPlacements,
+      loosePlacements: looseOnly,
       glossary: chartGlossary,
       // Which *plain* symbols already have a glossary row - what the
       // search-to-add dropdown (always a plain add) needs to exclude.
@@ -239,11 +249,12 @@ export function RightPanel() {
       // check, confirmed or suggested, or a symbol with only a pending
       // suggestion would look removable (FR-14, G-9). Distinctly named
       // values from the start, not one reused for multiple purposes.
-      stitchCounts: countConfirmedStitches(chartPlacements),
-      coloredCounts: countConfirmedColoredStitches(chartPlacements),
+      stitchCounts: countConfirmedStitches(looseOnly),
+      coloredCounts: countConfirmedColoredStitches(looseOnly),
       symbolsPlaced: symbolsWithAnyPlacement(chartPlacements),
+      looseSymbolsPlaced: symbolsWithAnyPlacement(looseOnly),
     };
-  }, [quickSymbolIds, addedGlossaryIds, index, revision]);
+  }, [quickSymbolIds, addedGlossaryIds, index, revision, repeats]);
   // Grouped by category (basic, increases, decreases, ...) rather than left
   // flat, so browsing the full library reads as a glossary instead of a wall
   // of stitches. Array.prototype.sort is stable, so search relevance order
@@ -280,6 +291,50 @@ export function RightPanel() {
   }
   const slottedKeys = new Set(quickSymbolIds);
   const remainingGlossary = glossary.filter((entry) => !slottedKeys.has(entry.key));
+  // Motifs not in a quick slot still belong in the glossary, after the
+  // stitches, the same way an unslotted stitch does (FR-64).
+  const remainingMotifs = repeats.filter((motif) => !slottedKeys.has(motifKey(motif.id)));
+  // A stitch used inside a motif can't leave the glossary even with nothing
+  // placed loose on the chart - the motif still draws with it (FR-64).
+  const motifsUsing = new Map<string, string[]>();
+  for (const motif of repeats) {
+    for (const key of new Set(motif.stitches.map((s) => quickSlotKey(s.symbolId, s.colorId)))) {
+      motifsUsing.set(key, [...(motifsUsing.get(key) ?? []), motif.name]);
+    }
+  }
+  const stitchRemoval = (key: string) => {
+    const usedIn = motifsUsing.get(key);
+    if (looseSymbolsPlaced.has(key)) {
+      return { removable: false, removeBlockedReason: "Placed on the chart - erase those stitches first" };
+    }
+    if (symbolsPlaced.has(key)) {
+      return { removable: false, removeBlockedReason: "Used inside motif copies" };
+    }
+    if (usedIn?.length) return { removable: false, removeBlockedReason: `Used in ${usedIn.join(", ")}` };
+    return { removable: true, removeBlockedReason: undefined };
+  };
+  const motifRowProps = (motif: (typeof repeats)[number], key: string) => {
+    const copies = motif.copies ?? [];
+    return {
+      label: motif.name,
+      glyph: <MotifCellGlyph />,
+      armed: armedMotif?.id === motif.id && tool === "stitch",
+      onDisarm: () => setArmedSymbolId(null),
+      disarmButton,
+      count: copies.length,
+      selectAllLabel: `Select all ${copies.length} ${copies.length === 1 ? "copy" : "copies"}`,
+      onSelectAll: () =>
+        setSelection(copies.flatMap((copy) => index.groupMembers(copy.id).map((p) => p.id)), [], true),
+      removable: copies.length === 0,
+      removeBlockedReason: "Has copies on the chart - delete the motif instead",
+      onRemove: () => removeFromGlossary(key),
+      onRename: (name: string) => useDocStore.getState().renameMotif(motif.id, name),
+      menuItems: [
+        { label: "Stamp mirrored", onSelect: () => armMotifPen(motif.id, true) },
+        { label: "Delete motif…", onSelect: () => useUiStore.getState().setMotifDeleteRequest(motif.id) },
+      ],
+    };
+  };
   const slotCount = Math.max(5, quickSymbolIds.length + 1);
 
   // How many distinct stitches Suggest currently has an exemplar for -
@@ -375,6 +430,101 @@ export function RightPanel() {
     }
     centerViewAt100(((minCol + maxCol) / 2) * CELL, ((minRow + maxRow) / 2) * CELL);
   };
+
+  // An open quick slot: the inline search while it's open, else its
+  // "Add stitch" row. The numbered five render in place (position is their
+  // shortcut); the one open slot past them renders once, at the very end of
+  // the list, so the glossary never shows a blank row partway down.
+  const renderOpenSlot = (slot: number) => (
+    searchSlot === slot ? (
+                <div
+                  ref={inlineSearchRef}
+                  key={`search:${slot}`}
+                  className="glossary__inlineSearch"
+                  data-drag-over={dragOverQuickSlot === slot}
+                  {...forEmptySlot(slot, closeGlossarySearch)}
+                >
+                  {slot < 5 ? <kbd className="glossary__shortcut">{slot + 1}</kbd> : <span className="glossary__shortcutSpacer" />}
+                  <SearchIcon />
+                  <input
+                    ref={glossarySearchRef}
+                    type="search"
+                    value={glossaryQuery}
+                    onChange={(event) => setGlossaryQuery(event.target.value)}
+                    onKeyDown={navigateGlossarySearch}
+                    placeholder="Search stitches…"
+                    aria-label="Search stitches to add"
+                    aria-controls="glossary-search-results"
+                    aria-activedescendant={
+                      glossaryResults[activeGlossaryResult]
+                        ? `glossary-search-result-${glossaryResults[activeGlossaryResult]!.id}`
+                        : undefined
+                    }
+                  />
+                  {glossaryResults.length > 0 && searchResultsRect && (() => {
+                    let resultIndex = -1;
+                    return (
+                      <div
+                        id="glossary-search-results"
+                        className="glossarySearch__results"
+                        role="listbox"
+                        style={{
+                          position: "fixed",
+                          left: searchResultsRect.left,
+                          top: searchResultsRect.top,
+                          width: searchResultsRect.width,
+                        }}
+                      >
+                        {glossarySections.map((section) => (
+                          <div key={section.key}>
+                            <div className="glossarySearch__heading">{section.title}</div>
+                            {section.symbols.map((result) => {
+                              resultIndex += 1;
+                              const at = resultIndex;
+                              return (
+                                <button
+                                  id={`glossary-search-result-${result.id}`}
+                                  key={result.id}
+                                  type="button"
+                                  role="option"
+                                  aria-selected={at === activeGlossaryResult}
+                                  data-active={at === activeGlossaryResult}
+                                  onPointerEnter={() => setActiveGlossaryResult(at)}
+                                  onClick={() => chooseSearchResult(result.id)}
+                                >
+                                  <span className="glossarySearch__glyph">
+                                    <SymbolGlyph symbol={result} cell={glyphCellSize(result.span, 48, 18)} />
+                                  </span>
+                                  <span>{result.label}</span>
+                                  <strong>{plainGlossaryIds.has(result.id) ? "Added" : "Add"}</strong>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </div>
+              ) : (
+                <button
+                  key={`empty:${slot}`}
+                  type="button"
+                  className="glossary__item glossary__item--empty"
+                  data-drag-over={dragOverQuickSlot === slot}
+                  {...forEmptySlot(slot)}
+                  onClick={() => searchForQuickStitch(slot)}
+                  title={slot < 5 ? `Choose a stitch for shortcut ${slot + 1}` : "Add another stitch"}
+                >
+                  <span className="glossary__dragHandle glossary__dragHandle--empty" aria-hidden="true">
+                    <DragHandleIcon />
+                  </span>
+                  {slot < 5 ? <kbd className="glossary__shortcut">{slot + 1}</kbd> : <span className="glossary__shortcutSpacer" />}
+                  <span className="glossary__emptyGlyph" aria-hidden="true">+</span>
+                  <span className="glossary__label">Add stitch</span>
+                </button>
+              )
+  );
 
   return (
     <aside className="rightPanel" aria-label="Pattern details" style={{ width: rightPanelWidth }}>
@@ -531,10 +681,48 @@ export function RightPanel() {
                 ? quickSlotInsertEdge(draggingQuickId ? quickSymbolIds.indexOf(draggingQuickId) : -1, slot)
                 : null;
               const rowDrop = key ? forFilledSlot(key, slot) : null;
+              const motifId = key ? motifIdFromKey(key) : null;
+              const motif = motifId ? repeats.find((r) => r.id === motifId) : undefined;
+              const slotMoves = key ? {
+                moveUp: {
+                  disabled: !quickSymbolIds.slice(0, slot).some(Boolean),
+                  onClick: () => useDocStore.getState().moveQuickSlotDirection(key, -1),
+                  title: "Move up (Alt+Up while armed)",
+                },
+                moveDown: {
+                  disabled: !quickSymbolIds.slice(slot + 1).some(Boolean),
+                  onClick: () => useDocStore.getState().moveQuickSlotDirection(key, 1),
+                  title: "Move down (Alt+Down while armed)",
+                },
+              } : null;
+              if (key && motif) {
+                return (
+                  <GlossaryRow
+                    key={key}
+                    {...motifRowProps(motif, key)}
+                    armMode="arm-only"
+                    onArm={() => useUiStore.getState().armMotif(motif.id)}
+                    shortcutSlot={slot < 5 ? slot : undefined}
+                    dragHandleTitle="Drag to reorder"
+                    onDragHandleStart={(event) => {
+                      event.dataTransfer.effectAllowed = "move";
+                      event.dataTransfer.setData("text/plain", key);
+                      startDragging(key);
+                    }}
+                    onDragHandleEnd={resetDragState}
+                    {...slotMoves!}
+                    onRowDragOver={rowDrop!.onDragOver}
+                    onRowDragLeave={rowDrop!.onDragLeave}
+                    onRowDrop={rowDrop!.onDrop}
+                    dragIndicator={{ kind: "insert-edge", edge: insertEdge }}
+                  />
+                );
+              }
               return key && symbol ? (
                 <GlossaryRow
                   key={key}
-                  symbol={symbol}
+                  label={symbol.label}
+                  glyph={<SymbolGlyph symbol={symbol} cell={glyphCellSize(symbol.span, 54, 20)} colorId={parsed?.colorId} />}
                   colorId={parsed?.colorId}
                   // Pure arm: this item is already in a quick slot, so
                   // nothing needs promoting (issue #323's arming
@@ -545,9 +733,10 @@ export function RightPanel() {
                   onDisarm={() => setArmedSymbolId(null)}
                   disarmButton={disarmButton}
                   count={count}
-                  onSelectAll={() => setSelection(selectableGlossaryEntryPlacementIds(placements, key), [], true)}
+                  selectAllLabel={`Select all ${count} placed`}
+                  onSelectAll={() => setSelection(selectableGlossaryEntryPlacementIds(loosePlacements, key), [], true)}
                   onAddColoredVariant={(colorId) => addColoredVariant(symbol.id, colorId)}
-                  removable={!symbolsPlaced.has(key)}
+                  {...stitchRemoval(key)}
                   onRemove={() => removeFromGlossary(key)}
                   shortcutSlot={slot < 5 ? slot : undefined}
                   dragHandleTitle="Drag to reorder"
@@ -579,94 +768,7 @@ export function RightPanel() {
                   onRowDrop={rowDrop!.onDrop}
                   dragIndicator={{ kind: "insert-edge", edge: insertEdge }}
                 />
-              ) : searchSlot === slot ? (
-                <div
-                  ref={inlineSearchRef}
-                  key={`search:${slot}`}
-                  className="glossary__inlineSearch"
-                  data-drag-over={dragOverQuickSlot === slot}
-                  {...forEmptySlot(slot, closeGlossarySearch)}
-                >
-                  {slot < 5 ? <kbd className="glossary__shortcut">{slot + 1}</kbd> : <span className="glossary__shortcutSpacer" />}
-                  <SearchIcon />
-                  <input
-                    ref={glossarySearchRef}
-                    type="search"
-                    value={glossaryQuery}
-                    onChange={(event) => setGlossaryQuery(event.target.value)}
-                    onKeyDown={navigateGlossarySearch}
-                    placeholder="Search stitches…"
-                    aria-label="Search stitches to add"
-                    aria-controls="glossary-search-results"
-                    aria-activedescendant={
-                      glossaryResults[activeGlossaryResult]
-                        ? `glossary-search-result-${glossaryResults[activeGlossaryResult]!.id}`
-                        : undefined
-                    }
-                  />
-                  {glossaryResults.length > 0 && searchResultsRect && (() => {
-                    let resultIndex = -1;
-                    return (
-                      <div
-                        id="glossary-search-results"
-                        className="glossarySearch__results"
-                        role="listbox"
-                        style={{
-                          position: "fixed",
-                          left: searchResultsRect.left,
-                          top: searchResultsRect.top,
-                          width: searchResultsRect.width,
-                        }}
-                      >
-                        {glossarySections.map((section) => (
-                          <div key={section.key}>
-                            <div className="glossarySearch__heading">{section.title}</div>
-                            {section.symbols.map((result) => {
-                              resultIndex += 1;
-                              const at = resultIndex;
-                              return (
-                                <button
-                                  id={`glossary-search-result-${result.id}`}
-                                  key={result.id}
-                                  type="button"
-                                  role="option"
-                                  aria-selected={at === activeGlossaryResult}
-                                  data-active={at === activeGlossaryResult}
-                                  onPointerEnter={() => setActiveGlossaryResult(at)}
-                                  onClick={() => chooseSearchResult(result.id)}
-                                >
-                                  <span className="glossarySearch__glyph">
-                                    <SymbolGlyph symbol={result} cell={glyphCellSize(result.span, 48, 18)} />
-                                  </span>
-                                  <span>{result.label}</span>
-                                  <strong>{plainGlossaryIds.has(result.id) ? "Added" : "Add"}</strong>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })()}
-                </div>
-              ) : (
-                <button
-                  key={`empty:${slot}`}
-                  type="button"
-                  className="glossary__item glossary__item--empty"
-                  data-drag-over={dragOverQuickSlot === slot}
-                  {...forEmptySlot(slot)}
-                  onClick={() => searchForQuickStitch(slot)}
-                  title={slot < 5 ? `Choose a stitch for shortcut ${slot + 1}` : "Add another stitch"}
-                >
-                  <span className="glossary__dragHandle glossary__dragHandle--empty" aria-hidden="true">
-                    <DragHandleIcon />
-                  </span>
-                  {slot < 5 ? <kbd className="glossary__shortcut">{slot + 1}</kbd> : <span className="glossary__shortcutSpacer" />}
-                  <span className="glossary__emptyGlyph" aria-hidden="true">+</span>
-                  <span className="glossary__label">Add stitch</span>
-                </button>
-              );
+              ) : slot < 5 ? renderOpenSlot(slot) : null;
             })}
             {remainingGlossary.map((entry, overflowIndex) => {
               const { symbol, colorId, key } = entry;
@@ -676,7 +778,8 @@ export function RightPanel() {
               return (
                 <GlossaryRow
                   key={key}
-                  symbol={symbol}
+                  label={symbol.label}
+                  glyph={<SymbolGlyph symbol={symbol} cell={glyphCellSize(symbol.span, 54, 20)} colorId={colorId} />}
                   colorId={colorId}
                   // Arm-and-promote: this item isn't in a quick slot yet, so
                   // choosing it also assigns one (issue #323's arming
@@ -687,9 +790,10 @@ export function RightPanel() {
                   onDisarm={() => setArmedSymbolId(null)}
                   disarmButton={disarmButton}
                   count={count}
-                  onSelectAll={() => setSelection(selectableGlossaryEntryPlacementIds(placements, key), [], true)}
+                  selectAllLabel={`Select all ${count} placed`}
+                  onSelectAll={() => setSelection(selectableGlossaryEntryPlacementIds(loosePlacements, key), [], true)}
                   onAddColoredVariant={(newColorId) => addColoredVariant(symbol.id, newColorId)}
-                  removable={!symbolsPlaced.has(key)}
+                  {...stitchRemoval(key)}
                   onRemove={() => removeFromGlossary(key)}
                   // Overflow rows have no numbered shortcut - always the spacer.
                   dragHandleTitle="Drag to reorder, or onto a numbered slot above to pin it there"
@@ -741,6 +845,34 @@ export function RightPanel() {
                 />
               );
             })}
+            {remainingMotifs.map((motif) => {
+              const key = motifKey(motif.id);
+              return (
+                <GlossaryRow
+                  key={key}
+                  {...motifRowProps(motif, key)}
+                  // Not in a quick slot and never placed: removing it from
+                  // the glossary is deleting it (undoable).
+                  onRemove={() => useDocStore.getState().deleteMotif(motif.id, "detach")}
+                  armMode="arm-and-promote"
+                  onArm={() => armMotifPen(motif.id)}
+                  dragHandleTitle="Drag onto a numbered slot above to pin it there"
+                  onDragHandleStart={(event) => {
+                    event.dataTransfer.effectAllowed = "move";
+                    event.dataTransfer.setData("text/plain", key);
+                    startDragging(key);
+                  }}
+                  onDragHandleEnd={resetDragState}
+                  onRowDragOver={() => {}}
+                  onRowDragLeave={() => {}}
+                  onRowDrop={(event) => event.preventDefault()}
+                  moveUp={{ disabled: true, onClick: () => {}, title: "Move up" }}
+                  moveDown={{ disabled: true, onClick: () => {}, title: "Move down" }}
+                  dragIndicator={{ kind: "drag-over", active: false }}
+                />
+              );
+            })}
+            {slotCount > 5 && renderOpenSlot(slotCount - 1)}
           </div>
         </div>
       </section>
@@ -817,7 +949,7 @@ export function RightPanel() {
                     if (!meta) return;
                     setExportError(null);
                     setExportBusy(format);
-                    exportChartImage(meta.name, index.toArray(), format)
+                    exportChartImage(meta.name, index.toArray(), format, repeats)
                       .catch((error: unknown) =>
                         setExportError(error instanceof Error ? error.message : "Could not export the image"),
                       )
@@ -857,7 +989,7 @@ export function RightPanel() {
               <dt><kbd>Shift click</kbd></dt><dd>Add or remove from selection</dd>
               <dt><kbd>⌘/Ctrl C</kbd> <kbd>X</kbd> <kbd>V</kbd></dt><dd>Copy or cut selection · paste at hovered cell</dd>
               <dt><kbd>⌘/Ctrl D</kbd></dt><dd>Duplicate selection</dd>
-              <dt><kbd>⌘/Ctrl G</kbd></dt><dd>Create repeat</dd>
+              <dt><kbd>⌘/Ctrl G</kbd></dt><dd>Make motif</dd>
               <dt><kbd>⌘/Ctrl Z</kbd></dt><dd>Undo</dd>
               <dt><kbd>Shift ⌘/Ctrl Z</kbd></dt><dd>Redo</dd>
               <dt><kbd>Delete</kbd></dt><dd>Erase selection</dd>

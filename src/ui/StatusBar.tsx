@@ -10,6 +10,8 @@ export function StatusBar() {
   const panEnabled = useUiStore((s) => s.panEnabled);
   const selectHeld = useUiStore((s) => s.selectHeld);
   const selectedCount = useUiStore((s) => s.selectedPlacementIds.length);
+  const motifArmed = useUiStore((s) => !!s.armedMotif && s.tool === "stitch");
+  const motifNotice = useUiStore((s) => s.motifNotice);
   const index = useDocStore((s) => s.index);
   const revision = useDocStore((s) => s.revision);
   const stitch = hover ? roundStitchNumberAt(index, hover.col, hover.row, revision) : null;
@@ -26,8 +28,12 @@ export function StatusBar() {
       </span>
       <span className="statusbar__spacer" />
       <span className="statusbar__hint">
-        {panEnabled
+        {motifNotice
+          ? motifNotice
+          : panEnabled
           ? "Drag anywhere to pan"
+          : motifArmed
+          ? "Click to stamp · drag to fill · X to mirror · Esc to stop"
           : tool === "select" || selectHeld
             ? selectedCount
               ? `${selectedCount} selected · Shift-click to add or remove · Delete to clear`

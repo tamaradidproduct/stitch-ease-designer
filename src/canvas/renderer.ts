@@ -3,7 +3,9 @@ import { canInsertAt } from "../model/ops";
 import { rowDirectionAt } from "../model/rowDirection";
 import { chartTopology, knittedRowNumbers, roundStitchNumbers } from "../model/stitchNumbers";
 import { calibratedImageBounds } from "../model/referenceCalibration";
-import { CORNERS, cornerPoint, stitchBoxRect, type CalibrationMark, type ReferenceImage } from "../model/types";
+import { CORNERS, cornerPoint, stitchBoxRect, type CalibrationMark, type ReferenceImage, type RepeatDefinition } from "../model/types";
+import { drawCopyFrames, drawMotifOverlay } from "./motifOverlay";
+import { changedBaseCells } from "../model/cableComposition";
 import { getSymbol } from "../symbols/registry";
 import { getSwatch, glyphInkFor } from "../model/colorPalette";
 import {
@@ -65,6 +67,11 @@ export type RenderState = {
   stitchHighlightOpacity: number;
   selectionBox: SelectionBox | null;
   selectionMove: SelectionMove | null;
+  /** Motifs and their linked copies - for copy outlines and the stamp ghost (FR-64). Absent in image export. */
+  repeats?: readonly RepeatDefinition[];
+  /** See uiStore's `armedMotif` / `motifFill`. */
+  armedMotif: { id: string; mirrored: boolean } | null;
+  motifFill: { start: Cell; end: Cell } | null;
   /**
    * True for a static, non-interactive render (image export) - suppresses
    * the ruler band, which otherwise always paints its background/border
@@ -247,12 +254,40 @@ function drawPlacements(ctx: CanvasRenderingContext2D, state: RenderState): void
       }
     }
 
+    // FR-65: a cable cell changed from what the cable implies shows the
+    // actual stitch it was changed to, full size, the same as any placed
+    // stitch - drawn under the cable's own glyph, which still reads on top.
+    const changedCells = p.base ? changedBaseCells(p) : [];
+    const ink = glyphInkFor(p.colorId, theme.symbol);
+    for (const offset of changedCells) {
+      const baseSymbol = getSymbol(p.base![offset]!);
+      const sprite = baseSymbol && sprites.get(baseSymbol, size, ink);
+      if (sprite) ctx.drawImage(sprite, r.x + offset * size, r.y, size, size);
+    }
+
     // knit and empty are pure cell chrome in the library, so they have no
     // glyph to draw — the bordered cell above is the whole symbol.
     if (symbol) {
-      const ink = glyphInkFor(p.colorId, theme.symbol);
       const sprite = sprites.get(symbol, size, ink);
       if (sprite) ctx.drawImage(sprite, r.x, r.y, width, size);
+    }
+
+    // Like a motif copy's overrides, the changed cells are only flagged
+    // while this cable is selected or one of its cells is being edited.
+    if (
+      changedCells.length &&
+      size >= 8 &&
+      (state.selectedPlacementIds.includes(p.id) || state.pickerTarget?.baseCell?.placementId === p.id)
+    ) {
+      ctx.save();
+      ctx.fillStyle = "#f59e0b";
+      const radius = Math.max(2, Math.min(4, size * 0.12));
+      for (const offset of changedCells) {
+        ctx.beginPath();
+        ctx.arc(r.x + (offset + 1) * size - radius - 2, r.y + radius + 2, radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
     }
 
     if (p.suggested) {
@@ -516,6 +551,8 @@ export function pickerTargetFootprint(
   target: PickerTarget,
 ): { col: number; row: number; span: number } {
   const placement = index.placementAt(target.col, target.row);
+  // A cable's base cell (FR-65) is one stitch, not the whole cable.
+  if (target.baseCell) return { col: target.col, row: target.row, span: 1 };
   return placement
     ? { col: placement.col, row: placement.row, span: index.spanOf(placement) }
     : { col: target.col, row: target.row, span: 1 };
@@ -851,6 +888,8 @@ function drawHover(ctx: CanvasRenderingContext2D, state: RenderState): void {
   }
 
   if (!hover) return;
+  // The armed motif's own ghost (motifOverlay.ts) is the hover preview.
+  if (state.armedMotif) return;
   if (state.pickerTarget && !state.pickerTarget.insert) {
     const active = pickerTargetFootprint(index, state.pickerTarget);
     if (
@@ -973,11 +1012,17 @@ export function render(ctx: CanvasRenderingContext2D, state: RenderState): void 
   for (const image of state.referenceImages) {
     if (image.inFront && !forceBehind) drawReferenceImage(ctx, image, state.referenceImageCache, state.camera, vp);
   }
+  if (state.repeats?.length) {
+    drawCopyFrames(ctx, { ...state, repeats: state.repeats }, !!state.staticExport);
+  }
   drawGroupNumbering(ctx, state);
   drawInsertAnimation(ctx, state);
   drawSelection(ctx, state);
   drawSelectionBox(ctx, state);
   drawHover(ctx, state);
+  if (!state.staticExport && !state.referenceImagePanelOpen && state.repeats?.length) {
+    drawMotifOverlay(ctx, { ...state, repeats: state.repeats });
+  }
   drawPickerTarget(ctx, state);
   drawUnrecognizedCells(ctx, state);
   drawReferenceImageOverlay(ctx, state);

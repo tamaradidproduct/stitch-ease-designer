@@ -35,6 +35,8 @@ export const RENDER_UI_FIELDS = [
   "referenceImageActiveMark",
   "referenceImageMarking",
   "referenceImageUnrecognized",
+  "armedMotif",
+  "motifFill",
 ] as const satisfies readonly (keyof UiState)[];
 
 export type RenderUiState = Pick<UiState, (typeof RENDER_UI_FIELDS)[number]>;
@@ -52,6 +54,7 @@ type RenderStateUiKeys = Exclude<
   | "revision"
   | "sprites"
   | "referenceImages"
+  | "repeats"
   | "referenceImageCache"
   | "referenceImageMarks"
   | "pickerTarget"

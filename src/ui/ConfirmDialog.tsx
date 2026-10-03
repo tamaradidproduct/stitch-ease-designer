@@ -6,6 +6,8 @@ export type ConfirmDialogProps = {
   confirmLabel?: string;
   cancelLabel?: string;
   danger?: boolean;
+  /** Further choices shown between Cancel and the confirm button (e.g. "Detach copies"). */
+  extraActions?: { label: string; onClick: () => void }[];
   onConfirm: () => void;
   onCancel: () => void;
 };
@@ -21,6 +23,7 @@ export function ConfirmDialog({
   confirmLabel = "Delete",
   cancelLabel = "Cancel",
   danger = true,
+  extraActions = [],
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
@@ -82,6 +85,11 @@ export function ConfirmDialog({
           <button type="button" className="btn btn--quiet" onClick={onCancel}>
             {cancelLabel}
           </button>
+          {extraActions.map((action) => (
+            <button key={action.label} type="button" className="btn" onClick={action.onClick}>
+              {action.label}
+            </button>
+          ))}
           <button
             ref={confirmRef}
             type="button"

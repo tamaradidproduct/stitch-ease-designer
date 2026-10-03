@@ -96,6 +96,25 @@ export function removeQuickSlot(slots: readonly string[], key: string): string[]
   return slots.map((slot, index) => (index === at ? "" : slot));
 }
 
+/** How many quick slots have a number-key shortcut (1-5). */
+export const NUMBERED_QUICK_SLOTS = 5;
+
+/**
+ * Holes are only meaningful in the numbered slots, where position is the
+ * keyboard shortcut. Past them the list is an ordinary glossary list: an
+ * emptied entry is dropped and the ones after it move up, instead of
+ * leaving a blank "Add stitch" row behind. `isLive` lets a caller also drop
+ * keys that no longer point at anything (a deleted motif).
+ */
+export function compactOverflowSlots(
+  slots: readonly string[],
+  isLive: (key: string) => boolean = () => true,
+): string[] {
+  const numbered = slots.slice(0, NUMBERED_QUICK_SLOTS);
+  const overflow = slots.slice(NUMBERED_QUICK_SLOTS).filter((key) => key && isLive(key));
+  return [...numbered, ...overflow];
+}
+
 /** Renames a slot's key in place (used by the DNT-12 rename-vs-mint path), preserving its position. */
 function renameQuickSlot(slots: readonly string[], oldKey: string, newKey: string): string[] {
   const at = slots.indexOf(oldKey);

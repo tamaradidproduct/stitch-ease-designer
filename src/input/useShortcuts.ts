@@ -3,6 +3,8 @@ import { CELL, cellToScreenRect } from "../canvas/camera";
 import type { Placement } from "../model/types";
 import { patchCalibrationMark } from "../model/referenceCalibration";
 import { parseQuickSlotId, quickSlotKey } from "../model/quickSlots";
+import { motifIdFromKey } from "../model/motifs";
+import { eraseKeepingMotifStitches } from "../ui/motifActions";
 import { registerListeners } from "./registerListeners";
 import { useDocStore } from "../state/docStore";
 import { redoLatest, undoLatest } from "../state/editorHistory";
@@ -85,8 +87,13 @@ export function useShortcuts(): void {
         const key = useDocStore.getState().quickSymbolIds[Number(e.key) - 1];
         if (key) {
           e.preventDefault();
-          const { symbolId, colorId } = parseQuickSlotId(key);
-          ui.chooseSymbol(symbolId, undefined, undefined, colorId);
+          const motifId = motifIdFromKey(key);
+          if (motifId) {
+            ui.armMotif(motifId);
+          } else {
+            const { symbolId, colorId } = parseQuickSlotId(key);
+            ui.chooseSymbol(symbolId, undefined, undefined, colorId);
+          }
         }
         return;
       }
@@ -147,7 +154,9 @@ export function useShortcuts(): void {
         e.preventDefault();
         ui.setClipboardPlacements(selectedPlacementsSnapshot());
         if (ui.selectedPlacementIds.length) {
-          doc.erasePlacements(ui.selectedPlacementIds);
+          // Cut copies everything, but - like Delete - never silently
+          // removes stitches from motif copies it only partly covers.
+          eraseKeepingMotifStitches(ui.selectedPlacementIds);
           ui.clearSelection();
         }
         return;
@@ -172,8 +181,11 @@ export function useShortcuts(): void {
             placement.colorId,
           );
         }
+        // place() drops grouping; give the pasted stitches their sources'
+        // grouping back, linking a pasted whole motif copy as a new copy.
+        doc.linkPastedPlacements(ui.clipboardPlacements, deltaCol, deltaRow);
         doc.endStroke();
-        const ids = doc.index.toArray().filter((placement) => !before.has(placement.id)).map((p) => p.id);
+        const ids = useDocStore.getState().index.toArray().filter((placement) => !before.has(placement.id)).map((p) => p.id);
         if (ids.length) ui.setSelectedPlacementIds(ids, false);
         return;
       }
@@ -204,6 +216,8 @@ export function useShortcuts(): void {
         if (ui.picker || ui.selectedPlacementIds.length || ui.selectedEmptyCells.length) {
           if (ui.picker) ui.closePicker();
           if (ui.selectedPlacementIds.length || ui.selectedEmptyCells.length) ui.clearSelectionWithUndo();
+        } else if (ui.armedMotif) {
+          ui.armMotif(null);
         } else {
           ui.setArmedSymbolId(null);
         }
@@ -211,9 +225,15 @@ export function useShortcuts(): void {
         return;
       }
 
+      if (e.key.toLowerCase() === "x" && !e.metaKey && !e.ctrlKey && !e.altKey && ui.armedMotif) {
+        e.preventDefault();
+        ui.toggleArmedMotifMirror();
+        return;
+      }
+
       if ((e.key === "Backspace" || e.key === "Delete") && ui.selectedPlacementIds.length) {
         e.preventDefault();
-        doc.erasePlacements(ui.selectedPlacementIds);
+        eraseKeepingMotifStitches(ui.selectedPlacementIds);
         ui.clearSelection();
         return;
       }
