@@ -386,7 +386,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
     ? `${getSymbol(cellStitch ?? "")?.label ?? "Stitch"} in ${getSymbol(basePlacement?.symbolId ?? "")?.label ?? "this cable"} (stitch ${
       // Numbered in knitting order, matching the ruler, not left to right.
       rowDirectionAt(target.row) === "rtl"
-        ? index.spanOf(basePlacement!) - baseCell.offset
+        ? (basePlacement ? index.spanOf(basePlacement) : 0) - baseCell.offset
         : baseCell.offset + 1
     })`
     : target.armOnly
@@ -613,7 +613,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
               <QuickTile
                 key={entry.key}
                 entry={entry}
-                active={baseCell ? entry.key === cellStitch : currentSlot?.key === entry.key}
+                active={baseCell ? entry.symbol.id === cellStitch : currentSlot?.key === entry.key}
                 onChoose={choose}
                 onRecolor={(colorId) => {
                   if (currentSlot) applyColorToSlot(currentSlot, colorId);

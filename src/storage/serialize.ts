@@ -289,6 +289,7 @@ function validateBases(chart: Partial<StoredChart>): void {
         entry.length !== 4 ||
         !entry.every(isInteger) ||
         entry[2]! < 0 ||
+        entry[2]! >= 32 ||
         entry[3]! < 0 ||
         entry[3]! >= (chart.palette?.length ?? 0),
     )
