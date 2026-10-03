@@ -1191,10 +1191,14 @@ and start unset.
   cross. Choosing what the cable already implies is no change.
 - Stored only where it differs: `Placement.base?: (string | null)[]`, saved
   sparsely as `bases: [col, row, offset, paletteIndex][]`.
-- **Not drawn over the cable** (it would collide with the cable's own
-  knit/purl marks). A changed cell gets a small corner mark; the picker
-  names the cell's stitch ("Purl in 2/2 purl cable, left (stitch 2)") and
+- A changed cell **shows the actual stitch**, full size, like any placed
+  stitch (drawn under the cable's own glyph). Like a motif copy's
+  overrides, changed cells get an orange dot only while the cable is
+  selected or one of its cells is being edited. The picker names the cell's
+  stitch ("Purl in 2/2 purl cable, left (stitch 2)"), highlights it, and
   its delete resets the cell.
+- Cell values from earlier builds that aren't knit/purl-family, or that just
+  repeat the implied stitch, are dropped when a chart opens.
 - Double-click / Cmd-click on a cable cell goes straight to that cell, in or
   out of a motif copy, highlighting only that cell.
 - Motifs carry changed cells through create/stamp/push; mirroring reverses

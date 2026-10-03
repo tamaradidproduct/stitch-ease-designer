@@ -254,38 +254,40 @@ function drawPlacements(ctx: CanvasRenderingContext2D, state: RenderState): void
       }
     }
 
-    // FR-65: a cable cell changed from what the cable implies is tinted
-    // under the cable, and after the cable's own glyph (below) shows the
-    // stitch it was changed to as a small badge in that cell's corner - the
-    // stitch can't be drawn into the cable's one-piece picture itself.
+    // FR-65: a cable cell changed from what the cable implies shows the
+    // actual stitch it was changed to, full size, the same as any placed
+    // stitch - drawn under the cable's own glyph, which still reads on top.
     const changedCells = p.base ? changedBaseCells(p) : [];
-    if (changedCells.length) {
-      ctx.fillStyle = "rgba(245, 158, 11, 0.16)";
-      for (const offset of changedCells) ctx.fillRect(r.x + offset * size, r.y, size, size);
+    const ink = glyphInkFor(p.colorId, theme.symbol);
+    for (const offset of changedCells) {
+      const baseSymbol = getSymbol(p.base![offset]!);
+      const sprite = baseSymbol && sprites.get(baseSymbol, size, ink);
+      if (sprite) ctx.drawImage(sprite, r.x + offset * size, r.y, size, size);
     }
 
     // knit and empty are pure cell chrome in the library, so they have no
     // glyph to draw — the bordered cell above is the whole symbol.
     if (symbol) {
-      const ink = glyphInkFor(p.colorId, theme.symbol);
       const sprite = sprites.get(symbol, size, ink);
       if (sprite) ctx.drawImage(sprite, r.x, r.y, width, size);
     }
 
-    if (changedCells.length && size >= 10) {
-      const badge = Math.round(size * 0.48);
+    // Like a motif copy's overrides, the changed cells are only flagged
+    // while this cable is selected or one of its cells is being edited.
+    if (
+      changedCells.length &&
+      size >= 8 &&
+      (state.selectedPlacementIds.includes(p.id) || state.pickerTarget?.baseCell?.placementId === p.id)
+    ) {
+      ctx.save();
+      ctx.fillStyle = "#f59e0b";
+      const radius = Math.max(2, Math.min(4, size * 0.12));
       for (const offset of changedCells) {
-        const baseSymbol = getSymbol(p.base![offset]!);
-        const x = r.x + (offset + 1) * size - badge - 1;
-        const y = r.y + size - badge - 1;
-        ctx.fillStyle = theme.cellFill;
-        ctx.strokeStyle = "#f59e0b";
-        ctx.lineWidth = 1;
-        ctx.fillRect(x, y, badge, badge);
-        ctx.strokeRect(x + 0.5, y + 0.5, badge - 1, badge - 1);
-        const sprite = baseSymbol && sprites.get(baseSymbol, badge, theme.symbol);
-        if (sprite) ctx.drawImage(sprite, x, y, badge, badge);
+        ctx.beginPath();
+        ctx.arc(r.x + (offset + 1) * size - radius - 2, r.y + radius + 2, radius, 0, Math.PI * 2);
+        ctx.fill();
       }
+      ctx.restore();
     }
 
     if (p.suggested) {
