@@ -34,7 +34,7 @@ import {
   rematerialize,
   type WorldStitch,
 } from "../model/motifs";
-import { defaultBase, isBaseStitch } from "../model/cableComposition";
+import { defaultBase, isBaseStitch, normalizeBase } from "../model/cableComposition";
 import type { LoadedChart } from "../storage/ChartStore";
 import { nextHistorySequence } from "./historySequence";
 import { useUiStore } from "./uiStore";
@@ -1447,7 +1447,7 @@ export const useDocStore = create<DocState>((set, get) => {
       const revision = get().revision + 1;
       set({
         ...blank(),
-        index: DocIndex.from(placements),
+        index: DocIndex.from(placements.map(normalizeBase)),
         revision,
         // Freshly loaded is by definition saved, so autosave doesn't
         // immediately rewrite what it just read.

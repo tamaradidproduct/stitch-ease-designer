@@ -613,7 +613,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
               <QuickTile
                 key={entry.key}
                 entry={entry}
-                active={currentSlot?.key === entry.key}
+                active={baseCell ? entry.key === cellStitch : currentSlot?.key === entry.key}
                 onChoose={choose}
                 onRecolor={(colorId) => {
                   if (currentSlot) applyColorToSlot(currentSlot, colorId);

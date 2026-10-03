@@ -254,6 +254,16 @@ function drawPlacements(ctx: CanvasRenderingContext2D, state: RenderState): void
       }
     }
 
+    // FR-65: a cable cell changed from what the cable implies is tinted
+    // under the cable, and after the cable's own glyph (below) shows the
+    // stitch it was changed to as a small badge in that cell's corner - the
+    // stitch can't be drawn into the cable's one-piece picture itself.
+    const changedCells = p.base ? changedBaseCells(p) : [];
+    if (changedCells.length) {
+      ctx.fillStyle = "rgba(245, 158, 11, 0.16)";
+      for (const offset of changedCells) ctx.fillRect(r.x + offset * size, r.y, size, size);
+    }
+
     // knit and empty are pure cell chrome in the library, so they have no
     // glyph to draw — the bordered cell above is the whole symbol.
     if (symbol) {
@@ -262,23 +272,20 @@ function drawPlacements(ctx: CanvasRenderingContext2D, state: RenderState): void
       if (sprite) ctx.drawImage(sprite, r.x, r.y, width, size);
     }
 
-    // FR-65: a cable cell the designer changed from what the cable implies
-    // gets a small corner mark - the stitch itself isn't drawn over the
-    // cable's own picture, which already shows its knits and purls.
-    if (p.base && size >= 8) {
-      ctx.save();
-      ctx.fillStyle = "#f59e0b";
-      const mark = Math.max(4, Math.min(7, size * 0.22));
-      for (const offset of changedBaseCells(p)) {
-        const x = r.x + offset * size;
-        ctx.beginPath();
-        ctx.moveTo(x + 1, r.y + 1);
-        ctx.lineTo(x + 1 + mark, r.y + 1);
-        ctx.lineTo(x + 1, r.y + 1 + mark);
-        ctx.closePath();
-        ctx.fill();
+    if (changedCells.length && size >= 10) {
+      const badge = Math.round(size * 0.48);
+      for (const offset of changedCells) {
+        const baseSymbol = getSymbol(p.base![offset]!);
+        const x = r.x + (offset + 1) * size - badge - 1;
+        const y = r.y + size - badge - 1;
+        ctx.fillStyle = theme.cellFill;
+        ctx.strokeStyle = "#f59e0b";
+        ctx.lineWidth = 1;
+        ctx.fillRect(x, y, badge, badge);
+        ctx.strokeRect(x + 0.5, y + 0.5, badge - 1, badge - 1);
+        const sprite = baseSymbol && sprites.get(baseSymbol, badge, theme.symbol);
+        if (sprite) ctx.drawImage(sprite, x, y, badge, badge);
       }
-      ctx.restore();
     }
 
     if (p.suggested) {

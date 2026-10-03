@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { changedBaseCells, defaultBase, effectiveBase, isBaseStitch } from "./cableComposition";
+import { changedBaseCells, defaultBase, effectiveBase, isBaseStitch, normalizeBase } from "./cableComposition";
 
 describe("defaultBase", () => {
   it("reads a cable's stitches from its name, left to right", () => {
@@ -25,5 +25,13 @@ describe("effectiveBase / changedBaseCells", () => {
     const cable = { symbolId: "2_2_left_purl_cable", base: [null, "ktbl", "purl", null] };
     expect(effectiveBase(cable)).toEqual(["knit", "ktbl", "purl", "purl"]);
     expect(changedBaseCells(cable)).toEqual([1]);
+  });
+});
+
+describe("normalizeBase", () => {
+  it("drops leftover entries that aren't knit/purl-family or repeat the implied stitch", () => {
+    const cable = { symbolId: "2_2_left_purl_cable", base: ["k2tog", "ktbl", "purl", "skpo"] };
+    expect(normalizeBase(cable).base).toEqual([null, "ktbl", null, null]);
+    expect(normalizeBase({ symbolId: "2_2_left_purl_cable", base: [null, null, "purl", null] }).base).toBeUndefined();
   });
 });
