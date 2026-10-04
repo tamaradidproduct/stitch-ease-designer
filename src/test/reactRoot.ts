@@ -1,6 +1,7 @@
 import { act, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach } from "vitest";
+import { DocIndex } from "../model/docIndex";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
 
@@ -23,7 +24,10 @@ export function setupReactRoot() {
   let root: Root | undefined;
 
   beforeEach(() => {
-    useDocStore.setState(initialDocState, true);
+    useDocStore.setState({
+      ...initialDocState,
+      index: DocIndex.from([]),
+    }, true);
     useUiStore.setState(initialUiState, true);
     container = document.createElement("div");
     document.body.appendChild(container);
