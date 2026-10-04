@@ -36,17 +36,17 @@ export function setupReactRoot() {
 
   afterEach(() => {
     if (root) {
-      act(() => root.unmount());
+      act(() => root!.unmount());
     }
     container?.remove();
   });
 
   return {
     get container() {
-      return container;
+      return container!;
     },
     render(element: ReactElement) {
-      act(() => root.render(element));
+      act(() => root!.render(element));
     },
   };
 }
