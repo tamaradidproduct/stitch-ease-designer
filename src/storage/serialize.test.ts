@@ -181,37 +181,32 @@ describe("referenceImages", () => {
     locked: false,
   };
 
-  it("round-trips unchanged", () => {
-    const stored = encode([place("knit", 0, 0)], [], [image]);
-    expect(stored.referenceImages).toEqual([image]);
-    const decoded = decode(stored, known);
-    expect(decoded.referenceImages).toEqual([image]);
+  it("encodes an image exactly as given", () => {
+    expect(encode([place("knit", 0, 0)], [], [image]).referenceImages).toEqual([image]);
   });
 
-  it("round-trips several images, each independently", () => {
-    const second: ReferenceImage = { ...image, id: "image-2", ref: "user-1/chart-1/image-2.png", inFront: true };
-    const stored = encode([place("knit", 0, 0)], [], [image, second]);
-    expect(decode(stored, known).referenceImages).toEqual([image, second]);
-  });
-
-  it("round-trips the calibrated stitch pin, so alignment survives a reload", () => {
-    const calibrated = { ...image, stitchPin: { u: 0.25, v: 0.5 } };
-    const stored = encode([place("knit", 0, 0)], [], [calibrated]);
-    expect(decode(stored, known).referenceImages).toEqual([calibrated]);
-  });
-
-  it("round-trips calibration marks, so placing four survives a reload", () => {
+  it.each<[string, ReferenceImage[]]>([
+    ["a single image", [image]],
+    ["several images, each independently", [image, { ...image, id: "image-2", ref: "user-1/chart-1/image-2.png", inFront: true }]],
+    // So alignment survives a reload.
+    ["the calibrated stitch pin", [{ ...image, stitchPin: { u: 0.25, v: 0.5 } }]],
     // The bug this guards: marks lived in memory only, so a refresh threw
     // away the part of the work that takes the longest.
-    const marked = {
-      ...image,
-      calibrationMarks: [
-        { id: "m1", u: 0.1, v: 0.1, w: 0.02, h: 0.03, stitch: 36, row: 2 },
-        { id: "m2", u: 0.4, v: 0.1, w: 0.02, h: 0.03, stitch: 30, row: null },
+    [
+      "calibration marks",
+      [
+        {
+          ...image,
+          calibrationMarks: [
+            { id: "m1", u: 0.1, v: 0.1, w: 0.02, h: 0.03, stitch: 36, row: 2 },
+            { id: "m2", u: 0.4, v: 0.1, w: 0.02, h: 0.03, stitch: 30, row: null },
+          ],
+        },
       ],
-    };
-    const stored = encode([place("knit", 0, 0)], [], [marked]);
-    expect(decode(stored, known).referenceImages).toEqual([marked]);
+    ],
+  ])("round-trips %s", (_label, images) => {
+    const stored = encode([place("knit", 0, 0)], [], images);
+    expect(decode(stored, known).referenceImages).toEqual(images);
   });
 
   it("is omitted entirely when there aren't any, not stored as an empty array", () => {
@@ -447,12 +442,13 @@ describe("glossaryIds/quickSymbolIds absent-vs-empty (storage §3)", () => {
 });
 
 describe("pattern info (worked/firstRow/firstStitch/colorNames)", () => {
-  it("an unset chart encodes without any of the four keys", () => {
+  it("an unset chart encodes without any of the four keys, and decodes to an empty object, never undefined", () => {
     const stored = encode([place("knit", 0, 0)]);
     expect(stored.worked).toBeUndefined();
     expect(stored.firstRow).toBeUndefined();
     expect(stored.firstStitch).toBeUndefined();
     expect(stored.colorNames).toBeUndefined();
+    expect(decode(stored, known).patternInfo).toEqual({});
   });
 
   it("round-trips worked/firstRow/firstStitch/colorNames through encode/decode", () => {
@@ -470,10 +466,6 @@ describe("pattern info (worked/firstRow/firstStitch/colorNames)", () => {
 
     const decoded = decode(stored, known);
     expect(decoded.patternInfo).toEqual(patternInfo);
-  });
-
-  it("decode returns an empty patternInfo object, never undefined, when nothing was ever set", () => {
-    expect(decode(encode([place("knit", 0, 0)]), known).patternInfo).toEqual({});
   });
 
   it("rejects an invalid worked, firstRow, firstStitch, or colorNames", () => {

@@ -280,9 +280,14 @@ describe("modeFor", () => {
     expect(modeFor(dismissHeld, null, "suggest", confirmed, false)).toBeNull();
   });
 
-  it("follows the sticky default while Suggest is armed and nothing is held live", () => {
+  // Which action wins between live modifiers and the sticky default is
+  // resolveSuggestAction's job (tested above); these check modeFor wires
+  // that result to the right mode.
+  it("follows the sticky default while Suggest is armed, unless a modifier is held live", () => {
     expect(modeFor(noMods, SUGGEST_SYMBOL_ID, "confirm", suggested, false)).toEqual({ kind: "confirm" });
     expect(modeFor(noMods, SUGGEST_SYMBOL_ID, "dismiss", suggested, false)).toEqual({ kind: "erase" });
+    // Sticky Dismiss, but Cmd is physically held right now: acts as Confirm.
+    expect(modeFor(cmdHeld, SUGGEST_SYMBOL_ID, "dismiss", suggested, false)).toEqual({ kind: "confirm" });
   });
 
   it("never starts a fresh Suggest match under a sticky Confirm/Dismiss default (Gotcha G-3)", () => {
@@ -301,11 +306,6 @@ describe("modeFor", () => {
       symbolId: "purl",
       colorId: null,
     });
-  });
-
-  it("lets a literally held modifier override the sticky default live, for the duration held", () => {
-    // Sticky Dismiss, but Cmd is physically held right now: acts as Confirm.
-    expect(modeFor(cmdHeld, SUGGEST_SYMBOL_ID, "dismiss", suggested, false)).toEqual({ kind: "confirm" });
   });
 
   it("is a hard no-op when both chords are somehow held at once, even over an eligible target (revised FR-4)", () => {

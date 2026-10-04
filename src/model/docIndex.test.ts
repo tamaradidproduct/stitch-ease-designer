@@ -37,3 +37,15 @@ describe("DocIndex.groupMembers", () => {
     expect(index.groupMembers("g1")).toEqual([]);
   });
 });
+
+describe("DocIndex.from", () => {
+  it("rebuilds occupancy from a plain placement list", () => {
+    const index = DocIndex.from([
+      { id: "a", symbolId: "3_3_left_cable", col: 0, row: 0 }, // 6 cells
+      stitch("b", 20, 3),
+    ]);
+    expect(index.size).toBe(2);
+    expect(index.occupancy.size).toBe(7); // 6 cable cells + 1 knit
+    expect(index.placementAt(5, 0)!.id).toBe("a");
+  });
+});

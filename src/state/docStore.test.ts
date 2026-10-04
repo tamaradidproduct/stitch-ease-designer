@@ -527,6 +527,8 @@ describe("reference images", () => {
 // this just confirms the store action actually calls it and commits the
 // result, the same way moveQuickSlotTo's own wiring works.
 describe("moveQuickSlotDirection (#326)", () => {
+  // The reorder logic itself is moveQuickSlot's (see quickSlots.test.ts);
+  // these only check the store action delegates to it.
   beforeEach(() => {
     useDocStore.setState({ quickSymbolIds: ["knit", "purl", "yo"] });
   });
@@ -534,11 +536,8 @@ describe("moveQuickSlotDirection (#326)", () => {
   it("swaps a slot with its neighbour in the given direction", () => {
     useDocStore.getState().moveQuickSlotDirection("purl", -1);
     expect(useDocStore.getState().quickSymbolIds).toEqual(["purl", "knit", "yo"]);
-  });
-
-  it("moves toward the end of the row with direction 1", () => {
     useDocStore.getState().moveQuickSlotDirection("purl", 1);
-    expect(useDocStore.getState().quickSymbolIds).toEqual(["knit", "yo", "purl"]);
+    expect(useDocStore.getState().quickSymbolIds).toEqual(["knit", "purl", "yo"]);
   });
 
   it("does not move a slot before the first position", () => {

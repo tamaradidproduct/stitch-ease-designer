@@ -1,73 +1,50 @@
 // @vitest-environment jsdom
 import { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { DocIndex } from "../model/docIndex";
 import { getSymbol } from "../symbols/registry";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
+import { setupReactRoot } from "../test/reactRoot";
 import { StitchPicker } from "./StitchPicker";
 
-describe("StitchPicker quick-slot active highlight (#306)", () => {
-  let container: HTMLDivElement;
-  let root: Root;
+const dom = setupReactRoot();
 
-  function resetDoc() {
+// Mirrors usePaintTool's openPickerForSingleSelection: selecting an
+// already-placed stitch opens the picker with both `currentSymbolId` and
+// `selectionIds` set to that one placement.
+const selectPlacement = (placement: { col: number; row: number; symbolId: string; id: string }) => {
+  act(() => {
+    useUiStore.getState().openPicker({
+      col: placement.col,
+      row: placement.row,
+      x: 0,
+      y: 0,
+      currentSymbolId: placement.symbolId,
+      selectionIds: [placement.id],
+      selectionSpan: 1,
+    });
+  });
+};
+
+const quickButton = (symbolId: string) =>
+  dom.container.querySelector<HTMLButtonElement>(`.picker__quickButton[aria-label="${getSymbol(symbolId)!.label}"]`);
+const quickTile = (symbolId: string) => quickButton(symbolId)?.closest(".picker__quickTile");
+
+/** Knit and purl in the quick row, nothing placed, picker mounted. */
+function mountWithKnitPurlQuickRow() {
+  beforeEach(() => {
     useDocStore.setState({
       index: DocIndex.from([]),
-      undoStack: [],
-      redoStack: [],
-      stroke: null,
-      revision: 0,
       glossaryIds: ["knit", "purl"],
       quickSymbolIds: ["knit", "purl"],
     });
-  }
-
-  function resetUi() {
-    useUiStore.getState().resetForChart();
-  }
-
-  beforeEach(() => {
-    // Silences React's "not configured to support act(...)" warning - this
-    // suite renders directly via react-dom/client rather than a testing
-    // library that sets this for us.
-    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-    resetDoc();
-    resetUi();
-    container = document.createElement("div");
-    document.body.appendChild(container);
-    act(() => {
-      root = createRoot(container);
-      root.render(<StitchPicker />);
-    });
+    dom.render(<StitchPicker />);
   });
+}
 
-  afterEach(() => {
-    act(() => {
-      if (root) {
-        root.unmount();
-      }
-    });
-    container?.remove();
-  });
-
-  // Mirrors usePaintTool's openPickerForSingleSelection: selecting an
-  // already-placed stitch opens the picker with both `currentSymbolId` and
-  // `selectionIds` set to that one placement.
-  const selectPlacement = (placement: { col: number; row: number; symbolId: string; id: string }) => {
-    act(() => {
-      useUiStore.getState().openPicker({
-        col: placement.col,
-        row: placement.row,
-        x: 0,
-        y: 0,
-        currentSymbolId: placement.symbolId,
-        selectionIds: [placement.id],
-        selectionSpan: 1,
-      });
-    });
-  };
+describe("StitchPicker quick-slot active highlight (#306)", () => {
+  mountWithKnitPurlQuickRow();
 
   it("marks the regular quick-slot button for the selected placed stitch as active, and no other", () => {
     // StitchPicker is mounted (rendering null) from the very start of the
@@ -76,17 +53,10 @@ describe("StitchPicker quick-slot active highlight (#306)", () => {
     act(() => {
       useDocStore.getState().place("knit", 0, 0);
     });
-    const placement = useDocStore.getState().index.placementAt(0, 0)!;
-    selectPlacement(placement);
+    selectPlacement(useDocStore.getState().index.placementAt(0, 0)!);
 
-    const knitLabel = getSymbol("knit")!.label;
-    const purlLabel = getSymbol("purl")!.label;
-    const knitButton = container.querySelector<HTMLButtonElement>(
-      `.picker__quickButton[aria-label="${knitLabel}"]`,
-    );
-    const purlButton = container.querySelector<HTMLButtonElement>(
-      `.picker__quickButton[aria-label="${purlLabel}"]`,
-    );
+    const knitButton = quickButton("knit");
+    const purlButton = quickButton("purl");
 
     expect(knitButton?.getAttribute("data-active")).toBe("true");
     expect(purlButton?.getAttribute("data-active")).toBe("false");
@@ -96,13 +66,9 @@ describe("StitchPicker quick-slot active highlight (#306)", () => {
     act(() => {
       useDocStore.getState().place("yarn_over", 1, 0);
     });
-    const placement = useDocStore.getState().index.placementAt(1, 0)!;
-    selectPlacement(placement);
+    selectPlacement(useDocStore.getState().index.placementAt(1, 0)!);
 
-    const yarnOverLabel = getSymbol("yarn_over")!.label;
-    const dynamicButton = container.querySelector<HTMLButtonElement>(
-      `.picker__quickButton[aria-label="${yarnOverLabel}"]`,
-    );
+    const dynamicButton = quickButton("yarn_over");
 
     expect(dynamicButton).not.toBeNull();
     expect(dynamicButton?.getAttribute("data-active")).toBe("true");
@@ -118,59 +84,12 @@ describe("StitchPicker quick-slot active highlight (#306)", () => {
  * current slot, but still two different guards to keep in sync by hand.
  * These pin the chip's actual visibility (not just its stated condition)
  * for both tile kinds before `QuickTile` standardized on one guard.
+ *
+ * Also issue #326's affordance matrix for quick tiles (FR-25/FR-34): only
+ * the current tile gets a chip, and it's the restrictive "recolor" one.
  */
-describe("StitchPicker quick-tile recolor chip (issue #323)", () => {
-  let container: HTMLDivElement;
-  let root: Root;
-
-  function resetDoc() {
-    useDocStore.setState({
-      index: DocIndex.from([]),
-      undoStack: [],
-      redoStack: [],
-      stroke: null,
-      revision: 0,
-      glossaryIds: ["knit", "purl"],
-      quickSymbolIds: ["knit", "purl"],
-    });
-  }
-
-  function resetUi() {
-    useUiStore.getState().resetForChart();
-  }
-
-  beforeEach(() => {
-    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-    resetDoc();
-    resetUi();
-    container = document.createElement("div");
-    document.body.appendChild(container);
-    act(() => {
-      root = createRoot(container);
-      root.render(<StitchPicker />);
-    });
-  });
-
-  afterEach(() => {
-    act(() => {
-      if (root) root.unmount();
-    });
-    container?.remove();
-  });
-
-  const selectPlacement = (placement: { col: number; row: number; symbolId: string; id: string }) => {
-    act(() => {
-      useUiStore.getState().openPicker({
-        col: placement.col,
-        row: placement.row,
-        x: 0,
-        y: 0,
-        currentSymbolId: placement.symbolId,
-        selectionIds: [placement.id],
-        selectionSpan: 1,
-      });
-    });
-  };
+describe("StitchPicker quick-tile recolor chip (issues #323, #326)", () => {
+  mountWithKnitPurlQuickRow();
 
   it("shows the recolor chip only on the active, plain quick-slot tile - not an inactive one", () => {
     act(() => {
@@ -178,19 +97,10 @@ describe("StitchPicker quick-tile recolor chip (issue #323)", () => {
     });
     selectPlacement(useDocStore.getState().index.placementAt(0, 0)!);
 
-    const knitLabel = getSymbol("knit")!.label;
-    const purlLabel = getSymbol("purl")!.label;
-    const knitTile = container
-      .querySelector<HTMLButtonElement>(`.picker__quickButton[aria-label="${knitLabel}"]`)
-      ?.closest(".picker__quickTile");
-    const purlTile = container
-      .querySelector<HTMLButtonElement>(`.picker__quickButton[aria-label="${purlLabel}"]`)
-      ?.closest(".picker__quickTile");
-
-    expect(knitTile?.querySelector(".picker__quickColorChip")).toBeTruthy();
-    expect(purlTile?.querySelector(".picker__quickColorChip")).toBeNull();
+    expect(quickTile("knit")?.querySelector(".picker__quickColorChip.colorChip--recolor")).toBeTruthy();
+    expect(quickTile("purl")?.querySelector(".colorChip")).toBeNull();
     // Exactly one chip in the whole quick row - the active tile's.
-    expect(container.querySelectorAll(".picker__quickColorChip").length).toBe(1);
+    expect(dom.container.querySelectorAll(".picker__quickColorChip").length).toBe(1);
   });
 
   it("shows the recolor chip on the dynamic 6th tile when it's the active (plain) selection", () => {
@@ -199,13 +109,8 @@ describe("StitchPicker quick-tile recolor chip (issue #323)", () => {
     });
     selectPlacement(useDocStore.getState().index.placementAt(1, 0)!);
 
-    const yarnOverLabel = getSymbol("yarn_over")!.label;
-    const dynamicTile = container
-      .querySelector<HTMLButtonElement>(`.picker__quickButton[aria-label="${yarnOverLabel}"]`)
-      ?.closest(".picker__quickTile");
-
-    expect(dynamicTile?.querySelector(".picker__quickColorChip")).toBeTruthy();
-    expect(container.querySelectorAll(".picker__quickColorChip").length).toBe(1);
+    expect(quickTile("yarn_over")?.querySelector(".picker__quickColorChip")).toBeTruthy();
+    expect(dom.container.querySelectorAll(".picker__quickColorChip").length).toBe(1);
   });
 });
 
@@ -220,26 +125,12 @@ describe("StitchPicker quick-tile recolor chip (issue #323)", () => {
  * plain uiStore mutation that never touched `undoStack` at all.
  */
 describe("StitchPicker clearing the unrecognized-cell flag undoably (#305)", () => {
-  let container: HTMLDivElement;
-  let root: Root;
-
   beforeEach(() => {
     useDocStore.getState().openChart({ meta: { id: "c1", name: "c1", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", rev: "r1" }, placements: [], unknownSymbolIds: [] });
-    useUiStore.getState().clearReferenceImageUnrecognized();
-    useUiStore.getState().closePicker();
-    container = document.createElement("div");
-    document.body.appendChild(container);
-    root = createRoot(container);
-  });
-
-  afterEach(() => {
-    act(() => root.unmount());
-    container.remove();
-    useUiStore.getState().closePicker();
   });
 
   const clickKnit = () => {
-    const button = container.querySelector<HTMLButtonElement>('[aria-label="Knit"]');
+    const button = dom.container.querySelector<HTMLButtonElement>('[aria-label="Knit"]');
     expect(button).not.toBeNull();
     act(() => {
       button!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
@@ -249,10 +140,7 @@ describe("StitchPicker clearing the unrecognized-cell flag undoably (#305)", () 
   it("single-cell pick: clears the flag via place()'s HistoryEntry so undo restores it", () => {
     useUiStore.getState().setReferenceImageUnrecognized("2,3", true);
     useUiStore.getState().openPicker({ col: 2, row: 3, x: 0, y: 0 });
-
-    act(() => {
-      root.render(<StitchPicker />);
-    });
+    dom.render(<StitchPicker />);
 
     clickKnit();
 
@@ -285,10 +173,7 @@ describe("StitchPicker clearing the unrecognized-cell flag undoably (#305)", () 
       ],
       reviewingSuggestion: true,
     });
-
-    act(() => {
-      root.render(<StitchPicker />);
-    });
+    dom.render(<StitchPicker />);
 
     const before = useDocStore.getState().undoStack.length;
     clickKnit();
@@ -309,68 +194,19 @@ describe("StitchPicker clearing the unrecognized-cell flag undoably (#305)", () 
 });
 
 /**
- * Issue #326's affordance-matrix bullet: characterizes (doesn't change) the
- * intentional three-way split confirmed against FR-25/FR-34 - see
- * docs/PRD.md's "Multicolor stitches (colorwork)" section. A quick tile
- * gets no color chip unless it's the current/selected one, which gets the
- * restrictive "recolor" chip; the drawer's rows always get the permissive
- * "add-only" chip for a plain entry, slotted or not.
+ * Issue #326's affordance matrix for the drawer (FR-25/FR-34, see
+ * docs/PRD.md's "Multicolor stitches (colorwork)" section): the drawer's
+ * rows always get the permissive "add-only" chip for a plain entry,
+ * slotted or not. The quick-tile half lives in the #323 suite above.
  */
-describe("color affordance matrix (issue #326, FR-25/FR-34 - no behavior change)", () => {
-  let container: HTMLDivElement;
-  let root: Root;
-
+describe("color affordance matrix: drawer rows (issue #326)", () => {
   beforeEach(() => {
-    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     useDocStore.setState({
       index: DocIndex.from([{ id: "p1", symbolId: "knit", col: 0, row: 0 }]),
-      undoStack: [],
-      redoStack: [],
-      stroke: null,
-      revision: 0,
       glossaryIds: ["knit", "purl", "yarn_over"],
       quickSymbolIds: ["knit", "purl"],
     });
-    useUiStore.getState().resetForChart();
-    container = document.createElement("div");
-    document.body.appendChild(container);
-    act(() => {
-      root = createRoot(container);
-      root.render(<StitchPicker />);
-    });
-  });
-
-  afterEach(() => {
-    act(() => {
-      root.unmount();
-    });
-    container.remove();
-  });
-
-  it("gives only the current quick tile a color chip, and it's the restrictive recolor one", () => {
-    const placement = useDocStore.getState().index.placementAt(0, 0)!;
-    act(() => {
-      useUiStore.getState().openPicker({
-        col: 0,
-        row: 0,
-        x: 0,
-        y: 0,
-        currentSymbolId: placement.symbolId,
-        selectionIds: [placement.id],
-        selectionSpan: 1,
-      });
-    });
-
-    const knitTile = container
-      .querySelector<HTMLButtonElement>(`.picker__quickButton[aria-label="${getSymbol("knit")!.label}"]`)
-      ?.closest(".picker__quickTile");
-    const purlTile = container
-      .querySelector<HTMLButtonElement>(`.picker__quickButton[aria-label="${getSymbol("purl")!.label}"]`)
-      ?.closest(".picker__quickTile");
-
-    expect(knitTile?.querySelector(".colorChip--recolor")).not.toBeNull();
-    expect(knitTile?.querySelector(".colorChip")).not.toBeNull();
-    expect(purlTile?.querySelector(".colorChip")).toBeNull();
+    dom.render(<StitchPicker />);
   });
 
   it("gives a plain drawer row the permissive add-only chip, never the recolor one", () => {
@@ -378,7 +214,7 @@ describe("color affordance matrix (issue #326, FR-25/FR-34 - no behavior change)
       useUiStore.getState().openPicker({ col: 1, row: 0, x: 0, y: 0 });
     });
 
-    const moreButton = container.querySelector<HTMLButtonElement>(
+    const moreButton = dom.container.querySelector<HTMLButtonElement>(
       'button[aria-label="More stitches from this chart"]',
     );
     expect(moreButton).not.toBeNull();
@@ -386,7 +222,7 @@ describe("color affordance matrix (issue #326, FR-25/FR-34 - no behavior change)
       moreButton!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
     });
 
-    const yarnOverRow = Array.from(container.querySelectorAll(".picker__item")).find((row) =>
+    const yarnOverRow = Array.from(dom.container.querySelectorAll(".picker__item")).find((row) =>
       row.textContent?.includes(getSymbol("yarn_over")!.label),
     );
     expect(yarnOverRow).toBeTruthy();

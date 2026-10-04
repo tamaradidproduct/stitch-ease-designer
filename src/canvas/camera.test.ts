@@ -165,25 +165,6 @@ describe("adjacent cell border alignment", () => {
   const zooms = [0.3, 0.7, 1, 1.37, 2.2, 3.7, 4.5, 6.13];
   const xs = [0, 5.5, -33.25, 144, 1000.1];
 
-  it("the old relative-offset math could disagree on a shared boundary", () => {
-    // Standalone demonstration of the bug class, not a test of renderer.ts:
-    // cell N's right edge derived as anchor + N*size (then rounded) vs cell
-    // N+1's left edge derived the same way for N+1 — two different roundings
-    // of what should be the identical boundary.
-    let sawADisagreement = false;
-    for (const zoom of zooms) {
-      const size = CELL * zoom;
-      for (const anchor of xs) {
-        for (let n = 0; n < 20; n++) {
-          const rightOfN = Math.round(anchor + n * size) + Math.round(size);
-          const leftOfNPlus1 = Math.round(anchor + (n + 1) * size);
-          if (rightOfN !== leftOfNPlus1) sawADisagreement = true;
-        }
-      }
-    }
-    expect(sawADisagreement).toBe(true);
-  });
-
   it("drawPlacements' actual boundary helper agrees for adjacent placements, at every zoom", () => {
     // Simulates a row of single-cell placements the way drawPlacements walks
     // them: each placement's right edge is crispColX(col+1); the next

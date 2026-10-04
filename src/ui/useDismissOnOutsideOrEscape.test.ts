@@ -2,19 +2,16 @@ import { describe, expect, it, vi } from "vitest";
 import { isOutsidePointerdown } from "./useDismissOnOutsideOrEscape";
 
 describe("isOutsidePointerdown", () => {
-  it("treats a click inside the container as not outside", () => {
-    const container = { contains: () => true };
-    expect(isOutsidePointerdown({} as EventTarget, container)).toBe(false);
-  });
+  const inside = { contains: () => true };
+  const outside = { contains: () => false };
 
-  it("treats a click outside the container as outside", () => {
-    const container = { contains: () => false };
-    expect(isOutsidePointerdown({} as EventTarget, container)).toBe(true);
-  });
-
-  it("treats every click as outside when there is no container to check against", () => {
-    expect(isOutsidePointerdown({} as EventTarget, null)).toBe(true);
-    expect(isOutsidePointerdown({} as EventTarget, undefined)).toBe(true);
+  it.each([
+    ["inside the container", inside, false],
+    ["outside the container", outside, true],
+    ["with no container (null)", null, true],
+    ["with no container (undefined)", undefined, true],
+  ] as const)("classifies a click %s", (_label, container, expected) => {
+    expect(isOutsidePointerdown({} as EventTarget, container)).toBe(expected);
   });
 
   // StitchPicker and SuggestReviewMenu both exempt clicks on the canvas: the
@@ -54,14 +51,10 @@ describe("isOutsidePointerdown", () => {
     expect(isOutsidePointerdown(null, container)).toBe(true);
   });
 
-  // This project's Vitest config runs in a plain Node.js environment with no
-  // DOM at all (see vite.config.ts's `test.environment: "node"`), so the
-  // global `Node` constructor this function guards with doesn't exist here -
-  // exactly the case its `typeof Node === "undefined"` fallback is for. This
-  // documents that assumption and confirms the container is still consulted
-  // normally when it holds, rather than every target silently short-
-  // circuiting to "outside" in this test environment.
-  it("still consults the container when the environment has no global Node", () => {
+  // vite.config.ts runs tests with no DOM, so the `typeof Node ===
+  // "undefined"` fallback is the path every case above exercises; this pins
+  // that assumption so the inside case isn't passing by accident.
+  it("runs with no global Node, the fallback path the cases above rely on", () => {
     expect(typeof Node).toBe("undefined");
     const container = { contains: () => true };
     expect(isOutsidePointerdown({} as EventTarget, container)).toBe(false);

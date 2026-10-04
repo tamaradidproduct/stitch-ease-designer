@@ -173,11 +173,14 @@ describe("templateMatch", () => {
       expect(result.colorId).toBe("#2563eb");
     });
 
-    it("defaults an unmatched empty cell to Knit", () => {
+    it.each([
+      ["with no blank sample among the exemplars", () => matchCandidateStitch(empty, exemplars, 0.6)],
+      ["before any exemplars exist", () => matchCandidateStitch(empty, new Map())],
+    ])("defaults an unmatched empty cell to Knit %s", (_label, match) => {
       // Knit is the standard blank chart cell. A confirmed blank sample for
       // another stitch overrides this below, but no samples is not a reason
       // to make tracing an otherwise empty chart stall.
-      const result = matchCandidateStitch(empty, exemplars, 0.6);
+      const result = match();
       expect(result.symbolId).toBe("knit");
       expect(result.confidence).toBeGreaterThanOrEqual(0.6);
       expect(result.isBlank).toBe(true);
@@ -239,16 +242,6 @@ describe("templateMatch", () => {
       const result = matchCandidateStitch(faintMark, withFaintExemplar);
       expect(result.symbolId).toBe("yarn_over");
       expect(result.isBlank).toBe(false);
-    });
-
-    it("uses the Knit fallback when no exemplars exist yet", () => {
-      // A blank chart can be traced before any teaching samples have been
-      // placed; Knit is the safe default until a confirmed blank sample says
-      // otherwise.
-      const result = matchCandidateStitch(empty, new Map());
-      expect(result.symbolId).toBe("knit");
-      expect(result.confidence).toBeGreaterThanOrEqual(0.6);
-      expect(result.isBlank).toBe(true);
     });
 
     it("withholds a guess when two different symbols score nearly identically", () => {
@@ -421,24 +414,8 @@ describe("extractExemplars caching around images that never load", () => {
 
   const confirmed = (id: string): Placement => ({ id, symbolId: "knit", col: 0, row: 0 });
 
-  it("without isImageReady, an image that's stuck loading is re-fetched forever", () => {
-    const index = DocIndex.from([confirmed("without-isready")]);
-    const image = refImage("ref-without-isready");
-    let calls = 0;
-    const getImageElement = () => {
-      calls++;
-      return null; // never decodes
-    };
-
-    extractExemplars(index, [image], getImageElement, 0);
-    extractExemplars(index, [image], getImageElement, 0);
-
-    // No caching kicks in when the caller can't say whether the image will
-    // ever be ready, so both calls re-run the (here trivial, but in
-    // practice expensive) exemplar extraction.
-    expect(calls).toBe(2);
-  });
-
+  // Without isImageReady there's no way to tell "still loading" from
+  // "failed", so nothing is cached; this pins the case that does cache.
   it("once isImageReady reports a permanent failure, the result is cached and getImageElement isn't called again", () => {
     const index = DocIndex.from([confirmed("with-isready")]);
     const image = refImage("ref-with-isready");

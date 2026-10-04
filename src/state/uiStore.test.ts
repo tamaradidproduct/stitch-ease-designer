@@ -98,50 +98,28 @@ describe("tool switching", () => {
 });
 
 describe("suggestAction reset (FR-2)", () => {
-  it("resets to 'suggest' when Suggest is disarmed", () => {
-    useUiStore.getState().setArmedSymbolId(SUGGEST_SYMBOL_ID);
-    useUiStore.getState().setSuggestAction("confirm");
+  const ui = () => useUiStore.getState();
 
-    useUiStore.getState().setArmedSymbolId(null);
+  it.each([
+    ["Suggest is disarmed", () => ui().setArmedSymbolId(null)],
+    ["a real stitch is armed instead", () => ui().chooseSymbol("knit")],
+    ["switching tools away from Suggest", () => ui().setTool("select")],
+    ["a full chart reset", () => ui().resetForChart()],
+    // So a stale sticky default never survives a re-arm.
+    [
+      "Suggest is re-armed",
+      () => {
+        ui().setArmedSymbolId(null);
+        ui().setArmedSymbolId(SUGGEST_SYMBOL_ID);
+      },
+    ],
+  ] as const)("resets to 'suggest' when %s", (_label, action) => {
+    ui().setArmedSymbolId(SUGGEST_SYMBOL_ID);
+    ui().setSuggestAction("confirm");
 
-    expect(useUiStore.getState().suggestAction).toBe("suggest");
-  });
+    action();
 
-  it("resets to 'suggest' when a real stitch is armed instead", () => {
-    useUiStore.getState().setArmedSymbolId(SUGGEST_SYMBOL_ID);
-    useUiStore.getState().setSuggestAction("dismiss");
-
-    useUiStore.getState().chooseSymbol("knit");
-
-    expect(useUiStore.getState().suggestAction).toBe("suggest");
-  });
-
-  it("resets to 'suggest' when switching tools away from Suggest", () => {
-    useUiStore.getState().setArmedSymbolId(SUGGEST_SYMBOL_ID);
-    useUiStore.getState().setSuggestAction("confirm");
-
-    useUiStore.getState().setTool("select");
-
-    expect(useUiStore.getState().suggestAction).toBe("suggest");
-  });
-
-  it("resets to 'suggest' on a full chart reset", () => {
-    useUiStore.getState().setArmedSymbolId(SUGGEST_SYMBOL_ID);
-    useUiStore.getState().setSuggestAction("dismiss");
-
-    useUiStore.getState().resetForChart();
-
-    expect(useUiStore.getState().suggestAction).toBe("suggest");
-  });
-
-  it("resets to 'suggest' when Suggest is re-armed, so a stale sticky default never survives a re-arm", () => {
-    useUiStore.getState().setArmedSymbolId(SUGGEST_SYMBOL_ID);
-    useUiStore.getState().setSuggestAction("confirm");
-    useUiStore.getState().setArmedSymbolId(null);
-
-    useUiStore.getState().setArmedSymbolId(SUGGEST_SYMBOL_ID);
-
-    expect(useUiStore.getState().suggestAction).toBe("suggest");
+    expect(ui().suggestAction).toBe("suggest");
   });
 });
 
