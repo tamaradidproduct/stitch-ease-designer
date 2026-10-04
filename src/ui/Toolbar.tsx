@@ -4,6 +4,7 @@ import { useDocStore } from "../state/docStore";
 import { SUGGEST_SYMBOL_ID, useUiStore } from "../state/uiStore";
 import { SymbolGlyph } from "./SymbolGlyph";
 import { tapActivate } from "./tapActivate";
+import { DisarmDrawingButton } from "./DisarmDrawingButton";
 import { CheckIcon, CrossIcon } from "./icons";
 
 export function Toolbar() {
@@ -110,18 +111,7 @@ export function Toolbar() {
           <span>{suggestArmed ? "Suggest" : "Draw"}</span>
         </button>
         {armedSymbolId && (
-          <button
-            type="button"
-            className="toolDock__drawStop"
-            {...tapActivate(() => setArmedSymbolId(null))}
-            aria-label="Stop drawing"
-            title="Stop drawing (Esc)"
-          >
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <circle cx="10" cy="10" r="7" />
-              <path d="m5 15 10-10" />
-            </svg>
-          </button>
+          <DisarmDrawingButton className="toolDock__drawStop" onActivate={() => setArmedSymbolId(null)} />
         )}
       </div>
       {suggestArmed ? (

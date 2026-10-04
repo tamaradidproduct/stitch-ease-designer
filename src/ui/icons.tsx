@@ -89,3 +89,13 @@ export function DragHandleIcon({ width, height }: Pick<IconProps, "width" | "hei
     </svg>
   );
 }
+
+/** A circle with a diagonal slash, for "stop drawing". */
+export function StopIcon() {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden="true">
+      <circle cx="10" cy="10" r="7" />
+      <path d="m5 15 10-10" />
+    </svg>
+  );
+}
