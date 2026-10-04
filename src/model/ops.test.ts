@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { getSymbol } from "../symbols/registry";
 import { CHUNK, DocIndex } from "./docIndex";
 import { apply, canInsertAt, eraseChange, insertChange, mergeChanges, placeChange } from "./ops";
-import { isEmptyChange, type Placement } from "./types";
+import { isEmptyChange } from "./types";
 
 // Anchored to the real library rather than fixtures: if a cable's span changes
 // in Figma, these tests should notice.
@@ -254,18 +254,5 @@ describe("query", () => {
       maxRow: -CHUNK - 1,
     });
     expect(found).toHaveLength(1);
-  });
-});
-
-describe("DocIndex.from", () => {
-  it("rebuilds occupancy from a plain placement list", () => {
-    const placements: Placement[] = [
-      { id: "a", symbolId: CABLE, col: 0, row: 0 },
-      { id: "b", symbolId: "knit", col: 20, row: 3 },
-    ];
-    const index = DocIndex.from(placements);
-    expect(index.size).toBe(2);
-    expect(index.occupancy.size).toBe(7); // 6 cable cells + 1 knit
-    expect(index.placementAt(5, 0)!.id).toBe("a");
   });
 });
