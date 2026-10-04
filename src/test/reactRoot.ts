@@ -19,8 +19,8 @@ const initialUiState = useUiStore.getState();
  * `render()`.
  */
 export function setupReactRoot() {
-  let container: HTMLDivElement;
-  let root: Root;
+  let container: HTMLDivElement | undefined;
+  let root: Root | undefined;
 
   beforeEach(() => {
     useDocStore.setState(initialDocState, true);
@@ -31,8 +31,10 @@ export function setupReactRoot() {
   });
 
   afterEach(() => {
-    act(() => root.unmount());
-    container.remove();
+    if (root) {
+      act(() => root.unmount());
+    }
+    container?.remove();
   });
 
   return {
