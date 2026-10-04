@@ -12,6 +12,7 @@ import { ReferenceImagePanel } from "./ReferenceImagePanel";
 import { SymbolGlyph } from "./SymbolGlyph";
 import { browseSymbols, searchMotifs } from "./symbolSearch";
 import { tapActivate } from "./tapActivate";
+import { DisarmDrawingButton } from "./DisarmDrawingButton";
 import {
   collectColoredGlossaryEntries,
   countGlossaryStitches,
@@ -185,18 +186,7 @@ export function RightPanel() {
   // isn't a candidate for removal anyway, and this is the one spot on
   // every armed row that's guaranteed free for it.
   const disarmButton = (
-    <button
-      type="button"
-      className="glossary__disarm"
-      {...tapActivate(() => setArmedSymbolId(null))}
-      aria-label="Stop drawing"
-      title="Stop drawing (Esc)"
-    >
-      <svg viewBox="0 0 20 20" aria-hidden="true">
-        <circle cx="10" cy="10" r="7" />
-        <path d="m5 15 10-10" />
-      </svg>
-    </button>
+    <DisarmDrawingButton className="glossary__disarm" onActivate={() => setArmedSymbolId(null)} />
   );
 
   const { placements, loosePlacements, glossary, plainGlossaryIds, stitchCounts, symbolsPlaced, looseSymbolsPlaced } = useMemo(() => {
