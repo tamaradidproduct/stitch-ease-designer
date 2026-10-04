@@ -69,14 +69,14 @@ describe("RightPanel glossary row arming semantics (issue #323)", () => {
   });
 
   /**
-   * Characterization coverage for issue #323's unified add-only `ColorChip`
+   * Characterization coverage for issue #323's unified `ColorChip`
    * rendering: FR-34/Bug 8 says every plain (uncolored) glossary row gets
-   * the add-only color chip and every colored row never does, regardless of
+   * the color chip and every colored row never does, regardless of
    * whether the row is a slotted quick-row entry or an overflow one. Pinned
    * here across all four combinations before `GlossaryRow` took over
    * rendering both row kinds' chip.
    */
-  it("shows the add-only color chip only on plain rows, for both slotted and overflow rows", () => {
+  it("shows the color chip only on plain rows, for both slotted and overflow rows", () => {
     const red = "#fecdd3";
     useDocStore.setState({
       // Slot 0: plain slotted. Slot 1: colored slotted.
@@ -396,5 +396,105 @@ describe("RightPanel move up/down controls (issue #326)", () => {
     );
     expect(removeButton).not.toBeNull();
     expect(removeButton?.disabled).toBe(false);
+  });
+});
+
+describe("RightPanel glossary consistency (2026-10-03 picker/glossary review)", () => {
+  const motif = (id: string, name: string, copies: { id: string; col: number; row: number }[] = []) => ({
+    id,
+    name,
+    width: 1,
+    height: 1,
+    stitches: [{ symbolId: "knit", col: 0, row: 0 }],
+    copies,
+  });
+  const typeInto = (input: HTMLInputElement, value: string) =>
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+  it("counts a colored stitch apart from its plain one, and counts motifs, in the header", () => {
+    useDocStore.setState({
+      index: DocIndex.from([]),
+      quickSymbolIds: ["knit", "knit::#e11d48"],
+      glossaryIds: ["knit", "knit::#e11d48"],
+      repeats: [motif("m1", "Leaf")],
+    });
+    dom.render(createElement(RightPanel));
+    expect(dom.container.querySelector(".sideModule__header span")?.textContent).toBe(
+      "2 stitch types · 1 motif in this chart",
+    );
+  });
+
+  it("counts neither stitches inside motif copies nor the stitches a cable is worked as", () => {
+    useDocStore.setState({
+      index: DocIndex.from([
+        { id: "a", symbolId: "knit", col: 0, row: 0 },
+        { id: "b", symbolId: "knit", col: 1, row: 0, groupId: "copy-1" },
+        { id: "c", symbolId: "1_1_left_cable", col: 2, row: 0 },
+      ]),
+      quickSymbolIds: ["knit"],
+      glossaryIds: ["knit"],
+      repeats: [motif("m1", "Leaf", [{ id: "copy-1", col: 1, row: 0 }])],
+    });
+    dom.render(createElement(RightPanel));
+    const knitRow = dom.container.querySelector('button[aria-label="Drag to reorder Knit"]')!.closest(".glossary__item")!;
+    expect(knitRow.querySelector(".glossary__countText")?.textContent).toBe("(1)");
+  });
+
+  it("deletes a slotted motif with no copies from its X, like an unplaced stitch", () => {
+    useDocStore.setState({
+      index: DocIndex.from([]),
+      quickSymbolIds: ["knit", "motif:m1"],
+      glossaryIds: ["knit"],
+      repeats: [motif("m1", "Leaf")],
+    });
+    dom.render(createElement(RightPanel));
+    act(() => {
+      dom.container.querySelector<HTMLButtonElement>('button[aria-label="Remove Leaf from glossary"]')!.click();
+    });
+    expect(useDocStore.getState().repeats).toEqual([]);
+  });
+
+  it("reorders unslotted motifs with Move up/down", () => {
+    useDocStore.setState({
+      index: DocIndex.from([]),
+      quickSymbolIds: ["knit"],
+      glossaryIds: ["knit"],
+      repeats: [motif("m1", "Leaf"), motif("m2", "Vine")],
+    });
+    dom.render(createElement(RightPanel));
+    act(() => {
+      dom.container.querySelector<HTMLButtonElement>('button[aria-label="Drag to reorder Vine"]')!.click();
+    });
+    const up = dom.container.querySelector<HTMLButtonElement>('button[aria-label="Move Vine up"]')!;
+    expect(up.disabled).toBe(false);
+    act(() => up.click());
+    expect(useDocStore.getState().repeats.map((r) => r.id)).toEqual(["m2", "m1"]);
+  });
+
+  it("finds a motif by name in the search and arms it when picked", () => {
+    useDocStore.setState({
+      index: DocIndex.from([]),
+      quickSymbolIds: ["knit", "purl"],
+      glossaryIds: ["knit", "purl"],
+      repeats: [motif("m1", "Leaf")],
+    });
+    dom.render(createElement(RightPanel));
+    act(() => {
+      dom.container.querySelector<HTMLButtonElement>(".glossary__item--empty")!.click();
+    });
+    const input = dom.container.querySelector<HTMLInputElement>('input[aria-label="Search stitches to add"]')!;
+    // Nothing typed: browse only what isn't in the glossary yet.
+    expect(dom.container.querySelector("#glossary-search-result-stitch-knit")).toBeNull();
+    expect(dom.container.querySelector("#glossary-search-result-motif-m1")).toBeNull();
+    expect(dom.container.querySelector("#glossary-search-result-stitch-yarn_over")?.textContent).toContain("Select");
+
+    typeInto(input, "leaf");
+    const result = dom.container.querySelector<HTMLButtonElement>("#glossary-search-result-motif-m1")!;
+    expect(result.textContent).toContain("Added");
+    act(() => result.click());
+    expect(useUiStore.getState().armedMotif?.id).toBe("m1");
   });
 });

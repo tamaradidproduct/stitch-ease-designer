@@ -94,6 +94,17 @@ describe("round stitch numbering", () => {
     expect(roundStitchNumberAt(index, 10, 0)).toBe(7);
   });
 
+  it("numbers every cell of a row of cables - three 2/2 cables make 12 stitches", () => {
+    const index = DocIndex.from([
+      stitch("a", "2_2_left_cable", 0, 0),
+      stitch("b", "2_2_left_cable", 4, 0),
+      stitch("c", "2_2_left_cable", 8, 0),
+    ]);
+
+    expect(roundStitchNumberAt(index, 0, 0)).toBe(12);
+    expect(roundStitchNumberAt(index, 11, 0)).toBe(1);
+  });
+
   it("restarts stitch numbers for separated groups on the same row", () => {
     const index = DocIndex.from([
       stitch("left", "knit", 0, 0),

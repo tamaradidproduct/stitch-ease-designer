@@ -200,6 +200,8 @@ type DocState = {
   /** Flips this copy (stitches and directional symbols) within its footprint. */
   mirrorMotifCopy: (copyId: string) => void;
   renameMotif: (motifId: string, name: string) => void;
+  /** Moves a motif to `targetIndex` in the motif list (its glossary order). Undoable. */
+  moveMotifTo: (motifId: string, targetIndex: number) => void;
   /** Removes a motif; its copies are either detached (stitches stay) or deleted. */
   deleteMotif: (motifId: string, copies: "detach" | "delete") => void;
   /**
@@ -1146,6 +1148,14 @@ export const useDocStore = create<DocState>((set, get) => {
         { added: [], removed: [] },
         get().repeats.map((candidate) => (candidate.id === motifId ? { ...candidate, name: trimmed } : candidate)),
       );
+    },
+    moveMotifTo: (motifId, targetIndex) => {
+      const repeats = get().repeats;
+      const from = repeats.findIndex((candidate) => candidate.id === motifId);
+      const to = Math.max(0, Math.min(targetIndex, repeats.length - 1));
+      if (from === -1 || from === to) return;
+      const without = repeats.filter((candidate) => candidate.id !== motifId);
+      commit({ added: [], removed: [] }, [...without.slice(0, to), repeats[from]!, ...without.slice(to)]);
     },
     deleteMotif: (motifId, mode) => {
       const motif = get().repeats.find((candidate) => candidate.id === motifId);

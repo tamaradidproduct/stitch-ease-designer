@@ -167,6 +167,18 @@ describe("motif copies", () => {
     doc().deleteMotif(id, "delete");
     expect(doc().index.size).toBe(0);
   });
+
+  it("reorders motifs, undoably", () => {
+    const first = makeMotif();
+    doc().stampMotif(first, [{ col: 0, row: 4 }]);
+    const second = doc().createRepeat(doc().index.groupMembers(motif(first).copies![1]!.id).map((p) => p.id))!;
+    expect(doc().repeats.map((r) => r.id)).toEqual([first, second]);
+
+    doc().moveMotifTo(second, 0);
+    expect(doc().repeats.map((r) => r.id)).toEqual([second, first]);
+    doc().undo();
+    expect(doc().repeats.map((r) => r.id)).toEqual([first, second]);
+  });
 });
 
 describe("cable composition (FR-65)", () => {

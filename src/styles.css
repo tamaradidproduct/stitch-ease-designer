@@ -852,10 +852,9 @@ body {
 }
 
 /*
- * Shared color-chip affordance (FR-25/26/34 - see the colorwork spec's
- * Consolidation section). `--recolor` is the restrictive, current-selection-
- * only chip; `--add-only` is the permissive, mint-a-new-pen chip. Both share
- * the small circular icon-button shell; only the inner glyph differs.
+ * Shared color-chip affordance (FR-25/26/34): one chip, one rule
+ * (`applyChipColor`) wherever it appears - picker tiles, drawer rows, and
+ * glossary rows.
  */
 .colorChip {
   position: absolute;
@@ -1429,6 +1428,13 @@ body {
   color: var(--text-muted);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
+}
+
+.picker__added {
+  flex: none;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 600;
 }
 
 .picker__current {

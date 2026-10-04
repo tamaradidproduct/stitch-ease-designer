@@ -58,8 +58,8 @@ export type GlossaryRowProps = {
   /** Menu label for selecting every placed one, e.g. "Select all 12 copies". */
   selectAllLabel: string;
   onSelectAll: () => void;
-  /** Stitch rows only: the add-only color chip. Omitted for motif rows. */
-  onAddColoredVariant?: ((colorId: string) => void) | undefined;
+  /** Stitch rows only: the color chip (see `applyChipColor`). Omitted for motif rows. */
+  onChooseColor?: ((colorId: string) => void) | undefined;
   /**
    * Whether this entry can be removed right now. Only a removable row shows
    * the active remove button; every other row gets a "more" menu instead,
@@ -101,7 +101,7 @@ export type GlossaryRowProps = {
  * whether a numbered shortcut shows, the drag handle's title, the
  * drop-target/hover signifier, and the move up/down buttons' bounds/target
  * (issue #326). Everything else (the glyph, label, "All (n)" select-all
- * button, the add-only color chip on a plain row, and the
+ * button, the color chip on a plain row, and the
  * disarm/remove/disabled-remove trailing slot) is identical and lives here
  * once.
  */
@@ -117,7 +117,7 @@ export function GlossaryRow({
   count,
   selectAllLabel,
   onSelectAll,
-  onAddColoredVariant,
+  onChooseColor,
   removable,
   removeBlockedReason,
   onRemove,
@@ -232,20 +232,19 @@ export function GlossaryRow({
       ) : (
       <div className="glossary__armWrap">
         {/* The glyph is its own tap target (same action as the label) so the
-            add-colored-variant chip can sit on its corner, matching the
+            color chip can sit on its corner, matching the
             picker's quick tiles - a chip can't nest inside the arm button. */}
         <span className="glossary__glyphWrap">
           <span className="glossary__glyph" aria-hidden="true" {...tapActivate(() => (armed ? onDisarm() : onArm()))}>
             {glyph}
           </span>
-          {/* FR-34/Bug 8: every plain stitch row gets the add-only chip -
-              never a colored row or a motif row. */}
-          {onAddColoredVariant && !colorId && (
+          {/* FR-34/Bug 8: every plain stitch row gets the chip - never a
+              colored row or a motif row. */}
+          {onChooseColor && !colorId && (
             <ColorChip
-              mode="add-only"
-              label={`Add a colored ${label}`}
+              label={`Color ${label}`}
               className="glossary__colorChip"
-              onSelect={onAddColoredVariant}
+              onSelect={onChooseColor}
             />
           )}
         </span>

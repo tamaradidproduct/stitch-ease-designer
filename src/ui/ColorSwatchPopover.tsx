@@ -22,9 +22,8 @@ const OFFSET = 6;
 
 /**
  * The color grid popover shared by every "open a color menu" affordance
- * (the armed quick-slot tile's own chip, the picker drawer's add-only chip,
- * the glossary panel's add-only chip - see the colorwork spec's
- * Consolidation section). Always anchors via a measured `getBoundingClientRect`
+ * (the color chip on the picker's quick tile, its drawer rows, and the
+ * glossary rows). Always anchors via a measured `getBoundingClientRect`
  * rather than plain CSS `position: absolute`, which is what let one earlier
  * copy of this popover render invisibly inside a clipping, scrolling
  * ancestor (`overflow: hidden` on a drawer, `overflow-y: auto` on the list

@@ -86,18 +86,18 @@ describe("StitchPicker quick-slot active highlight (#306)", () => {
  * for both tile kinds before `QuickTile` standardized on one guard.
  *
  * Also issue #326's affordance matrix for quick tiles (FR-25/FR-34): only
- * the current tile gets a chip, and it's the restrictive "recolor" one.
+ * the current tile gets a chip.
  */
 describe("StitchPicker quick-tile recolor chip (issues #323, #326)", () => {
   mountWithKnitPurlQuickRow();
 
-  it("shows the recolor chip only on the active, plain quick-slot tile - not an inactive one", () => {
+  it("shows the color chip only on the active, plain quick-slot tile - not an inactive one", () => {
     act(() => {
       useDocStore.getState().place("knit", 0, 0);
     });
     selectPlacement(useDocStore.getState().index.placementAt(0, 0)!);
 
-    expect(quickTile("knit")?.querySelector(".picker__quickColorChip.colorChip--recolor")).toBeTruthy();
+    expect(quickTile("knit")?.querySelector(".picker__quickColorChip.colorChip")).toBeTruthy();
     expect(quickTile("purl")?.querySelector(".colorChip")).toBeNull();
     // Exactly one chip in the whole quick row - the active tile's.
     expect(dom.container.querySelectorAll(".picker__quickColorChip").length).toBe(1);
@@ -196,8 +196,7 @@ describe("StitchPicker clearing the unrecognized-cell flag undoably (#305)", () 
 /**
  * Issue #326's affordance matrix for the drawer (FR-25/FR-34, see
  * docs/PRD.md's "Multicolor stitches (colorwork)" section): the drawer's
- * rows always get the permissive "add-only" chip for a plain entry,
- * slotted or not. The quick-tile half lives in the #323 suite above.
+ * rows always get the color chip for a plain entry, slotted or not. The quick-tile half lives in the #323 suite above.
  */
 describe("color affordance matrix: drawer rows (issue #326)", () => {
   beforeEach(() => {
@@ -209,7 +208,7 @@ describe("color affordance matrix: drawer rows (issue #326)", () => {
     dom.render(<StitchPicker />);
   });
 
-  it("gives a plain drawer row the permissive add-only chip, never the recolor one", () => {
+  it("gives a plain drawer row the color chip", () => {
     act(() => {
       useUiStore.getState().openPicker({ col: 1, row: 0, x: 0, y: 0 });
     });
@@ -226,7 +225,35 @@ describe("color affordance matrix: drawer rows (issue #326)", () => {
       row.textContent?.includes(getSymbol("yarn_over")!.label),
     );
     expect(yarnOverRow).toBeTruthy();
-    expect(yarnOverRow?.querySelector(".colorChip--add-only")).not.toBeNull();
-    expect(yarnOverRow?.querySelector(".colorChip--recolor")).toBeNull();
+    expect(yarnOverRow?.querySelector(".colorChip")).not.toBeNull();
+  });
+});
+
+describe("StitchPicker search matches the glossary's (2026-10-03 review)", () => {
+  mountWithKnitPurlQuickRow();
+  const typeInto = (input: HTMLInputElement, value: string) =>
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  const resultLabels = () =>
+    Array.from(dom.container.querySelectorAll(".picker__results .picker__item .picker__label")).map((el) => el.textContent);
+
+  it("lists the library by category as soon as search opens, hiding what's in the glossary until typed", () => {
+    act(() => {
+      useUiStore.getState().openPicker({ col: 0, row: 0, x: 0, y: 0 });
+    });
+    act(() => {
+      dom.container.querySelector<HTMLButtonElement>('button[aria-label="Search all stitches"]')!.click();
+    });
+    expect(dom.container.querySelector(".picker__results .picker__heading")?.textContent).toBe("Basic stitches");
+    expect(resultLabels()).not.toContain(getSymbol("knit")!.label);
+    expect(resultLabels()).toContain(getSymbol("yarn_over")!.label);
+
+    typeInto(dom.container.querySelector<HTMLInputElement>(".picker__search")!, "knit");
+    const knit = Array.from(dom.container.querySelectorAll(".picker__results .picker__item")).find(
+      (item) => item.querySelector(".picker__label")?.textContent === getSymbol("knit")!.label,
+    );
+    expect(knit?.querySelector(".picker__added")).not.toBeNull();
   });
 });

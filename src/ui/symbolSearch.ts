@@ -78,3 +78,59 @@ export function searchSymbols(
     .sort((a, b) => a.score - b.score || a.symbol.span - b.symbol.span)
     .map((s) => s.symbol);
 }
+
+/**
+ * Section order for browsing/searching the library; anything uncategorized
+ * sorts last. Deliberately its own constant, not a shared one with
+ * registry.ts's (unexported, export-image-only) CATEGORY_ORDER: that one
+ * puts decreases before increases, a different editorial call for a
+ * different context, not a value the two should be kept in sync with.
+ */
+const CATEGORY_ORDER = ["basic", "increase", "decrease", "cable", "brioche", "special"];
+const CATEGORY_LABELS: Record<string, string> = {
+  basic: "Basic stitches",
+  increase: "Increases",
+  decrease: "Decreases",
+  cable: "Cables",
+  brioche: "Brioche",
+  special: "Special",
+};
+
+export type SymbolSection = { key: string; title: string; symbols: StitchSymbol[] };
+
+/**
+ * The one stitch search the picker and the glossary share. With no query it
+ * browses everything not already in the glossary; a typed query surfaces
+ * every match, glossary entries included (callers tag those "Added").
+ * Grouped by category so the library reads as a glossary, not a wall of
+ * stitches - Array.prototype.sort is stable, so search relevance survives
+ * within each category.
+ */
+export function browseSymbols(
+  symbols: readonly StitchSymbol[],
+  query: string,
+  inGlossary: (symbolId: string) => boolean,
+): SymbolSection[] {
+  const rank = (category: string) => {
+    const at = CATEGORY_ORDER.indexOf(category);
+    return at === -1 ? CATEGORY_ORDER.length : at;
+  };
+  const matches = (query.trim() ? searchSymbols(symbols, query) : symbols.filter((s) => !inGlossary(s.id)))
+    .sort((a, b) => rank(a.category) - rank(b.category));
+  const sections: SymbolSection[] = [];
+  for (const symbol of matches) {
+    const current = sections[sections.length - 1];
+    if (current?.key === symbol.category) current.symbols.push(symbol);
+    else sections.push({ key: symbol.category, title: CATEGORY_LABELS[symbol.category] ?? symbol.category, symbols: [symbol] });
+  }
+  return sections;
+}
+
+/**
+ * Motifs matching a typed query. Every motif already has a glossary row, so
+ * with no query there's nothing to browse - same as an added stitch.
+ */
+export function searchMotifs<T extends { name: string }>(motifs: readonly T[], query: string): T[] {
+  const q = query.trim().toLowerCase();
+  return q ? motifs.filter((motif) => motif.name.toLowerCase().includes(q)) : [];
+}
