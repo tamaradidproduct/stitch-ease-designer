@@ -56,5 +56,7 @@ describe("isOutsidePointerdown", () => {
   // that assumption so the inside case isn't passing by accident.
   it("runs with no global Node, the fallback path the cases above rely on", () => {
     expect(typeof Node).toBe("undefined");
+    const container = { contains: () => true };
+    expect(isOutsidePointerdown({} as EventTarget, container)).toBe(false);
   });
 });

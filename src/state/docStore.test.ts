@@ -540,6 +540,11 @@ describe("moveQuickSlotDirection (#326)", () => {
     expect(useDocStore.getState().quickSymbolIds).toEqual(["knit", "purl", "yo"]);
   });
 
+  it("does not move a slot before the first position", () => {
+    useDocStore.getState().moveQuickSlotDirection("knit", -1);
+    expect(useDocStore.getState().quickSymbolIds).toEqual(["knit", "purl", "yo"]);
+  });
+
   it("is a no-op for a key that isn't a quick slot", () => {
     useDocStore.getState().moveQuickSlotDirection("cable_4", -1);
     expect(useDocStore.getState().quickSymbolIds).toEqual(["knit", "purl", "yo"]);

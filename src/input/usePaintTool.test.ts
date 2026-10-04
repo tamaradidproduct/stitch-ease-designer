@@ -311,6 +311,7 @@ describe("modeFor", () => {
   it("is a hard no-op when both chords are somehow held at once, even over an eligible target (revised FR-4)", () => {
     const both = { ...noMods, metaKey: true, shiftKey: true, altKey: true };
     expect(modeFor(both, SUGGEST_SYMBOL_ID, "confirm", suggested, false)).toBeNull();
+    expect(modeFor(both, SUGGEST_SYMBOL_ID, "dismiss", suggested, false)).toBeNull();
     // And it wins over the no-modifier override too.
     expect(modeFor(both, "purl", "suggest", suggested, false)).toBeNull();
   });
