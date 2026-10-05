@@ -32,6 +32,8 @@ import { useQuickSlotDropTarget } from "./useQuickSlotDropTarget";
 import { GlossaryRow } from "./GlossaryRow";
 import { glyphCellSize } from "./glyphSize";
 
+type GlossaryResult = { kind: "motif"; id: string } | { kind: "stitch"; id: string };
+
 export function RightPanel() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [glossaryQuery, setGlossaryQuery] = useState("");
@@ -229,16 +231,19 @@ export function RightPanel() {
   // The same search the picker uses: browse what isn't in the glossary yet,
   // or every match for a typed query (glossary entries tagged "Added").
   // Motifs only turn up for a query - every motif already has a row.
-  const glossarySections = searchSlot === null
-    ? []
-    : browseSymbols(allSymbols(), glossaryQuery, (id) => plainGlossaryIds.has(id));
-  const motifResults = searchSlot === null ? [] : searchMotifs(repeats, glossaryQuery);
-  // Flat order is what the arrow keys walk, so it must match render order.
-  type GlossaryResult = { kind: "motif"; id: string } | { kind: "stitch"; id: string };
-  const glossaryResults: GlossaryResult[] = [
-    ...motifResults.map((motif) => ({ kind: "motif" as const, id: motif.id })),
-    ...glossarySections.flatMap((section) => section.symbols.map((symbol) => ({ kind: "stitch" as const, id: symbol.id }))),
-  ];
+  const { glossarySections, motifResults, glossaryResults } = useMemo(() => {
+    if (searchSlot === null) {
+      return { glossarySections: [], motifResults: [], glossaryResults: [] };
+    }
+    const sections = browseSymbols(allSymbols(), glossaryQuery, (id) => plainGlossaryIds.has(id));
+    const motifs = searchMotifs(repeats, glossaryQuery);
+    // Flat order is what the arrow keys walk, so it must match render order.
+    const results: GlossaryResult[] = [
+      ...motifs.map((motif) => ({ kind: "motif" as const, id: motif.id })),
+      ...sections.flatMap((section) => section.symbols.map((symbol) => ({ kind: "stitch" as const, id: symbol.id }))),
+    ];
+    return { glossarySections: sections, motifResults: motifs, glossaryResults: results };
+  }, [searchSlot, glossaryQuery, plainGlossaryIds, repeats]);
   const slottedKeys = new Set(quickSymbolIds);
   const remainingGlossary = glossary.filter((entry) => !slottedKeys.has(entry.key));
   // Motifs not in a quick slot still belong in the glossary, after the
