@@ -194,6 +194,15 @@ describe("the color chip's one rule", () => {
     expect(useDocStore.getState().index.placementAt(0, 0)?.colorId).toBeUndefined();
   });
 
+  it("creates a colored quick slot when the chip is used on a brand-new stitch with nothing targeted", () => {
+    useDocStore.setState({ glossaryIds: [], quickSymbolIds: [] });
+
+    applyChipColor("yarn_over", RED, []);
+
+    expect(useDocStore.getState().quickSymbolIds).toEqual(["yarn_over::" + RED]);
+    expect(useDocStore.getState().glossaryIds).toEqual([]);
+  });
+
   it("replaces an unplaced plain stitch in place, in the quick row and the glossary", () => {
     useDocStore.setState({ glossaryIds: ["knit", "yarn_over", "purl"], quickSymbolIds: ["knit", "yarn_over", "purl"] });
 

@@ -157,8 +157,9 @@ export function applyChipColor(symbolId: string, colorId: string, targetPlacemen
     if (inQuick) doc.setQuickSymbolIds(replaceIn(doc.quickSymbolIds));
     if (inGlossary) doc.setGlossaryIds(replaceIn(doc.glossaryIds));
     // A row that only existed because of its placements reappears colored
-    // once they're recolored; with nothing to recolor it needs an entry.
-    if (!inQuick && !inGlossary && !targets.length) doc.addGlossaryId(newKey);
+    // once they're recolored; with nothing to recolor it needs a quick slot
+    // of its own instead of a detached glossary-only entry.
+    if (!inQuick && !inGlossary && !targets.length) doc.addQuickSlot(newKey);
   } else {
     doc.addQuickSlot(newKey);
   }
