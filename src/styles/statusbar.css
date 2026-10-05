@@ -1,13 +1,13 @@
 .statusbar {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-5);
   height: 28px;
   padding: 0 10px;
   background: var(--chrome);
   border-top: 1px solid var(--border);
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 .statusbar__cell {
@@ -28,8 +28,8 @@
   border: 1px solid var(--border);
   background: var(--bg);
   color: var(--text-muted);
-  border-radius: 4px;
-  padding: 2px 8px;
+  border-radius: var(--radius-xs);
+  padding: var(--space-1) var(--space-4);
   font: inherit;
   font-variant-numeric: tabular-nums;
   cursor: pointer;

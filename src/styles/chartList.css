@@ -3,39 +3,39 @@
 .charts {
   max-width: 760px;
   margin: 0 auto;
-  padding: 32px 20px 64px;
+  padding: 32px var(--space-7) 64px;
 }
 
 .charts__head {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-5);
 }
 
 .charts__title {
   flex: 1;
   margin: 0;
-  font-size: 22px;
+  font-size: var(--font-size-xl);
   letter-spacing: -0.02em;
 }
 
 .charts__actions {
   display: flex;
-  gap: 8px;
+  gap: var(--space-4);
 }
 
 .charts__note {
   margin: 6px 0 20px;
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 .charts__error {
   margin: 0 0 16px;
-  padding: 8px 10px;
-  border-radius: 6px;
+  padding: var(--space-4) 10px;
+  border-radius: var(--radius-sm);
   background: var(--danger-soft-bg);
-  color: #7f1d1d;
+  color: var(--danger-ink);
 }
 
 .charts__empty {
@@ -53,17 +53,17 @@
 .chartrow {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   border-bottom: 1px solid var(--border);
 }
 
 .chartrow__open {
   display: flex;
   align-items: baseline;
-  gap: 12px;
+  gap: var(--space-5);
   flex: 1;
   min-width: 0;
-  padding: 12px 4px;
+  padding: var(--space-5) var(--space-2);
   border: none;
   background: none;
   font: inherit;
@@ -80,23 +80,23 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
 .chartrow__when {
   flex: none;
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 .chartrow__rename {
   flex: 1;
-  padding: 6px 0;
+  padding: var(--space-3) 0;
 }
 
 .chartrow__input {
   width: 100%;
-  padding: 5px 8px;
+  padding: 5px var(--space-4);
   border: 1px solid var(--accent);
   border-radius: 5px;
   font: inherit;
@@ -106,6 +106,6 @@
 
 .chartrow__tools {
   display: flex;
-  gap: 2px;
+  gap: var(--space-1);
   flex: none;
 }

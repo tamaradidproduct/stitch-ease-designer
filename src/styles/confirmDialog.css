@@ -6,16 +6,16 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(15, 23, 42, 0.35);
-  z-index: 1000;
+  background: var(--scrim);
+  z-index: var(--z-modal);
 }
 
 .confirmDialog {
   width: min(320px, calc(100vw - 32px));
   padding: 18px;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--bg);
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.25);
+  box-shadow: var(--shadow-4);
 }
 
 .confirmDialog__message {
@@ -27,7 +27,7 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--space-4);
 }
 
 .confirmDialog__actions .btn {

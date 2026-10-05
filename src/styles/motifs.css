@@ -15,12 +15,12 @@
   bottom: 1px;
   color: var(--text-muted);
   font-size: 8px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   line-height: 1;
 }
 
 .motifRow {
-  gap: 2px;
+  gap: var(--space-1);
 }
 
 .motifRow .picker__itemMain[data-active="true"] {

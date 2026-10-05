@@ -3,21 +3,21 @@
   align-items: center;
   gap: 10px;
   height: 40px;
-  padding: 0 12px;
+  padding: 0 var(--space-5);
   background: var(--chrome);
   border-bottom: 1px solid var(--border);
 }
 
 .topbar__title {
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   letter-spacing: -0.01em;
 }
 
 .topbar__back {
   color: var(--text-muted);
-  font-size: 16px;
+  font-size: var(--font-size-lg);
   text-decoration: none;
-  padding: 0 4px;
+  padding: 0 var(--space-2);
 }
 
 .topbar__back:hover {
@@ -27,12 +27,12 @@
 .topbar__name {
   min-width: 8ch;
   max-width: 42ch;
-  padding: 3px 6px;
+  padding: 3px var(--space-3);
   border: 1px solid transparent;
   border-radius: 5px;
   background: none;
   font: inherit;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--text);
 }
 
@@ -55,9 +55,9 @@
   align-items: center;
   gap: 5px;
   height: 30px;
-  padding: 0 8px;
+  padding: 0 var(--space-4);
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-muted);
   font: inherit;
@@ -88,39 +88,39 @@
 
 .save {
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   white-space: nowrap;
 }
 
 .save--bad {
-  color: #b91c1c;
-  font-weight: 600;
+  color: var(--danger-strong);
+  font-weight: var(--font-weight-semibold);
 }
 
 .banner {
-  padding: 8px 12px;
-  background: #fffbeb;
-  border-bottom: 1px solid #fde68a;
-  color: #78350f;
-  font-size: 12px;
+  padding: var(--space-4) var(--space-5);
+  background: var(--warning-bg);
+  border-bottom: 1px solid var(--warning-border);
+  color: var(--warning-text);
+  font-size: var(--font-size-sm);
 }
 
 .banner--bad {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-5);
   background: var(--danger-soft-bg);
   border-bottom-color: var(--danger-soft-border);
-  color: #7f1d1d;
+  color: var(--danger-ink);
 }
 
 .banner--info {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  background: #eff6ff;
-  border-bottom-color: #bfdbfe;
-  color: #1e3a8a;
+  gap: var(--space-5);
+  background: var(--info-bg);
+  border-bottom-color: var(--info-border);
+  color: var(--info-text);
 }

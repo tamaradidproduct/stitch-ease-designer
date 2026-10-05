@@ -1,30 +1,146 @@
+/*
+ * Design tokens. Every color, type size, radius, shadow and layer the UI uses
+ * should come from here. The color values are mirrored in
+ * src/design/tokens.ts for the canvas renderer, and a unit test keeps the
+ * two in sync - change both together.
+ *
+ * Off-scale spacing and radius values (3, 5, 7, 9px...) still appear as
+ * literals in a few component files. They're optical adjustments that a
+ * scale step would visibly change, so they stay until a design pass decides
+ * whether to snap them.
+ */
 :root {
+  /* ---- color: neutrals ------------------------------------------------- */
   --bg: #ffffff;
   --chrome: #f8fafc;
   --border: #e2e8f0;
+  /* Dashed placeholder outlines (empty quick slots, result tiles) - one
+     step lighter than --border would be too faint, --border too heavy. */
+  --border-subtle: #dbe3ec;
   --text: #0f172a;
   --text-muted: #64748b;
-  --accent: #0284c7;
+  /* Placeholder icons and neutral badges - quieter than --text-muted. */
+  --text-subtle: #94a3b8;
 
+  /* ---- color: accent --------------------------------------------------- */
+  --accent: #0284c7;
   /* Soft tint of --accent used for hover/selected/focus backgrounds, plus
      the border that goes with it - repeated identically across the toolbar,
      stitch picker, glossary and selection controls. */
   --accent-soft-bg: #e0f2fe;
   --accent-soft-border: #bae6fd;
+  /* Drop-target and hover outline, between the soft border and --accent. */
+  --accent-mid: #7dd3fc;
+  /* Soft focus halo around a focused input. */
+  --accent-ring: rgb(2 132 199 / 10%);
   /* White text/icon color on any solid, saturated button background
      (accent, danger, the purple Suggest-mode toolDock, dark tooltips) -
      not tied to one particular background color, just "light enough to
      read on top of it". */
   --on-solid: #fff;
 
+  /* ---- color: danger --------------------------------------------------- */
   /* Destructive actions (delete, remove, error states) and their soft
      hover/background tint, repeated identically across pickers, selection
      actions and error banners. */
   --danger: #dc2626;
   --danger-soft-bg: #fef2f2;
   --danger-soft-border: #fecaca;
+  --danger-wash: rgba(220, 38, 38, 0.08);
+  /* Error text sitting on a tinted background, where --danger is too light. */
+  --danger-strong: #b91c1c;
+  --danger-ink: #7f1d1d;
 
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  font-size: 13px;
+  /* ---- color: suggest mode --------------------------------------------- */
+  /* Suggest mode's identity color: the armed toolDock, "identified" review
+     states and labelled reference marks. */
+  --suggest: #9333ea;
+  --suggest-strong: #7c3aed;
+  --suggest-wash: rgba(147, 51, 234, 0.15);
+
+  /* ---- color: banners -------------------------------------------------- */
+  --warning-bg: #fffbeb;
+  --warning-border: #fde68a;
+  --warning-text: #78350f;
+  --info-bg: #eff6ff;
+  --info-border: #bfdbfe;
+  --info-text: #1e3a8a;
+
+  /* ---- color: surfaces ------------------------------------------------- */
+  /* Floating docks over the canvas, paired with --blur-glass. */
+  --surface-glass: rgb(255 255 255 / 96%);
+  /* Lightens whatever selected/hovered row it sits on. */
+  --overlay-light: rgb(255 255 255 / 60%);
+  --tooltip-bg: #0f172a;
+  /* Dims the app behind a modal dialog. */
+  --scrim: rgba(15, 23, 42, 0.35);
+  /* Hairline that reads on any colorwork fill, light or dark. */
+  --hairline-ink: rgb(15 23 42 / 10%);
+  --blur-glass: blur(8px);
+
+  /* ---- color: chart cells (shared with the canvas renderer) ------------ */
+  --cell-stroke: #94a3b8;
+  --cell-ink: #334155;
+
+  /* ---- type ------------------------------------------------------------ */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-size-2xs: 10px;
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-md: 13px;
+  --font-size-lg: 16px;
+  --font-size-xl: 22px;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* ---- spacing (gap / padding) ------------------------------------------ */
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 12px;
+  --space-6: 16px;
+  --space-7: 20px;
+  --space-8: 24px;
+
+  /* ---- radius ---------------------------------------------------------- */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-full: 999px;
+
+  /* ---- control heights (Button / IconButton sizes) --------------------- */
+  --control-sm: 24px;
+  --control-md: 28px;
+  --control-lg: 36px;
+
+  /* ---- elevation ------------------------------------------------------- */
+  --shadow-0: 0 1px 3px rgb(15 23 42 / 6%);                                /* resting card */
+  --shadow-1: 0 1px 3px rgb(15 23 42 / 20%);                               /* chips, small floating buttons */
+  --shadow-2: 0 2px 6px rgb(15 23 42 / 8%);                                /* raised tiles */
+  --shadow-3: 0 8px 24px rgb(15 23 42 / 14%), 0 2px 6px rgb(15 23 42 / 8%); /* popovers, menus, drawers */
+  --shadow-4: 0 12px 32px rgb(15 23 42 / 25%);                             /* modal dialogs */
+
+  /* ---- app-level layers -------------------------------------------------
+     Small values (1-6) inside a component are local stacking and stay
+     literal. These are the layers components stack against each other on. */
+  --z-dock: 18;
+  --z-panel: 19;
+  --z-floating: 20;
+  --z-popover: 30;
+  /* Row menus open above any popover in the same panel. */
+  --z-menu: 40;
+  --z-modal: 1000;
+
+  /* ---- motion ---------------------------------------------------------- */
+  --duration-fast: 100ms;
+  --duration-base: 140ms;
+  --ease-standard: ease;
+
+  font-family: var(--font-sans);
+  font-size: var(--font-size-md);
   color: var(--text);
 }

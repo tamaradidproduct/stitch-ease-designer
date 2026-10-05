@@ -39,7 +39,7 @@ body {
 .app--message {
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: var(--space-5);
 }
 
 .stage {
@@ -55,4 +55,17 @@ body {
   height: 100%;
   /* Suppress native pan/zoom so the wheel and pointer handlers own the gesture. */
   touch-action: none;
+}
+
+/* Honour the OS "reduce motion" setting: keep state changes, drop the
+   movement. 0.01ms rather than 0 so transitionend/animationend still fire. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

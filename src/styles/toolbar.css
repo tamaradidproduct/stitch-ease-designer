@@ -3,7 +3,7 @@
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   height: 44px;
   padding: 0 10px;
   background: var(--bg);
@@ -13,7 +13,7 @@
 .toolbar__btn {
   padding: 5px 10px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--bg);
   font: inherit;
   color: var(--text);
@@ -42,7 +42,7 @@
 
 .toolDock {
   position: absolute;
-  z-index: 18;
+  z-index: var(--z-dock);
   /* env() falls back to the plain value when unsupported (or on a device
      with no home-indicator gesture area to clear), so this is additive,
      not risky. */
@@ -55,28 +55,24 @@
   gap: 5px;
   padding: 7px;
   border: 1px solid var(--border);
-  border-radius: 10px;
-  background: rgb(255 255 255 / 96%);
-  box-shadow:
-    0 8px 24px rgb(15 23 42 / 14%),
-    0 2px 6px rgb(15 23 42 / 8%);
+  border-radius: var(--radius-lg);
+  background: var(--surface-glass);
+  box-shadow: var(--shadow-3);
   transform: translateX(-50%);
-  backdrop-filter: blur(8px);
+  backdrop-filter: var(--blur-glass);
 }
 
 .panDock {
   position: absolute;
-  z-index: 18;
+  z-index: var(--z-dock);
   bottom: calc(12px + env(safe-area-inset-bottom, 0px));
   left: 24px;
   padding: 7px;
   border: 1px solid var(--border);
-  border-radius: 10px;
-  background: rgb(255 255 255 / 96%);
-  box-shadow:
-    0 8px 24px rgb(15 23 42 / 14%),
-    0 2px 6px rgb(15 23 42 / 8%);
-  backdrop-filter: blur(8px);
+  border-radius: var(--radius-lg);
+  background: var(--surface-glass);
+  box-shadow: var(--shadow-3);
+  backdrop-filter: var(--blur-glass);
 }
 
 /* Deliberately shown on every platform, not just touch: (hover: hover) and
@@ -131,7 +127,7 @@
   .panDock .toolDock__button:focus-visible {
     width: 76px;
     padding: 0 10px;
-    gap: 6px;
+    gap: var(--space-3);
   }
 
   .panDock .toolDock__button:hover span,
@@ -145,10 +141,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: var(--space-3);
   min-width: 58px;
   height: 38px;
-  padding: 0 12px;
+  padding: 0 var(--space-5);
   border: 1px solid transparent;
   border-radius: 7px;
   background: transparent;
@@ -195,9 +191,9 @@
 .toolDock__drawMain {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-3);
   height: 100%;
-  padding: 0 12px;
+  padding: 0 var(--space-5);
   border: 0;
   background: transparent;
   color: inherit;
@@ -233,7 +229,7 @@
   background: var(--bg);
   color: var(--accent);
   cursor: pointer;
-  box-shadow: 0 1px 3px rgb(15 23 42 / 15%);
+  box-shadow: var(--shadow-1);
 }
 
 .toolDock__drawStop svg {
@@ -268,8 +264,8 @@
    than the toolDock's default blue - all three read as one mode this way,
    whichever is currently active (FR-6). */
 .toolDock--suggest .toolDock__button[data-on="true"] {
-  border-color: #9333ea;
-  background: #9333ea;
+  border-color: var(--suggest);
+  background: var(--suggest);
   color: var(--on-solid);
 }
 
@@ -297,7 +293,7 @@
 .toolbar__selection {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-3);
   padding-left: 8px;
   border-left: 1px solid var(--border);
   color: var(--text-muted);

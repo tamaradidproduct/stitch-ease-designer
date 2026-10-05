@@ -1,15 +1,16 @@
-/* The stitch/row prompt anchored to the mark just placed on the canvas. */
+/* The stitch/row prompt anchored to the mark just placed on the canvas.
+   On the popover layer so a floating dock can't cover it. */
 .markpop {
   position: absolute;
-  z-index: 6;
+  z-index: var(--z-popover);
   display: flex;
   align-items: flex-start;
-  gap: 6px;
-  padding: 6px 8px;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  box-shadow: 0 6px 20px rgb(15 23 42 / 18%);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-3);
   transition:
     left 180ms cubic-bezier(0.22, 1, 0.36, 1),
     top 180ms cubic-bezier(0.22, 1, 0.36, 1);
@@ -19,7 +20,7 @@
 .markpop__fields {
   display: grid;
   grid-template-columns: repeat(2, max-content);
-  gap: 5px 8px;
+  gap: 5px var(--space-4);
 }
 
 .markpop__field {
@@ -30,21 +31,21 @@
 .markpop label {
   display: flex;
   align-items: center;
-  gap: 4px;
-  font-size: 12px;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
   color: var(--text-muted);
 }
 
 .markpop__input {
   width: 54px;
   min-height: 28px;
-  padding: 3px 6px;
+  padding: 3px var(--space-3);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--bg);
   color: var(--text);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   text-align: left;
   cursor: pointer;
 }
@@ -72,7 +73,7 @@
   background: var(--bg);
   color: var(--text-muted);
   font: inherit;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   cursor: pointer;
 }
 
@@ -90,19 +91,19 @@
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 4px;
+  gap: var(--space-2);
 }
 
 .markpop__keypad button {
   min-width: 32px;
   min-height: 30px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--bg);
   color: var(--text);
   font: inherit;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
 }
 
@@ -130,19 +131,19 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-4);
 }
 
 .markpop__confirm {
   min-height: 28px;
-  padding: 0 12px;
+  padding: 0 var(--space-5);
   border: 1px solid var(--accent);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--accent);
   color: var(--on-solid);
   font: inherit;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
 }
 
@@ -160,13 +161,13 @@
 
 .markpop__clear {
   min-height: 28px;
-  padding: 0 8px;
+  padding: 0 var(--space-4);
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--danger);
   font: inherit;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   cursor: pointer;
 }
 
@@ -185,8 +186,8 @@
   border-radius: 50%;
   background: var(--accent);
   color: var(--on-solid);
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
 }
 
 .markpop__remove {
@@ -194,9 +195,9 @@
   background: none;
   cursor: pointer;
   color: var(--text-muted);
-  font-size: 16px;
+  font-size: var(--font-size-lg);
   line-height: 1;
-  padding: 0 2px;
+  padding: 0 var(--space-1);
   margin-top: 1px;
 }
 

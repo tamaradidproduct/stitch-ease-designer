@@ -31,11 +31,11 @@
   min-height: 36px;
   align-items: center;
   gap: 7px;
-  padding: 4px 7px;
+  padding: var(--space-2) 7px;
   border: 1px solid var(--accent);
   border-radius: 7px;
   background: var(--bg);
-  box-shadow: 0 0 0 2px rgb(2 132 199 / 10%);
+  box-shadow: 0 0 0 2px var(--accent-ring);
 }
 
 /* Issue #308: this search box temporarily stands in for a plain empty-slot
@@ -62,16 +62,16 @@
      `.sideModule`'s `overflow: hidden`, which otherwise clips this dropdown
      at the glossary card's own bottom edge instead of floating it over the
      rest of the sidebar. */
-  z-index: 30;
+  z-index: var(--z-popover);
   display: flex;
   flex-direction: column;
   gap: 3px;
   margin-top: 0;
-  padding: 4px;
+  padding: var(--space-2);
   border: 1px solid var(--border);
   border-radius: 7px;
   background: var(--bg);
-  box-shadow: 0 6px 16px rgb(15 23 42 / 10%);
+  box-shadow: var(--shadow-3);
   /* Without its own bounded, scrollable box, touch scrolling here walks
      straight up the DOM to .rightPanel (the nearest ancestor that actually
      scrolls) instead - reads as "the whole panel scrolls". */
@@ -81,10 +81,10 @@
 }
 
 .glossarySearch__heading {
-  padding: 6px 8px 3px;
+  padding: var(--space-3) var(--space-4) 3px;
   color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -95,7 +95,7 @@
   min-height: 30px;
   align-items: center;
   gap: 7px;
-  padding: 4px 6px;
+  padding: var(--space-2) var(--space-3);
   border: 0;
   border-radius: 5px;
   background: transparent;
@@ -130,8 +130,8 @@
 
 .glossarySearch__results strong {
   color: var(--accent);
-  font-size: 10px;
-  font-weight: 600;
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-semibold);
 }
 
 .glossary__item {
@@ -209,7 +209,7 @@
 }
 
 .glossary__item--empty {
-  border-color: #dbe3ec;
+  border-color: var(--border-subtle);
   border-style: dashed;
   color: var(--text-muted);
   font: inherit;
@@ -222,15 +222,15 @@
   width: 38px;
   place-items: center;
   flex: none;
-  font-size: 16px;
+  font-size: var(--font-size-lg);
 }
 
 .glossary__shortcut {
   min-width: 19px;
-  padding: 2px 4px;
+  padding: var(--space-1) var(--space-2);
   border: 1px solid var(--border);
   border-bottom-width: 2px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: var(--bg);
   color: var(--text-muted);
   font: 9px/1 system-ui, sans-serif;
@@ -259,7 +259,7 @@
 .glossary__glyph .glyph__cell,
 .picker__glyph .glyph__cell,
 .picker__quickButton .glyph__cell {
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 
 .glossary__label {
@@ -285,7 +285,7 @@
 .glossary__subtitle {
   overflow: hidden;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: var(--font-size-2xs);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -296,10 +296,10 @@
   height: 20px;
   place-items: center;
   flex: none;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--chrome);
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: var(--font-size-2xs);
   font-variant-numeric: tabular-nums;
 }
 
@@ -373,7 +373,7 @@
 
 .glossary__disarm:hover,
 .glossary__disarm:focus-visible {
-  background: rgb(255 255 255 / 60%);
+  background: var(--overlay-light);
   outline: none;
 }
 
@@ -393,7 +393,7 @@
   padding: 0;
   place-items: center;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: transparent;
   color: var(--text-muted);
   cursor: grab;
@@ -477,16 +477,16 @@
   min-height: 24px;
   place-items: center;
   flex: none;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 
 .glossary__reviewPreview--identified {
-  background: rgba(147, 51, 234, 0.15);
-  border: 1.5px solid #9333ea;
+  background: var(--suggest-wash);
+  border: 1.5px solid var(--suggest);
 }
 
 .glossary__reviewPreview--unrecognized {
-  background: rgba(220, 38, 38, 0.08);
+  background: var(--danger-wash);
   border: 1.5px dashed var(--danger);
 }
 
@@ -498,7 +498,7 @@
   place-items: center;
   flex: none;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
@@ -571,7 +571,7 @@
   bottom: -5px;
   margin: 0;
   border-color: var(--border);
-  box-shadow: 0 1px 3px rgb(15 23 42 / 20%);
+  box-shadow: var(--shadow-1);
 }
 
 .glossary__menuRoot {
@@ -586,7 +586,7 @@
   place-items: center;
   flex: none;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
@@ -601,15 +601,15 @@
 }
 
 .glossary__menu {
-  z-index: 40;
+  z-index: var(--z-menu);
   display: flex;
   min-width: 200px;
   flex-direction: column;
-  padding: 4px;
+  padding: var(--space-2);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--bg);
-  box-shadow: 0 8px 24px rgb(15 23 42 / 14%), 0 2px 6px rgb(15 23 42 / 8%);
+  box-shadow: var(--shadow-3);
 }
 
 .glossary__menu button {
@@ -623,7 +623,7 @@
   background: none;
   color: var(--text);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   text-align: left;
   cursor: pointer;
 }
@@ -641,7 +641,7 @@
 }
 
 .glossary__menu small {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
 }
 
 .glossary__rename {
@@ -656,7 +656,7 @@
 /* Room for "Name (n)" in the unified row: the fixed 38px glyph box and
    36px trailing buttons were sized for a glyph-only row. */
 .glossary__item {
-  gap: 6px;
+  gap: var(--space-3);
 }
 
 .glossary__item .glossary__label {
@@ -687,11 +687,11 @@
   position: absolute;
   left: calc(100% + 2px);
   z-index: 5;
-  padding: 2px;
+  padding: var(--space-1);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--bg);
-  box-shadow: 0 4px 12px rgb(15 23 42 / 12%);
+  box-shadow: var(--shadow-3);
 }
 
 .glossary__dragHandle[aria-expanded="true"] {

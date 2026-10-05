@@ -18,5 +18,8 @@ export default defineConfig(() => ({
     // component (e.g. StitchPicker.test.tsx, #305/#306) and opts into
     // jsdom itself via a `// @vitest-environment jsdom` docblock.
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+    // Vitest blanks CSS by default; design/tokens.test.ts reads the
+    // stylesheets as text to keep the CSS and TS tokens in sync.
+    css: { include: [/src\/styles\//] },
   },
 }));
