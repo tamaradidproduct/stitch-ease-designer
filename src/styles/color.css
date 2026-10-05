@@ -1,0 +1,55 @@
+/*
+ * Shared color-chip affordance (FR-25/26/34): one chip, one rule
+ * (`applyChipColor`) wherever it appears - picker tiles, drawer rows, and
+ * glossary rows.
+ */
+.colorChip {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  z-index: 2;
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  /* #265: a border/fill that both matched --bg was invisible against a
+     pale, uncolored tile. A solid --border ring plus a soft drop shadow
+     reads as a control regardless of the tile's own color. */
+  border: 1.5px solid var(--border);
+  border-radius: 50%;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text-muted);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgb(15 23 42 / 20%);
+}
+
+.colorChip:hover,
+.colorChip:focus-visible,
+.colorChip[aria-expanded="true"] {
+  color: var(--accent);
+  outline: none;
+}
+
+.colorPopover {
+  z-index: 30;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow:
+    0 8px 24px rgb(15 23 42 / 14%),
+    0 2px 6px rgb(15 23 42 / 8%);
+}
+
+.colorPopover__swatch {
+  border: 1px solid rgb(15 23 42 / 10%);
+  border-radius: 5px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.colorPopover__swatch:hover,
+.colorPopover__swatch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}

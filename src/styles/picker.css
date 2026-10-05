@@ -1,0 +1,514 @@
+/* ---- stitch picker ----------------------------------------------------- */
+
+.picker {
+  position: fixed;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow:
+    0 8px 24px rgb(15 23 42 / 14%),
+    0 2px 6px rgb(15 23 42 / 8%);
+  overflow: visible;
+}
+
+/* FR-31: a persistent label naming what the picker is currently editing. */
+.picker__context {
+  padding: 6px 10px 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.picker__quick {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px;
+  background: var(--bg);
+  border-radius: 9px;
+}
+
+/* FR-30: separates the dynamic sixth tile from the five real, persisted slots. */
+.picker__quickDivider {
+  width: 1px;
+  align-self: stretch;
+  margin: 4px 1px;
+  background: var(--border);
+}
+
+.picker__quickColorChip {
+  right: -3px;
+  bottom: -3px;
+}
+
+.picker__itemColorChip,
+.glossary__colorChip {
+  position: static;
+  flex: none;
+  margin-left: auto;
+  border-color: transparent;
+  /* These sit inline in a list row (not overlaid on a tile), alongside
+     other flat icon buttons like .glossary__remove - the #265 affordance
+     fix is only needed where the chip floats over a stitch tile. */
+  box-shadow: none;
+}
+
+.picker__quickButton,
+.picker__quickSlot {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border-radius: 7px;
+}
+
+.picker__quickTile {
+  position: relative;
+  flex: none;
+}
+
+.picker__quickButton {
+  position: relative;
+  padding: 0;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.picker__quickButton::after {
+  content: attr(data-label);
+  position: absolute;
+  top: calc(100% + 7px);
+  left: 50%;
+  z-index: 3;
+  padding: 4px 7px;
+  border-radius: 5px;
+  background: #0f172a;
+  color: var(--on-solid);
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -2px);
+  transition: opacity 100ms ease, transform 100ms ease;
+}
+
+.picker__quickButton:hover,
+.picker__quickButton:focus-visible,
+.picker__quickButton[data-active="true"] {
+  border-color: var(--accent-soft-border);
+  background: var(--accent-soft-bg);
+  color: var(--accent);
+  outline: none;
+}
+
+.picker__quickButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.picker__quickButton:disabled:hover {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text);
+}
+
+.picker__quickButton:hover::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.picker__quickSlot {
+  border: 1px dashed #dbe3ec;
+  background: #f8fafc;
+  color: #94a3b8;
+}
+
+.picker__quickSlot:hover,
+.picker__quickSlot:focus-visible {
+  border-style: solid;
+  border-color: var(--accent-soft-border);
+  background: var(--accent-soft-bg);
+  color: var(--accent);
+}
+
+.picker__deleteButton {
+  color: var(--danger);
+}
+
+.picker__deleteButton:hover,
+.picker__deleteButton:focus-visible {
+  border-color: var(--danger-soft-border);
+  background: var(--danger-soft-bg);
+}
+
+.picker__moreButton[data-active="true"] {
+  border-color: #7dd3fc;
+  background: var(--accent-soft-bg);
+  color: var(--accent);
+}
+
+.picker__moreButton {
+  border-left-color: var(--border);
+}
+
+.picker__moreDrawer {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  width: 250px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  box-shadow: 0 8px 24px rgb(15 23 42 / 14%), 0 2px 6px rgb(15 23 42 / 8%);
+}
+
+.picker[data-drawer-below="true"] .picker__moreDrawer {
+  top: calc(100% + 8px);
+  bottom: auto;
+}
+
+.picker__moreHeader {
+  padding: 9px 10px 7px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.picker__moreList {
+  display: flex;
+  max-height: 248px;
+  flex-direction: column;
+  gap: 2px;
+  padding: 5px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.picker__moreList .picker__item {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  flex: none;
+  padding: 0;
+}
+
+.picker__moreList .picker__item:hover,
+.picker__moreList .picker__item:focus-within {
+  background: var(--accent-soft-bg);
+  outline: none;
+}
+
+.picker__itemMain {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.picker__selectionBubbles {
+  position: absolute;
+  top: 0;
+  left: calc(100% + 8px);
+  display: flex;
+  gap: 6px;
+}
+
+.picker__selectionBubbles button {
+  position: relative;
+  display: grid;
+  width: 48px;
+  height: 56px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text);
+  box-shadow: 0 8px 24px rgb(15 23 42 / 14%), 0 2px 6px rgb(15 23 42 / 8%);
+  cursor: pointer;
+}
+
+.picker__selectionBubbles button::after {
+  content: attr(data-label);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  z-index: 2;
+  padding: 4px 7px;
+  border-radius: 5px;
+  background: #0f172a;
+  color: var(--on-solid);
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -2px);
+  transition: opacity 100ms ease, transform 100ms ease;
+}
+
+.picker__selectionBubbles button:hover,
+.picker__selectionBubbles button:focus-visible {
+  border-color: var(--accent-soft-border);
+  background: var(--accent-soft-bg);
+  color: var(--accent);
+  outline: none;
+}
+
+.picker__selectionBubbles button:hover::after,
+.picker__selectionBubbles button:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.picker__selectionBubbles svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.picker__searchButton {
+  border-left-color: var(--border);
+  border-radius: 0 7px 7px 0;
+}
+
+.picker__morphSearch {
+  display: flex;
+  width: 200px;
+  height: 40px;
+  flex: none;
+  align-items: stretch;
+  overflow: hidden;
+  border: 1px solid #7dd3fc;
+  border-radius: 7px;
+  background: var(--bg);
+  animation: picker-search-morph 140ms ease-out;
+}
+
+.picker__morphSearch[data-origin="0"] { transform-origin: 27px center; }
+.picker__morphSearch[data-origin="1"] { transform-origin: 72px center; }
+.picker__morphSearch[data-origin="2"] { transform-origin: 117px center; }
+.picker__morphSearch[data-origin="3"] { transform-origin: 162px center; }
+.picker__morphSearch[data-origin="4"] { transform-origin: 207px center; }
+.picker__morphSearch[data-origin="5"] { transform-origin: 252px center; }
+
+@keyframes picker-search-morph {
+  from {
+    opacity: 0.65;
+    transform: scaleX(0.16);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+.picker__searchIcon {
+  align-self: center;
+  flex: none;
+  margin-left: 9px;
+  color: var(--accent);
+}
+
+.picker__results {
+  position: absolute;
+  top: calc(100% + 46px);
+  left: 0;
+  display: flex;
+  width: 100%;
+  max-height: 326px;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 0;
+  padding: 0;
+  overflow-y: auto;
+  border: none;
+  background: transparent;
+  scrollbar-width: thin;
+}
+
+.picker__results > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.picker__header {
+  display: flex;
+  align-items: stretch;
+  flex: none;
+  border-bottom: 1px solid var(--border);
+}
+
+.picker__search {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 10px;
+  border: none;
+  font: inherit;
+  color: var(--text);
+  outline: none;
+}
+
+.picker__search::placeholder {
+  color: var(--text-muted);
+}
+
+.picker__clear,
+.picker__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 34px;
+  border: none;
+  border-left: 1px solid var(--border);
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.picker__close:hover {
+  color: var(--text);
+  background: var(--chrome);
+}
+
+.picker__clear:hover {
+  color: var(--danger);
+  background: var(--danger-soft-bg);
+}
+
+.picker__list {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px;
+}
+
+.picker__heading {
+  padding: 8px 8px 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.picker__empty {
+  padding: 16px 10px;
+  color: var(--text-muted);
+}
+
+.picker__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 4px 6px;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.picker__results .picker__item {
+  width: 100%;
+  flex: none;
+  padding: 6px 9px;
+  border: 1px solid #dbe3ec;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 96%);
+  box-shadow: 0 2px 6px rgb(15 23 42 / 8%);
+}
+
+.picker__results .picker__item:hover,
+.picker__results .picker__item[data-active="true"] {
+  border-color: #7dd3fc;
+  background: var(--accent-soft-bg);
+}
+
+.picker__item[data-active="true"] {
+  background: var(--accent-soft-bg);
+}
+
+.picker__glyph {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+
+.picker__repeatGlyph {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 24px;
+  flex: none;
+  border: 1px dashed var(--accent);
+  border-radius: 4px;
+  color: var(--accent);
+  font-size: 16px;
+}
+
+.picker__label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picker__span {
+  flex: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.picker__added {
+  flex: none;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.picker__current {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-solid);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}

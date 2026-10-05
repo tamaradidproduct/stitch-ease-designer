@@ -1,0 +1,30 @@
+:root {
+  --bg: #ffffff;
+  --chrome: #f8fafc;
+  --border: #e2e8f0;
+  --text: #0f172a;
+  --text-muted: #64748b;
+  --accent: #0284c7;
+
+  /* Soft tint of --accent used for hover/selected/focus backgrounds, plus
+     the border that goes with it - repeated identically across the toolbar,
+     stitch picker, glossary and selection controls. */
+  --accent-soft-bg: #e0f2fe;
+  --accent-soft-border: #bae6fd;
+  /* White text/icon color on any solid, saturated button background
+     (accent, danger, the purple Suggest-mode toolDock, dark tooltips) -
+     not tied to one particular background color, just "light enough to
+     read on top of it". */
+  --on-solid: #fff;
+
+  /* Destructive actions (delete, remove, error states) and their soft
+     hover/background tint, repeated identically across pickers, selection
+     actions and error banners. */
+  --danger: #dc2626;
+  --danger-soft-bg: #fef2f2;
+  --danger-soft-border: #fecaca;
+
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 13px;
+  color: var(--text);
+}

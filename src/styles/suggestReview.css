@@ -1,0 +1,83 @@
+/* ---- suggest review menu ------------------------------------------------ */
+
+/* Two labeled groups side by side - a colored count heading over a row of
+   bare icon-and-label actions (no button chrome by default), separated by a
+   thin neutral divider. Color stays limited to the two headings; the
+   actions themselves are neutral until hovered/focused. */
+.suggestReview {
+  position: fixed;
+  z-index: 20;
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 16px 20px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow:
+    0 12px 32px rgb(15 23 42 / 16%),
+    0 2px 8px rgb(15 23 42 / 8%);
+}
+
+.suggestReview__group {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.suggestReview__heading {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.suggestReview__heading--identified {
+  color: #9333ea;
+}
+
+.suggestReview__heading--unrecognized {
+  color: var(--danger);
+}
+
+.suggestReview__row {
+  display: flex;
+  gap: 24px;
+}
+
+.suggestReview__divider {
+  align-self: stretch;
+  width: 1px;
+  margin-top: 4px;
+  background: var(--border);
+}
+
+.suggestReview__action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 2px;
+  border: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.suggestReview__action svg {
+  fill: none;
+  stroke: currentColor;
+}
+
+.suggestReview__action:hover:not(:disabled),
+.suggestReview__action:focus-visible {
+  color: var(--accent);
+  outline: none;
+}
+
+.suggestReview__action:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

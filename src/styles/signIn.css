@@ -1,0 +1,146 @@
+/* ---- sign in ------------------------------------------------------- */
+
+.signIn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background: var(--chrome);
+}
+
+.signIn__card {
+  width: 320px;
+  padding: 28px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 6%);
+}
+
+.signIn__title {
+  margin: 0 0 20px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.signIn__google {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.signIn__google:hover,
+.signIn__google:focus-visible {
+  border-color: var(--accent-soft-border);
+  background: #f8fafc;
+  outline: none;
+}
+
+.signIn__google:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.signIn__divider {
+  position: relative;
+  margin: 14px 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+.signIn__divider::before,
+.signIn__divider::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: calc(50% - 16px);
+  border-top: 1px solid var(--border);
+}
+
+.signIn__divider::before {
+  left: 0;
+}
+
+.signIn__divider::after {
+  right: 0;
+}
+
+.signIn__form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.signIn__label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.signIn__form input {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+}
+
+.signIn__form input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.signIn__form button {
+  margin-top: 4px;
+  padding: 9px;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--on-solid);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.signIn__form button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.signIn__error {
+  margin: 4px 0 0;
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.signIn__sent {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.signIn__hint {
+  margin: 20px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.signIn__form--actions {
+  flex-direction: row;
+  margin-top: 12px;
+}
+
+.signIn__form--actions button:first-child {
+  flex: 1;
+}

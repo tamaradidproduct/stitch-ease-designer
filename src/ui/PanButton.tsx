@@ -11,7 +11,7 @@ import { tapActivate } from "./tapActivate";
  * hold, not a fifth entry in the tool switcher. Kept in its own corner
  * rather than folded into the main toolDock so it stays reachable one-
  * handed regardless of where that dock ends up on screen. Shown on every
- * platform (see the comment on .panDock in styles.css for why it's not
+ * platform (see the comment on .panDock in styles/toolbar.css for why it's not
  * hidden on desktop).
  */
 export function PanButton() {

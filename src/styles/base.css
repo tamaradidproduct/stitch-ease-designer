@@ -1,0 +1,58 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  /* dvh tracks the browser's actual visible viewport, shrinking and growing
+     with a mobile browser's address bar - plain % here inherits from the
+     layout viewport instead, which can stay taller than what's genuinely
+     on screen. With body's overflow hidden below, anything that overflowed
+     the real screen this way wasn't just clipped, it was unreachable -
+     nothing to scroll to reach it. Kept as a fallback for browsers that
+     don't know dvh; unsupported values are ignored, not applied as 0. */
+  height: 100%;
+  height: 100dvh;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+  background: var(--bg);
+  /* The canvas handles its own gestures; page-level bounce fights panning. */
+  overscroll-behavior: none;
+}
+
+/* Flex rather than fixed grid rows: banners appear and disappear above the
+   stage, and a fixed row count would put the canvas in the wrong row. */
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.app > *:not(.stage) {
+  flex: none;
+}
+
+.app--message {
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  padding-right: 304px;
+}
+
+.canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* Suppress native pan/zoom so the wheel and pointer handlers own the gesture. */
+  touch-action: none;
+}

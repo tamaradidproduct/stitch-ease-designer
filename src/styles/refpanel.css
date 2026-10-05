@@ -1,0 +1,521 @@
+.traceColors {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.refpanel {
+  position: relative;
+  overflow: visible;
+}
+
+.refpanel__paletteButton {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  flex: none;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.refpanel__paletteButton:hover,
+.refpanel__paletteButton:focus-visible,
+.refpanel__paletteButton[data-on="true"] {
+  border-color: var(--accent-soft-border);
+  background: var(--accent-soft-bg);
+  color: var(--accent);
+  outline: none;
+}
+
+.refpanel__paletteButton svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.refpanel__traceColors {
+  position: absolute;
+  top: 48px;
+  right: 8px;
+  z-index: 4;
+  width: 226px;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: 0 8px 24px rgb(15 23 42 / 16%);
+}
+
+.traceColors__label,
+.traceColors__intensity {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.traceColors__label button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.traceColors__presets {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.traceColors__presets > button,
+.traceColors__custom {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 2px solid var(--bg);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--border);
+  cursor: pointer;
+}
+
+.traceColors__presets > button[data-on="true"] {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.traceColors__custom {
+  position: relative;
+  overflow: hidden;
+  border-radius: 7px;
+  background: conic-gradient(#f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+}
+
+.traceColors__custom input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.traceColors__intensity input {
+  min-width: 0;
+  flex: 1;
+}
+
+.refpanel {
+  width: 100%;
+}
+
+.refpanel__moduleHeader {
+  border-bottom: 0;
+}
+
+.refpanel[data-editing="true"] .refpanel__moduleHeader {
+  border-bottom: 1px solid var(--border);
+}
+
+.refpanel__headerAction {
+  justify-content: center;
+  min-height: 28px;
+  flex: none;
+}
+
+.refpanel__headerControls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.refpanel__quickControls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 8px 8px;
+}
+
+.refpanel__quickList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.refpanel__quickRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.refpanel__quickLabel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.refpanel__quickLabel span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.refpanel__quickBottomRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.refpanel__quickOpacityPopover {
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--chrome);
+}
+
+.refpanel__quickBottomRow .refpanel__layerButton {
+  margin-left: auto;
+}
+
+.refpanel__iconButton svg {
+  width: 28px;
+  height: 28px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.refpanel__iconButton[aria-pressed="true"],
+.refpanel__iconButton[aria-expanded="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft-bg);
+  color: var(--accent);
+}
+
+.refpanel__layerButton svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Match the compact tool icons elsewhere in the app while retaining the
+   larger 40px hit target for visibility. */
+.refpanel__iconButton:not(.refpanel__layerButton) svg {
+  width: 17px;
+  height: 17px;
+  stroke-width: 1.6;
+}
+
+.refpanel__setScale {
+  justify-content: center;
+  width: 100%;
+}
+
+.refpanel__dockHint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.refpanel__body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+}
+
+.refpanel__hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* A hint that's reporting a failed attempt, not just describing the mode. */
+.refpanel__hint--warn {
+  color: var(--danger);
+}
+
+.refpanel__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.refpanel__row input[type="range"] {
+  flex: 1;
+}
+
+.refpanel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.refpanel__checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.refpanel__error {
+  margin: 0;
+  padding: 0 12px 12px;
+  color: var(--danger);
+  font-size: 12px;
+}
+
+/* The image list: which of a chart's several reference images is active. */
+.refpanel__images {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.refpanel__imageList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.refpanel__imageList li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.refpanel__imageRow {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.refpanel__imageRow:hover {
+  background: var(--chrome);
+}
+
+.refpanel__imageRow[data-active="true"] {
+  border-color: var(--accent);
+}
+
+.refpanel__imageThumb {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: 4px;
+  object-fit: cover;
+  background: var(--chrome);
+}
+
+.refpanel__imageThumb--empty {
+  border: 1px dashed var(--border);
+}
+
+/* Replace/remove, right on each image's own row - every control in this
+   list acts on that specific image, so there's no separate "acts on
+   whichever is active" pair of buttons elsewhere in the panel. */
+.refpanel__imageAction {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.refpanel__imageAction:hover:not(:disabled) {
+  background: var(--chrome);
+  color: var(--text);
+}
+
+.refpanel__imageAction:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.refpanel__imageAction--danger:hover:not(:disabled) {
+  color: var(--danger);
+}
+
+.refpanel__imageAction svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Matches the glossary's own empty-slot row (`.glossary__item--empty`),
+   reused here rather than a plain text link so adding an image reads as
+   the same kind of action as adding a stitch. */
+.refpanel__addImage {
+  margin-top: 2px;
+}
+
+.refpanel__addImage:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.refpanel__helpRow {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.refpanel__helpButton {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.refpanel__helpPopover {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--chrome);
+}
+
+/* The calibration marks panel section: a status line plus its actions. */
+.refpanel__marks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.refpanel__markActions {
+  display: flex;
+  gap: 6px;
+}
+
+.refpanel__markList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.refpanel__markList li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.refpanel__markRow {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.refpanel__markRow:hover {
+  background: var(--chrome);
+}
+
+.refpanel__markRow[data-active="true"] {
+  border-color: var(--accent);
+}
+
+.refpanel__markNumbers[data-unset="true"] {
+  color: var(--text-muted);
+}
+
+/* Matches the badge drawn beside the mark on the canvas. */
+.refpanel__markIndex {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border-radius: 50%;
+  background: #94a3b8;
+  color: var(--on-solid);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.refpanel__markIndex[data-labelled="true"] {
+  background: #7c3aed;
+}
+
+.refpanel__markRemove {
+  border: 0;
+  background: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 4px;
+}
+
+.refpanel__markRemove:hover {
+  color: var(--text);
+}
