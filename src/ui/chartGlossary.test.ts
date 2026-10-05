@@ -3,8 +3,7 @@ import type { Placement } from "../model/types";
 import { useDocStore } from "../state/docStore";
 import {
   collectColoredGlossaryEntries,
-  countConfirmedColoredStitches,
-  countConfirmedStitches,
+  countGlossaryStitches,
   saveGlossaryIds,
   selectableGlossaryEntryPlacementIds,
   symbolsWithAnyPlacement,
@@ -59,9 +58,9 @@ describe("selectableGlossaryEntryPlacementIds", () => {
   });
 });
 
-describe("countConfirmedStitches", () => {
+describe("countGlossaryStitches", () => {
   it("excludes still-pending suggestions from the count (FR-13)", () => {
-    const counts = countConfirmedStitches([
+    const counts = countGlossaryStitches([
       stitch("a", "knit"),
       stitch("b", "knit", { suggested: true }),
       stitch("c", "purl"),
@@ -71,34 +70,34 @@ describe("countConfirmedStitches", () => {
   });
 
   it("confirming a suggestion visibly increments its symbol's count", () => {
-    const before = countConfirmedStitches([stitch("a", "knit", { suggested: true })]);
-    const after = countConfirmedStitches([stitch("a", "knit")]);
+    const before = countGlossaryStitches([stitch("a", "knit", { suggested: true })]);
+    const after = countGlossaryStitches([stitch("a", "knit")]);
     expect(before.get("knit") ?? 0).toBe(0);
     expect(after.get("knit")).toBe(1);
   });
 
-  // DNT-13: a plain symbol's count must exclude colored placements of that
-  // symbol - a colored combo is a separate inventory line with its own count.
-  it("excludes colored placements of the same symbol", () => {
-    const counts = countConfirmedStitches([
-      stitch("a", "purl"),
-      stitch("b", "purl", { colorId: "#e11d48" }),
-      stitch("c", "purl", { colorId: "#e11d48" }),
-    ]);
-    expect(counts.get("purl")).toBe(1);
-  });
-});
-
-describe("countConfirmedColoredStitches", () => {
-  it("counts per (symbol, color) combo, excluding uncolored placements", () => {
-    const counts = countConfirmedColoredStitches([
+  // DNT-13: a colored combo is a separate inventory line with its own count.
+  it("counts each (symbol, color) combo on its own line", () => {
+    const counts = countGlossaryStitches([
       stitch("a", "purl"),
       stitch("b", "purl", { colorId: "#e11d48" }),
       stitch("c", "purl", { colorId: "#e11d48" }),
       stitch("d", "purl", { colorId: "#0ea5e9" }),
     ]);
+    expect(counts.get("purl")).toBe(1);
     expect(counts.get("purl::#e11d48")).toBe(2);
     expect(counts.get("purl::#0ea5e9")).toBe(1);
+  });
+
+  it("counts a cable once, as itself - not the stitches it's worked as", () => {
+    const counts = countGlossaryStitches([
+      stitch("a", "2_2_left_cable"),
+      stitch("b", "2_2_left_cable"),
+      stitch("c", "2_2_left_cable"),
+    ]);
+    expect(counts.get("2_2_left_cable")).toBe(3);
+    expect(counts.get("knit") ?? 0).toBe(0);
+    expect(counts.get("purl") ?? 0).toBe(0);
   });
 });
 
@@ -118,7 +117,7 @@ describe("symbolsWithAnyPlacement", () => {
   it("would not let a symbol with only a pending suggestion look removable (Gotcha G-9)", () => {
     const placements = [stitch("a", "knit", { suggested: true })];
     // The FR-13 display count is 0 (nothing confirmed yet)...
-    expect(countConfirmedStitches(placements).get("knit") ?? 0).toBe(0);
+    expect(countGlossaryStitches(placements).get("knit") ?? 0).toBe(0);
     // ...but removal-safety must use the separate any-placement check, not that count.
     expect(symbolsWithAnyPlacement(placements).has("knit")).toBe(true);
   });

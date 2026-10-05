@@ -61,27 +61,18 @@ export function selectableGlossaryEntryPlacementIds(
 }
 
 /**
- * Per-symbol counts for a plain (uncolored) glossary row, excluding
- * still-pending suggestions and, per DNT-13, excluding colored placements of
- * that same symbol - a colored combo is a separate inventory line with its
- * own count. Without this exclusion a plain "Purl" row can read "3" while
- * zero actual uncolored purls exist, because every colored purl would be
- * counted twice: once on its own colored row, once folded into the plain one.
+ * How many of each glossary entry the chart holds, keyed by quick-slot key
+ * (`symbolId`, or `symbolId::colorId` - per DNT-13 a colored combo is its own
+ * inventory line, never folded into the plain one). Callers pass loose
+ * placements only: a motif copy's stitches belong to its motif row (FR-64).
+ * A cable counts once, as itself - the stitches it's worked as aren't
+ * counted on their own rows. Still-pending suggestions don't count (FR-13,
+ * G-8).
  */
-export function countConfirmedStitches(placements: readonly Placement[]): Map<string, number> {
+export function countGlossaryStitches(placements: readonly Placement[]): Map<string, number> {
   const counts = new Map<string, number>();
   for (const placement of placements) {
-    if (placement.suggested || placement.colorId) continue;
-    counts.set(placement.symbolId, (counts.get(placement.symbolId) ?? 0) + 1);
-  }
-  return counts;
-}
-
-/** Per (symbol, color) combo counts, confirmed placements only - the colored counterpart of `countConfirmedStitches`. */
-export function countConfirmedColoredStitches(placements: readonly Placement[]): Map<string, number> {
-  const counts = new Map<string, number>();
-  for (const placement of placements) {
-    if (placement.suggested || !placement.colorId) continue;
+    if (placement.suggested) continue;
     const key = quickSlotKey(placement.symbolId, placement.colorId);
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }

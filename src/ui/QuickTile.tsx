@@ -12,11 +12,13 @@ export type QuickTileEntry = {
 
 export type QuickTileProps = {
   entry: QuickTileEntry;
-  /** Whether this tile is the picker's current slot - drives both the active highlight and whether the recolor chip shows. */
+  /** Whether this tile is the picker's current slot - drives the active highlight, the "current" tag, and whether the color chip shows. */
   active: boolean;
+  /** False where coloring makes no sense (a single cell inside a cable). Defaults to true. */
+  canColor?: boolean;
   onChoose: (symbol: StitchSymbol, colorId?: string) => void;
-  /** Only ever invoked while `active` (see `active`'s own doc comment), so it's safe for the caller to bind it against a definitely-current slot. */
-  onRecolor: (colorId: string) => void;
+  /** Only ever invoked while `active` (see `active`'s own doc comment). */
+  onChooseColor: (colorId: string) => void;
   getPopoverBoundaryRect: () => DOMRect | null;
 };
 
@@ -24,7 +26,7 @@ export type QuickTileProps = {
  * One quick-row tile in the stitch picker (issue #323): the five fixed
  * quick-slot tiles and the dynamic 6th tile (FR-30, shown only when the
  * current selection isn't already one of the five) rendered identical
- * markup, including the recolor `ColorChip`. The dynamic tile's `ColorChip`
+ * markup, including the `ColorChip`. The dynamic tile's `ColorChip`
  * guard used to be `!dynamicSlot.colorId && currentSlot` (no key match) vs
  * the quick-slot tile's `!entry.colorId && currentSlot?.key === entry.key`;
  * they're equivalent in practice - the dynamic tile only ever exists when it
@@ -33,7 +35,7 @@ export type QuickTileProps = {
  * form (`active`) for both, per the issue's note to confirm before
  * committing to it.
  */
-export function QuickTile({ entry, active, onChoose, onRecolor, getPopoverBoundaryRect }: QuickTileProps) {
+export function QuickTile({ entry, active, canColor = true, onChoose, onChooseColor, getPopoverBoundaryRect }: QuickTileProps) {
   const title = entry.disabled ? `${entry.symbol.label} does not fit this selection` : entry.symbol.label;
   return (
     <div className="picker__quickTile">
@@ -51,14 +53,13 @@ export function QuickTile({ entry, active, onChoose, onRecolor, getPopoverBounda
         <SymbolGlyph symbol={entry.symbol} cell={glyphCellSize(entry.symbol.span, 58, 22)} colorId={entry.colorId} />
       </button>
       {/* FR-25: a colored slot's color is fixed - no chip. Only the current, uncolored slot gets one. */}
-      {!entry.colorId && active && (
+      {!entry.colorId && active && canColor && (
         <ColorChip
-          mode="recolor"
           label={`Color ${entry.symbol.label}`}
           className="picker__quickColorChip"
           popoverPlacement="above-first"
           getPopoverBoundaryRect={getPopoverBoundaryRect}
-          onSelect={onRecolor}
+          onSelect={onChooseColor}
         />
       )}
     </div>

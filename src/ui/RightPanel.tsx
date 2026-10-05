@@ -10,13 +10,12 @@ import { useDocStore } from "../state/docStore";
 import { RIGHT_PANEL_MAX_WIDTH, RIGHT_PANEL_MIN_WIDTH, SUGGEST_SYMBOL_ID, useUiStore } from "../state/uiStore";
 import { ReferenceImagePanel } from "./ReferenceImagePanel";
 import { SymbolGlyph } from "./SymbolGlyph";
-import { searchSymbols } from "./symbolSearch";
+import { browseSymbols, searchMotifs } from "./symbolSearch";
 import { tapActivate } from "./tapActivate";
 import { DisarmDrawingButton } from "./DisarmDrawingButton";
 import {
   collectColoredGlossaryEntries,
-  countConfirmedColoredStitches,
-  countConfirmedStitches,
+  countGlossaryStitches,
   saveGlossaryIds,
   selectableGlossaryEntryPlacementIds,
   symbolsWithAnyPlacement,
@@ -26,29 +25,14 @@ import { parseQuickSlotId, quickSlotInsertEdge, quickSlotKey } from "../model/qu
 import { motifIdFromKey, motifKey } from "../model/motifs";
 import { MotifCellGlyph } from "./motifUi";
 import { armMotifPen } from "./motifActions";
-import { addColoredVariant } from "./colorwork";
+import { applyChipColor } from "./colorwork";
 import { CheckIcon, CrossIcon, DragHandleIcon, SearchIcon } from "./icons";
 import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
 import { useQuickSlotDropTarget } from "./useQuickSlotDropTarget";
 import { GlossaryRow } from "./GlossaryRow";
 import { glyphCellSize } from "./glyphSize";
 
-/**
- * Section order for the glossary search dropdown; anything uncategorized
- * sorts last. Deliberately its own constant, not a shared one with
- * registry.ts's (unexported, export-image-only) CATEGORY_ORDER: that one
- * puts decreases before increases, a different editorial call for a
- * different context, not a value the two should be kept in sync with.
- */
-const GLOSSARY_CATEGORY_ORDER = ["basic", "increase", "decrease", "cable", "brioche", "special"];
-const CATEGORY_LABELS: Record<string, string> = {
-  basic: "Basic stitches",
-  increase: "Increases",
-  decrease: "Decreases",
-  cable: "Cables",
-  brioche: "Brioche",
-  special: "Special",
-};
+type GlossaryResult = { kind: "motif"; id: string } | { kind: "stitch"; id: string };
 
 export function RightPanel() {
   const [helpOpen, setHelpOpen] = useState(false);
@@ -87,6 +71,7 @@ export function RightPanel() {
   const referenceImageUnrecognized = useUiStore((state) => state.referenceImageUnrecognized);
   const clearReferenceImageUnrecognized = useUiStore((state) => state.clearReferenceImageUnrecognized);
   const setSelection = useUiStore((state) => state.setSelection);
+  const selectedPlacementIds = useUiStore((state) => state.selectedPlacementIds);
   const rightPanelWidth = useUiStore((state) => state.rightPanelWidth);
   const setRightPanelWidth = useUiStore((state) => state.setRightPanelWidth);
   const addedGlossaryIds = useGlossaryIds();
@@ -206,7 +191,7 @@ export function RightPanel() {
     <DisarmDrawingButton className="glossary__disarm" onActivate={() => setArmedSymbolId(null)} />
   );
 
-  const { placements, loosePlacements, glossary, plainGlossaryIds, stitchCounts, coloredCounts, symbolsPlaced, looseSymbolsPlaced } = useMemo(() => {
+  const { placements, loosePlacements, glossary, plainGlossaryIds, stitchCounts, symbolsPlaced, looseSymbolsPlaced } = useMemo(() => {
     // The document mutates its index in place; its revision invalidates this
     // cached snapshot when placements change.
     void revision;
@@ -232,53 +217,33 @@ export function RightPanel() {
       plainGlossaryIds: new Set(
         chartGlossary.filter((entry) => !entry.colorId).map((entry) => entry.symbol.id),
       ),
-      // Displayed count excludes still-pending suggestions (FR-13, G-8) and,
-      // per DNT-13, excludes colored placements of the same symbol - a
-      // colored combo is a separate inventory line with its own count.
+      // Loose stitches only, a cable counted once as itself; pending
+      // suggestions don't count (see countGlossaryStitches).
       // Glossary removal-safety needs a separate "any placement at all"
       // check, confirmed or suggested, or a symbol with only a pending
       // suggestion would look removable (FR-14, G-9). Distinctly named
       // values from the start, not one reused for multiple purposes.
-      stitchCounts: countConfirmedStitches(looseOnly),
-      coloredCounts: countConfirmedColoredStitches(looseOnly),
+      stitchCounts: countGlossaryStitches(looseOnly),
       symbolsPlaced: symbolsWithAnyPlacement(chartPlacements),
       looseSymbolsPlaced: symbolsWithAnyPlacement(looseOnly),
     };
   }, [quickSymbolIds, addedGlossaryIds, index, revision, repeats]);
-  // Grouped by category (basic, increases, decreases, ...) rather than left
-  // flat, so browsing the full library reads as a glossary instead of a wall
-  // of stitches. Array.prototype.sort is stable, so search relevance order
-  // (when there's a query) survives within each category bucket.
-  const glossaryResults = useMemo(() => {
-    if (searchSlot === null) return [];
-    return (glossaryQuery.trim()
-      // A typed query should surface matches even if they're already in
-      // the glossary - selecting one just switches to its existing chip
-      // (see chooseSearchResult/addToGlossary) rather than duplicating it.
-      ? searchSymbols(allSymbols(), glossaryQuery)
-      : allSymbols().filter((symbol) => !plainGlossaryIds.has(symbol.id)))
-      .sort((a, b) => {
-        const ai = GLOSSARY_CATEGORY_ORDER.indexOf(a.category);
-        const bi = GLOSSARY_CATEGORY_ORDER.indexOf(b.category);
-        return (
-          (ai === -1 ? GLOSSARY_CATEGORY_ORDER.length : ai) -
-          (bi === -1 ? GLOSSARY_CATEGORY_ORDER.length : bi)
-        );
-      });
-  }, [searchSlot, glossaryQuery, plainGlossaryIds]);
-  const glossarySections: { key: string; title: string; symbols: typeof glossaryResults }[] = [];
-  for (const symbol of glossaryResults) {
-    const current = glossarySections[glossarySections.length - 1];
-    if (current?.key === symbol.category) {
-      current.symbols.push(symbol);
-    } else {
-      glossarySections.push({
-        key: symbol.category,
-        title: CATEGORY_LABELS[symbol.category] ?? symbol.category,
-        symbols: [symbol],
-      });
+  // The same search the picker uses: browse what isn't in the glossary yet,
+  // or every match for a typed query (glossary entries tagged "Added").
+  // Motifs only turn up for a query - every motif already has a row.
+  const { glossarySections, motifResults, glossaryResults } = useMemo(() => {
+    if (searchSlot === null) {
+      return { glossarySections: [], motifResults: [], glossaryResults: [] };
     }
-  }
+    const sections = browseSymbols(allSymbols(), glossaryQuery, (id) => plainGlossaryIds.has(id));
+    const motifs = searchMotifs(repeats, glossaryQuery);
+    // Flat order is what the arrow keys walk, so it must match render order.
+    const results: GlossaryResult[] = [
+      ...motifs.map((motif) => ({ kind: "motif" as const, id: motif.id })),
+      ...sections.flatMap((section) => section.symbols.map((symbol) => ({ kind: "stitch" as const, id: symbol.id }))),
+    ];
+    return { glossarySections: sections, motifResults: motifs, glossaryResults: results };
+  }, [searchSlot, glossaryQuery, plainGlossaryIds, repeats]);
   const slottedKeys = new Set(quickSymbolIds);
   const remainingGlossary = glossary.filter((entry) => !slottedKeys.has(entry.key));
   // Motifs not in a quick slot still belong in the glossary, after the
@@ -303,7 +268,15 @@ export function RightPanel() {
     if (usedIn?.length) return { removable: false, removeBlockedReason: `Used in ${usedIn.join(", ")}` };
     return { removable: true, removeBlockedReason: undefined };
   };
-  const motifRowProps = (motif: (typeof repeats)[number], key: string) => {
+  // Select all picks exactly what the row counts: loose stitches only.
+  const selectAllProps = (key: string) => {
+    const ids = selectableGlossaryEntryPlacementIds(loosePlacements, key);
+    return {
+      selectAllLabel: `Select all ${ids.length} placed`,
+      onSelectAll: () => setSelection(ids, [], true),
+    };
+  };
+  const motifRowProps = (motif: (typeof repeats)[number]) => {
     const copies = motif.copies ?? [];
     return {
       label: motif.name,
@@ -317,7 +290,9 @@ export function RightPanel() {
         setSelection(copies.flatMap((copy) => index.groupMembers(copy.id).map((p) => p.id)), [], true),
       removable: copies.length === 0,
       removeBlockedReason: "Has copies on the chart - delete the motif instead",
-      onRemove: () => removeFromGlossary(key),
+      // A motif lives only in the glossary, so removing its row - slotted or
+      // not - is deleting it (undoable), same as an unplaced stitch's X.
+      onRemove: () => useDocStore.getState().deleteMotif(motif.id, "detach"),
       onRename: (name: string) => useDocStore.getState().renameMotif(motif.id, name),
       menuItems: [
         { label: "Stamp mirrored", onSelect: () => armMotifPen(motif.id, true) },
@@ -363,9 +338,14 @@ export function RightPanel() {
     removeQuickSymbol(key);
     saveGlossaryIds(next);
   };
-  const chooseSearchResult = (id: string) => {
-    addToGlossary(id);
-    chooseSymbol(id);
+  const chooseSearchResult = (result: GlossaryResult) => {
+    if (result.kind === "motif") {
+      armMotifPen(result.id);
+      closeGlossarySearch();
+      return;
+    }
+    addToGlossary(result.id);
+    chooseSymbol(result.id);
     // addToGlossary early-returns (without clearing the query) when the
     // chosen result is already in the glossary, so clear it here too -
     // otherwise the next "Add stitch" open would show this stale query
@@ -390,7 +370,7 @@ export function RightPanel() {
     if (!glossaryResults.length) return;
     event.preventDefault();
     if (event.key === "Enter") {
-      chooseSearchResult(glossaryResults[activeGlossaryResult]!.id);
+      chooseSearchResult(glossaryResults[activeGlossaryResult]!);
       return;
     }
     const direction = event.key === "ArrowDown" ? 1 : -1;
@@ -447,7 +427,7 @@ export function RightPanel() {
                     aria-controls="glossary-search-results"
                     aria-activedescendant={
                       glossaryResults[activeGlossaryResult]
-                        ? `glossary-search-result-${glossaryResults[activeGlossaryResult]!.id}`
+                        ? `glossary-search-result-${glossaryResults[activeGlossaryResult]!.kind}-${glossaryResults[activeGlossaryResult]!.id}`
                         : undefined
                     }
                   />
@@ -465,6 +445,33 @@ export function RightPanel() {
                           width: searchResultsRect.width,
                         }}
                       >
+                        {motifResults.length > 0 && (
+                          <div>
+                            <div className="glossarySearch__heading">Motifs</div>
+                            {motifResults.map((motif) => {
+                              resultIndex += 1;
+                              const at = resultIndex;
+                              return (
+                                <button
+                                  id={`glossary-search-result-motif-${motif.id}`}
+                                  key={motif.id}
+                                  type="button"
+                                  role="option"
+                                  aria-selected={at === activeGlossaryResult}
+                                  data-active={at === activeGlossaryResult}
+                                  onPointerEnter={() => setActiveGlossaryResult(at)}
+                                  onClick={() => chooseSearchResult({ kind: "motif", id: motif.id })}
+                                >
+                                  <span className="glossarySearch__glyph">
+                                    <MotifCellGlyph />
+                                  </span>
+                                  <span>{motif.name}</span>
+                                  <strong>Added</strong>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
                         {glossarySections.map((section) => (
                           <div key={section.key}>
                             <div className="glossarySearch__heading">{section.title}</div>
@@ -473,20 +480,20 @@ export function RightPanel() {
                               const at = resultIndex;
                               return (
                                 <button
-                                  id={`glossary-search-result-${result.id}`}
+                                  id={`glossary-search-result-stitch-${result.id}`}
                                   key={result.id}
                                   type="button"
                                   role="option"
                                   aria-selected={at === activeGlossaryResult}
                                   data-active={at === activeGlossaryResult}
                                   onPointerEnter={() => setActiveGlossaryResult(at)}
-                                  onClick={() => chooseSearchResult(result.id)}
+                                  onClick={() => chooseSearchResult({ kind: "stitch", id: result.id })}
                                 >
                                   <span className="glossarySearch__glyph">
                                     <SymbolGlyph symbol={result} cell={glyphCellSize(result.span, 48, 18)} />
                                   </span>
                                   <span>{result.label}</span>
-                                  <strong>{plainGlossaryIds.has(result.id) ? "Added" : "Add"}</strong>
+                                  <strong>{plainGlossaryIds.has(result.id) ? "Added" : "Select"}</strong>
                                 </button>
                               );
                             })}
@@ -504,7 +511,7 @@ export function RightPanel() {
                   data-drag-over={dragOverQuickSlot === slot}
                   {...forEmptySlot(slot)}
                   onClick={() => searchForQuickStitch(slot)}
-                  title={slot < 5 ? `Choose a stitch for shortcut ${slot + 1}` : "Add another stitch"}
+                  title={slot < 5 ? `Choose a quick stitch (${slot + 1})` : "Add another stitch"}
                 >
                   <span className="glossary__dragHandle glossary__dragHandle--empty" aria-hidden="true">
                     <DragHandleIcon />
@@ -533,7 +540,9 @@ export function RightPanel() {
           <div>
             <h2>Stitch glossary</h2>
             <span>
-              {glossary.length} stitch type{glossary.length === 1 ? "" : "s"} in this chart
+              {/* A colored stitch is its own type, separate from its plain one. */}
+              {glossary.length} stitch type{glossary.length === 1 ? "" : "s"}
+              {repeats.length > 0 && ` · ${repeats.length} motif${repeats.length === 1 ? "" : "s"}`} in this chart
             </span>
           </div>
         </div>
@@ -659,9 +668,7 @@ export function RightPanel() {
               const parsed = key ? parseQuickSlotId(key) : undefined;
               const symbol = parsed ? getSymbol(parsed.symbolId) : undefined;
               const armed = !!key && key === quickSlotKey(armedSymbolId ?? "", activeColor) && !!armedSymbolId;
-              const count = parsed?.colorId
-                ? (coloredCounts.get(key!) ?? 0)
-                : (stitchCounts.get(symbol?.id ?? "") ?? 0);
+              const count = key ? (stitchCounts.get(key) ?? 0) : 0;
               // #271: dropping onto an already-occupied quick slot pushes
               // the existing stitches along (see promoteQuickSlot/
               // moveQuickSlotTo) rather than filling in place, so it gets
@@ -689,7 +696,7 @@ export function RightPanel() {
                 return (
                   <GlossaryRow
                     key={key}
-                    {...motifRowProps(motif, key)}
+                    {...motifRowProps(motif)}
                     armMode="arm-only"
                     onArm={() => useUiStore.getState().armMotif(motif.id)}
                     shortcutSlot={slot < 5 ? slot : undefined}
@@ -723,9 +730,8 @@ export function RightPanel() {
                   onDisarm={() => setArmedSymbolId(null)}
                   disarmButton={disarmButton}
                   count={count}
-                  selectAllLabel={`Select all ${count} placed`}
-                  onSelectAll={() => setSelection(selectableGlossaryEntryPlacementIds(loosePlacements, key), [], true)}
-                  onAddColoredVariant={(colorId) => addColoredVariant(symbol.id, colorId)}
+                  {...selectAllProps(key)}
+                  onChooseColor={(colorId) => applyChipColor(symbol.id, colorId, selectedPlacementIds)}
                   {...stitchRemoval(key)}
                   onRemove={() => removeFromGlossary(key)}
                   shortcutSlot={slot < 5 ? slot : undefined}
@@ -763,7 +769,7 @@ export function RightPanel() {
             {remainingGlossary.map((entry, overflowIndex) => {
               const { symbol, colorId, key } = entry;
               const armed = key === quickSlotKey(armedSymbolId ?? "", activeColor) && !!armedSymbolId;
-              const count = colorId ? (coloredCounts.get(key) ?? 0) : (stitchCounts.get(symbol.id) ?? 0);
+              const count = stitchCounts.get(key) ?? 0;
               const dragHandlers = trackDragOverKey(key);
               return (
                 <GlossaryRow
@@ -780,9 +786,8 @@ export function RightPanel() {
                   onDisarm={() => setArmedSymbolId(null)}
                   disarmButton={disarmButton}
                   count={count}
-                  selectAllLabel={`Select all ${count} placed`}
-                  onSelectAll={() => setSelection(selectableGlossaryEntryPlacementIds(loosePlacements, key), [], true)}
-                  onAddColoredVariant={(newColorId) => addColoredVariant(symbol.id, newColorId)}
+                  {...selectAllProps(key)}
+                  onChooseColor={(newColorId) => applyChipColor(symbol.id, newColorId, selectedPlacementIds)}
                   {...stitchRemoval(key)}
                   onRemove={() => removeFromGlossary(key)}
                   // Overflow rows have no numbered shortcut - always the spacer.
@@ -835,30 +840,50 @@ export function RightPanel() {
                 />
               );
             })}
-            {remainingMotifs.map((motif) => {
+            {remainingMotifs.map((motif, overflowIndex) => {
               const key = motifKey(motif.id);
+              const dragHandlers = trackDragOverKey(key);
+              // Reorders within the unslotted motifs, the same way the
+              // unslotted stitches above reorder among themselves.
+              const moveNextTo = (neighbor: (typeof repeats)[number] | undefined) => {
+                const targetIndex = neighbor ? repeats.indexOf(neighbor) : -1;
+                if (targetIndex !== -1) useDocStore.getState().moveMotifTo(motif.id, targetIndex);
+              };
               return (
                 <GlossaryRow
                   key={key}
-                  {...motifRowProps(motif, key)}
-                  // Not in a quick slot and never placed: removing it from
-                  // the glossary is deleting it (undoable).
-                  onRemove={() => useDocStore.getState().deleteMotif(motif.id, "detach")}
+                  {...motifRowProps(motif)}
                   armMode="arm-and-promote"
                   onArm={() => armMotifPen(motif.id)}
-                  dragHandleTitle="Drag onto a numbered slot above to pin it there"
+                  dragHandleTitle="Drag to reorder, or onto a numbered slot above to pin it there"
                   onDragHandleStart={(event) => {
                     event.dataTransfer.effectAllowed = "move";
                     event.dataTransfer.setData("text/plain", key);
                     startDragging(key);
                   }}
                   onDragHandleEnd={resetDragState}
-                  onRowDragOver={() => {}}
-                  onRowDragLeave={() => {}}
-                  onRowDrop={(event) => event.preventDefault()}
-                  moveUp={{ disabled: true, onClick: () => {}, title: "Move up" }}
-                  moveDown={{ disabled: true, onClick: () => {}, title: "Move down" }}
-                  dragIndicator={{ kind: "drag-over", active: false }}
+                  onRowDragOver={dragHandlers.onDragOver}
+                  onRowDragLeave={dragHandlers.onDragLeave}
+                  onRowDrop={(event) => {
+                    event.preventDefault();
+                    const draggedKey = draggingQuickId;
+                    resetDragState();
+                    const draggedId = draggedKey ? motifIdFromKey(draggedKey) : null;
+                    // Only another unslotted motif reorders here.
+                    if (!draggedId || draggedKey === key || quickSymbolIds.includes(draggedKey!)) return;
+                    useDocStore.getState().moveMotifTo(draggedId, repeats.indexOf(motif));
+                  }}
+                  moveUp={{
+                    disabled: overflowIndex === 0,
+                    onClick: () => moveNextTo(remainingMotifs[overflowIndex - 1]),
+                    title: "Move up",
+                  }}
+                  moveDown={{
+                    disabled: overflowIndex === remainingMotifs.length - 1,
+                    onClick: () => moveNextTo(remainingMotifs[overflowIndex + 1]),
+                    title: "Move down",
+                  }}
+                  dragIndicator={{ kind: "drag-over", active: dragOverQuickId === key }}
                 />
               );
             })}

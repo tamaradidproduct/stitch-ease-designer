@@ -8,7 +8,7 @@ import { useDocStore } from "../state/docStore";
 import { type PickerTarget, useUiStore } from "../state/uiStore";
 import { insertTargetCol } from "../model/ops";
 import { SymbolGlyph } from "./SymbolGlyph";
-import { searchSymbols } from "./symbolSearch";
+import { browseSymbols, searchMotifs } from "./symbolSearch";
 import { CloseIcon, SearchIcon } from "./icons";
 import { collectColoredGlossaryEntries, useGlossaryIds } from "./chartGlossary";
 import { clamp } from "./utils";
@@ -18,7 +18,7 @@ import { rowDirectionAt } from "../model/rowDirection";
 import { effectiveBase, isBaseStitch } from "../model/cableComposition";
 import { MotifCopyBubbles, MotifDrawerSection, MotifGlyph, MotifQuickTile } from "./motifUi";
 import { armMotifPen, eraseKeepingMotifStitches, selectedMotifCopy } from "./motifActions";
-import { addColoredVariant, applyColorToSlot, currentSlotForPicker } from "./colorwork";
+import { applyChipColor, currentSlotForPicker } from "./colorwork";
 import { ColorChip } from "./ColorChip";
 import { QuickTile } from "./QuickTile";
 import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
@@ -28,15 +28,6 @@ const SEARCH_SLOT_WIDTH = 200;
 const MAX_HEIGHT = 380;
 const MAX_HEIGHT_RESULTS = 326;
 const GLYPH_BUDGET = 210;
-
-type Section = { key: string; title: string | null; symbols: StitchSymbol[] };
-
-/** Searching is deliberately empty until the designer types a query. */
-function buildSections(query: string): Section[] {
-  return query.trim()
-    ? [{ key: "results", title: null, symbols: searchSymbols(allSymbols(), query) }]
-    : [];
-}
 
 /** Cables are up to 12 cells wide; shrink the cell so the whole span fits. */
 const cellSizeFor = (symbol: StitchSymbol) =>
@@ -135,9 +126,24 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
   const cellStitch = basePlacement ? effectiveBase(basePlacement)[baseCell!.offset] : null;
   const canDelete = baseCell ? !!changedBase : !!currentSymbol || !!target?.selectionIds?.length;
 
+  // Plain stitches that already have a glossary row (quick slots count) -
+  // what search hides until a query is typed, and tags "Added" after.
+  const plainGlossaryIds = useMemo(() => {
+    void revision;
+    return new Set(collectColoredGlossaryEntries([...quickIds, ...addedGlossaryIds], index.toArray())
+      .filter((entry) => !entry.colorId)
+      .map((entry) => entry.symbol.id));
+  }, [quickIds, addedGlossaryIds, index, revision]);
+  // One identity drives the active tile, its color chip, and every
+  // "current" tag, so they can never disagree. A cable cell holds a plain
+  // stitch, so there any color of that stitch is current.
+  const isCurrent = (entry: { key: string; symbol: StitchSymbol }) =>
+    baseCell ? entry.symbol.id === cellStitch : currentSlot?.key === entry.key;
+  // What a color chip acts on: the selection, or the one stitch under the picker.
+  const chipTargetIds = target.selectionIds ?? currentSlot?.placementIds ?? [];
+
   const sections = useMemo(() => {
-    if (!query.trim()) return [];
-    const built = buildSections(query);
+    const built = browseSymbols(allSymbols(), query, (id) => plainGlossaryIds.has(id));
     if (!selectionSpan) return built;
     return built
       .map((section) => ({
@@ -146,7 +152,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
           symbol.span === selectionSpan && (!target.baseCell || isBaseStitch(symbol.id))),
       }))
       .filter((section) => section.symbols.length > 0);
-  }, [query, selectionSpan, target.baseCell]);
+  }, [query, selectionSpan, target.baseCell, plainGlossaryIds]);
 
   type QuickEntry = { key: string; symbol: StitchSymbol; colorId?: string; disabled?: boolean };
   const quickSymbols = useMemo(
@@ -227,9 +233,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
 
   // Flat order is what the arrow keys walk, so it must match render order.
   const flat = useMemo(() => sections.flatMap((s) => s.symbols), [sections]);
-  const matchingRepeats = target?.selectionIds || !query.trim()
-    ? []
-    : repeats.filter((repeat) => repeat.name.toLowerCase().includes(query.trim().toLowerCase()));
+  const matchingRepeats = target.selectionIds || baseCell ? [] : searchMotifs(repeats, query);
 
   // The picker never unmounts — it just renders null while closed — so a
   // mount-only effect would focus and reset state exactly once, the first
@@ -348,7 +352,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
     if (!list) return;
     const available = window.innerHeight - list.getBoundingClientRect().top - 8;
     setResultsMaxHeight(Math.max(120, Math.min(MAX_HEIGHT_RESULTS, available)));
-  }, [searchOpen, query, pos.top, sections, matchingRepeats.length]);
+  }, [searchOpen, pos.top, sections, matchingRepeats.length]);
 
   useEffect(() => {
     listRef.current
@@ -594,7 +598,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
         // like it landed on the wrong thing.
         <div className="picker__context">{placeholder}</div>
       )}
-      <div className="picker__quick" aria-label="Choose a recent stitch or search">
+      <div className="picker__quick" aria-label="Quick stitches">
           {Array.from({ length: 5 }, (_, slot) => {
             if (searchOpen && searchOrigin === slot) return renderSearchField(`search:${slot}`);
             const motif = quickMotifs[slot];
@@ -613,10 +617,11 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
               <QuickTile
                 key={entry.key}
                 entry={entry}
-                active={baseCell ? entry.symbol.id === cellStitch : currentSlot?.key === entry.key}
+                active={isCurrent(entry)}
+                canColor={!baseCell}
                 onChoose={choose}
-                onRecolor={(colorId) => {
-                  if (currentSlot) applyColorToSlot(currentSlot, colorId);
+                onChooseColor={(colorId) => {
+                  applyChipColor(entry.symbol.id, colorId, chipTargetIds);
                   closePicker();
                 }}
                 getPopoverBoundaryRect={() => rootRef.current?.getBoundingClientRect() ?? null}
@@ -627,8 +632,8 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
                 type="button"
                 className="picker__quickButton picker__quickSlot"
                 onClick={() => openSearch("", slot)}
-                title="Choose a stitch"
-                aria-label={`Choose a stitch for recent slot ${slot + 1}`}
+                title={`Choose a quick stitch (${slot + 1})`}
+                aria-label={`Choose a stitch for quick slot ${slot + 1}`}
                 data-label="Choose stitch"
               >
                 <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true">
@@ -649,10 +654,11 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
               <QuickTile
                 key={`dynamic:${dynamicSlot.key}`}
                 entry={dynamicSlot}
-                active={currentSlot?.key === dynamicSlot.key}
+                active={isCurrent(dynamicSlot)}
+                canColor={!baseCell}
                 onChoose={choose}
-                onRecolor={(colorId) => {
-                  if (currentSlot) applyColorToSlot(currentSlot, colorId);
+                onChooseColor={(colorId) => {
+                  applyChipColor(dynamicSlot.symbol.id, colorId, chipTargetIds);
                   closePicker();
                 }}
                 getPopoverBoundaryRect={() => rootRef.current?.getBoundingClientRect() ?? null}
@@ -701,8 +707,8 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
               className="picker__quickButton picker__deleteButton"
               onClick={clear}
               aria-label="Clear stitch"
-              title="Clear this stitch (Backspace)"
-              data-label="Delete"
+              title="Clear stitch (Backspace)"
+              data-label="Clear"
             >
               <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
                 <path
@@ -735,21 +741,15 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
                       <SymbolGlyph symbol={entry.symbol} cell={cellSizeFor(entry.symbol)} colorId={entry.colorId} />
                     </span>
                     <span className="picker__label">{entry.symbol.label}</span>
-                    {currentSlot?.key === entry.key && (
-                      <span className="picker__current">current</span>
-                    )}
+                    {isCurrent(entry) && <span className="picker__current">current</span>}
                     {entry.symbol.span > 1 && <span className="picker__span">{entry.symbol.span} sts</span>}
                   </button>
-                  {/* FR-34: add-only - picking a color here arms a new pen,
-                      never touches anything already placed, no matter how
-                      many plain instances of this symbol exist. */}
-                  {!entry.colorId && (
+                  {!entry.colorId && !baseCell && (
                     <ColorChip
-                      mode="add-only"
-                      label={`Add a colored ${entry.symbol.label}`}
+                      label={`Color ${entry.symbol.label}`}
                       className="picker__itemColorChip"
                       onSelect={(colorId) => {
-                        addColoredVariant(entry.symbol.id, colorId);
+                        applyChipColor(entry.symbol.id, colorId, chipTargetIds);
                         closePicker();
                       }}
                     />
@@ -814,14 +814,16 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
           </div>
         )}
 
-          {searchOpen && !!query.trim() && (
+          {searchOpen && (
             <div
               className="picker__results picker__list"
               ref={listRef}
               style={{ maxHeight: resultsMaxHeight }}
             >
             {flat.length === 0 && matchingRepeats.length === 0 && (
-              <div className="picker__empty">No stitch matches that.</div>
+              <div className="picker__empty">
+                {query.trim() ? "No stitch matches that." : "Every stitch that fits is already in this chart."}
+              </div>
             )}
 
             {matchingRepeats.length > 0 && (
@@ -840,6 +842,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
                     <span className="picker__glyph"><MotifGlyph /></span>
                     <span className="picker__label">{repeat.name}</span>
                     <span className="picker__span">{repeat.width} × {repeat.height}</span>
+                    <span className="picker__added">Added</span>
                   </button>
                 ))}
               </div>
@@ -847,6 +850,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
 
             {sections.map((section) => (
               <div key={section.key}>
+                <div className="picker__heading">{section.title}</div>
                 {section.symbols.map((symbol) => {
                   resultIndex += 1;
                   const isActive = resultIndex === active;
@@ -864,10 +868,9 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
                         <SymbolGlyph symbol={symbol} cell={cellSizeFor(symbol)} />
                       </span>
                       <span className="picker__label">{symbol.label}</span>
-                      {symbol.id === target.currentSymbolId && (
-                        <span className="picker__current">current</span>
-                      )}
+                      {isCurrent({ key: symbol.id, symbol }) && <span className="picker__current">current</span>}
                       {symbol.span > 1 && <span className="picker__span">{symbol.span} sts</span>}
+                      {plainGlossaryIds.has(symbol.id) && <span className="picker__added">Added</span>}
                     </button>
                   );
                 })}

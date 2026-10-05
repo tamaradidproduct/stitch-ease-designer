@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { DocIndex } from "../model/docIndex";
 import { useDocStore } from "./docStore";
 import { SUGGEST_SYMBOL_ID, useUiStore } from "./uiStore";
-import { applyColorToSlot } from "../ui/colorwork";
+import { applyChipColor } from "../ui/colorwork";
 
 const RED = "#e11d48";
 const BLUE = "#0ea5e9";
@@ -62,7 +62,7 @@ describe("colored quick-slot promotion", () => {
     expect(useDocStore.getState().quickSymbolIds).toEqual(["purl::" + RED, "knit"]);
   });
 
-  it("keeps an already-promoted plain swatch and adds its colored variant after it", () => {
+  it("replaces a promoted plain swatch in place when its only stitch is recolored", () => {
     // Place, promote (as above), then color the same placement - the
     // completely normal next step after placing a new stitch.
     useDocStore.getState().place("sl_wyif", 0, 0);
@@ -70,12 +70,11 @@ describe("colored quick-slot promotion", () => {
     expect(useDocStore.getState().quickSymbolIds).toEqual(["sl_wyif", "knit", "purl"]);
     const placement = useDocStore.getState().index.placementAt(0, 0)!;
 
-    applyColorToSlot({ key: "sl_wyif", symbolId: "sl_wyif", placementIds: [placement.id] }, RED);
+    applyChipColor("sl_wyif", RED, [placement.id]);
 
-    // Recoloring preserves the original plain pen and makes the new colored
-    // variant available immediately after it, rather than replacing either
-    // shortcut or demoting the placed stitch past an unplaced default.
-    expect(useDocStore.getState().quickSymbolIds).toEqual(["sl_wyif", "sl_wyif::" + RED, "knit", "purl"]);
+    // Nothing plain is left, so the colored stitch takes the plain one's
+    // place rather than leaving an empty plain swatch behind.
+    expect(useDocStore.getState().quickSymbolIds).toEqual(["sl_wyif::" + RED, "knit", "purl"]);
   });
 
   it("does not let a still-pending Suggest guess block a genuinely placed stitch from promoting", () => {
@@ -160,7 +159,7 @@ describe("recolor during Suggest review", () => {
     const placement = useDocStore.getState().index.placementAt(0, 0)!;
     useUiStore.setState({ armedSymbolId: SUGGEST_SYMBOL_ID, activeColor: null, tool: "stitch" });
 
-    applyColorToSlot({ key: "knit", symbolId: "knit", placementIds: [placement.id] }, RED);
+    applyChipColor("knit", RED, [placement.id]);
 
     expect(useDocStore.getState().index.placementAt(0, 0)?.colorId).toBe(RED);
     expect(useUiStore.getState().armedSymbolId).toBe(SUGGEST_SYMBOL_ID);
@@ -168,14 +167,59 @@ describe("recolor during Suggest review", () => {
   });
 });
 
-describe("recoloring a plain quick slot (#318, #319)", () => {
-  it("keeps the plain pen and adds the new colored pen when recoloring its only placement", () => {
+describe("the color chip's one rule", () => {
+  beforeEach(() => useUiStore.setState({ armedSymbolId: null, activeColor: null }));
+
+  it("adds a new colored stitch when some plain ones stay untouched", () => {
+    useDocStore.getState().place("sl_wyif", 0, 0);
+    useDocStore.getState().place("sl_wyif", 1, 0);
+    useDocStore.getState().addQuickSlot("sl_wyif");
+    const target = useDocStore.getState().index.placementAt(0, 0)!;
+
+    applyChipColor("sl_wyif", RED, [target.id]);
+
+    expect(useDocStore.getState().quickSymbolIds).toEqual(["sl_wyif", "sl_wyif::" + RED, "knit", "purl"]);
+    expect(useDocStore.getState().index.placementAt(0, 0)?.colorId).toBe(RED);
+    expect(useDocStore.getState().index.placementAt(1, 0)?.colorId).toBeUndefined();
+    expect(useUiStore.getState().activeColor).toBe(RED);
+  });
+
+  it("adds a new colored stitch without recoloring anything when nothing is targeted", () => {
+    useDocStore.getState().place("sl_wyif", 0, 0);
+    useDocStore.getState().addQuickSlot("sl_wyif");
+
+    applyChipColor("sl_wyif", RED, []);
+
+    expect(useDocStore.getState().quickSymbolIds).toEqual(["sl_wyif", "sl_wyif::" + RED, "knit", "purl"]);
+    expect(useDocStore.getState().index.placementAt(0, 0)?.colorId).toBeUndefined();
+  });
+
+  it("creates a colored quick slot when the chip is used on a brand-new stitch with nothing targeted", () => {
+    useDocStore.setState({ glossaryIds: [], quickSymbolIds: [] });
+
+    applyChipColor("yarn_over", RED, []);
+
+    expect(useDocStore.getState().quickSymbolIds).toEqual(["yarn_over::" + RED]);
+    expect(useDocStore.getState().glossaryIds).toEqual([]);
+  });
+
+  it("replaces an unplaced plain stitch in place, in the quick row and the glossary", () => {
+    useDocStore.setState({ glossaryIds: ["knit", "yarn_over", "purl"], quickSymbolIds: ["knit", "yarn_over", "purl"] });
+
+    applyChipColor("yarn_over", RED, []);
+
+    expect(useDocStore.getState().quickSymbolIds).toEqual(["knit", "yarn_over::" + RED, "purl"]);
+    expect(useDocStore.getState().glossaryIds).toEqual(["knit", "yarn_over::" + RED, "purl"]);
+  });
+
+  it("keeps plain knit available right after the colored one it was replaced by", () => {
     useDocStore.getState().place("knit", 0, 0);
     const placement = useDocStore.getState().index.placementAt(0, 0)!;
 
-    applyColorToSlot({ key: "knit", symbolId: "knit", placementIds: [placement.id] }, RED);
+    applyChipColor("knit", RED, [placement.id]);
 
-    expect(useDocStore.getState().quickSymbolIds).toEqual(["knit", "knit::" + RED, "purl"]);
+    expect(useDocStore.getState().quickSymbolIds).toEqual(["knit::" + RED, "knit", "purl"]);
+    expect(useDocStore.getState().glossaryIds).toEqual(["knit::" + RED, "knit", "purl"]);
     expect(useDocStore.getState().index.placementAt(0, 0)?.colorId).toBe(RED);
   });
 
@@ -184,7 +228,7 @@ describe("recoloring a plain quick slot (#318, #319)", () => {
     useDocStore.getState().place("knit", 0, 0);
     const placement = useDocStore.getState().index.placementAt(0, 0)!;
 
-    applyColorToSlot({ key: "knit", symbolId: "knit", placementIds: [placement.id] }, RED);
+    applyChipColor("knit", RED, [placement.id]);
 
     expect(useDocStore.getState().quickSymbolIds).toEqual(["purl"]);
     expect(useDocStore.getState().index.placementAt(0, 0)?.colorId).toBe(RED);

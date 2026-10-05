@@ -511,14 +511,14 @@ recolors only that one placement, leaving every sibling elsewhere on the
 chart untouched, so there is no mismatched-outlier risk and the chip always
 shows.
 
-**FR-34.** A symbol that isn't currently armed can still get a new colored
+**FR-34 (superseded by FR-66's one-chip rule).** A symbol that isn't currently armed can still get a new colored
 variant without painting anything, from the picker's "more stitches" drawer
 or the glossary panel — each plain row (slotted or not) gets a small
 add-only color chip. Picking a color there is strictly additive: arms a new
 pen and gives it a quick slot, never recolors anything already on the
 chart. A colored row never gets this chip.
 
-**FR-35 (added this session).** The add-only and recolor chips share one
+**FR-35 (superseded by FR-66 - one chip, no "+" badge).** The add-only and recolor chips share one
 palette icon (reused from the reference-image panel's "canvas stitch
 colors" button) rather than a bare circle+line/circle+plus pair — the
 original abstract icon didn't read as "color" at a glance. The add-only
@@ -697,15 +697,15 @@ armed at once.
 | `src/canvas/renderer.ts` | Cell background fill for `colorId`; glyph ink lookup |
 | `src/canvas/cursors.ts` | Armed-stitch cursor preview carries the pen's color |
 | `src/ui/SymbolGlyph.tsx` | `colorId` prop — the fourth FR-28 render site (see Gotchas) |
-| `src/ui/colorwork.ts` | `currentSlotForPicker` (FR-25 identity), `applyColorToSlot`, `addColoredVariant` |
+| `src/ui/colorwork.ts` | `currentSlotForPicker` (FR-25 identity), `applyChipColor` (FR-66) |
 | `src/ui/ColorChip.tsx`, `ColorSwatchPopover.tsx` | Shared chip + popover, consolidated across all three call sites from the start |
 | `src/ui/StitchPicker.tsx` | `currentSlot`; quick-row layout, `finishResolve` (`choose()`'s shared reviewingSuggestion/arm step); drawer chip; FR-31 context label |
-| `src/ui/QuickTile.tsx` | Quick-slot tile + dynamic sixth markup, including the recolor `ColorChip` — shared by `StitchPicker.tsx`'s two call sites (issue #323) |
+| `src/ui/QuickTile.tsx` | Quick-slot tile + dynamic sixth markup, including the `ColorChip` — shared by `StitchPicker.tsx`'s two call sites (issue #323) |
 | `src/ui/RightPanel.tsx` | Quick-row/glossary layout, search dropdown |
 | `src/ui/GlossaryRow.tsx` | One glossary row (slotted or overflow) — glyph, label, select-all, add-only chip, disarm/remove tri-state. Takes an explicit `armMode: "arm-only" \| "arm-and-promote"` plus an `onArm` callback the caller builds per row kind, rather than arming behavior being an implicit side effect of which row markup renders (issue #323's "arming unification" — see RightPanel.tsx's two call sites: slotted rows stay arm-only since the item's already in a quick slot, overflow rows stay arm-and-promote since choosing one also needs to assign it a slot; this split is deliberately preserved, not merged) |
 | `src/ui/useQuickSlotDropTarget.ts` | Shared drag state + drop-target handlers for the quick row's filled/empty slots (issue #323) |
 | `src/ui/glyphSize.ts` | `glyphCellSize` — the one shared formula behind the glyph-size literals (58/54/48, max 22/20/18) at `QuickTile.tsx`'s, `GlossaryRow.tsx`'s, and `RightPanel.tsx`'s search-result rows' call sites (issue #323); each site keeps its own existing numbers |
-| `src/ui/chartGlossary.ts` | `collectColoredGlossaryEntries`, `countConfirmedStitches`/`countConfirmedColoredStitches` (DNT-13), `symbolsWithAnyPlacement` |
+| `src/ui/chartGlossary.ts` | `collectColoredGlossaryEntries`, `countGlossaryStitches` (DNT-13, FR-66), `symbolsWithAnyPlacement` |
 
 ### Color-aware Suggest, quick slots, and glossary selection
 
@@ -1125,9 +1125,8 @@ many times, keep iterating.
   slot so undo restores it in place. Promoting a newly placed stitch never
   pushes a motif's slot aside.
 - **Counts are loose stitches only.** A stitch row's "(n)" and its Select
-  all cover stitches outside motif copies; each motif row counts its copies.
-  A stitch used only inside copies can't be removed ("Used inside motif
-  copies"). Delete/Cut/the picker's delete still never strip stitches from
+  all cover stitches outside motif copies; each motif row counts its copies. A stitch used only inside copies can't
+  be removed ("Used inside motif copies"). Delete/Cut/the picker's delete still never strip stitches from
   a copy the selection only partly covers.
 - **One glossary row for everything.** Stitch and motif rows (slotted or
   not) are the same `GlossaryRow`: drag/move/shortcut, a single arm target
@@ -1203,4 +1202,51 @@ and start unset.
   out of a motif copy, highlighting only that cell.
 - Motifs carry changed cells through create/stamp/push; mirroring reverses
   them (mirroring each stitch too); a change counts as a copy override.
-- Not yet: changed cells aren't shown in the legend, CSV, or glossary counts.
+- Not yet: changed cells aren't shown in the legend or CSV. Glossary counts
+  deliberately leave them out (FR-66).
+
+### Stitch picker and glossary consistency (FR-66)
+
+**FR-66.** The picker and the glossary behave as two views of one thing.
+Decided in the 2026-10-03 UX review (see
+`docs/conversations/2026-10-03-picker-glossary-consistency.md`).
+
+- **One color chip, one rule** (`applyChipColor` in `src/ui/colorwork.ts`),
+  everywhere a chip appears: the picker's current quick tile, its drawer
+  rows, and every plain glossary row. Replaces FR-27/FR-34's two
+  opposite-behaving chips. The chip acts on the picker's target, or on the
+  canvas selection when used from the glossary.
+  - If the plain stitch has placements and not all of them are targeted:
+    add a new colored stitch (its own quick slot) and recolor only the
+    targeted ones.
+  - If it has no placements, or every one is targeted: replace the plain
+    entry with the colored one in place (same quick slot and glossary
+    position). Knit and purl (FR-32) are the exception - the plain one stays
+    available right after the colored one.
+  - No chip on a single cable cell.
+- **"Current" means the chip's identity.** The active quick tile, the
+  drawer's and search results' "current" tag all compare the same
+  (symbol, color) key the chip acts on.
+- **One search.** Both searches list the library grouped by category as soon
+  as they open. With nothing typed they hide what's already in the glossary;
+  a typed query shows every match, tagging glossary entries "Added". Motifs
+  turn up for a query in both (always "Added", since every motif has a
+  row); picking one in the glossary arms it. The glossary's per-result
+  action reads "Select" (it adds and arms), not "Add".
+- **Removing a motif row** (its X, shown only when it has no copies) deletes
+  the motif (undoable), slotted or not - the same as an unplaced stitch's X.
+- **Unslotted motifs reorder** among themselves with Move up/down and drag,
+  like unslotted stitches. The motif order is the repeats list (undoable).
+- **Counts.** A row's "(n)" and its Select all cover loose stitches only
+  (FR-64): stitches inside motif copies belong to the motif row. A cable
+  counts once, on its own row; the stitches it's worked as don't count on
+  their rows. Three 2/2 cables in a row read: 2/2 cable (3), knit/purl
+  unchanged. Pending suggestions don't count (FR-13). The stitch numbers
+  below the chart are different: they number every cell, so that row is
+  12 stitches.
+- **Header** reads "N stitch types · M motifs in this chart"; a colored
+  stitch is its own type, separate from its plain one.
+- **Wording.** The five numbered slots are **quick slots** ("Choose a stitch
+  for quick slot 3", "Quick stitches"), never "recent"; the number key is
+  its shortcut. The picker's trash button is "Clear" (label) / "Clear stitch"
+  (accessible name and tooltip).

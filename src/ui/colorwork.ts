@@ -1,4 +1,4 @@
-import { quickSlotKey } from "../model/quickSlots";
+import { DEFAULT_STITCH_IDS, quickSlotKey } from "../model/quickSlots";
 import { useDocStore } from "../state/docStore";
 import { SUGGEST_SYMBOL_ID, useUiStore, type PickerTarget } from "../state/uiStore";
 import type { Placement } from "../model/types";
@@ -119,46 +119,51 @@ export function currentSlotForPicker(
 }
 
 /**
- * Applies `colorId` to `slot` (FR-27): recolors the placement(s) if there
- * are any, recolors its quick slot (DNT-12's rename-vs-mint check), and
- * normally arms the result. When Suggest is already armed, it stays armed so
- * a color correction during a review pass does not interrupt that pass. The
- * caller does the closing - this only performs the state change).
+ * The color chip's one rule, shared by every chip - the picker's quick
+ * tiles and drawer rows and the glossary's rows - so the same chip never
+ * means two different things in two places. `symbolId` is a plain
+ * (uncolored) stitch; `targetPlacementIds` is whatever the chip is acting
+ * on right now (the picker's target, or the canvas selection for the
+ * glossary) - anything in it that isn't a plain `symbolId` is ignored.
+ *
+ * - Some plain placements stay untouched: the chip adds a new colored
+ *   stitch beside the plain one and recolors only the targeted ones.
+ * - No plain placements, or every one is targeted: the chip replaces the
+ *   plain entry with the colored one in place (quick slot and glossary
+ *   position kept). Knit and purl are the exception - every chart starts
+ *   with them, so the plain one stays available right after the colored one.
+ *
+ * Arms the colored pen unless Suggest is armed (a review pass keeps going).
+ * The caller does any closing.
  */
-export function applyColorToSlot(slot: CurrentSlot, colorId: string): void {
+export function applyChipColor(symbolId: string, colorId: string, targetPlacementIds: readonly string[]): void {
   const doc = useDocStore.getState();
   const ui = useUiStore.getState();
-  const newKey = quickSlotKey(slot.symbolId, colorId);
-  if (slot.key !== newKey) {
-    // Recoloring a plain pen must mint a colored variant rather than rename
-    // the plain slot away. The plain pen remains useful for the next stitch,
-    // even when the placement being recolored was its only instance (#318,
-    // #319). A colored pen still uses the rename-vs-mint rule below so
-    // changing one existing color does not leave redundant swatches behind.
-    if (!slot.colorId) {
-      // A placement-only dynamic picker entry has no assigned quick slot.
-      // Recoloring it must not unexpectedly claim one; preserve/mint only
-      // when the plain pen was actually in the quick row.
-      if (doc.quickSymbolIds.includes(slot.key)) doc.addQuickSlot(newKey);
-      if (doc.glossaryIds.includes(slot.key)) doc.addGlossaryId(newKey);
-    } else {
-      doc.recolorQuickSlot(slot.key, newKey, slot.placementIds);
-    }
-  }
-  if (slot.placementIds.length) {
-    doc.recolorPlacements(slot.placementIds, colorId);
-  }
-  if (ui.armedSymbolId !== SUGGEST_SYMBOL_ID) {
-    ui.setArmedSymbolId(slot.symbolId, colorId);
-  }
-}
+  const plainKey = quickSlotKey(symbolId);
+  const newKey = quickSlotKey(symbolId, colorId);
+  const plain = doc.index.toArray().filter((p) => !p.suggested && p.symbolId === symbolId && !p.colorId);
+  const plainIds = new Set(plain.map((p) => p.id));
+  const targets = targetPlacementIds.filter((id) => plainIds.has(id));
+  const targeted = new Set(targets);
 
-/**
- * FR-34's add-only path: arms a brand-new (symbolId, colorId) pen and gives
- * it a quick slot, without touching anything already on the chart. Used
- * from the picker's "more stitches" drawer and the glossary panel's plain
- * rows.
- */
-export function addColoredVariant(symbolId: string, colorId: string): void {
-  useUiStore.getState().chooseSymbol(symbolId, undefined, undefined, colorId);
+  if (plain.every((p) => targeted.has(p.id))) {
+    const keepPlain = DEFAULT_STITCH_IDS.includes(symbolId);
+    const replaceIn = (ids: readonly string[]) => {
+      const withoutOlder = ids.filter((id) => id !== newKey);
+      return withoutOlder.flatMap((id) => (id === plainKey ? (keepPlain ? [newKey, plainKey] : [newKey]) : [id]));
+    };
+    const inQuick = doc.quickSymbolIds.includes(plainKey);
+    const inGlossary = doc.glossaryIds.includes(plainKey);
+    if (inQuick) doc.setQuickSymbolIds(replaceIn(doc.quickSymbolIds));
+    if (inGlossary) doc.setGlossaryIds(replaceIn(doc.glossaryIds));
+    // A row that only existed because of its placements reappears colored
+    // once they're recolored; with nothing to recolor it needs a quick slot
+    // of its own instead of a detached glossary-only entry.
+    if (!inQuick && !inGlossary && !targets.length) doc.addQuickSlot(newKey);
+  } else {
+    doc.addQuickSlot(newKey);
+  }
+
+  if (targets.length) doc.recolorPlacements(targets, colorId);
+  if (ui.armedSymbolId !== SUGGEST_SYMBOL_ID) ui.setArmedSymbolId(symbolId, colorId);
 }

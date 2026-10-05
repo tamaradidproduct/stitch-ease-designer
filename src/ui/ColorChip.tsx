@@ -3,18 +3,11 @@ import { ColorSwatchPopover } from "./ColorSwatchPopover";
 
 export type ColorChipProps = {
   /**
-   * `"recolor"` is the armed quick-slot tile's own chip - restrictive,
-   * FR-25/DNT-11: only ever acts on the current selection. `"add-only"` is
-   * the picker drawer's and glossary panel's chip - permissive, FR-34: every
-   * plain row gets one, and picking a color there only ever mints a new
-   * pen, never touches anything already on the chart. Both chips look
-   * similar but work oppositely on purpose (see the colorwork spec's UX
-   * inconsistencies section) - both use the same palette glyph (reused from
-   * the reference-image panel's "canvas stitch colors" button, so the icon
-   * actually reads as color-related), and `mode` adds a small "+" badge only
-   * for "add-only" so the two philosophies don't read as one affordance.
+   * Every chip follows the same rule (see `applyChipColor`) - the picker's
+   * quick tile, its drawer rows, and the glossary rows - so they share one
+   * look too: the palette glyph reused from the reference-image panel's
+   * "canvas stitch colors" button.
    */
-  mode: "recolor" | "add-only";
   onSelect: (colorId: string) => void;
   label: string;
   className?: string;
@@ -23,7 +16,6 @@ export type ColorChipProps = {
 };
 
 export function ColorChip({
-  mode,
   onSelect,
   label,
   className,
@@ -46,7 +38,7 @@ export function ColorChip({
       <button
         ref={buttonRef}
         type="button"
-        className={`colorChip colorChip--${mode}${className ? ` ${className}` : ""}`}
+        className={`colorChip${className ? ` ${className}` : ""}`}
         aria-label={label}
         aria-haspopup="dialog"
         aria-expanded={open}
@@ -68,12 +60,6 @@ export function ColorChip({
           <circle cx="6.5" cy="8" r="1" fill="currentColor" />
           <circle cx="9" cy="5.8" r="1" fill="currentColor" />
           <circle cx="13" cy="6.8" r="1" fill="currentColor" />
-          {mode === "add-only" && (
-            <>
-              <circle cx="16" cy="16" r="4.5" fill="var(--bg)" stroke="currentColor" strokeWidth="1" />
-              <path d="M16 14v4M14 16h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-            </>
-          )}
         </svg>
       </button>
       {open && anchorRect && (
