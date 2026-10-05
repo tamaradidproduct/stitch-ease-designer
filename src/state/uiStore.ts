@@ -8,6 +8,7 @@ import {
   panByScreen,
   zoomAt,
 } from "../canvas/camera";
+import type { ChartBounds } from "../model/chartBounds";
 import type { BoxHandle, Placement } from "../model/types";
 import { quickSlotKey } from "../model/quickSlots";
 import { useDocStore } from "./docStore";
@@ -84,9 +85,6 @@ export type PickerTarget = {
    */
   baseCell?: { placementId: string; offset: number };
 };
-
-/** Inclusive cell bounds a Suggest stroke's review menu is anchored over. */
-export type SuggestReviewBounds = { minCol: number; maxCol: number; minRow: number; maxRow: number };
 
 export type SelectionBox = { start: Cell; current: Cell };
 
@@ -287,9 +285,9 @@ type UiState = {
    * from document order or from all pending suggestions, so the menu tracks
    * the stroke that just finished rather than an arbitrary earlier one.
    */
-  suggestReview: SuggestReviewBounds | null;
+  suggestReview: ChartBounds | null;
   /** Opens the review menu anchored to `bounds`, replacing any menu already open. */
-  openSuggestReview: (bounds: SuggestReviewBounds) => void;
+  openSuggestReview: (bounds: ChartBounds) => void;
   closeSuggestReview: () => void;
 
   setTool: (tool: Tool) => void;
