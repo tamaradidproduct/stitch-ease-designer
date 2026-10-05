@@ -19,6 +19,8 @@ import { MotifDeleteDialog } from "./motifUi";
 import { SuggestReviewMenu } from "./SuggestReviewMenu";
 import { SelectionActions } from "./SelectionActions";
 import { Toolbar } from "./Toolbar";
+import { Button } from "./Button";
+import { buttonClassName } from "./buttonClassName";
 
 function SaveIndicator() {
   const status = useDocStore((s) => s.status);
@@ -112,7 +114,7 @@ export function ChartEditor() {
     return (
       <div className="app app--message">
         <p className="charts__error">{loadError}</p>
-        <Link className="btn" to="/">
+        <Link className={buttonClassName()} to="/">
           Back to my charts
         </Link>
       </div>
@@ -210,9 +212,9 @@ export function ChartEditor() {
         <div className="banner banner--bad">
           <span>{statusDetail}</span>
           {status === "conflict" && (
-            <button type="button" className="btn" onClick={() => window.location.reload()}>
+            <Button onClick={() => window.location.reload()}>
               Reload
-            </button>
+            </Button>
           )}
         </div>
       )}

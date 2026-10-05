@@ -31,6 +31,7 @@ import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
 import { useQuickSlotDropTarget } from "./useQuickSlotDropTarget";
 import { GlossaryRow } from "./GlossaryRow";
 import { glyphCellSize } from "./glyphSize";
+import { Button } from "./Button";
 
 type GlossaryResult = { kind: "motif"; id: string } | { kind: "stitch"; id: string };
 
@@ -923,9 +924,7 @@ export function RightPanel() {
               </label>
             )}
             <div className="refpanel__actions">
-              <button
-                type="button"
-                className="btn"
+              <Button
                 disabled={!meta}
                 onClick={() => {
                   if (meta) {
@@ -943,22 +942,18 @@ export function RightPanel() {
                 }}
               >
                 Stitch Ease file
-              </button>
-              <button
-                type="button"
-                className="btn"
+              </Button>
+              <Button
                 disabled={!meta}
                 onClick={() => {
                   if (meta) exportChartCsv(meta.name, index.toArray());
                 }}
               >
                 CSV
-              </button>
+              </Button>
               {(["png", "jpg"] as ImageFormat[]).map((format) => (
-                <button
+                <Button
                   key={format}
-                  type="button"
-                  className="btn"
                   disabled={!meta || !!exportBusy}
                   onClick={() => {
                     if (!meta) return;
@@ -972,7 +967,7 @@ export function RightPanel() {
                   }}
                 >
                   {exportBusy === format ? "Exporting…" : format.toUpperCase()}
-                </button>
+                </Button>
               ))}
             </div>
             {exportError && <p className="refpanel__error">{exportError}</p>}
@@ -1032,9 +1027,9 @@ export function RightPanel() {
             <output aria-live="polite">{Math.round(zoom * 100)}%</output>
             <button type="button" onClick={() => zoomFromCenter(1.2)} aria-label="Zoom in">+</button>
           </div>
-          <button type="button" className="btn navigator__center" onClick={centerChart}>
+          <Button className="navigator__center" onClick={centerChart}>
             Center chart at 100%
-          </button>
+          </Button>
         </div>
       </section>
       </div>

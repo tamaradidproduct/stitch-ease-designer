@@ -3,6 +3,7 @@ import type { DocMeta } from "../model/types";
 import type { ChartStore } from "../storage/ChartStore";
 import { migrateLocalCharts, type MigrationResult } from "../storage/migrateLocalCharts";
 import { localChartStore } from "../storage/store";
+import { Button } from "./Button";
 
 type Phase =
   | { step: "checking" }
@@ -91,9 +92,9 @@ export function MigrateLocalCharts({
             >
               Add to my account
             </button>
-            <button type="button" className="btn btn--quiet" onClick={onDone}>
+            <Button variant="quiet" onClick={onDone}>
               Not now
-            </button>
+            </Button>
           </div>
         </div>
       </div>

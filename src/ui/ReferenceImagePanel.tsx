@@ -13,6 +13,7 @@ import { resolveReferenceImageUrl, uploadReferenceImage } from "../storage/refer
 import { newUuid } from "../uuid";
 import { tapActivate } from "./tapActivate";
 import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
+import { Button, IconButton } from "./Button";
 
 /**
  * Upload + transform controls for the chart's reference images. A chart can
@@ -265,13 +266,13 @@ export function ReferenceImagePanel() {
             // here from its own full-width row so the collapsed list reads
             // tighter.
             (open ? (
-              <button
-                type="button"
-                className="btn btn--quiet refpanel__headerAction"
+              <Button
+                variant="quiet"
+                className="refpanel__headerAction"
                 onClick={() => setOpen(false)}
               >
                 Save changes
-              </button>
+              </Button>
             ) : (
               <button
                 type="button"
@@ -290,9 +291,9 @@ export function ReferenceImagePanel() {
               </button>
             ))
           ) : (
-            <button
-              type="button"
-              className="btn btn--primary refpanel__headerAction"
+            <Button
+              variant="primary"
+              className="refpanel__headerAction"
               disabled={busy || !meta}
               onClick={() => {
                 uploadMode.current = "add";
@@ -300,7 +301,7 @@ export function ReferenceImagePanel() {
               }}
             >
               {busy ? "Uploading…" : "Upload image"}
-            </button>
+            </Button>
           )}
           <button
             type="button"
@@ -374,11 +375,10 @@ export function ReferenceImagePanel() {
                   )}
                   <span>Image {img.number}</span>
                 </span>
-                <button
-                  type="button"
-                  className="btn refpanel__iconButton"
-                  aria-label={`Edit image ${img.number}`}
-                  title="Edit"
+                <IconButton
+                  className="refpanel__iconButton"
+                  label={`Edit image ${img.number}`}
+                  tooltip="Edit"
                   onClick={() => {
                     setActiveImageId(img.id);
                     setOpen(true);
@@ -387,13 +387,12 @@ export function ReferenceImagePanel() {
                   <svg viewBox="0 0 16 16" aria-hidden="true">
                     <path d="M10.5 2.5 13.5 5.5 5.5 13.5H2.5V10.5L10.5 2.5Z" />
                   </svg>
-                </button>
-                <button
-                  type="button"
-                  className="btn refpanel__iconButton"
-                  aria-label={img.visible ? `Hide image ${img.number}` : `Show image ${img.number}`}
+                </IconButton>
+                <IconButton
+                  className="refpanel__iconButton"
+                  label={img.visible ? `Hide image ${img.number}` : `Show image ${img.number}`}
                   aria-pressed={img.visible}
-                  title={img.visible ? "Hide" : "Show"}
+                  tooltip={img.visible ? "Hide" : "Show"}
                   onClick={() => updateReferenceImage(img.id, { visible: !img.visible })}
                 >
                   {img.visible ? (
@@ -407,7 +406,7 @@ export function ReferenceImagePanel() {
                       <path d="m2.5 2.5 11 11" />
                     </svg>
                   )}
-                </button>
+                </IconButton>
               </li>
             ))}
           </ul>
@@ -416,12 +415,11 @@ export function ReferenceImagePanel() {
                 uniform" logic as the front/behind toggle below - per-image
                 visibility stays reachable on each row for the common single-
                 image tweak. */}
-            <button
-              type="button"
-              className="btn refpanel__iconButton"
-              aria-label={allHidden ? "Show all reference images" : "Hide all reference images"}
+            <IconButton
+              className="refpanel__iconButton"
+              label={allHidden ? "Show all reference images" : "Hide all reference images"}
               aria-pressed={allHidden}
-              title={allHidden ? "Show all" : "Hide all"}
+              tooltip={allHidden ? "Show all" : "Hide all"}
               onClick={() => images.forEach((img) => updateReferenceImage(img.id, { visible: allHidden }))}
             >
               {allHidden ? (
@@ -435,30 +433,28 @@ export function ReferenceImagePanel() {
                   <circle cx="8" cy="8" r="1.8" />
                 </svg>
               )}
-            </button>
-            <button
-              type="button"
-              className="btn refpanel__iconButton"
-              aria-label="Adjust opacity"
+            </IconButton>
+            <IconButton
+              className="refpanel__iconButton"
+              label="Adjust opacity"
               aria-expanded={opacityOpen}
-              title="Opacity"
+              tooltip="Opacity"
               onClick={() => setOpacityOpen((isOpen) => !isOpen)}
             >
               <svg viewBox="0 0 16 16" aria-hidden="true">
                 <circle cx="8" cy="8" r="6" />
                 <path d="M8 2v12" />
               </svg>
-            </button>
+            </IconButton>
             {/* One shared front/behind toggle for every image at once - unlike
                 visibility and editing, which stay per-image, stacking order
                 relative to the chart is a single yes/no the designer thinks
                 about for the whole reference photo set, not image by image. */}
-            <button
-              type="button"
-              className="btn refpanel__iconButton refpanel__layerButton"
-              aria-label={allInFront ? "Send reference images behind stitches" : "Bring reference images in front of stitches"}
+            <IconButton
+              className="refpanel__iconButton refpanel__layerButton"
+              label={allInFront ? "Send reference images behind stitches" : "Bring reference images in front of stitches"}
               aria-pressed={allInFront}
-              title={allInFront ? "Send behind stitches" : "Bring in front of stitches"}
+              tooltip={allInFront ? "Send behind stitches" : "Bring in front of stitches"}
               onClick={() => images.forEach((img) => updateReferenceImage(img.id, { inFront: !allInFront }))}
             >
               {allInFront ? (
@@ -471,7 +467,7 @@ export function ReferenceImagePanel() {
                 </svg>
               )}
               <span>{allInFront ? "Send behind" : "Bring to front"}</span>
-            </button>
+            </IconButton>
           </div>
           {opacityOpen && (
             <div className="refpanel__quickOpacityPopover">

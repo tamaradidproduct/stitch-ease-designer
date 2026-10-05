@@ -1,26 +1,7 @@
-.btn.refpanel__iconButton {
-  display: grid;
-  flex: none;
-  width: 40px;
-  height: 40px;
-  place-items: center;
-  padding: 0;
-  color: var(--text-muted);
-}
-
-.btn.refpanel__iconButton.refpanel__layerButton {
-  display: inline-flex;
-  flex: 0 0 auto;
-  width: max-content;
-  min-width: 0;
-  gap: 5px;
-  padding: 0 9px;
-  white-space: nowrap;
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-}
-
-/* ---- buttons ----------------------------------------------------------- */
+/* ---- buttons -----------------------------------------------------------
+   Rendered by <Button> / <IconButton> (ui/Button.tsx). Without a size
+   modifier a button sizes to its padding; --sm/--md/--lg pin it to a
+   control height. */
 
 .btn {
   display: inline-flex;
@@ -71,4 +52,26 @@
   background: var(--accent);
   border-color: var(--accent);
   color: var(--on-solid);
+}
+
+.btn--sm,
+.btn--md,
+.btn--lg {
+  justify-content: center;
+  padding-block: 0;
+}
+
+.btn--sm {
+  min-height: var(--control-sm);
+  padding-inline: var(--space-4);
+  font-size: var(--font-size-sm);
+}
+
+.btn--md {
+  min-height: var(--control-md);
+}
+
+.btn--lg {
+  min-height: var(--control-lg);
+  padding-inline: var(--space-5);
 }

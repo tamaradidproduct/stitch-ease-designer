@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
+import { Button } from "./Button";
 
 export type ConfirmDialogProps = {
   message: string;
@@ -82,22 +83,22 @@ export function ConfirmDialog({
       <div ref={dialogRef} className="confirmDialog" role="alertdialog" aria-modal="true" aria-label={message}>
         <p className="confirmDialog__message">{message}</p>
         <div className="confirmDialog__actions">
-          <button type="button" className="btn btn--quiet" onClick={onCancel}>
+          <Button variant="quiet" onClick={onCancel}>
             {cancelLabel}
-          </button>
+          </Button>
           {extraActions.map((action) => (
-            <button key={action.label} type="button" className="btn" onClick={action.onClick}>
+            <Button key={action.label} onClick={action.onClick}>
               {action.label}
-            </button>
+            </Button>
           ))}
-          <button
+          <Button
             ref={confirmRef}
-            type="button"
-            className={danger ? "btn confirmDialog__confirm" : "btn btn--primary"}
+            variant={danger ? "default" : "primary"}
+            className={danger ? "confirmDialog__confirm" : undefined}
             onClick={onConfirm}
           >
             {confirmLabel}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
