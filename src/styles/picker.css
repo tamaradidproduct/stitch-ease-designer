@@ -164,10 +164,6 @@
   bottom: calc(100% + 8px);
   width: 250px;
   overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--bg);
-  box-shadow: var(--shadow-3);
 }
 
 .picker[data-drawer-below="true"] .picker__moreDrawer {

@@ -10,6 +10,7 @@ import {
 } from "../model/types";
 import { useDocStore } from "../state/docStore";
 import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
+import { Popover } from "./Popover";
 
 /** Grid layout order (top row, then bottom row) for the first-stitch corner picker. */
 const CORNER_GRID_ORDER: Corner[] = ["tl", "tr", "bl", "br"];
@@ -114,7 +115,7 @@ export function PatternSettingsMenu() {
         <span className="patternSettings__summary">{summarize(patternInfo, namedColorCount)}</span>
       </button>
       {open && (
-        <div
+        <Popover
           ref={popoverRef}
           className="patternSettings__popover"
           role="dialog"
@@ -208,7 +209,7 @@ export function PatternSettingsMenu() {
               </div>
             )}
           </div>
-        </div>
+        </Popover>
       )}
     </div>
   );

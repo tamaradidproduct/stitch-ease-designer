@@ -5,6 +5,7 @@ import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
 import { redoLatest, undoLatest } from "../state/editorHistory";
 import { tapActivate } from "./tapActivate";
+import { Popover } from "./Popover";
 
 /**
  * The stitch/row prompt for the mark just placed, anchored to it on the
@@ -150,7 +151,7 @@ export function ReferenceMarkEditor() {
   );
 
   return (
-    <div
+    <Popover
       className="markpop"
       // Offset clear of the marked square so the popover never covers the
       // stitch whose printed numbers are being read.
@@ -275,6 +276,6 @@ export function ReferenceMarkEditor() {
       >
         &times;
       </button>
-    </div>
+    </Popover>
   );
 }

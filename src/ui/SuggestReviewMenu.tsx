@@ -6,6 +6,7 @@ import { useUiStore } from "../state/uiStore";
 import { CheckIcon, CrossIcon } from "./icons";
 import { clamp } from "./utils";
 import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
+import { Popover } from "./Popover";
 
 /**
  * The compact menu that appears once after a Suggest stroke finishes,
@@ -117,7 +118,7 @@ export function SuggestReviewMenu() {
   };
 
   return (
-    <div
+    <Popover
       ref={rootRef}
       className="suggestReview"
       style={{ left: pos.left, top: pos.top }}
@@ -194,6 +195,6 @@ export function SuggestReviewMenu() {
           </button>
         </div>
       </div>
-    </div>
+    </Popover>
   );
 }

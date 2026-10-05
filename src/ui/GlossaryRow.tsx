@@ -3,6 +3,7 @@ import { ColorChip } from "./ColorChip";
 import { CloseIcon, DragHandleIcon } from "./icons";
 import { tapActivate } from "./tapActivate";
 import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
+import { Popover } from "./Popover";
 
 /** One entry in a glossary row's "more" menu. */
 export type GlossaryRowMenuItem = {
@@ -324,7 +325,7 @@ function GlossaryRowMenu({ label, items }: { label: string; items: GlossaryRowMe
         </svg>
       </button>
       {open && (
-        <div className="glossary__menu" role="menu" style={{ position: "fixed", right: open.right, top: open.top }}>
+        <Popover className="glossary__menu" role="menu" style={{ position: "fixed", right: open.right, top: open.top }}>
           {items.map((item) => (
             <button
               key={item.label}
@@ -341,7 +342,7 @@ function GlossaryRowMenu({ label, items }: { label: string; items: GlossaryRowMe
               {item.disabled && item.reason && <small>{item.reason}</small>}
             </button>
           ))}
-        </div>
+        </Popover>
       )}
     </div>
   );

@@ -32,6 +32,7 @@ import { useQuickSlotDropTarget } from "./useQuickSlotDropTarget";
 import { GlossaryRow } from "./GlossaryRow";
 import { glyphCellSize } from "./glyphSize";
 import { Button } from "./Button";
+import { Popover } from "./Popover";
 
 type GlossaryResult = { kind: "motif"; id: string } | { kind: "stitch"; id: string };
 
@@ -435,7 +436,7 @@ export function RightPanel() {
                   {glossaryResults.length > 0 && searchResultsRect && (() => {
                     let resultIndex = -1;
                     return (
-                      <div
+                      <Popover
                         id="glossary-search-results"
                         className="glossarySearch__results"
                         role="listbox"
@@ -500,7 +501,7 @@ export function RightPanel() {
                             })}
                           </div>
                         ))}
-                      </div>
+                      </Popover>
                     );
                   })()}
                 </div>

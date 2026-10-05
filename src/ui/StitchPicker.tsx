@@ -22,6 +22,7 @@ import { applyChipColor, currentSlotForPicker } from "./colorwork";
 import { ColorChip } from "./ColorChip";
 import { QuickTile } from "./QuickTile";
 import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
+import { Popover } from "./Popover";
 
 const MENU_WIDTH = 284;
 const SEARCH_SLOT_WIDTH = 200;
@@ -725,7 +726,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
         </div>
 
         {moreOpen && (
-          <div id="picker-more-stitches" className="picker__moreDrawer" aria-label="More stitches in this chart">
+          <Popover id="picker-more-stitches" className="picker__moreDrawer" aria-label="More stitches in this chart">
             {moreEntries.length > 0 && <div className="picker__moreHeader">This chart</div>}
             <div className="picker__moreList" hidden={!moreEntries.length}>
               {moreEntries.map((entry) => (
@@ -758,7 +759,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
               ))}
             </div>
             <MotifDrawerSection onArmed={closePicker} />
-          </div>
+          </Popover>
         )}
 
         {target.selectionIds && (target.selectionIds.length > 1 || copyInfo) && (

@@ -68,10 +68,6 @@
   gap: 3px;
   margin-top: 0;
   padding: var(--space-2);
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  background: var(--bg);
-  box-shadow: var(--shadow-3);
   /* Without its own bounded, scrollable box, touch scrolling here walks
      straight up the DOM to .rightPanel (the nearest ancestor that actually
      scrolls) instead - reads as "the whole panel scrolls". */
@@ -606,10 +602,6 @@
   min-width: 200px;
   flex-direction: column;
   padding: var(--space-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--bg);
-  box-shadow: var(--shadow-3);
 }
 
 .glossary__menu button {

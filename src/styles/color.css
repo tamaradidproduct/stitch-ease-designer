@@ -33,10 +33,6 @@
 
 .colorPopover {
   z-index: var(--z-popover);
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-3);
 }
 
 .colorPopover__swatch {

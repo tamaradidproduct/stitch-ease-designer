@@ -11,10 +11,6 @@
   align-items: flex-start;
   gap: var(--space-7);
   padding: var(--space-6) var(--space-7);
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-3);
 }
 
 .suggestReview__group {

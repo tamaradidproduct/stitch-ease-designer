@@ -14,6 +14,7 @@ import { newUuid } from "../uuid";
 import { tapActivate } from "./tapActivate";
 import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
 import { Button, IconButton } from "./Button";
+import { Popover } from "./Popover";
 
 /**
  * Upload + transform controls for the chart's reference images. A chart can
@@ -320,7 +321,7 @@ export function ReferenceImagePanel() {
         </div>
       </div>
       {traceMenuOpen && (
-        <div className="traceColors refpanel__traceColors">
+        <Popover className="traceColors refpanel__traceColors">
           <div className="traceColors__label">
             <span>Canvas stitch color</span>
             <button type="button" onClick={() => setStitchHighlightOpacity(0)}>Off</button>
@@ -356,7 +357,7 @@ export function ReferenceImagePanel() {
               onChange={(event) => setStitchHighlightOpacity(Number(event.target.value))}
             />
           </label>
-        </div>
+        </Popover>
       )}
 
       {images.length > 0 && !open && (
