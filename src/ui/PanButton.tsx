@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef } from "react";
 import { useUiStore } from "../state/uiStore";
 import { tapActivate } from "./tapActivate";
+import { PanIcon } from "./icons";
 
 /**
  * Touch/Pencil equivalent of holding Space - a tap-toggled modifier, not a
@@ -66,10 +67,7 @@ export function PanButton() {
         title="Pan - drag anywhere on the canvas to pan, tap again to go back to drawing/selecting normally"
         aria-label="Toggle pan"
       >
-        <svg viewBox="0 0 20 20" aria-hidden="true">
-          <path d="M10 2v16M2 10h16" />
-          <path d="M10 2 7.5 4.5M10 2l2.5 2.5M10 18l-2.5-2.5M10 18l2.5-2.5M2 10l2.5-2.5M2 10l2.5 2.5M18 10l-2.5-2.5M18 10l-2.5 2.5" />
-        </svg>
+        <PanIcon />
         <span>Pan</span>
       </button>
     </div>

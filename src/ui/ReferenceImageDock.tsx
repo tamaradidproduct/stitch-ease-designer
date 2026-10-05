@@ -3,6 +3,7 @@ import { scaleFromCalibrationMarks } from "../model/referenceCalibration";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
 import { tapActivate } from "./tapActivate";
+import { BringFrontIcon, ClearMarksIcon, ConfirmIcon, EyeIcon, EyeOffIcon, MarkPointsIcon, SendBehindIcon } from "./icons";
 
 /**
  * The small, canvas-adjacent toolset used while a reference image is being
@@ -118,9 +119,7 @@ export function ReferenceImageDock() {
       {...tapActivate(() => setPanelOpen(false))}
       title="Save reference image changes"
     >
-      <svg viewBox="0 0 20 20" aria-hidden="true">
-        <path d="m4 10 4 4 8-8" />
-      </svg>
+      <ConfirmIcon />
       <span>Save changes</span>
     </button>
   );
@@ -146,10 +145,7 @@ export function ReferenceImageDock() {
         {...tapActivate(toggleMarking)}
         title={marking ? "Leave scale setup and keep these reference points" : "Set reference scale"}
       >
-        <svg viewBox="0 0 20 20" aria-hidden="true">
-          <path d="M3 4.5h5v5H3zM12 10.5h5v5h-5z" />
-          <path d="M8 7 12 11M6 11v5m-2.5-2.5h5" />
-        </svg>
+        <MarkPointsIcon />
         <span>{marking ? "Cancel" : "Set scale"}</span>
       </button>
       {marking && (
@@ -165,9 +161,7 @@ export function ReferenceImageDock() {
                 ? "Keep the initial scale from this reference point"
                 : "Box a reference stitch to set the initial scale"}
           >
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path d="m4 10 4 4 8-8" />
-            </svg>
+            <ConfirmIcon />
             <span>Apply scale</span>
           </button>
           <button
@@ -180,9 +174,7 @@ export function ReferenceImageDock() {
             })}
             title="Clear reference points"
           >
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path d="m5 5 10 10M15 5 5 15" />
-            </svg>
+            <ClearMarksIcon />
             <span>Clear points</span>
           </button>
         </>
@@ -223,15 +215,9 @@ export function ReferenceImageDock() {
             title={image.visible ? "Hide reference image" : "Show reference image"}
           >
             {image.visible ? (
-              <svg viewBox="0 0 20 20" aria-hidden="true">
-                <path d="M2 10s2.7-5 8-5 8 5 8 5-2.7 5-8 5-8-5-8-5Z" />
-                <circle cx="10" cy="10" r="2" />
-              </svg>
+              <EyeIcon />
             ) : (
-              <svg viewBox="0 0 20 20" aria-hidden="true">
-                <path d="M2 10s2.7-5 8-5c1.2 0 2.2.2 3.1.6M18 10s-2.7 5-8 5c-1.2 0-2.2-.2-3.1-.6" />
-                <path d="m3 3 14 14" />
-              </svg>
+              <EyeOffIcon />
             )}
             <span>{image.visible ? "Hide" : "Show"}</span>
           </button>
@@ -242,13 +228,7 @@ export function ReferenceImageDock() {
             {...tapActivate(() => updateReferenceImage(image.id, { inFront: !image.inFront }))}
             title={image.inFront ? "Send reference image behind stitches" : "Bring reference image in front of stitches"}
           >
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              {image.inFront ? (
-                <path d="M10 3v14m0 0-3-3m3 3 3-3" />
-              ) : (
-                <path d="M10 17V3m0 0-3 3m3-3 3 3" />
-              )}
-            </svg>
+            {image.inFront ? <SendBehindIcon /> : <BringFrontIcon />}
             <span>{image.inFront ? "Send behind" : "Bring to front"}</span>
           </button>
         </div>

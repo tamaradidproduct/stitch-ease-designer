@@ -6,6 +6,7 @@ import { useUiStore } from "../state/uiStore";
 import { redoLatest, undoLatest } from "../state/editorHistory";
 import { tapActivate } from "./tapActivate";
 import { Popover } from "./Popover";
+import { BackspaceIcon } from "./icons";
 
 /**
  * The stitch/row prompt for the mark just placed, anchored to it on the
@@ -240,9 +241,7 @@ export function ReferenceMarkEditor() {
             </button>
           ))}
           <button type="button" aria-label="Delete last digit" {...tapActivate(backspace)}>
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path d="m8 5-5 5 5 5h8a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H8Zm2.5 3 4 4m0-4-4 4" />
-            </svg>
+            <BackspaceIcon />
           </button>
           <button type="button" {...tapActivate(() => appendDigit(0))}>0</button>
           <button

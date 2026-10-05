@@ -21,6 +21,7 @@ import { SelectionActions } from "./SelectionActions";
 import { Toolbar } from "./Toolbar";
 import { Button } from "./Button";
 import { buttonClassName } from "./buttonClassName";
+import { RedoIcon, UndoIcon } from "./icons";
 
 function SaveIndicator() {
   const status = useDocStore((s) => s.status);
@@ -189,9 +190,7 @@ export function ChartEditor() {
           title="Undo (⌘Z)"
           aria-label="Undo"
         >
-          <svg viewBox="0 0 20 20" aria-hidden="true">
-            <path d="m8 5-4 4 4 4M4 9h7a5 5 0 0 1 5 5" />
-          </svg>
+          <UndoIcon />
           <span>Undo</span>
         </button>
         <button
@@ -202,9 +201,7 @@ export function ChartEditor() {
           title="Redo (⇧⌘Z)"
           aria-label="Redo"
         >
-          <svg viewBox="0 0 20 20" aria-hidden="true">
-            <path d="m12 5 4 4-4 4m4-4H9a5 5 0 0 0-5 5" />
-          </svg>
+          <RedoIcon />
           <span>Redo</span>
         </button>
       </header>

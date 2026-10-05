@@ -9,7 +9,7 @@ import { type PickerTarget, useUiStore } from "../state/uiStore";
 import { insertTargetCol } from "../model/ops";
 import { SymbolGlyph } from "./SymbolGlyph";
 import { browseSymbols, searchMotifs } from "./symbolSearch";
-import { CloseIcon, SearchIcon } from "./icons";
+import { CloseIcon, DuplicateIcon, MakeMotifIcon, MoreIcon, QuickAddIcon, SearchIcon, TrashSmallIcon } from "./icons";
 import { collectColoredGlossaryEntries, useGlossaryIds } from "./chartGlossary";
 import { clamp } from "./utils";
 import { parseQuickSlotId } from "../model/quickSlots";
@@ -637,15 +637,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
                 aria-label={`Choose a stitch for quick slot ${slot + 1}`}
                 data-label="Choose stitch"
               >
-                <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true">
-                  <path
-                    d="M10 5.5v9M5.5 10h9"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.4"
-                    strokeLinecap="round"
-                  />
-                </svg>
+                <QuickAddIcon width="14" height="14" />
               </button>
             );
           })}
@@ -695,11 +687,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
               title="More stitches from this chart"
               data-label="More stitches"
             >
-              <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
-                <circle cx="5" cy="10" r="1.35" fill="currentColor" />
-                <circle cx="10" cy="10" r="1.35" fill="currentColor" />
-                <circle cx="15" cy="10" r="1.35" fill="currentColor" />
-              </svg>
+              <MoreIcon width="18" height="18" />
             </button>
           )}
           {canDelete && (
@@ -711,16 +699,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
               title="Clear stitch (Backspace)"
               data-label="Clear"
             >
-              <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-                <path
-                  d="M3.5 5h9M6.5 5V3.5h3V5M4.5 5l.5 8h6l.5-8"
-                  stroke="currentColor"
-                  strokeWidth="1.3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  fill="none"
-                />
-              </svg>
+              <TrashSmallIcon width="14" height="14" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
             </button>
           )}
         </div>
@@ -781,10 +760,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
               aria-label="Make motif"
               data-label="Motif"
             >
-              <svg viewBox="0 0 20 20" aria-hidden="true">
-                <rect x="3" y="5" width="9" height="9" rx="1.5" />
-                <path d="M8 3h6a3 3 0 0 1 3 3v6m0 0-2.5-2.5M17 12l-2.5 2.5" />
-              </svg>
+              <MakeMotifIcon />
             </button>
             )}
             <button
@@ -807,10 +783,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
               aria-label="Duplicate selection"
               data-label="Duplicate"
             >
-              <svg viewBox="0 0 20 20" aria-hidden="true">
-                <rect x="3" y="3" width="10" height="10" rx="1.5" />
-                <path d="M7 13v2a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2" />
-              </svg>
+              <DuplicateIcon />
             </button>
           </div>
         )}

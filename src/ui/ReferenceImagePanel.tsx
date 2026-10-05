@@ -15,6 +15,7 @@ import { tapActivate } from "./tapActivate";
 import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
 import { Button, IconButton } from "./Button";
 import { Popover } from "./Popover";
+import { BringFrontSmallIcon, EditIcon, EyeOffSmallIcon, EyeSmallIcon, OpacityIcon, PaletteDotsIcon, PlusIcon, ReplaceImageIcon, SendBehindSmallIcon, TrashIcon } from "./icons";
 
 /**
  * Upload + transform controls for the chart's reference images. A chart can
@@ -286,9 +287,7 @@ export function ReferenceImagePanel() {
                   fileInput.current?.click();
                 }}
               >
-                <svg viewBox="0 0 16 16" aria-hidden="true">
-                  <path d="M8 2.5v11M2.5 8h11" />
-                </svg>
+                <PlusIcon />
               </button>
             ))
           ) : (
@@ -313,10 +312,7 @@ export function ReferenceImagePanel() {
             aria-label="Canvas stitch colors"
             title="Canvas stitch colors"
           >
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path d="M10 3a7 7 0 1 0 0 14h1.2a1.6 1.6 0 0 0 0-3.2h-.5a1.2 1.2 0 0 1 0-2.4H13A4 4 0 0 0 17 7.5C17 5 14 3 10 3Z" />
-              <circle cx="6.5" cy="8" r=".8" /><circle cx="9" cy="5.8" r=".8" /><circle cx="13" cy="6.8" r=".8" />
-            </svg>
+            <PaletteDotsIcon />
           </button>
         </div>
       </div>
@@ -385,9 +381,7 @@ export function ReferenceImagePanel() {
                     setOpen(true);
                   }}
                 >
-                  <svg viewBox="0 0 16 16" aria-hidden="true">
-                    <path d="M10.5 2.5 13.5 5.5 5.5 13.5H2.5V10.5L10.5 2.5Z" />
-                  </svg>
+                  <EditIcon />
                 </IconButton>
                 <IconButton
                   className="refpanel__iconButton"
@@ -397,15 +391,9 @@ export function ReferenceImagePanel() {
                   onClick={() => updateReferenceImage(img.id, { visible: !img.visible })}
                 >
                   {img.visible ? (
-                    <svg viewBox="0 0 16 16" aria-hidden="true">
-                      <path d="M1.5 8s2.1-4 6.5-4 6.5 4 6.5 4-2.1 4-6.5 4S1.5 8 1.5 8Z" />
-                      <circle cx="8" cy="8" r="1.8" />
-                    </svg>
+                    <EyeSmallIcon />
                   ) : (
-                    <svg viewBox="0 0 16 16" aria-hidden="true">
-                      <path d="M1.5 8s2.1-4 6.5-4c1 0 1.9.2 2.7.5M14.5 8s-2.1 4-6.5 4c-1 0-1.9-.2-2.7-.5" />
-                      <path d="m2.5 2.5 11 11" />
-                    </svg>
+                    <EyeOffSmallIcon />
                   )}
                 </IconButton>
               </li>
@@ -424,15 +412,9 @@ export function ReferenceImagePanel() {
               onClick={() => images.forEach((img) => updateReferenceImage(img.id, { visible: allHidden }))}
             >
               {allHidden ? (
-                <svg viewBox="0 0 16 16" aria-hidden="true">
-                  <path d="M1.5 8s2.1-4 6.5-4c1 0 1.9.2 2.7.5M14.5 8s-2.1 4-6.5 4c-1 0-1.9-.2-2.7-.5" />
-                  <path d="m2.5 2.5 11 11" />
-                </svg>
+                <EyeOffSmallIcon />
               ) : (
-                <svg viewBox="0 0 16 16" aria-hidden="true">
-                  <path d="M1.5 8s2.1-4 6.5-4 6.5 4 6.5 4-2.1 4-6.5 4S1.5 8 1.5 8Z" />
-                  <circle cx="8" cy="8" r="1.8" />
-                </svg>
+                <EyeSmallIcon />
               )}
             </IconButton>
             <IconButton
@@ -442,10 +424,7 @@ export function ReferenceImagePanel() {
               tooltip="Opacity"
               onClick={() => setOpacityOpen((isOpen) => !isOpen)}
             >
-              <svg viewBox="0 0 16 16" aria-hidden="true">
-                <circle cx="8" cy="8" r="6" />
-                <path d="M8 2v12" />
-              </svg>
+              <OpacityIcon />
             </IconButton>
             {/* One shared front/behind toggle for every image at once - unlike
                 visibility and editing, which stay per-image, stacking order
@@ -459,13 +438,9 @@ export function ReferenceImagePanel() {
               onClick={() => images.forEach((img) => updateReferenceImage(img.id, { inFront: !allInFront }))}
             >
               {allInFront ? (
-                <svg viewBox="0 0 16 16" aria-hidden="true">
-                  <path d="M8 2.5v11m0 0-3-3m3 3 3-3" />
-                </svg>
+                <SendBehindSmallIcon />
               ) : (
-                <svg viewBox="0 0 16 16" aria-hidden="true">
-                  <path d="M8 13.5v-11m0 0-3 3m3-3 3 3" />
-                </svg>
+                <BringFrontSmallIcon />
               )}
               <span>{allInFront ? "Send behind" : "Bring to front"}</span>
             </IconButton>
@@ -534,10 +509,7 @@ export function ReferenceImagePanel() {
                       fileInput.current?.click();
                     }}
                   >
-                    <svg viewBox="0 0 16 16" aria-hidden="true">
-                      <path d="M3.5 8a4.5 4.5 0 0 1 7.6-3.2M12.5 8a4.5 4.5 0 0 1-7.6 3.2" />
-                      <path d="M11.5 2.8v2.4h-2.4M4.5 13.2v-2.4h2.4" />
-                    </svg>
+                    <ReplaceImageIcon />
                   </button>
                   <button
                     type="button"
@@ -546,9 +518,7 @@ export function ReferenceImagePanel() {
                     disabled={busy}
                     onClick={() => removeImage(img)}
                   >
-                    <svg viewBox="0 0 16 16" aria-hidden="true">
-                      <path d="M3 5h10M6.5 5V3.5a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1V5M4.5 5l.6 8a1 1 0 0 0 1 .9h3.8a1 1 0 0 0 1-.9l.6-8" />
-                    </svg>
+                    <TrashIcon />
                   </button>
                 </li>
               ))}

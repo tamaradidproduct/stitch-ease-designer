@@ -3,7 +3,7 @@ import { cellToScreenRect } from "../canvas/camera";
 import { unoccupiedCellsFromKeys } from "../model/cellKey";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
-import { CheckIcon, CrossIcon } from "./icons";
+import { CheckIcon, CrossIcon, ReplaceAllIcon } from "./icons";
 import { clamp } from "./utils";
 import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
 import { Popover } from "./Popover";
@@ -181,16 +181,7 @@ export function SuggestReviewMenu() {
             aria-label="Replace all unidentified markers with a chosen stitch"
             title="Replace all"
           >
-            <svg viewBox="0 0 20 20" width="19" height="19" aria-hidden="true">
-              <path
-                d="M4 8.5h9.5M11 5.5l3 3-3 3M16 11.5H6.5M9 8.5l-3 3 3 3"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+            <ReplaceAllIcon width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             <span>Replace all</span>
           </button>
         </div>

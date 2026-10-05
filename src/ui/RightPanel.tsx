@@ -26,7 +26,7 @@ import { motifIdFromKey, motifKey } from "../model/motifs";
 import { MotifCellGlyph } from "./motifUi";
 import { armMotifPen } from "./motifActions";
 import { applyChipColor } from "./colorwork";
-import { CheckIcon, CrossIcon, DragHandleIcon, SearchIcon } from "./icons";
+import { CheckIcon, CrossIcon, DisclosureIcon, DragHandleIcon, ReplaceAllIcon, SearchIcon, SuggestIcon } from "./icons";
 import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
 import { useQuickSlotDropTarget } from "./useQuickSlotDropTarget";
 import { GlossaryRow } from "./GlossaryRow";
@@ -565,16 +565,7 @@ export function RightPanel() {
                   title="Draw with Suggest (G) - tap again to stop drawing. Matches each cell against stitches you've already confirmed over the reference image. Landing on a suggestion with a real stitch armed confirms it as that stitch outright. Cmd/Ctrl confirms a suggestion as its own guess instead; Shift+Opt dismisses a suggestion or unrecognized marker (never a hand-drawn or confirmed stitch) - or tap the toolDock's Confirm/Dismiss buttons to make either the sticky default. All of this drags and Shift straight-lines/gap-fills the same way Draw does."
                 >
                   <span className="glossary__glyph" aria-hidden="true">
-                    <svg viewBox="0 0 20 20" width="16" height="16">
-                      <path
-                        d="M4 16 13 7m2.5-2.5L17 3M6 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1Z"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.4"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
+                    <SuggestIcon width="16" height="16" />
                   </span>
                   <span className="glossary__labelGroup">
                     <span className="glossary__label">Suggest</span>
@@ -659,9 +650,7 @@ export function RightPanel() {
                   aria-label="Replace all unidentified markers with a chosen stitch"
                   title="Replace all"
                 >
-                  <svg viewBox="0 0 20 20" aria-hidden="true">
-                    <path d="M4 8.5h9.5M11 5.5l3 3-3 3M16 11.5H6.5M9 8.5l-3 3 3 3" />
-                  </svg>
+                  <ReplaceAllIcon />
                 </button>
               </div>
             )}
@@ -908,9 +897,7 @@ export function RightPanel() {
             <h2>Export</h2>
             <span>Share or save this pattern</span>
           </div>
-          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" data-open={exportOpen}>
-            <path d="m4 6 4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
-          </svg>
+          <DisclosureIcon width="14" height="14" data-open={exportOpen} />
         </button>
         {exportOpen && (
           <div className="sideModule__body">
@@ -987,9 +974,7 @@ export function RightPanel() {
             <h2>Help</h2>
             <span>Keyboard shortcuts</span>
           </div>
-          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" data-open={helpOpen}>
-            <path d="m4 6 4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
-          </svg>
+          <DisclosureIcon width="14" height="14" data-open={helpOpen} />
         </button>
         {helpOpen && (
           <div className="sideModule__body">
