@@ -97,6 +97,37 @@ describe("tool switching", () => {
   });
 });
 
+describe("reference image panel", () => {
+  it("restores the previous tool when the panel closes", () => {
+    useUiStore.getState().setTool("insert");
+    useUiStore.getState().setReferenceImagePanelOpen(true);
+
+    expect(useUiStore.getState().tool).toBe("select");
+
+    useUiStore.getState().setReferenceImagePanelOpen(false);
+
+    expect(useUiStore.getState().tool).toBe("insert");
+  });
+
+  it("clears in-progress reference-image editing state without closing the panel", () => {
+    useUiStore.getState().setReferenceImagePanelOpen(true);
+    useUiStore.getState().setReferenceImageCalibrating(true);
+    useUiStore.getState().setReferenceImageGridAlignmentStatus("detecting");
+    useUiStore.getState().setReferenceImageMarking(true);
+    useUiStore.getState().setReferenceImageActiveMark("mark-1");
+    useUiStore.getState().setReferenceImageCalibrationRejected(true);
+
+    useUiStore.getState().clearReferenceImageInteractionState();
+
+    expect(useUiStore.getState().referenceImagePanelOpen).toBe(true);
+    expect(useUiStore.getState().referenceImageCalibrating).toBe(false);
+    expect(useUiStore.getState().referenceImageGridAlignmentStatus).toBe("idle");
+    expect(useUiStore.getState().referenceImageMarking).toBe(false);
+    expect(useUiStore.getState().referenceImageActiveMark).toBeNull();
+    expect(useUiStore.getState().referenceImageCalibrationRejected).toBe(false);
+  });
+});
+
 describe("suggestAction reset (FR-2)", () => {
   const ui = () => useUiStore.getState();
 

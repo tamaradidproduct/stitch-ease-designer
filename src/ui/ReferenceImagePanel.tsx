@@ -40,11 +40,9 @@ export function ReferenceImagePanel() {
   const setOpen = useUiStore((s) => s.setReferenceImagePanelOpen);
   const camera = useUiStore((s) => s.camera);
   const viewport = useUiStore((s) => s.viewport);
-  const setCalibrating = useUiStore((s) => s.setReferenceImageCalibrating);
+  const clearReferenceImageInteractionState = useUiStore((s) => s.clearReferenceImageInteractionState);
   const setMarking = useUiStore((s) => s.setReferenceImageMarking);
   const gridAlignmentStatus = useUiStore((s) => s.referenceImageGridAlignmentStatus);
-  const setGridAlignmentStatus = useUiStore((s) => s.setReferenceImageGridAlignmentStatus);
-  const setCalibrationBox = useUiStore((s) => s.setReferenceImageCalibrationBox);
   const calibrationRejected = useUiStore((s) => s.referenceImageCalibrationRejected);
   const marking = useUiStore((s) => s.referenceImageMarking);
   const setActiveMark = useUiStore((s) => s.setReferenceImageActiveMark);
@@ -213,11 +211,9 @@ export function ReferenceImagePanel() {
     if (img.id !== activeImageId) return;
     const remaining = images.filter((other) => other.id !== img.id);
     setActiveImageId(remaining[0]?.id ?? null);
+    clearReferenceImageInteractionState();
     if (!remaining.length) {
       setOpen(false);
-      setCalibrating(false);
-      setGridAlignmentStatus("idle");
-      setCalibrationBox(null);
     }
   };
 

@@ -222,8 +222,11 @@ type UiState = {
    */
   referenceImagePanelOpen: boolean;
   setReferenceImagePanelOpen: (open: boolean) => void;
-  /**
-   * Armed by the panel's "Set stitch size" button: the next drag on the
+   referenceImageToolBeforeOpen: Tool | null;
+   /** Clears the in-progress reference-image editing state without closing the panel. */
+   clearReferenceImageInteractionState: () => void;
+   /**
+    * Armed by the panel's "Set stitch size" button: the next drag on the
    * canvas draws a calibration box instead of moving/resizing the image -
    * one-shot, cleared the moment that drag ends (successful or not), so it
    * never lingers as a mode someone has to remember to turn off.
@@ -415,28 +418,45 @@ export const useUiStore = create<UiState>((set, get) => ({
   activeReferenceImageId: null,
   setActiveReferenceImageId: (activeReferenceImageId) => set({ activeReferenceImageId }),
   referenceImagePanelOpen: false,
-  setReferenceImagePanelOpen: (open) =>
-    // Closing the panel drops any in-progress calibration along with it -
-    // there's no reason to leave that armed once the canvas goes back to
-    // the normal tools.
-    set(open ? {
-      referenceImagePanelOpen: true,
-      // Reference editing owns the canvas. Keep Draw out of the active
-      // state as well as out of sight, so it cannot reappear underneath the
-      // image workflow through a keyboard shortcut or panel transition.
-      tool: "select",
-    } : {
-      referenceImagePanelOpen: false,
-      tool: "stitch",
+  referenceImageToolBeforeOpen: null,
+  clearReferenceImageInteractionState: () =>
+    set({
       referenceImageCalibrating: false,
       referenceImageGridAlignmentStatus: "idle",
       referenceImageCalibrationBox: null,
       referenceImageMarking: false,
       referenceImageActiveMark: null,
-      referenceImageUnrecognized: new Set<string>(),
       referenceImageCalibrationRejected: false,
       referenceImageHandle: null,
     }),
+  setReferenceImagePanelOpen: (open) =>
+    // Closing the panel drops any in-progress calibration along with it -
+    // there's no reason to leave that armed once the canvas goes back to
+    // the normal tools.
+    set((state) =>
+      open
+        ? {
+            referenceImagePanelOpen: true,
+            referenceImageToolBeforeOpen: state.referenceImagePanelOpen ? state.referenceImageToolBeforeOpen : state.tool,
+            // Reference editing owns the canvas. Keep Draw out of the active
+            // state as well as out of sight, so it cannot reappear underneath the
+            // image workflow through a keyboard shortcut or panel transition.
+            tool: "select",
+          }
+        : {
+            referenceImagePanelOpen: false,
+            tool: state.referenceImageToolBeforeOpen ?? "stitch",
+            referenceImageToolBeforeOpen: null,
+            referenceImageCalibrating: false,
+            referenceImageGridAlignmentStatus: "idle",
+            referenceImageCalibrationBox: null,
+            referenceImageMarking: false,
+            referenceImageActiveMark: null,
+            referenceImageUnrecognized: new Set<string>(),
+            referenceImageCalibrationRejected: false,
+            referenceImageHandle: null,
+          },
+    ),
   referenceImageCalibrating: false,
   setReferenceImageCalibrating: (referenceImageCalibrating) => set({ referenceImageCalibrating }),
   referenceImageGridAlignmentStatus: "idle",
@@ -851,6 +871,7 @@ export const useUiStore = create<UiState>((set, get) => ({
     isPanning: false,
     activeReferenceImageId: null,
     referenceImagePanelOpen: false,
+    referenceImageToolBeforeOpen: null,
     referenceImageCalibrating: false,
     referenceImageGridAlignmentStatus: "idle",
     referenceImageCalibrationBox: null,
