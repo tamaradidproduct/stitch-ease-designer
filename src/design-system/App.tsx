@@ -7,9 +7,12 @@ import { ColorChip } from "../ui/ColorChip";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import * as Icons from "../ui/icons";
 import { MotifCellGlyph, MotifGlyph } from "../ui/motifUi";
+import { Checkbox, Slider, TextField } from "../ui/Field";
 import { Popover } from "../ui/Popover";
 import { QuickTile } from "../ui/QuickTile";
 import { RightPanel } from "../ui/RightPanel";
+import { SegmentedControl } from "../ui/SegmentedControl";
+import { SideModule } from "../ui/SideModule";
 import { StatusBar } from "../ui/StatusBar";
 import { SymbolGlyph } from "../ui/SymbolGlyph";
 import { Toolbar } from "../ui/Toolbar";
@@ -171,6 +174,10 @@ function TokenSections({ edits, onEdit }: { edits: Record<string, string>; onEdi
           render={(n) =>
             n === "font-sans" ? (
               <p className="ds-type-sample" style={{ fontFamily: "var(--font-sans)" }}>{sample}</p>
+            ) : n.startsWith("leading") ? (
+              <p className="ds-type-sample ds-leading-demo" style={{ lineHeight: `var(--${n})` }}>{sample} · {sample}</p>
+            ) : n.startsWith("tracking") ? (
+              <p className="ds-type-sample" style={{ letterSpacing: `var(--${n})`, textTransform: n === "tracking-wide" ? "uppercase" : "none" }}>{sample}</p>
             ) : (
               <p className="ds-type-sample" style={{ fontWeight: `var(--${n})` as unknown as number }}>{sample}</p>
             )
@@ -214,6 +221,24 @@ function TokenSections({ edits, onEdit }: { edits: Record<string, string>; onEdi
           }
         />
         <RowList group={byId("layout")} edits={edits} onEdit={onEdit} render={(n) => <div className="ds-bar" style={{ width: `min(100%, calc(var(--${n}) / 2))` }} />} />
+      </Section>
+
+      <Section id="state" title="Interaction state" lede="One disabled look and one keyboard focus ring for every control. Tab onto the buttons to see the ring.">
+        <RowList
+          group={byId("state")}
+          edits={edits}
+          onEdit={onEdit}
+          render={(n) =>
+            n === "opacity-disabled" ? (
+              <span className="ds-seg">
+                <Button disabled>Disabled</Button>
+                <Button variant="primary" disabled>Disabled</Button>
+              </span>
+            ) : (
+              <span className="ds-focus-demo">Focused</span>
+            )
+          }
+        />
       </Section>
 
       <Section id="elevation" title="Elevation">
@@ -398,6 +423,73 @@ function DialogDemo() {
         />
       )}
       <div className="ds-snippet"><pre>{`<ConfirmDialog message="Delete “Aran yoke”?" onConfirm={…} onCancel={…} />`}</pre></div>
+    </div>
+  );
+}
+
+function SegmentedDemo() {
+  const [worked, setWorked] = useState<"flat" | "round">("flat");
+  const [corner, setCorner] = useState<"tl" | "tr" | "bl" | "br">("br");
+  return (
+    <div className="ds-panel">
+      <div className="ds-stage" style={{ gap: 32 }}>
+        <div style={{ width: 200 }}>
+          <SegmentedControl
+            label="Worked flat or in the round"
+            options={[
+              { value: "flat", children: "Flat" },
+              { value: "round", children: "Round" },
+            ]}
+            value={worked}
+            onChange={setWorked}
+          />
+        </div>
+        <SegmentedControl
+          label="Which corner the first stitch is at"
+          appearance="custom"
+          className="patternInfo__corners"
+          options={(["tl", "tr", "bl", "br"] as const).map((c) => ({ value: c, label: `Corner ${c}` }))}
+          value={corner}
+          onChange={setCorner}
+        />
+        <span className="ds-note">Arrow keys move the choice. Only the chosen option is a tab stop.</span>
+      </div>
+      <div className="ds-snippet"><pre>{`<SegmentedControl label="Worked" options={[…]} value={worked} onChange={setWorked} />`}</pre></div>
+    </div>
+  );
+}
+
+function FieldsDemo() {
+  const [title, setTitle] = useState("Aran yoke");
+  const [opacity, setOpacity] = useState(0.5);
+  const [crop, setCrop] = useState(true);
+  return (
+    <div className="ds-panel">
+      <div className="ds-stage" style={{ alignItems: "flex-start", gap: 28 }}>
+        <label className="ds-field"><span>default</span><TextField placeholder="Name this color" /></label>
+        <label className="ds-field"><span>inline</span><TextField variant="inline" className="topbar__name" value={title} onChange={(e) => setTitle(e.target.value)} /></label>
+        <label className="ds-field"><span>rename</span><TextField variant="rename" defaultValue="Honeycomb" /></label>
+        <label className="ds-field" style={{ minWidth: 180 }}><span>Slider · {Math.round(opacity * 100)}%</span><Slider min={0.1} max={1} step={0.05} value={opacity} onChange={(e) => setOpacity(Number(e.target.value))} /></label>
+        <div className="ds-field"><span>Checkbox</span><Checkbox checked={crop} onChange={(e) => setCrop(e.target.checked)}>Crop to calibrated stitches</Checkbox></div>
+      </div>
+      <div className="ds-snippet"><pre>{`<TextField variant="rename" … />  <Slider min={0} max={1} … />  <Checkbox checked={…}>Label</Checkbox>`}</pre></div>
+    </div>
+  );
+}
+
+function SideModuleDemo() {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="ds-panel">
+      <div className="ds-stage" style={{ alignItems: "flex-start" }}>
+        <div style={{ width: 300, display: "grid", gap: 10 }}>
+          <SideModule title="Help" subtitle="Keyboard shortcuts" collapsible={{ open, onToggle: () => setOpen((v) => !v) }}>
+            <div className="inset">An .inset box: a quiet panel inside the flow, with no shadow.</div>
+          </SideModule>
+          <SideModule title="Navigator" subtitle="Move around the canvas" actions={<Button size="sm">Center</Button>} />
+        </div>
+      </div>
+      <div className="ds-snippet"><pre>{`<SideModule title="Help" subtitle="Keyboard shortcuts" collapsible={{ open, onToggle }}>…</SideModule>`}</pre></div>
     </div>
   );
 }
@@ -602,8 +694,8 @@ function Backlog({ requested, onRequest }: { requested: string; onRequest: (item
 
 const NAV: [string, [string, string][]][] = [
   ["Overview", [["inventory", "Inventory"], ["backlog", "Consolidation backlog"]]],
-  ["Tokens", [["color", "Color"], ["type", "Typography"], ["spacing", "Spacing"], ["radius", "Radius & border"], ["size", "Sizes"], ["elevation", "Elevation"], ["layers", "Layers"], ["motion", "Motion"]]],
-  ["Components", [["button", "Button"], ["iconbutton", "IconButton"], ["popover", "Popover"], ["dialog", "ConfirmDialog"], ["colorchip", "ColorChip"], ["quicktile", "QuickTile"], ["tooldock", "Tool dock"], ["rightpanel", "Right panel"], ["statusbar", "Status bar"], ["banners", "Banners"]]],
+  ["Tokens", [["color", "Color"], ["type", "Typography"], ["spacing", "Spacing"], ["radius", "Radius & border"], ["size", "Sizes"], ["state", "Interaction state"], ["elevation", "Elevation"], ["layers", "Layers"], ["motion", "Motion"]]],
+  ["Components", [["button", "Button"], ["iconbutton", "IconButton"], ["popover", "Popover"], ["dialog", "ConfirmDialog"], ["segmented", "SegmentedControl"], ["fields", "Form controls"], ["sidemodule", "SideModule & inset"], ["colorchip", "ColorChip"], ["quicktile", "QuickTile"], ["tooldock", "Tool dock"], ["rightpanel", "Right panel"], ["statusbar", "Status bar"], ["banners", "Banners"]]],
   ["Assets", [["glyphs", "Stitch symbols"], ["colorwork", "Colorwork palette"], ["icons", "Icons"], ["cursors", "Cursors"], ["geometry", "Component geometry"]]],
 ];
 
@@ -665,11 +757,11 @@ export function App() {
                 <thead><tr><th>Piece</th><th>Source</th><th>Covers</th><th>Edit from this page</th></tr></thead>
                 <tbody>
                   <tr><td><b>Tokens</b></td><td><code>src/design/tokens.json</code></td><td>Colors (UI, canvas, cursors), type, spacing, radius, borders, icon/control/layout sizes, elevation, layers, motion. Generates <code>tokens.css</code> and <code>tokens.generated.ts</code>.</td><td><span className="ds-pill ds-pill--ok">Yes: values</span></td></tr>
-                  <tr><td><b>Components</b></td><td><code>src/ui/*</code></td><td>Button, IconButton, Popover, ConfirmDialog, ColorChip, QuickTile, SymbolGlyph, Toolbar, RightPanel, StatusBar, icons. All styled through tokens.</td><td><span className="ds-pill ds-pill--todo">Via request note</span></td></tr>
+                  <tr><td><b>Components</b></td><td><code>src/ui/*</code></td><td>Button / IconButton (every button in the app), Popover, ConfirmDialog, SegmentedControl, TextField / Slider / Checkbox (every input), SideModule, ColorChip, QuickTile, SymbolGlyph, icons, plus the panels built from them. All styled through tokens.</td><td><span className="ds-pill ds-pill--todo">Via request note</span></td></tr>
                   <tr><td><b>Component geometry</b></td><td><code>src/styles/*.css</code></td><td>Fixed sizes and offsets that belong to one component (e.g. a 38px tool button). Listed below.</td><td><span className="ds-pill ds-pill--todo">Via request note</span></td></tr>
                   <tr><td><b>Colorwork palette</b></td><td><code>src/model/colorPalette.ts</code></td><td>32 swatches. Saved charts store a swatch's hex as its id, so changing one needs a data migration.</td><td><span className="ds-pill ds-pill--no">Read-only</span></td></tr>
                   <tr><td><b>Stitch symbols</b></td><td>Figma library → <code>symbols.generated.ts</code></td><td>63 symbols, synced by <code>scripts/sync-symbols.py</code>.</td><td><span className="ds-pill ds-pill--no">Edit in Figma</span></td></tr>
-                  <tr><td><b>Guards</b></td><td><code>tokens.test.ts</code>, <code>build-tokens.test.mjs</code></td><td>Fail the build if a stylesheet uses a raw color or a raw px value for spacing, radius or type, or if the generated files are stale.</td><td>—</td></tr>
+                  <tr><td><b>Guards</b></td><td><code>tokens.test.ts</code>, <code>build-tokens.test.mjs</code></td><td>Fail the build on: a raw color or raw px spacing, radius, type, line-height or letter-spacing in a component stylesheet; a hover rule outside <code>@media (hover: hover)</code>; a literal disabled opacity; an undeclared custom property; stale generated files.</td><td>—</td></tr>
                 </tbody>
               </table>
             </div>
@@ -700,6 +792,15 @@ export function App() {
           </Section>
           <Section id="dialog" title="ConfirmDialog" lede="The app's replacement for window.confirm().">
             <DialogDemo />
+          </Section>
+          <Section id="segmented" title="SegmentedControl" lede="A single-choice row of options. appearance=&quot;custom&quot; keeps the behaviour with a component's own look.">
+            <SegmentedDemo />
+          </Section>
+          <Section id="fields" title="Form controls" lede="TextField (default, inline, rename, unstyled), Slider and Checkbox from ui/Field.tsx.">
+            <FieldsDemo />
+          </Section>
+          <Section id="sidemodule" title="SideModule & inset" lede="The right panel's card shell, collapsible or static, and the in-flow .inset surface.">
+            <SideModuleDemo />
           </Section>
           <Section id="colorchip" title="ColorChip" lede="Opens the real 32-swatch colorwork popover.">
             <ColorChipDemo />

@@ -41,6 +41,11 @@ preview), type (7 sizes, 3 weights), spacing (`--space-px`, then
 control sizes, layout (`--panel-width`, `--page-max-width`), elevation,
 layers, motion.
 
+Aliases: a value of `"{other-token}"` links a token to another one (CSS
+gets `var(--other-token)`, TS gets the resolved value). Used where two
+tokens must move together, e.g. `--info-bg` follows `--accent-soft-bg`,
+`--tooltip-bg` follows `--text`.
+
 Rules, enforced by `src/design/tokens.test.ts`:
 
 - **Colors:** a component stylesheet never contains a hex or `rgb()` value.
@@ -53,6 +58,13 @@ Rules, enforced by `src/design/tokens.test.ts`:
 - **Geometry:** raw px values are fine for component geometry (a 38px tool
   button, a popover's width). The style guide lists every one under
   "Component geometry".
+- **Line height and letter spacing:** use `--leading-*` and `--tracking-*`.
+- **Hover:** every `:hover` rule sits inside `@media (hover: hover)`, so it
+  doesn't stick after a tap on iPad.
+- **Disabled and focus:** disabled controls use `--opacity-disabled`.
+  Keyboard focus comes from one global `:focus-visible` ring
+  (`--focus-outline`, `--focus-offset`); don't set `outline: none` on a
+  focusable element.
 - **Layers:** `z-index` 1–6 inside a component is local stacking. Anything
   that stacks against other app surfaces uses a `--z-*` layer.
 - **Motion:** `prefers-reduced-motion` is handled globally in `base.css`.
@@ -84,10 +96,12 @@ The published page has a token editor:
 
 | Component | File | Use for |
 | --- | --- | --- |
-| `Button` | `ui/Button.tsx` | Every text button. `variant` default/primary/quiet, `danger`, `size` sm/md/lg, `on` (toggle). Defaults to `type="button"`. |
+| `Button` | `ui/Button.tsx` | Every button. `variant` default / primary / quiet / unstyled, `danger`, `size` sm / md / lg (`--control-sm/md/lg`), `on` (toggle). `unstyled` keeps a component's own look but still goes through Button. |
 | `IconButton` | `ui/Button.tsx` | Icon-only buttons. `label` (required, becomes `aria-label`), optional `tooltip`. |
-| `buttonClassName()` | `ui/buttonClassName.ts` | A non-button element styled as a button (e.g. a router `Link`). |
-| `Popover` | `ui/Popover.tsx` | Floating surfaces: popovers, menus, drawers. Supplies background, border, radius and shadow. The caller handles position, layer, padding, role and dismissal (`useDismissOnOutsideOrEscape`). |
+| `TextField`, `Slider`, `Checkbox` | `ui/Field.tsx` | Every input. TextField variants: default, inline (edit a title in place), rename (replaces a row label), unstyled (inside a styled search box). |
+| `SegmentedControl` | `ui/SegmentedControl.tsx` | Single-choice groups (role=radiogroup, arrow keys). `appearance="custom"` for a component's own look. |
+| `Popover` | `ui/Popover.tsx` | Floating surfaces. In-flow quiet boxes use the `.inset` class instead. |
+| `SideModule` | `ui/SideModule.tsx` | A right-panel card: title, subtitle, optional disclosure toggle, body. |
 | `ConfirmDialog` | `ui/ConfirmDialog.tsx` | Confirmation. Use it instead of `window.confirm()`. |
 | `ColorChip` / `ColorSwatchPopover` | `ui/ColorChip.tsx` | Picking a colorwork color. |
 | `SymbolGlyph` | `ui/SymbolGlyph.tsx` | Drawing a stitch symbol exactly as on the canvas. |
@@ -96,6 +110,8 @@ The published page has a token editor:
 Behavior hooks: `useDismissOnOutsideOrEscape` (all overlays) and
 `tapActivate` (touch-safe activation).
 
-Many bespoke buttons (tool dock, picker quick slots, glossary row actions)
-still render a raw `<button>` with their own block class. Move them onto
-`Button` / `IconButton` when you're already working in that area.
+The right panel is a shell (`RightPanel.tsx`) around one file per card:
+`GlossarySection`, `ReferenceImagePanel`, `ExportSection`, `HelpSection`,
+`NavigatorSection`. The style guide's Consolidation backlog lists what's
+left (buttons that still have their own look, files over 500 lines, and so
+on), counted live from the source.
