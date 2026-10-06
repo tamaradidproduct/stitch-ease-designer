@@ -19,45 +19,66 @@ imported later wins any same-specificity conflict. `referenceDock.css`
 deliberately loads before `toolbar.css` so `.toolDock__button` keeps
 winning.
 
-## Tokens (`src/styles/tokens.css`)
+## Tokens (`src/design/tokens.json`)
 
-| Group | Tokens |
-| --- | --- |
-| Neutrals | `--bg`, `--chrome`, `--border`, `--border-subtle`, `--text`, `--text-muted`, `--text-subtle` |
-| Accent | `--accent`, `--accent-soft-bg`, `--accent-soft-border`, `--accent-mid`, `--accent-ring`, `--on-solid` |
-| Danger | `--danger`, `--danger-soft-bg`, `--danger-soft-border`, `--danger-wash`, `--danger-strong`, `--danger-ink` |
-| Suggest mode | `--suggest`, `--suggest-strong`, `--suggest-wash` |
-| Banners | `--warning-bg/-border/-text`, `--info-bg/-border/-text` |
-| Surfaces | `--surface-glass` + `--blur-glass` (floating docks), `--overlay-light`, `--tooltip-bg`, `--scrim`, `--hairline-ink` |
-| Chart cells | `--cell-stroke`, `--cell-ink` |
-| Type | `--font-sans`; sizes `--font-size-2xs` 10 · `xs` 11 · `sm` 12 · `md` 13 (base) · `lg` 16 · `xl` 22; weights `medium` 500 · `semibold` 600 · `bold` 700 |
-| Spacing | `--space-1`…`--space-8` = 2 · 4 · 6 · 8 · 12 · 16 · 20 · 24px |
-| Radius | `--radius-xs` 4 · `sm` 6 · `md` 8 · `lg` 10 · `xl` 12 · `full` |
-| Control height | `--control-sm` 24 · `md` 28 · `lg` 36 |
-| Elevation | `--shadow-0` resting card · `1` chip · `2` raised tile · `3` popover/menu/drawer · `4` modal |
-| Layers | `--z-dock` 18 · `--z-panel` 19 · `--z-floating` 20 · `--z-popover` 30 · `--z-menu` 40 · `--z-modal` 1000 |
-| Motion | `--duration-fast` 100ms · `--duration-base` 140ms · `--ease-standard` |
+`src/design/tokens.json` is the **only** place token values live. Each
+token has a value and a description, grouped by kind. `npm run tokens`
+generates:
 
-Rules:
+- `src/styles/tokens.css`: the `:root` custom properties every stylesheet uses.
+- `src/design/tokens.generated.ts`: the same values for the canvas renderer,
+  cursor builder, trace presets and colorwork ink (`import { tokens, alpha }
+  from "../design/tokens"`).
 
-- Use a token for every color. A new color means a new token with a comment
-  saying what it's for. No hex in component files.
-- Off-scale spacing and radius values (3, 5, 7, 9px…) still exist as
-  optical tweaks. Don't add new ones. Snapping the existing ones is a
-  visual change that needs its own design pass.
-- `z-index` 1–6 inside a component is local stacking and stays literal.
-  Anything that stacks against other app surfaces uses a `--z-*` layer.
-- `prefers-reduced-motion` is handled globally in `base.css`.
-- There's no dark theme yet. If one is added, it should be a second token
-  block, and the canvas and colorwork ink rules need their own pass.
+Never edit either generated file by hand. `npm run build` fails if they're
+stale.
 
-### Canvas colors
+Groups: neutrals, accent, danger, success, suggest mode, motifs & trace,
+banners, surfaces, chart canvas (canvas, grid, cell, colorwork ink, cursor
+preview), type (7 sizes, 3 weights), spacing (`--space-px`, then
+`--space-1`…`--space-11` = 2 · 4 · 6 · 8 · 10 · 12 · 16 · 20 · 24 · 32 ·
+64px), radius (`2xs`…`xl`, `full`, `circle`), border widths, icon and
+control sizes, layout (`--panel-width`, `--page-max-width`), elevation,
+layers, motion.
 
-The canvas renderer can't read CSS variables, so `src/design/tokens.ts`
-mirrors the colors it shares with the chrome, and `canvas/theme.ts` reads
-from it. `src/design/tokens.test.ts` fails if a mirrored value drifts from
-`tokens.css`. It also fails if any stylesheet references an undeclared
-custom property.
+Rules, enforced by `src/design/tokens.test.ts`:
+
+- **Colors:** a component stylesheet never contains a hex or `rgb()` value.
+  Use a token, or add one to `tokens.json`. The trace-colors hue wheel is
+  the one deliberate exception.
+- **Spacing, radius and type:** a component stylesheet never uses a raw px
+  value for `gap`, `padding`, `margin`, `border-radius`, `font-size` or
+  `font`. Snap the value to the scale; don't add an off-scale value.
+- **Custom properties:** every one a stylesheet references must be declared.
+- **Geometry:** raw px values are fine for component geometry (a 38px tool
+  button, a popover's width). The style guide lists every one under
+  "Component geometry".
+- **Layers:** `z-index` 1–6 inside a component is local stacking. Anything
+  that stacks against other app surfaces uses a `--z-*` layer.
+- **Motion:** `prefers-reduced-motion` is handled globally in `base.css`.
+- **Colorwork palette:** the 32 swatches in `model/colorPalette.ts` are data,
+  not tokens. Saved charts store a swatch's hex as its id, so changing one
+  needs a migration.
+
+## Living style guide (`docs/design-system.html`)
+
+`design-system.html` + `src/design-system/` is a second Vite entry that
+renders the real components and every token. `npm run design-system`
+bundles it into one self-contained file, `docs/design-system.html`, and
+`dist-design-system/artifact.html` for publishing to claude.ai. Rebuild it
+whenever tokens or components change.
+
+The published page has a token editor:
+
+1. Edit any value. The whole page previews it live. The draft is shared
+   through the artifact's store, so a teammate sees the same draft.
+2. Optionally describe other changes (components, layout, copy) in the
+   request note.
+3. **Apply to app** starts a Claude Code cloud session through the Claude
+   Code Remote connector. It edits `tokens.json`, regenerates everything,
+   runs build, lint and tests, and opens a PR. The PR is never merged
+   automatically. Once it merges and the page is rebuilt, the draft clears
+   itself, because the edited values now equal the source.
 
 ## Components
 
