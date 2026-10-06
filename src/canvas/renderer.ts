@@ -26,6 +26,7 @@ import type { SpriteCache } from "./spriteCache";
 import type { PickerTarget, SelectionBox, SelectionMove, Tool } from "../state/uiStore";
 import { parseCellKey } from "../model/cellKey";
 import { RULER, theme } from "./theme";
+import { alpha, tokens as tk } from "../design/tokens";
 
 export type RenderState = {
   camera: Camera;
@@ -280,7 +281,7 @@ function drawPlacements(ctx: CanvasRenderingContext2D, state: RenderState): void
       (state.selectedPlacementIds.includes(p.id) || state.pickerTarget?.baseCell?.placementId === p.id)
     ) {
       ctx.save();
-      ctx.fillStyle = "#f59e0b";
+      ctx.fillStyle = tk.highlight;
       const radius = Math.max(2, Math.min(4, size * 0.12));
       for (const offset of changedCells) {
         ctx.beginPath();
@@ -302,9 +303,9 @@ function drawPlacements(ctx: CanvasRenderingContext2D, state: RenderState): void
       const marginal = confidence < CONFIDENT;
 
       ctx.save();
-      ctx.fillStyle = marginal ? "rgba(147, 51, 234, 0.09)" : "rgba(147, 51, 234, 0.15)";
+      ctx.fillStyle = marginal ? alpha(tk.suggest, 0.09) : alpha(tk.suggest, 0.15);
       ctx.fillRect(r.x, r.y, width, size);
-      ctx.strokeStyle = "#9333ea";
+      ctx.strokeStyle = tk.suggest;
       ctx.lineWidth = 1.5;
       if (marginal) ctx.setLineDash([3, 2]);
       ctx.strokeRect(r.x + 0.5, r.y + 0.5, width - 1, size - 1);
@@ -314,11 +315,11 @@ function drawPlacements(ctx: CanvasRenderingContext2D, state: RenderState): void
         // whether to trust a guess needs to see how close it actually came.
         const pct = Math.round(confidence * 100);
         ctx.setLineDash([]);
-        ctx.fillStyle = "#9333ea";
+        ctx.fillStyle = tk.suggest;
         ctx.beginPath();
         ctx.arc(r.x + width - 7, r.y + 7, 8, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = "#ffffff";
+        ctx.fillStyle = tk["on-solid"];
         ctx.font = "600 8px system-ui, sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
@@ -385,7 +386,7 @@ function drawGroupNumbering(ctx: CanvasRenderingContext2D, state: RenderState): 
       const y = r.y + r.size / 2;
       if (x <= RULER || y <= RULER || y >= vp.height) continue;
       const label = String(rowNumber);
-      ctx.fillStyle = "rgba(255, 255, 255, 0.88)";
+      ctx.fillStyle = alpha(tk["on-solid"], 0.88);
       ctx.fillRect(x - halfBadge, y - halfBadge, badge, badge);
       ctx.fillStyle = theme.rulerText;
       ctx.fillText(label, x, y);
@@ -403,7 +404,7 @@ function drawGroupNumbering(ctx: CanvasRenderingContext2D, state: RenderState): 
       const y = r.y + r.size + stitchOffset;
       if (x <= RULER || x >= vp.width || y <= RULER || y >= vp.height) continue;
       const width = Math.max(badge, ctx.measureText(label).width + widthPad);
-      ctx.fillStyle = "rgba(255, 255, 255, 0.88)";
+      ctx.fillStyle = alpha(tk["on-solid"], 0.88);
       ctx.fillRect(x - width / 2, y - halfBadge, width, badge);
       ctx.fillStyle = theme.rulerText;
       ctx.fillText(label, x, y);
@@ -440,8 +441,8 @@ function drawInsertAnimation(ctx: CanvasRenderingContext2D, state: RenderState):
   const inset = (1 - eased) * r.size * 0.18;
 
   ctx.save();
-  ctx.fillStyle = `rgba(0, 156, 240, ${0.16 * (1 - progress)})`;
-  ctx.strokeStyle = `rgba(0, 156, 240, ${0.75 * (1 - progress)})`;
+  ctx.fillStyle = alpha(tk["motif-accent"], 0.16 * (1 - progress));
+  ctx.strokeStyle = alpha(tk["motif-accent"], 0.75 * (1 - progress));
   ctx.lineWidth = 2;
   ctx.fillRect(r.x + inset, r.y + inset, r.size - inset * 2, r.size - inset * 2);
   ctx.strokeRect(r.x + inset, r.y + inset, r.size - inset * 2, r.size - inset * 2);
@@ -459,7 +460,7 @@ function drawSelectedEmptyCells(ctx: CanvasRenderingContext2D, state: RenderStat
   if (!selectedEmptyCells.length) return;
 
   ctx.save();
-  ctx.fillStyle = "rgba(2, 132, 199, 0.14)";
+  ctx.fillStyle = alpha(tk.accent, 0.14);
   ctx.strokeStyle = theme.hoverStroke;
   ctx.lineWidth = 1.5;
   ctx.setLineDash([4, 3]);
@@ -486,7 +487,7 @@ function drawSelection(ctx: CanvasRenderingContext2D, state: RenderState): void 
   // a plain move only ever shows the one, since the originals are the
   // things actually moving.
   if (selectionMove?.duplicating) {
-    ctx.fillStyle = "rgba(2, 132, 199, 0.14)";
+    ctx.fillStyle = alpha(tk.accent, 0.14);
     ctx.strokeStyle = theme.hoverStroke;
     drawSelectionAt(ctx, state, 0, 0);
   }
@@ -495,15 +496,15 @@ function drawSelection(ctx: CanvasRenderingContext2D, state: RenderState): void 
     // The drop target is occupied - paint the preview in the same red as the
     // rest of the UI's destructive/blocked actions, so a rejected drop reads
     // as rejected instead of silently doing nothing.
-    ctx.fillStyle = "rgba(220, 38, 38, 0.14)";
-    ctx.strokeStyle = "#dc2626";
+    ctx.fillStyle = alpha(tk.danger, 0.14);
+    ctx.strokeStyle = tk.danger;
   } else if (selectionMove?.duplicating) {
     // A distinct colour from the plain-move blue, so it's clear a copy is
     // about to be created rather than the originals moving.
-    ctx.fillStyle = "rgba(22, 163, 74, 0.14)";
-    ctx.strokeStyle = "#16a34a";
+    ctx.fillStyle = alpha(tk.success, 0.14);
+    ctx.strokeStyle = tk.success;
   } else {
-    ctx.fillStyle = "rgba(2, 132, 199, 0.14)";
+    ctx.fillStyle = alpha(tk.accent, 0.14);
     ctx.strokeStyle = theme.hoverStroke;
   }
   drawSelectionAt(ctx, state, selectionMove?.col ?? 0, selectionMove?.row ?? 0);
@@ -521,7 +522,7 @@ function drawSelectionBox(ctx: CanvasRenderingContext2D, state: RenderState): vo
   const topLeft = cellToScreenRect(minCol, maxRow, cam, vp);
 
   ctx.save();
-  ctx.fillStyle = "rgba(2, 132, 199, 0.08)";
+  ctx.fillStyle = alpha(tk.accent, 0.08);
   ctx.strokeStyle = theme.hoverStroke;
   ctx.lineWidth = 1.5;
   ctx.setLineDash([5, 3]);
@@ -571,7 +572,7 @@ function drawPickerTarget(ctx: CanvasRenderingContext2D, state: RenderState): vo
     const r = cellToScreenRect(pickerTarget.col, pickerTarget.row, cam, vp);
     const x = rowDirectionAt(pickerTarget.row) === "rtl" ? r.x + r.size : r.x;
     ctx.save();
-    ctx.strokeStyle = "#009cf0";
+    ctx.strokeStyle = tk["motif-accent"];
     ctx.lineWidth = 3;
     ctx.lineCap = "round";
     ctx.beginPath();
@@ -587,7 +588,7 @@ function drawPickerTarget(ctx: CanvasRenderingContext2D, state: RenderState): vo
   const width = r.size * span;
 
   ctx.save();
-  ctx.fillStyle = "rgba(2, 132, 199, 0.14)";
+  ctx.fillStyle = alpha(tk.accent, 0.14);
   ctx.strokeStyle = theme.hoverStroke;
   ctx.lineWidth = 2;
   ctx.fillRect(r.x, r.y, width, r.size);
@@ -660,10 +661,10 @@ function drawUnrecognizedCells(ctx: CanvasRenderingContext2D, state: RenderState
   if (!referenceImageUnrecognized.size) return;
 
   ctx.save();
-  ctx.strokeStyle = "#dc2626";
+  ctx.strokeStyle = tk.danger;
   ctx.lineWidth = 1.5;
   ctx.setLineDash([3, 3]);
-  ctx.fillStyle = "rgba(220, 38, 38, 0.08)";
+  ctx.fillStyle = alpha(tk.danger, 0.08);
 
   for (const key of referenceImageUnrecognized) {
     const cell = parseCellKey(key);
@@ -681,7 +682,7 @@ function drawUnrecognizedCells(ctx: CanvasRenderingContext2D, state: RenderState
 /** Size (px, screen space) of a calibration mark's corner/side grab handles. */
 const MARK_HANDLE_SIZE = 7;
 /** Outline color for calibration marks and their handles, kept high-contrast against any photo. */
-const MARK_OUTLINE_COLOR = "#ffffff";
+const MARK_OUTLINE_COLOR = tk["on-solid"];
 
 function drawReferenceImageOverlay(ctx: CanvasRenderingContext2D, state: RenderState): void {
   const { referenceImagePanelOpen, referenceImages, activeReferenceImageId, referenceImageCalibrationBox, referenceImageMarks, referenceImageActiveMark, referenceImageMarking, camera: cam, viewport: vp } =
@@ -717,7 +718,7 @@ function drawReferenceImageOverlay(ctx: CanvasRenderingContext2D, state: RenderS
       const s = worldToScreen(p.x, p.y, cam, vp);
       ctx.fillStyle = theme.hoverStroke;
       ctx.fillRect(s.x - handle / 2, s.y - handle / 2, handle, handle);
-      ctx.strokeStyle = "#ffffff";
+      ctx.strokeStyle = tk["on-solid"];
       ctx.lineWidth = 1.5;
       ctx.strokeRect(s.x - handle / 2, s.y - handle / 2, handle, handle);
     }
@@ -740,7 +741,7 @@ function drawReferenceImageOverlay(ctx: CanvasRenderingContext2D, state: RenderS
     const topRight = worldToScreen(stitch.x + stitch.width, stitch.y + stitch.height, cam, vp);
 
     ctx.save();
-    ctx.strokeStyle = "#16a34a";
+    ctx.strokeStyle = tk.success;
     ctx.lineWidth = 1.5;
     ctx.strokeRect(
       bottomLeft.x + 0.5,
@@ -759,9 +760,9 @@ function drawReferenceImageOverlay(ctx: CanvasRenderingContext2D, state: RenderS
       ctx.beginPath();
       if (corner === "bl") ctx.arc(s.x, s.y, 4.5, 0, Math.PI * 2);
       else ctx.rect(s.x - handle / 2, s.y - handle / 2, handle, handle);
-      ctx.fillStyle = "#16a34a";
+      ctx.fillStyle = tk.success;
       ctx.fill();
-      ctx.strokeStyle = "#ffffff";
+      ctx.strokeStyle = tk["on-solid"];
       ctx.lineWidth = 1.5;
       ctx.stroke();
     }
@@ -792,13 +793,13 @@ function drawReferenceImageOverlay(ctx: CanvasRenderingContext2D, state: RenderS
       const height = bottomLeft.y - topRight.y;
       const named = m.stitch !== null && m.row !== null;
       const active = m.id === referenceImageActiveMark;
-      const colour = active ? "#0284c7" : named ? "#7c3aed" : "#94a3b8";
+      const colour = active ? tk.accent : named ? tk["suggest-strong"] : tk["text-subtle"];
 
       ctx.save();
       // A wash inside the box as well as an outline: at the zoom where a
       // whole chart fits, an outline alone on a stitch-sized box is a few
       // pixels of line over a busy photo and easy to lose.
-      ctx.fillStyle = active ? "rgba(2, 132, 199, 0.18)" : "rgba(124, 58, 237, 0.13)";
+      ctx.fillStyle = active ? alpha(tk.accent, 0.18) : alpha(tk["suggest-strong"], 0.13);
       ctx.fillRect(x, y, width, height);
       ctx.strokeStyle = MARK_OUTLINE_COLOR;
       ctx.lineWidth = 3;
@@ -844,8 +845,8 @@ function drawReferenceImageOverlay(ctx: CanvasRenderingContext2D, state: RenderS
     const y = Math.min(a.y, b.y);
 
     ctx.save();
-    ctx.fillStyle = "rgba(22, 163, 74, 0.14)";
-    ctx.strokeStyle = "#16a34a";
+    ctx.fillStyle = alpha(tk.success, 0.14);
+    ctx.strokeStyle = tk.success;
     ctx.lineWidth = 1.5;
     ctx.setLineDash([5, 3]);
     ctx.fillRect(x, y, Math.abs(b.x - a.x), Math.abs(b.y - a.y));
@@ -875,7 +876,7 @@ function drawHover(ctx: CanvasRenderingContext2D, state: RenderState): void {
     const r = cellToScreenRect(insertHover.col, insertHover.row, cam, vp);
     const x = rowDirectionAt(insertHover.row) === "rtl" ? r.x + r.size : r.x;
     ctx.save();
-    ctx.strokeStyle = "#009cf0";
+    ctx.strokeStyle = tk["motif-accent"];
     ctx.lineWidth = 2;
     ctx.lineCap = "round";
     ctx.setLineDash([3, 3]);

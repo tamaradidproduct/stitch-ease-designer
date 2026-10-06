@@ -13,9 +13,10 @@ import { getSymbol, spanOf } from "../symbols/registry";
 import { type Camera, type Cell, type Viewport, cellPx, cellToScreenRect } from "./camera";
 import type { SpriteCache } from "./spriteCache";
 import { theme } from "./theme";
+import { alpha, tokens as tk } from "../design/tokens";
 
-const MOTIF_ACCENT = "#009cf0";
-const BLOCKED = "#dc2626";
+const MOTIF_ACCENT = tk["motif-accent"];
+const BLOCKED = tk.danger;
 
 export type MotifOverlayState = {
   camera: Camera;
@@ -60,7 +61,7 @@ function tag(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, 
   const w = ctx.measureText(text).width + 8;
   ctx.fillStyle = color;
   ctx.fillRect(x, y - 15, w, 14);
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = tk.bg;
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
   ctx.fillText(text, x + 4, y - 8);
@@ -100,7 +101,7 @@ function drawStampGhost(ctx: CanvasRenderingContext2D, state: MotifOverlayState,
     const rect = footprintRect(footprintOf(motif, origin), cam, vp);
     if (blocked) {
       ctx.save();
-      ctx.fillStyle = "rgba(220, 38, 38, 0.12)";
+      ctx.fillStyle = alpha(tk.danger, 0.12);
       ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
       ctx.restore();
     }
@@ -141,7 +142,7 @@ function drawCopyOutlines(ctx: CanvasRenderingContext2D, state: MotifOverlayStat
     if (!selected.has(copyId) || size < 8) continue;
     const overrides = deriveOverrides(motif, copy, index.groupMembers(copyId));
     ctx.save();
-    ctx.fillStyle = "#f59e0b";
+    ctx.fillStyle = tk.highlight;
     const radius = Math.max(2, Math.min(4, size * 0.12));
     for (const cell of overrideCells(overrides)) {
       const r = cellToScreenRect(cell.col, cell.row, cam, vp);
@@ -168,7 +169,7 @@ export function drawCopyFrames(
   const size = cellPx(cam);
   if (size < 3) return;
   ctx.save();
-  ctx.strokeStyle = forExport ? theme.symbol : "rgba(0, 156, 240, 0.55)";
+  ctx.strokeStyle = forExport ? theme.symbol : alpha(tk["motif-accent"], 0.55);
   ctx.lineWidth = forExport ? Math.max(2, size / 12) : 1.5;
   for (const motif of state.repeats) {
     for (const copy of motif.copies ?? []) {

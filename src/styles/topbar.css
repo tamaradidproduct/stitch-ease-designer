@@ -1,0 +1,117 @@
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  height: 40px;
+  padding: 0 var(--space-6);
+  background: var(--chrome);
+  border-bottom: var(--border-width) solid var(--border);
+}
+
+.topbar__title {
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-tight);
+}
+
+.topbar__back {
+  color: var(--text-muted);
+  font-size: var(--font-size-lg);
+  text-decoration: none;
+  padding: 0 var(--space-2);
+}
+
+@media (hover: hover) {
+  .topbar__back:hover {
+    color: var(--text);
+  }
+}
+
+.topbar__name {
+  min-width: 8ch;
+  max-width: 42ch;
+  font-weight: var(--font-weight-semibold);
+}
+
+.topbar__spacer {
+  flex: 1;
+}
+
+.topbar__historyButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: var(--control-md);
+  padding: 0 var(--space-4);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.topbar__historyButton svg {
+  width: var(--icon-md);
+  height: var(--icon-md);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.topbar__historyButton:focus-visible {
+  background: var(--bg);
+  color: var(--accent);
+}
+
+@media (hover: hover) {
+  .topbar__historyButton:hover:not(:disabled) {
+    background: var(--bg);
+    color: var(--accent);
+  }
+}
+
+.topbar__historyButton:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: default;
+}
+
+.save {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+.save--bad {
+  color: var(--danger-text);
+  font-weight: var(--font-weight-semibold);
+}
+
+.banner {
+  padding: var(--space-4) var(--space-6);
+  background: var(--warning-bg);
+  border-bottom: var(--border-width) solid var(--warning-border);
+  color: var(--warning-text);
+  font-size: var(--font-size-sm);
+}
+
+.banner--bad {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-6);
+  background: var(--danger-soft-bg);
+  border-bottom-color: var(--danger-soft-border);
+  color: var(--danger-text);
+}
+
+.banner--info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-6);
+  background: var(--info-bg);
+  border-bottom-color: var(--info-border);
+  color: var(--info-text);
+}

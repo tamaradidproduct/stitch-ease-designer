@@ -9,29 +9,29 @@ import { type PickerTarget, useUiStore } from "../state/uiStore";
 import { insertTargetCol } from "../model/ops";
 import { SymbolGlyph } from "./SymbolGlyph";
 import { browseSymbols, searchMotifs } from "./symbolSearch";
-import { CloseIcon, SearchIcon } from "./icons";
+import { CloseIcon, MoreIcon, QuickAddIcon, SearchIcon, TrashSmallIcon } from "./icons";
 import { collectColoredGlossaryEntries, useGlossaryIds } from "./chartGlossary";
 import { clamp } from "./utils";
 import { parseQuickSlotId } from "../model/quickSlots";
 import { motifIdFromKey, stampOrigin } from "../model/motifs";
 import { rowDirectionAt } from "../model/rowDirection";
 import { effectiveBase, isBaseStitch } from "../model/cableComposition";
-import { MotifCopyBubbles, MotifDrawerSection, MotifGlyph, MotifQuickTile } from "./motifUi";
+import { MotifGlyph, MotifQuickTile } from "./motifUi";
 import { armMotifPen, eraseKeepingMotifStitches, selectedMotifCopy } from "./motifActions";
 import { applyChipColor, currentSlotForPicker } from "./colorwork";
-import { ColorChip } from "./ColorChip";
 import { QuickTile } from "./QuickTile";
 import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
+import { Button } from "./Button";
+import { TextField } from "./Field";
+import { PickerSelectionActions } from "./PickerSelectionActions";
+import { PickerMoreDrawer } from "./PickerMoreDrawer";
+import { cellSizeFor } from "./pickerLayout";
 
 const MENU_WIDTH = 284;
 const SEARCH_SLOT_WIDTH = 200;
 const MAX_HEIGHT = 380;
 const MAX_HEIGHT_RESULTS = 326;
-const GLYPH_BUDGET = 210;
 
-/** Cables are up to 12 cells wide; shrink the cell so the whole span fits. */
-const cellSizeFor = (symbol: StitchSymbol) =>
-  Math.max(9, Math.min(22, Math.floor(GLYPH_BUDGET / symbol.span)));
 
 export function StitchPicker() {
   const target = useUiStore((s) => s.picker);
@@ -59,10 +59,8 @@ export function StitchPicker() {
 
 function StitchPickerBody({ target }: { target: PickerTarget }) {
   const closePicker = useUiStore((s) => s.closePicker);
-  const openPicker = useUiStore((s) => s.openPicker);
   const chooseSymbol = useUiStore((s) => s.chooseSymbol);
   const clearSelection = useUiStore((s) => s.clearSelection);
-  const setSelectedPlacementIds = useUiStore((s) => s.setSelectedPlacementIds);
   const setInsertAnimation = useUiStore((s) => s.setInsertAnimation);
   const quickIds = useDocStore((s) => s.quickSymbolIds);
   const armedSymbolId = useUiStore((s) => s.armedSymbolId);
@@ -71,8 +69,6 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
   const viewport = useUiStore((s) => s.viewport);
   const place = useDocStore((s) => s.place);
   const erase = useDocStore((s) => s.erase);
-  const createRepeat = useDocStore((s) => s.createRepeat);
-  const duplicateSelection = useDocStore((s) => s.duplicatePlacementsInRow);
   const insertPlacement = useDocStore((s) => s.insertPlacement);
   const replacePlacements = useDocStore((s) => s.replacePlacements);
   const beginStroke = useDocStore((s) => s.beginStroke);
@@ -548,7 +544,8 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
   const renderSearchField = (key: string) => (
     <div key={key} className="picker__morphSearch" data-origin={searchOrigin}>
       <SearchIcon className="picker__searchIcon" width={17} height={17} strokeWidth={1.6} />
-      <input
+      <TextField
+        variant="unstyled"
         ref={inputRef}
         className="picker__search"
         placeholder={placeholder}
@@ -559,15 +556,14 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
         }}
         spellCheck={false}
       />
-      <button
-        type="button"
+      <Button variant="unstyled"
         className="picker__close"
         onClick={closePicker}
         aria-label="Close"
         title="Close (Esc)"
       >
         <CloseIcon width={14} height={14} strokeWidth={1.6} />
-      </button>
+      </Button>
     </div>
   );
 
@@ -627,25 +623,16 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
                 getPopoverBoundaryRect={() => rootRef.current?.getBoundingClientRect() ?? null}
               />
             ) : (
-              <button
+              <Button variant="unstyled"
                 key={`empty:${slot}`}
-                type="button"
                 className="picker__quickButton picker__quickSlot"
                 onClick={() => openSearch("", slot)}
                 title={`Choose a quick stitch (${slot + 1})`}
                 aria-label={`Choose a stitch for quick slot ${slot + 1}`}
                 data-label="Choose stitch"
               >
-                <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true">
-                  <path
-                    d="M10 5.5v9M5.5 10h9"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.4"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              </button>
+                <QuickAddIcon width="14" height="14" />
+              </Button>
             );
           })}
           {dynamicSlot && !(searchOpen && searchOrigin !== 5) && (
@@ -667,9 +654,8 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
             </>
           )}
           {searchOpen && searchOrigin === 5 ? renderSearchField("search:5") : (
-            <button
+            <Button variant="unstyled"
               ref={searchButtonRef}
-              type="button"
               className="picker__quickButton picker__searchButton"
               onClick={() => openSearch("", 5)}
               title="Search all stitches"
@@ -677,11 +663,10 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
               data-label="Search stitches"
             >
               <SearchIcon width={18} height={18} strokeWidth={1.6} />
-            </button>
+            </Button>
           )}
           {hasMore && (
-            <button
-              type="button"
+            <Button variant="unstyled"
               className="picker__quickButton picker__moreButton"
               data-active={moreOpen}
               onClick={() => {
@@ -694,124 +679,45 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
               title="More stitches from this chart"
               data-label="More stitches"
             >
-              <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
-                <circle cx="5" cy="10" r="1.35" fill="currentColor" />
-                <circle cx="10" cy="10" r="1.35" fill="currentColor" />
-                <circle cx="15" cy="10" r="1.35" fill="currentColor" />
-              </svg>
-            </button>
+              <MoreIcon width="18" height="18" />
+            </Button>
           )}
           {canDelete && (
-            <button
-              type="button"
+            <Button variant="unstyled"
               className="picker__quickButton picker__deleteButton"
               onClick={clear}
               aria-label="Clear stitch"
               title="Clear stitch (Backspace)"
               data-label="Clear"
             >
-              <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-                <path
-                  d="M3.5 5h9M6.5 5V3.5h3V5M4.5 5l.5 8h6l.5-8"
-                  stroke="currentColor"
-                  strokeWidth="1.3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  fill="none"
-                />
-              </svg>
-            </button>
+              <TrashSmallIcon width="14" height="14" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+            </Button>
           )}
         </div>
 
         {moreOpen && (
-          <div id="picker-more-stitches" className="picker__moreDrawer" aria-label="More stitches in this chart">
-            {moreEntries.length > 0 && <div className="picker__moreHeader">This chart</div>}
-            <div className="picker__moreList" hidden={!moreEntries.length}>
-              {moreEntries.map((entry) => (
-                <div key={entry.key} className="picker__item">
-                  <button
-                    type="button"
-                    className="picker__itemMain"
-                    data-colored={!!entry.colorId}
-                    onClick={() => choose(entry.symbol, entry.colorId)}
-                    title={entry.symbol.label}
-                  >
-                    <span className="picker__glyph">
-                      <SymbolGlyph symbol={entry.symbol} cell={cellSizeFor(entry.symbol)} colorId={entry.colorId} />
-                    </span>
-                    <span className="picker__label">{entry.symbol.label}</span>
-                    {isCurrent(entry) && <span className="picker__current">current</span>}
-                    {entry.symbol.span > 1 && <span className="picker__span">{entry.symbol.span} sts</span>}
-                  </button>
-                  {!entry.colorId && !baseCell && (
-                    <ColorChip
-                      label={`Color ${entry.symbol.label}`}
-                      className="picker__itemColorChip"
-                      onSelect={(colorId) => {
-                        applyChipColor(entry.symbol.id, colorId, chipTargetIds);
-                        closePicker();
-                      }}
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-            <MotifDrawerSection onArmed={closePicker} />
-          </div>
+          <PickerMoreDrawer
+            entries={moreEntries}
+            isCurrent={isCurrent}
+            canColor={!baseCell}
+            onChoose={choose}
+            onChipColor={(symbolId, colorId) => {
+              applyChipColor(symbolId, colorId, chipTargetIds);
+              closePicker();
+            }}
+            onClose={closePicker}
+          />
         )}
 
         {target.selectionIds && (target.selectionIds.length > 1 || copyInfo) && (
-          <div className="picker__selectionBubbles" aria-label="Selection actions">
-            {copyInfo ? (
-              <MotifCopyBubbles copyId={copyInfo.copy.id} overridden={copyInfo.overridden} onDone={() => {
-                clearSelection();
-                closePicker();
-              }} />
-            ) : (
-            <button
-              type="button"
-              onClick={() => {
-                createRepeat(target.selectionIds!);
-                clearSelection();
-                closePicker();
-              }}
-              title="Make a motif from these stitches (⌘G)"
-              aria-label="Make motif"
-              data-label="Motif"
-            >
-              <svg viewBox="0 0 20 20" aria-hidden="true">
-                <rect x="3" y="5" width="9" height="9" rx="1.5" />
-                <path d="M8 3h6a3 3 0 0 1 3 3v6m0 0-2.5-2.5M17 12l-2.5 2.5" />
-              </svg>
-            </button>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                const ids = duplicateSelection(target.selectionIds!);
-                const first = ids.length ? index.placements.get(ids[0]!) : undefined;
-                if (!ids.length || !first) return;
-                setSelectedPlacementIds(ids, false);
-                openPicker({
-                  col: first.col,
-                  row: first.row,
-                  x: 0,
-                  y: 0,
-                  selectionIds: ids,
-                  selectionSpan: index.spanOf(first),
-                });
-              }}
-              title="Duplicate selected stitches"
-              aria-label="Duplicate selection"
-              data-label="Duplicate"
-            >
-              <svg viewBox="0 0 20 20" aria-hidden="true">
-                <rect x="3" y="3" width="10" height="10" rx="1.5" />
-                <path d="M7 13v2a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2" />
-              </svg>
-            </button>
-          </div>
+          <PickerSelectionActions
+            selectionIds={target.selectionIds}
+            copyInfo={copyInfo}
+            onDone={() => {
+              clearSelection();
+              closePicker();
+            }}
+          />
         )}
 
           {searchOpen && (
@@ -830,9 +736,8 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
               <div>
                 <div className="picker__heading">Motifs</div>
                 {matchingRepeats.map((repeat) => (
-                  <button
+                  <Button variant="unstyled"
                     key={repeat.id}
-                    type="button"
                     className="picker__item"
                     onClick={() => {
                       chooseMotif(repeat.id);
@@ -843,7 +748,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
                     <span className="picker__label">{repeat.name}</span>
                     <span className="picker__span">{repeat.width} × {repeat.height}</span>
                     <span className="picker__added">Added</span>
-                  </button>
+                  </Button>
                 ))}
               </div>
             )}
@@ -856,9 +761,8 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
                   const isActive = resultIndex === active;
                   const at = resultIndex;
                   return (
-                    <button
+                    <Button variant="unstyled"
                       key={`${section.key}:${symbol.id}`}
-                      type="button"
                       className="picker__item"
                       data-active={isActive}
                       onPointerEnter={() => setActive(at)}
@@ -871,7 +775,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
                       {isCurrent({ key: symbol.id, symbol }) && <span className="picker__current">current</span>}
                       {symbol.span > 1 && <span className="picker__span">{symbol.span} sts</span>}
                       {plainGlossaryIds.has(symbol.id) && <span className="picker__added">Added</span>}
-                    </button>
+                    </Button>
                   );
                 })}
               </div>

@@ -1,0 +1,217 @@
+/* The stitch/row prompt anchored to the mark just placed on the canvas.
+   On the popover layer so a floating dock can't cover it. */
+.markpop {
+  position: absolute;
+  z-index: var(--z-popover);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  transition:
+    left 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    top 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: left, top;
+}
+
+.markpop__fields {
+  display: grid;
+  grid-template-columns: repeat(2, max-content);
+  gap: var(--space-3) var(--space-4);
+}
+
+.markpop__field {
+  display: flex;
+  align-items: center;
+}
+
+.markpop label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+.markpop__input {
+  width: 54px;
+  min-height: var(--control-sm);
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.markpop__input[data-active="true"],
+.markpop__input:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.markpop__shortcuts {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.markpop__shortcut {
+  min-width: var(--kbd-size);
+  height: var(--kbd-size);
+  padding: 0 var(--space-3);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+}
+
+.markpop__shortcut[data-active="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+@media (hover: hover) {
+  .markpop__shortcut:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+}
+
+.markpop__shortcut[data-active="true"] {
+  background: var(--accent-soft-bg);
+}
+
+.markpop__keypad {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+}
+
+.markpop__keypad button {
+  min-width: var(--control-md);
+  min-height: var(--control-md);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .markpop__keypad button:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+}
+
+.markpop__keypad svg {
+  width: var(--icon-md);
+  height: var(--icon-md);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.markpop__keypadNext {
+  color: var(--accent) !important;
+}
+
+.markpop__actions {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.markpop__confirm {
+  min-height: var(--control-sm);
+  padding: 0 var(--space-6);
+  border: var(--border-width) solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--on-solid);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .markpop__confirm:hover:not(:disabled) {
+    filter: brightness(0.94);
+  }
+}
+
+.markpop__confirm:disabled {
+  border-color: var(--border);
+  background: var(--chrome);
+  color: var(--text-muted);
+  cursor: default;
+  opacity: var(--opacity-disabled);
+}
+
+.markpop__clear {
+  min-height: var(--control-sm);
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--danger);
+  font: inherit;
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+}
+
+.markpop__clear:focus-visible {
+  background: var(--danger-soft-bg);
+}
+
+@media (hover: hover) {
+  .markpop__clear:hover {
+    background: var(--danger-soft-bg);
+  }
+}
+
+/* Matches the badge drawn beside the mark on the canvas. */
+.markpop__index {
+  display: grid;
+  place-items: center;
+  width: var(--badge-size);
+  height: var(--badge-size);
+  border-radius: var(--radius-circle);
+  background: var(--accent);
+  color: var(--on-solid);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+.markpop__remove {
+  border: 0;
+  background: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: var(--font-size-lg);
+  line-height: var(--leading-none);
+  padding: 0 var(--space-1);
+  margin-top: var(--space-px);
+}
+
+@media (hover: hover) {
+  .markpop__remove:hover {
+    color: var(--text);
+  }
+}

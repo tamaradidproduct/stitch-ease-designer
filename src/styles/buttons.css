@@ -1,0 +1,83 @@
+/* ---- buttons -----------------------------------------------------------
+   Rendered by <Button> / <IconButton> (ui/Button.tsx). Without a size
+   modifier a button sizes to its padding; --sm/--md/--lg pin it to a
+   control height. */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-3) var(--space-6);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  font: inherit;
+  color: var(--text);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .btn:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+}
+
+.btn:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: default;
+}
+
+.btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-solid);
+}
+
+@media (hover: hover) {
+  .btn--primary:hover:not(:disabled) {
+    filter: brightness(1.08);
+    color: var(--on-solid);
+  }
+}
+
+.btn--quiet {
+  border-color: transparent;
+  background: none;
+  color: var(--text-muted);
+}
+
+@media (hover: hover) {
+  .btn--danger:hover:not(:disabled) {
+    border-color: var(--danger);
+    color: var(--danger);
+  }
+}
+
+.btn[data-on="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-solid);
+}
+
+.btn--sm,
+.btn--md,
+.btn--lg {
+  justify-content: center;
+  padding-block: 0;
+}
+
+.btn--sm {
+  min-height: var(--control-sm);
+  padding-inline: var(--space-4);
+  font-size: var(--font-size-sm);
+}
+
+.btn--md {
+  min-height: var(--control-md);
+}
+
+.btn--lg {
+  min-height: var(--control-lg);
+  padding-inline: var(--space-6);
+}

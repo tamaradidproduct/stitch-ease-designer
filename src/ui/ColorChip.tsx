@@ -1,5 +1,7 @@
 import { useRef, useState } from "react";
 import { ColorSwatchPopover } from "./ColorSwatchPopover";
+import { PaletteIcon } from "./icons";
+import { Button } from "./Button";
 
 export type ColorChipProps = {
   /**
@@ -35,9 +37,8 @@ export function ColorChip({
 
   return (
     <>
-      <button
+      <Button variant="unstyled"
         ref={buttonRef}
-        type="button"
         className={`colorChip${className ? ` ${className}` : ""}`}
         aria-label={label}
         aria-haspopup="dialog"
@@ -49,19 +50,8 @@ export function ColorChip({
           else openPopover();
         }}
       >
-        <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true">
-          <path
-            d="M10 3a7 7 0 1 0 0 14h1.2a1.6 1.6 0 0 0 0-3.2h-.5a1.2 1.2 0 0 1 0-2.4H13A4 4 0 0 0 17 7.5C17 5 14 3 10 3Z"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.3"
-            strokeLinejoin="round"
-          />
-          <circle cx="6.5" cy="8" r="1" fill="currentColor" />
-          <circle cx="9" cy="5.8" r="1" fill="currentColor" />
-          <circle cx="13" cy="6.8" r="1" fill="currentColor" />
-        </svg>
-      </button>
+        <PaletteIcon width="14" height="14" />
+      </Button>
       {open && anchorRect && (
         <ColorSwatchPopover
           anchorRect={anchorRect}

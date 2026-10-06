@@ -13,6 +13,11 @@ import { resolveReferenceImageUrl, uploadReferenceImage } from "../storage/refer
 import { newUuid } from "../uuid";
 import { tapActivate } from "./tapActivate";
 import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
+import { Button } from "./Button";
+import { PaletteDotsIcon, PlusIcon, ReplaceImageIcon, TrashIcon } from "./icons";
+import { Checkbox, Slider } from "./Field";
+import { TraceColorsPopover } from "./TraceColorsPopover";
+import { ReferenceImageQuickControls } from "./ReferenceImageQuickControls";
 
 /**
  * Upload + transform controls for the chart's reference images. A chart can
@@ -29,26 +34,20 @@ import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
 export function ReferenceImagePanel() {
   const [traceMenuOpen, setTraceMenuOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
-  const [opacityOpen, setOpacityOpen] = useState(false);
   const referenceImagePanelRef = useRef<HTMLElement | null>(null);
   const isAdmin = useUiStore((s) => s.role === "admin");
   const open = useUiStore((s) => s.referenceImagePanelOpen);
   const setOpen = useUiStore((s) => s.setReferenceImagePanelOpen);
   const camera = useUiStore((s) => s.camera);
   const viewport = useUiStore((s) => s.viewport);
-  const setCalibrating = useUiStore((s) => s.setReferenceImageCalibrating);
+  const clearReferenceImageInteractionState = useUiStore((s) => s.clearReferenceImageInteractionState);
   const setMarking = useUiStore((s) => s.setReferenceImageMarking);
   const gridAlignmentStatus = useUiStore((s) => s.referenceImageGridAlignmentStatus);
-  const setGridAlignmentStatus = useUiStore((s) => s.setReferenceImageGridAlignmentStatus);
-  const setCalibrationBox = useUiStore((s) => s.setReferenceImageCalibrationBox);
   const calibrationRejected = useUiStore((s) => s.referenceImageCalibrationRejected);
   const marking = useUiStore((s) => s.referenceImageMarking);
   const setActiveMark = useUiStore((s) => s.setReferenceImageActiveMark);
   const activeMark = useUiStore((s) => s.referenceImageActiveMark);
-  const stitchHighlightColor = useUiStore((s) => s.stitchHighlightColor);
   const stitchHighlightOpacity = useUiStore((s) => s.stitchHighlightOpacity);
-  const setStitchHighlight = useUiStore((s) => s.setStitchHighlight);
-  const setStitchHighlightOpacity = useUiStore((s) => s.setStitchHighlightOpacity);
   const activeImageId = useUiStore((s) => s.activeReferenceImageId);
   const setActiveImageId = useUiStore((s) => s.setActiveReferenceImageId);
   const centerCameraAt = useUiStore((s) => s.centerCameraAt);
@@ -105,13 +104,6 @@ export function ReferenceImagePanel() {
   const hasSpread =
     new Set(labelled.map((point) => point.stitch)).size >= 2 &&
     new Set(labelled.map((point) => point.row)).size >= 2;
-  // The shared front/behind toggle reads as "on" only once every image
-  // actually is in front - otherwise it offers "Bring to front" for the
-  // ones that aren't, rather than claiming a mixed state is already done.
-  const allInFront = images.length > 0 && images.every((img) => img.inFront);
-  // Same "reads as on only once it's uniformly true" logic as allInFront,
-  // for the shared hide/show-all toggle.
-  const allHidden = images.length > 0 && images.every((img) => !img.visible);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -131,13 +123,6 @@ export function ReferenceImagePanel() {
     enabled: helpOpen,
     containerRef: referenceImagePanelRef,
     onDismiss: () => setHelpOpen(false),
-    captureOutsidePointerdown: false,
-    stopEscapePropagation: true,
-  });
-  useDismissOnOutsideOrEscape({
-    enabled: opacityOpen,
-    containerRef: referenceImagePanelRef,
-    onDismiss: () => setOpacityOpen(false),
     captureOutsidePointerdown: false,
     stopEscapePropagation: true,
   });
@@ -226,11 +211,9 @@ export function ReferenceImagePanel() {
     if (img.id !== activeImageId) return;
     const remaining = images.filter((other) => other.id !== img.id);
     setActiveImageId(remaining[0]?.id ?? null);
+    clearReferenceImageInteractionState();
     if (!remaining.length) {
       setOpen(false);
-      setCalibrating(false);
-      setGridAlignmentStatus("idle");
-      setCalibrationBox(null);
     }
   };
 
@@ -265,16 +248,15 @@ export function ReferenceImagePanel() {
             // here from its own full-width row so the collapsed list reads
             // tighter.
             (open ? (
-              <button
-                type="button"
-                className="btn btn--quiet refpanel__headerAction"
+              <Button
+                variant="quiet"
+                className="refpanel__headerAction"
                 onClick={() => setOpen(false)}
               >
                 Save changes
-              </button>
+              </Button>
             ) : (
-              <button
-                type="button"
+              <Button variant="unstyled"
                 className="refpanel__paletteButton"
                 disabled={busy || !meta}
                 aria-label="Add another reference image"
@@ -284,15 +266,13 @@ export function ReferenceImagePanel() {
                   fileInput.current?.click();
                 }}
               >
-                <svg viewBox="0 0 16 16" aria-hidden="true">
-                  <path d="M8 2.5v11M2.5 8h11" />
-                </svg>
-              </button>
+                <PlusIcon />
+              </Button>
             ))
           ) : (
-            <button
-              type="button"
-              className="btn btn--primary refpanel__headerAction"
+            <Button
+              variant="primary"
+              className="refpanel__headerAction"
               disabled={busy || !meta}
               onClick={() => {
                 uploadMode.current = "add";
@@ -300,10 +280,9 @@ export function ReferenceImagePanel() {
               }}
             >
               {busy ? "Uploading…" : "Upload image"}
-            </button>
+            </Button>
           )}
-          <button
-            type="button"
+          <Button variant="unstyled"
             className="refpanel__paletteButton"
             data-on={traceMenuOpen || stitchHighlightOpacity > 0}
             {...tapActivate(() => setTraceMenuOpen((isOpen) => !isOpen))}
@@ -311,187 +290,20 @@ export function ReferenceImagePanel() {
             aria-label="Canvas stitch colors"
             title="Canvas stitch colors"
           >
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path d="M10 3a7 7 0 1 0 0 14h1.2a1.6 1.6 0 0 0 0-3.2h-.5a1.2 1.2 0 0 1 0-2.4H13A4 4 0 0 0 17 7.5C17 5 14 3 10 3Z" />
-              <circle cx="6.5" cy="8" r=".8" /><circle cx="9" cy="5.8" r=".8" /><circle cx="13" cy="6.8" r=".8" />
-            </svg>
-          </button>
+            <PaletteDotsIcon />
+          </Button>
         </div>
       </div>
-      {traceMenuOpen && (
-        <div className="traceColors refpanel__traceColors">
-          <div className="traceColors__label">
-            <span>Canvas stitch color</span>
-            <button type="button" onClick={() => setStitchHighlightOpacity(0)}>Off</button>
-          </div>
-          <div className="traceColors__presets" aria-label="Stitch highlight color">
-            {["#f59e0b", "#ec4899", "#8b5cf6", "#10b981", "#0284c7"].map((color) => (
-              <button
-                key={color}
-                type="button"
-                style={{ background: color }}
-                data-on={stitchHighlightColor === color && stitchHighlightOpacity > 0}
-                onClick={() => setStitchHighlight(color, stitchHighlightOpacity || 0.22)}
-                aria-label={`Use ${color} stitch highlight`}
-              />
-            ))}
-            <label className="traceColors__custom" title="Choose a custom color">
-              <input
-                type="color"
-                value={stitchHighlightColor}
-                onChange={(event) => setStitchHighlight(event.target.value, stitchHighlightOpacity || 0.22)}
-                aria-label="Custom stitch highlight color"
-              />
-            </label>
-          </div>
-          <label className="traceColors__intensity">
-            <span>Intensity</span>
-            <input
-              type="range"
-              min="0"
-              max="0.5"
-              step="0.05"
-              value={stitchHighlightOpacity}
-              onChange={(event) => setStitchHighlightOpacity(Number(event.target.value))}
-            />
-          </label>
-        </div>
-      )}
+      {traceMenuOpen && <TraceColorsPopover />}
 
       {images.length > 0 && !open && (
-        <div className="refpanel__quickControls" role="group" aria-label="Reference image quick controls">
-          <ul className="refpanel__quickList">
-            {images.map((img) => (
-              <li key={img.id} className="refpanel__quickRow">
-                {/* Identification only, not a control - editing and
-                    visibility each get their own explicit button to the
-                    right, rather than overloading a click on the label. */}
-                <span className="refpanel__quickLabel">
-                  {thumbUrls[img.id] ? (
-                    <img className="refpanel__imageThumb" src={thumbUrls[img.id]} alt="" />
-                  ) : (
-                    <span className="refpanel__imageThumb refpanel__imageThumb--empty" aria-hidden="true" />
-                  )}
-                  <span>Image {img.number}</span>
-                </span>
-                <button
-                  type="button"
-                  className="btn refpanel__iconButton"
-                  aria-label={`Edit image ${img.number}`}
-                  title="Edit"
-                  onClick={() => {
-                    setActiveImageId(img.id);
-                    setOpen(true);
-                  }}
-                >
-                  <svg viewBox="0 0 16 16" aria-hidden="true">
-                    <path d="M10.5 2.5 13.5 5.5 5.5 13.5H2.5V10.5L10.5 2.5Z" />
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  className="btn refpanel__iconButton"
-                  aria-label={img.visible ? `Hide image ${img.number}` : `Show image ${img.number}`}
-                  aria-pressed={img.visible}
-                  title={img.visible ? "Hide" : "Show"}
-                  onClick={() => updateReferenceImage(img.id, { visible: !img.visible })}
-                >
-                  {img.visible ? (
-                    <svg viewBox="0 0 16 16" aria-hidden="true">
-                      <path d="M1.5 8s2.1-4 6.5-4 6.5 4 6.5 4-2.1 4-6.5 4S1.5 8 1.5 8Z" />
-                      <circle cx="8" cy="8" r="1.8" />
-                    </svg>
-                  ) : (
-                    <svg viewBox="0 0 16 16" aria-hidden="true">
-                      <path d="M1.5 8s2.1-4 6.5-4c1 0 1.9.2 2.7.5M14.5 8s-2.1 4-6.5 4c-1 0-1.9-.2-2.7-.5" />
-                      <path d="m2.5 2.5 11 11" />
-                    </svg>
-                  )}
-                </button>
-              </li>
-            ))}
-          </ul>
-          <div className="refpanel__quickBottomRow">
-            {/* One shared hide/show-all toggle, same "reads as on only once
-                uniform" logic as the front/behind toggle below - per-image
-                visibility stays reachable on each row for the common single-
-                image tweak. */}
-            <button
-              type="button"
-              className="btn refpanel__iconButton"
-              aria-label={allHidden ? "Show all reference images" : "Hide all reference images"}
-              aria-pressed={allHidden}
-              title={allHidden ? "Show all" : "Hide all"}
-              onClick={() => images.forEach((img) => updateReferenceImage(img.id, { visible: allHidden }))}
-            >
-              {allHidden ? (
-                <svg viewBox="0 0 16 16" aria-hidden="true">
-                  <path d="M1.5 8s2.1-4 6.5-4c1 0 1.9.2 2.7.5M14.5 8s-2.1 4-6.5 4c-1 0-1.9-.2-2.7-.5" />
-                  <path d="m2.5 2.5 11 11" />
-                </svg>
-              ) : (
-                <svg viewBox="0 0 16 16" aria-hidden="true">
-                  <path d="M1.5 8s2.1-4 6.5-4 6.5 4 6.5 4-2.1 4-6.5 4S1.5 8 1.5 8Z" />
-                  <circle cx="8" cy="8" r="1.8" />
-                </svg>
-              )}
-            </button>
-            <button
-              type="button"
-              className="btn refpanel__iconButton"
-              aria-label="Adjust opacity"
-              aria-expanded={opacityOpen}
-              title="Opacity"
-              onClick={() => setOpacityOpen((isOpen) => !isOpen)}
-            >
-              <svg viewBox="0 0 16 16" aria-hidden="true">
-                <circle cx="8" cy="8" r="6" />
-                <path d="M8 2v12" />
-              </svg>
-            </button>
-            {/* One shared front/behind toggle for every image at once - unlike
-                visibility and editing, which stay per-image, stacking order
-                relative to the chart is a single yes/no the designer thinks
-                about for the whole reference photo set, not image by image. */}
-            <button
-              type="button"
-              className="btn refpanel__iconButton refpanel__layerButton"
-              aria-label={allInFront ? "Send reference images behind stitches" : "Bring reference images in front of stitches"}
-              aria-pressed={allInFront}
-              title={allInFront ? "Send behind stitches" : "Bring in front of stitches"}
-              onClick={() => images.forEach((img) => updateReferenceImage(img.id, { inFront: !allInFront }))}
-            >
-              {allInFront ? (
-                <svg viewBox="0 0 16 16" aria-hidden="true">
-                  <path d="M8 2.5v11m0 0-3-3m3 3 3-3" />
-                </svg>
-              ) : (
-                <svg viewBox="0 0 16 16" aria-hidden="true">
-                  <path d="M8 13.5v-11m0 0-3 3m3-3 3 3" />
-                </svg>
-              )}
-              <span>{allInFront ? "Send behind" : "Bring to front"}</span>
-            </button>
-          </div>
-          {opacityOpen && (
-            <div className="refpanel__quickOpacityPopover">
-              <label className="refpanel__row">
-                <span>Opacity</span>
-                <input
-                  type="range"
-                  min={0.1}
-                  max={1}
-                  step={0.05}
-                  value={images[0]?.opacity ?? 0.5}
-                  onChange={(e) => {
-                    const opacity = Number(e.target.value);
-                    images.forEach((img) => updateReferenceImage(img.id, { opacity }));
-                  }}
-                />
-              </label>
-            </div>
-          )}
-        </div>
+        <ReferenceImageQuickControls
+          thumbUrls={thumbUrls}
+          onEdit={(id) => {
+            setActiveImageId(id);
+            setOpen(true);
+          }}
+        />
       )}
 
       <input
@@ -513,8 +325,7 @@ export function ReferenceImagePanel() {
             <ul className="refpanel__imageList">
               {images.map((img) => (
                 <li key={img.id}>
-                  <button
-                    type="button"
+                  <Button variant="unstyled"
                     className="refpanel__imageRow"
                     data-active={img.id === activeImageId}
                     onClick={() => setActiveImageId(img.id)}
@@ -525,9 +336,8 @@ export function ReferenceImagePanel() {
                       <span className="refpanel__imageThumb refpanel__imageThumb--empty" aria-hidden="true" />
                     )}
                     <span>Image {img.number}</span>
-                  </button>
-                  <button
-                    type="button"
+                  </Button>
+                  <Button variant="unstyled"
                     className="refpanel__imageAction"
                     title="Replace this image"
                     disabled={busy}
@@ -537,27 +347,20 @@ export function ReferenceImagePanel() {
                       fileInput.current?.click();
                     }}
                   >
-                    <svg viewBox="0 0 16 16" aria-hidden="true">
-                      <path d="M3.5 8a4.5 4.5 0 0 1 7.6-3.2M12.5 8a4.5 4.5 0 0 1-7.6 3.2" />
-                      <path d="M11.5 2.8v2.4h-2.4M4.5 13.2v-2.4h2.4" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
+                    <ReplaceImageIcon />
+                  </Button>
+                  <Button variant="unstyled"
                     className="refpanel__imageAction refpanel__imageAction--danger"
                     title="Remove this image"
                     disabled={busy}
                     onClick={() => removeImage(img)}
                   >
-                    <svg viewBox="0 0 16 16" aria-hidden="true">
-                      <path d="M3 5h10M6.5 5V3.5a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1V5M4.5 5l.6 8a1 1 0 0 0 1 .9h3.8a1 1 0 0 0 1-.9l.6-8" />
-                    </svg>
-                  </button>
+                    <TrashIcon />
+                  </Button>
                 </li>
               ))}
             </ul>
-            <button
-              type="button"
+            <Button variant="unstyled"
               className="glossary__item glossary__item--empty refpanel__addImage"
               disabled={busy || !meta}
               title="Add another reference image"
@@ -568,14 +371,13 @@ export function ReferenceImagePanel() {
             >
               <span className="glossary__emptyGlyph" aria-hidden="true">+</span>
               <span className="glossary__label">{busy ? "Uploading…" : "Add image"}</span>
-            </button>
+            </Button>
           </div>
         )}
         {image && (
           <label className="refpanel__row">
             <span>Opacity</span>
-            <input
-              type="range"
+            <Slider
               min={0.1}
               max={1}
               step={0.05}
@@ -588,8 +390,7 @@ export function ReferenceImagePanel() {
           <>
             <label className="refpanel__row">
               <span>Contrast</span>
-              <input
-                type="range"
+              <Slider
                 min={MIN_CONTRAST}
                 max={MAX_CONTRAST}
                 step={0.05}
@@ -621,8 +422,7 @@ export function ReferenceImagePanel() {
             </p>
             )}
             <div className="refpanel__helpRow">
-              <button
-                type="button"
+              <Button variant="unstyled"
                 className="refpanel__paletteButton refpanel__helpButton"
                 data-on={helpOpen}
                 aria-expanded={helpOpen}
@@ -631,10 +431,10 @@ export function ReferenceImagePanel() {
                 {...tapActivate(() => setHelpOpen((isOpen) => !isOpen))}
               >
                 ?
-              </button>
+              </Button>
             </div>
             {helpOpen && (
-              <div className="refpanel__helpPopover">
+              <div className="inset refpanel__help">
                 {!marking && (
                   <p className="refpanel__hint">
                     {image.stitchPin
@@ -664,8 +464,7 @@ export function ReferenceImagePanel() {
                               point on a large reference image is often
                               scrolled well out of view by the time it's
                               picked from this list. */}
-                          <button
-                            type="button"
+                          <Button variant="unstyled"
                             className="refpanel__markRow"
                             data-active={point.id === activeMark}
                             onClick={() => {
@@ -689,9 +488,8 @@ export function ReferenceImagePanel() {
                                 ? "not numbered"
                                 : `st ${point.stitch ?? "?"} · row ${point.row ?? "?"}`}
                             </span>
-                          </button>
-                          <button
-                            type="button"
+                          </Button>
+                          <Button variant="unstyled"
                             className="refpanel__markRemove"
                             title="Remove this box"
                             aria-label="Remove this box"
@@ -706,7 +504,7 @@ export function ReferenceImagePanel() {
                             }}
                           >
                             &times;
-                          </button>
+                          </Button>
                         </li>
                       );
                     })}
@@ -725,14 +523,14 @@ export function ReferenceImagePanel() {
                 </p>
               </div>
             )}
-            <label className="refpanel__checkbox" title="Hide the parts of this image outside the stitches you've boxed and named on it, and exclude that same region from Suggest's matching. Fully reversible - never trims the image itself, and does nothing until at least one mark is named. On by default for new images.">
-              <input
-                type="checkbox"
-                checked={!!image.cropToCalibration}
-                onChange={(e) => updateReferenceImage(image.id, { cropToCalibration: e.target.checked })}
-              />
+            <Checkbox
+              labelClassName="refpanel__checkbox"
+              title="Hide the parts of this image outside the stitches you've boxed and named on it, and exclude that same region from Suggest's matching. Fully reversible - never trims the image itself, and does nothing until at least one mark is named. On by default for new images."
+              checked={!!image.cropToCalibration}
+              onChange={(e) => updateReferenceImage(image.id, { cropToCalibration: e.target.checked })}
+            >
               Crop to calibrated stitches
-            </label>
+            </Checkbox>
           </>
         )}
 

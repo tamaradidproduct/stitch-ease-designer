@@ -1,6 +1,7 @@
 import { useUiStore } from "../state/uiStore";
 import { useDocStore } from "../state/docStore";
 import { knittedRowNumberAt, roundStitchNumberAt } from "../model/stitchNumbers";
+import { Button } from "./Button";
 
 export function StatusBar() {
   const hover = useUiStore((s) => s.hover);
@@ -40,9 +41,9 @@ export function StatusBar() {
               : "Click to select · Shift-click to select multiple"
             : "space + drag to pan · ⌘ + scroll to zoom"}
       </span>
-      <button type="button" className="statusbar__zoom" onClick={resetView} title="Reset view (⌘0)">
+      <Button variant="unstyled" className="statusbar__zoom" onClick={resetView} title="Reset view (⌘0)">
         {Math.round(zoom * 100)}%
-      </button>
+      </Button>
     </div>
   );
 }

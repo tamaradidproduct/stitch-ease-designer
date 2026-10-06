@@ -1,0 +1,48 @@
+/* ---- confirm dialog ------------------------------------------------ */
+
+.confirmDialog__overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--scrim);
+  z-index: var(--z-modal);
+}
+
+.confirmDialog {
+  width: min(320px, calc(100vw - 32px));
+  padding: var(--space-8);
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+  box-shadow: var(--shadow-4);
+}
+
+.confirmDialog__message {
+  margin: 0 0 var(--space-7);
+  color: var(--text);
+}
+
+.confirmDialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-4);
+}
+
+.confirmDialog__actions .btn {
+  white-space: nowrap;
+}
+
+.confirmDialog__confirm {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--on-solid);
+}
+
+@media (hover: hover) {
+  .confirmDialog__confirm:hover:not(:disabled) {
+    filter: brightness(1.08);
+    color: var(--on-solid);
+  }
+}

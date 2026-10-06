@@ -1,4 +1,5 @@
 import { useTouchKeyboardHint } from "./useTouchKeyboardHint";
+import { Button } from "./Button";
 
 /**
  * Scribble and a paired hardware keyboard can both keep iPadOS from ever
@@ -16,9 +17,9 @@ export function KeyboardHintBanner() {
         Keyboard not appearing when typing in a stitch search? Turn off <strong>Scribble</strong> in
         Settings → Apple Pencil, and make sure no hardware keyboard is connected or paired.
       </span>
-      <button type="button" className="btn" onClick={dismiss}>
+      <Button onClick={dismiss}>
         Got it
-      </button>
+      </Button>
     </div>
   );
 }

@@ -5,6 +5,9 @@ import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
 import { redoLatest, undoLatest } from "../state/editorHistory";
 import { tapActivate } from "./tapActivate";
+import { Popover } from "./Popover";
+import { BackspaceIcon } from "./icons";
+import { Button } from "./Button";
 
 /**
  * The stitch/row prompt for the mark just placed, anchored to it on the
@@ -128,9 +131,8 @@ export function ReferenceMarkEditor() {
   const valueShortcuts = (
     <div className="markpop__shortcuts" aria-label={`${activeField} shortcuts`}>
       {quickValues.map((value) => (
-        <button
+        <Button variant="unstyled"
           key={value}
-          type="button"
           className="markpop__shortcut"
           data-active={point[activeField] === value}
           title={`Use ${activeField === "row" ? "row" : "stitch"} ${value}`}
@@ -144,13 +146,13 @@ export function ReferenceMarkEditor() {
           }}
         >
           {value}
-        </button>
+        </Button>
       ))}
     </div>
   );
 
   return (
-    <div
+    <Popover
       className="markpop"
       // Offset clear of the marked square so the popover never covers the
       // stitch whose printed numbers are being read.
@@ -202,9 +204,8 @@ export function ReferenceMarkEditor() {
         <div className="markpop__field">
           <label>
             <span>row</span>
-            <button
+            <Button variant="unstyled"
               ref={rowInput}
-              type="button"
               className="markpop__input"
               data-active={activeField === "row"}
               aria-label="Row number"
@@ -212,15 +213,14 @@ export function ReferenceMarkEditor() {
               onClick={() => focusField("row")}
             >
               {point.row ?? ""}
-            </button>
+            </Button>
           </label>
         </div>
         <div className="markpop__field">
           <label>
             <span>st</span>
-            <button
+            <Button variant="unstyled"
               ref={stitchInput}
-              type="button"
               className="markpop__input"
               data-active={activeField === "stitch"}
               aria-label="Stitch number"
@@ -228,53 +228,48 @@ export function ReferenceMarkEditor() {
               onClick={() => focusField("stitch")}
             >
               {point.stitch ?? ""}
-            </button>
+            </Button>
           </label>
         </div>
         {valueShortcuts}
         <div className="markpop__keypad" aria-label="Number keypad">
           {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((digit) => (
-            <button key={digit} type="button" {...tapActivate(() => appendDigit(digit))}>
+            <Button variant="unstyled" key={digit} {...tapActivate(() => appendDigit(digit))}>
               {digit}
-            </button>
+            </Button>
           ))}
-          <button type="button" aria-label="Delete last digit" {...tapActivate(backspace)}>
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path d="m8 5-5 5 5 5h8a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H8Zm2.5 3 4 4m0-4-4 4" />
-            </svg>
-          </button>
-          <button type="button" {...tapActivate(() => appendDigit(0))}>0</button>
-          <button
-            type="button"
+          <Button variant="unstyled" aria-label="Delete last digit" {...tapActivate(backspace)}>
+            <BackspaceIcon />
+          </Button>
+          <Button variant="unstyled" {...tapActivate(() => appendDigit(0))}>0</Button>
+          <Button variant="unstyled"
             className="markpop__keypadNext"
             {...tapActivate(() => focusField(activeField === "row" ? "stitch" : "row"))}
           >
             Next
-          </button>
+          </Button>
         </div>
         <div className="markpop__actions">
-          <button type="button" className="markpop__clear" {...tapActivate(remove)}>
+          <Button variant="unstyled" className="markpop__clear" {...tapActivate(remove)}>
             Clear point
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button variant="unstyled"
             className="markpop__confirm"
             disabled={!complete}
             {...tapActivate(confirm)}
           >
             Confirm
-          </button>
+          </Button>
         </div>
       </div>
-      <button
-        type="button"
+      <Button variant="unstyled"
         className="markpop__remove"
         title="Close point editor"
         aria-label="Close point editor"
         onClick={close}
       >
         &times;
-      </button>
-    </div>
+      </Button>
+    </Popover>
   );
 }

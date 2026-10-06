@@ -4,7 +4,7 @@ const DISMISSED_KEY = "stitch-ease:dismissedKeyboardHint";
 
 /**
  * iPadOS spoofs desktop Safari's UA and even its hover/pointer media
- * features (see the .panDock saga in styles.css) - maxTouchPoints is the one
+ * features (see the .panDock saga in styles/toolbar.css) - maxTouchPoints is the one
  * signal that still tells an iPad apart from an actual Mac, which reports 0.
  */
 const isLikelyIPad = typeof navigator !== "undefined" && navigator.maxTouchPoints > 1;

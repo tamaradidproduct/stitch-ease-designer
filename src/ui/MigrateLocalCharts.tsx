@@ -3,6 +3,7 @@ import type { DocMeta } from "../model/types";
 import type { ChartStore } from "../storage/ChartStore";
 import { migrateLocalCharts, type MigrationResult } from "../storage/migrateLocalCharts";
 import { localChartStore } from "../storage/store";
+import { Button } from "./Button";
 
 type Phase =
   | { step: "checking" }
@@ -75,8 +76,7 @@ export function MigrateLocalCharts({
             ))}
           </ul>
           <div className="signIn__form signIn__form--actions">
-            <button
-              type="button"
+            <Button variant="unstyled"
               onClick={() => {
                 setPhase({ step: "working" });
                 void migrateLocalCharts(localChartStore, targetStore)
@@ -90,10 +90,10 @@ export function MigrateLocalCharts({
               }}
             >
               Add to my account
-            </button>
-            <button type="button" className="btn btn--quiet" onClick={onDone}>
+            </Button>
+            <Button variant="quiet" onClick={onDone}>
               Not now
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -118,9 +118,9 @@ export function MigrateLocalCharts({
           <p className="signIn__error">{phase.message}</p>
           <p className="signIn__sent">Your browser charts have not been changed.</p>
           <div className="signIn__form signIn__form--actions">
-            <button type="button" onClick={onDone}>
+            <Button variant="unstyled" onClick={onDone}>
               Continue
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -142,9 +142,9 @@ export function MigrateLocalCharts({
           </p>
         )}
         <div className="signIn__form signIn__form--actions">
-          <button type="button" onClick={onDone}>
+          <Button variant="unstyled" onClick={onDone}>
             Continue
-          </button>
+          </Button>
         </div>
       </div>
     </div>

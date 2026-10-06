@@ -1,0 +1,718 @@
+.glossary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.glossary__inlineSearch > svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  flex: none;
+  fill: none;
+  stroke: var(--text-muted);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.glossary__inlineSearch input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+}
+
+.glossary__inlineSearch {
+  position: relative;
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-4);
+  border: var(--border-width) solid var(--accent);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  box-shadow: 0 0 0 2px var(--accent-ring);
+}
+
+/* Issue #308: this search box temporarily stands in for a plain empty-slot
+   button (see RightPanel.tsx), so a drag hovering over it gets the same
+   hover cue the empty-slot button itself shows via
+   `.glossary__item[data-drag-over="true"]` above. */
+.glossary__inlineSearch[data-drag-over="true"] {
+  border-color: var(--accent-soft-border);
+  background: var(--accent-soft-bg);
+}
+
+/* Without this, the drag-over cue can flicker as the pointer crosses child
+   elements (the icon, shortcut kbd, search input) - each one entering/
+   leaving fires its own dragenter/dragleave on the container. Disabling
+   pointer events on the children means only the container itself sees
+   those events. */
+.glossary__inlineSearch[data-drag-over="true"] * {
+  pointer-events: none;
+}
+
+.glossarySearch__results {
+  /* `position`/`left`/`top`/`width` are set inline from a measured rect
+     (see RightPanel.tsx) - `position: fixed` there is what escapes
+     `.sideModule`'s `overflow: hidden`, which otherwise clips this dropdown
+     at the glossary card's own bottom edge instead of floating it over the
+     rest of the sidebar. */
+  z-index: var(--z-popover);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: 0;
+  padding: var(--space-2);
+  /* Without its own bounded, scrollable box, touch scrolling here walks
+     straight up the DOM to .rightPanel (the nearest ancestor that actually
+     scrolls) instead - reads as "the whole panel scrolls". */
+  max-height: 280px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.glossarySearch__heading {
+  padding: var(--space-3) var(--space-4) var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+}
+
+.glossarySearch__results button {
+  display: flex;
+  width: 100%;
+  min-height: var(--control-md);
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.glossarySearch__results button:focus-visible,
+.glossarySearch__results button[data-active="true"] {
+  background: var(--accent-soft-bg);
+}
+
+@media (hover: hover) {
+  .glossarySearch__results button:hover {
+    background: var(--accent-soft-bg);
+  }
+}
+
+.glossarySearch__glyph {
+  display: grid;
+  width: 48px;
+  height: 30px;
+  place-items: center;
+  flex: none;
+}
+
+.glossarySearch__results button > span:nth-child(2) {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.glossarySearch__results strong {
+  color: var(--accent);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+.glossary__item {
+  position: relative;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  min-height: 36px;
+  gap: var(--space-5);
+  /* Vertical snapped down (5px -> 4px) rather than up: five rows of extra
+     height pushed the glossary past the panel at 800px tall. */
+  padding: var(--space-2) var(--space-4);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text);
+  /* iOS Safari treats a hover-styled, non-form element with no cursor as
+     "needs a first tap just to settle :hover" - the real tap-to-arm button
+     is a child of this div, so without this, every tap here needs two. */
+  cursor: default;
+}
+
+.glossary__item:focus-within,
+.glossary__item[data-on="true"],
+.glossary__item[data-drag-over="true"] {
+  border-color: var(--accent-soft-border);
+  background: var(--accent-soft-bg);
+  outline: none;
+}
+
+@media (hover: hover) {
+  .glossary__item:hover {
+    border-color: var(--accent-soft-border);
+    background: var(--accent-soft-bg);
+  }
+}
+
+/* #271: dropping a quick slot onto an already-occupied one pushes the
+   existing stitches along rather than filling in place, so instead of the
+   full-slot highlight above it gets a thin insertion line - in the same
+   accent-soft-border hover color - on whichever edge the stitch will land,
+   sitting in the row gap rather than overlapping either slot. */
+.glossary__item[data-insert-edge]::after {
+  content: "";
+  position: absolute;
+  left: var(--space-2);
+  right: var(--space-2);
+  height: 3px;
+  border-radius: var(--radius-2xs);
+  background: var(--accent-soft-border);
+  pointer-events: none;
+}
+
+.glossary__item[data-insert-edge="before"]::after {
+  top: calc(var(--space-2) * -1);
+}
+
+.glossary__item[data-insert-edge="after"]::after {
+  bottom: calc(var(--space-2) * -1);
+}
+
+.glossary__arm {
+  display: flex;
+  min-width: 0;
+  min-height: 34px;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-5);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.glossary__arm:focus-visible,
+.glossary__remove:focus-visible,
+.glossary__dragHandle:focus-visible {
+  outline: var(--focus-outline);
+  outline-offset: -2px;
+}
+
+.glossary__item--empty {
+  border-color: var(--border-subtle);
+  border-style: dashed;
+  color: var(--text-muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.glossary__emptyGlyph {
+  display: grid;
+  width: var(--glyph-box);
+  place-items: center;
+  flex: none;
+  font-size: var(--font-size-lg);
+}
+
+.glossary__shortcut {
+  min-width: 19px;
+  padding: var(--space-1) var(--space-2);
+  border: var(--border-width) solid var(--border);
+  border-bottom-width: var(--border-width-focus);
+  border-radius: var(--radius-xs);
+  background: var(--bg);
+  color: var(--text-muted);
+  font: var(--font-size-3xs)/var(--leading-none) var(--font-sans);
+  text-align: center;
+}
+
+.glossary__shortcutSpacer {
+  width: 19px;
+  flex: none;
+}
+
+.glossary__glyph {
+  display: grid;
+  width: var(--glyph-box);
+  min-height: 24px;
+  place-items: center;
+  flex: none;
+}
+
+/* A colored row's fill lives only on this small swatch, not the whole
+   row - a full-row tint behind the label read as too intense and made the
+   text hard to read. Same treatment for the floating picker's glyph tiles
+   (the quick row's tiles, its dynamic 6th tile, and the "more stitches"
+   drawer rows), which share this component and used to additionally paint a
+   hard-edged, full-tile fill on top of it via an inline style. */
+.glossary__glyph .glyph__cell,
+.picker__glyph .glyph__cell,
+.picker__quickButton .glyph__cell {
+  border-radius: var(--radius-xs);
+}
+
+.glossary__label {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.glossary__labelGroup {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-px);
+}
+
+.glossary__labelGroup .glossary__label {
+  flex: none;
+}
+
+.glossary__subtitle {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--font-size-2xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.glossary__count {
+  display: grid;
+  min-width: var(--kbd-size);
+  height: 20px;
+  place-items: center;
+  flex: none;
+  border-radius: var(--radius-full);
+  background: var(--chrome);
+  color: var(--text-muted);
+  font-size: var(--font-size-2xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.glossary__item:focus-within .glossary__count {
+  background: var(--bg);
+  color: var(--accent);
+}
+
+@media (hover: hover) {
+  .glossary__item:hover .glossary__count {
+    background: var(--bg);
+    color: var(--accent);
+  }
+}
+
+.glossary__remove {
+  display: grid;
+  width: var(--control-lg);
+  height: var(--control-lg);
+  padding: 0;
+  place-items: center;
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: var(--danger);
+  font: var(--font-weight-semibold) var(--font-size-2xs)/var(--leading-none) var(--font-sans);
+  cursor: pointer;
+}
+
+/* #326: the disabled state replacing the old unexplained blank spacer -
+   dimmed rather than the active danger color, with the tooltip doing the
+   explaining. */
+.glossary__remove:disabled {
+  color: var(--text-muted);
+  opacity: var(--opacity-disabled);
+  cursor: default;
+}
+
+.glossary__removeSlot {
+  width: var(--control-md);
+  height: var(--control-md);
+  flex: none;
+}
+
+.glossary__disarm {
+  display: grid;
+  width: var(--control-lg);
+  height: var(--control-lg);
+  padding: 0;
+  place-items: center;
+  flex: none;
+  border: 0;
+  border-radius: var(--radius-circle);
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.glossary__disarm:focus-visible {
+  background: var(--overlay-light);
+}
+
+@media (hover: hover) {
+  .glossary__disarm:hover {
+    background: var(--overlay-light);
+  }
+}
+
+.glossary__disarm svg {
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.glossary__dragHandle {
+  display: grid;
+  width: 21px;
+  height: 30px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: grab;
+  flex: none;
+}
+
+@media (hover: hover) {
+  .glossary__dragHandle:hover {
+    background: var(--bg);
+    color: var(--accent);
+  }
+}
+
+.glossary__dragHandle:active {
+  cursor: grabbing;
+}
+
+.glossary__dragHandle--empty {
+  cursor: default;
+  pointer-events: none;
+}
+
+.glossary__dragHandle svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  fill: currentColor;
+}
+
+/* #326: keyboard/touch reorder, beside the drag handle - a parallel path,
+   not a replacement, so drag-and-drop keeps working unchanged. */
+.glossary__moveGroup {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--space-px);
+}
+
+.glossary__move {
+  display: grid;
+  width: var(--icon-lg);
+  height: 15px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.glossary__move:focus-visible {
+  background: var(--bg);
+  color: var(--accent);
+}
+
+@media (hover: hover) {
+  .glossary__move:hover:not(:disabled) {
+    background: var(--bg);
+    color: var(--accent);
+  }
+}
+
+.glossary__move:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: default;
+}
+
+.glossary__move svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+.glossary__remove svg {
+  width: var(--icon-md);
+  height: var(--icon-md);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+}
+
+/* The "Suggest" glossary rows summarizing pending identified/unidentified
+   results - compact, matching every other glossary row's structure rather
+   than a large explanatory card. */
+.glossary__reviewPreview {
+  display: grid;
+  width: var(--glyph-box);
+  min-height: 24px;
+  place-items: center;
+  flex: none;
+  border-radius: var(--radius-xs);
+}
+
+.glossary__reviewPreview--identified {
+  background: var(--suggest-wash);
+  border: var(--border-width-thick) solid var(--suggest);
+}
+
+.glossary__reviewPreview--unrecognized {
+  background: var(--danger-wash);
+  border: var(--border-width-thick) dashed var(--danger);
+}
+
+.glossary__reviewAction {
+  display: grid;
+  width: var(--control-lg);
+  height: var(--control-lg);
+  padding: 0;
+  place-items: center;
+  flex: none;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.glossary__reviewAction:focus-visible {
+  border-color: var(--accent-soft-border);
+  background: var(--accent-soft-bg);
+  color: var(--accent);
+}
+
+@media (hover: hover) {
+  .glossary__reviewAction:hover:not(:disabled) {
+    border-color: var(--accent-soft-border);
+    background: var(--accent-soft-bg);
+    color: var(--accent);
+  }
+}
+
+.glossary__reviewAction:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: default;
+}
+
+.glossary__reviewAction svg {
+  width: var(--icon-md);
+  height: var(--icon-md);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Unified glossary row (FR-64): "Name (n)", and a "more" menu in place of a
+   remove button that can't act. */
+.glossary__countText {
+  flex: none;
+  margin-left: calc(var(--space-3) * -1);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.glossary__arm:focus-visible .glossary__label {
+  color: var(--accent);
+}
+
+@media (hover: hover) {
+  .glossary__arm:hover .glossary__label {
+    color: var(--accent);
+  }
+}
+
+.glossary__armWrap {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex: 1;
+}
+
+/* The add-colored-variant chip sits on the glyph's bottom-right corner,
+   matching the picker's quick tiles (.picker__quickColorChip). */
+.glossary__armWrap {
+  gap: var(--space-5);
+  align-items: center;
+}
+
+.glossary__glyphWrap {
+  position: relative;
+  display: grid;
+  flex: none;
+}
+
+.glossary__glyphWrap .glossary__glyph {
+  cursor: pointer;
+}
+
+.glossary__glyphWrap .glossary__colorChip {
+  position: absolute;
+  right: -7px;
+  bottom: -5px;
+  margin: 0;
+  border-color: var(--border);
+  box-shadow: var(--shadow-1);
+}
+
+.glossary__menuRoot {
+  display: contents;
+}
+
+.glossary__more {
+  display: grid;
+  width: var(--control-lg);
+  height: var(--control-lg);
+  padding: 0;
+  place-items: center;
+  flex: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.glossary__more:focus-visible,
+.glossary__more[aria-expanded="true"] {
+  background: var(--bg);
+  color: var(--accent);
+}
+
+@media (hover: hover) {
+  .glossary__more:hover {
+    background: var(--bg);
+    color: var(--accent);
+  }
+}
+
+.glossary__menu {
+  z-index: var(--z-menu);
+  display: flex;
+  min-width: 200px;
+  flex-direction: column;
+  padding: var(--space-2);
+}
+
+.glossary__menu button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-px);
+  padding: var(--space-4) var(--space-5);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--font-size-md);
+  text-align: left;
+  cursor: pointer;
+}
+
+.glossary__menu button:focus-visible {
+  background: var(--accent-soft-bg);
+  color: var(--accent);
+}
+
+@media (hover: hover) {
+  .glossary__menu button:hover:not(:disabled) {
+    background: var(--accent-soft-bg);
+    color: var(--accent);
+  }
+}
+
+.glossary__menu button:disabled {
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.glossary__menu small {
+  font-size: var(--font-size-xs);
+}
+
+.glossary__rename {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Room for "Name (n)" in the unified row: the fixed 38px glyph box and
+   36px trailing buttons were sized for a glyph-only row. */
+.glossary__item {
+  gap: var(--space-3);
+}
+
+.glossary__item .glossary__label {
+  flex: 0 1 auto;
+}
+
+.glossary__item .glossary__glyph {
+  width: auto;
+  min-width: 22px;
+}
+
+.glossary__item .glossary__remove,
+.glossary__item .glossary__more,
+.glossary__item .glossary__disarm {
+  width: var(--control-sm);
+}
+
+/* The grip is the row's one reorder control; its ↑↓ stepper only shows
+   once it's tapped/clicked. */
+.glossary__reorder {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+}
+
+.glossary__reorder .glossary__moveGroup {
+  position: absolute;
+  left: calc(100% + var(--space-1));
+  z-index: 5;
+  padding: var(--space-1);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  box-shadow: var(--shadow-3);
+}
+
+.glossary__dragHandle[aria-expanded="true"] {
+  color: var(--accent);
+}

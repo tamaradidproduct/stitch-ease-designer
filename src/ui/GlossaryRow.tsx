@@ -1,8 +1,11 @@
 import { type DragEvent, type ReactNode, useRef, useState } from "react";
 import { ColorChip } from "./ColorChip";
-import { CloseIcon, DragHandleIcon } from "./icons";
+import { ChevronDownIcon, ChevronUpIcon, CloseIcon, DragHandleIcon, MoreIcon } from "./icons";
 import { tapActivate } from "./tapActivate";
 import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
+import { Popover } from "./Popover";
+import { Button } from "./Button";
+import { TextField } from "./Field";
 
 /** One entry in a glossary row's "more" menu. */
 export type GlossaryRowMenuItem = {
@@ -160,8 +163,7 @@ export function GlossaryRow({
           small ↑↓ stepper beside it - the touch path the separate arrows
           used to be, without spending a second control on every row. */}
       <div className="glossary__reorder" ref={reorderRef}>
-        <button
-          type="button"
+        <Button variant="unstyled"
           draggable
           className="glossary__dragHandle"
           onDragStart={onDragHandleStart}
@@ -178,33 +180,27 @@ export function GlossaryRow({
           title={`${dragHandleTitle} - or ↑/↓`}
         >
           <DragHandleIcon />
-        </button>
+        </Button>
         {stepperOpen && (
           <div className="glossary__moveGroup">
-            <button
-              type="button"
+            <Button variant="unstyled"
               className="glossary__move"
               disabled={moveUp.disabled}
               onClick={moveUp.onClick}
               aria-label={`Move ${label} up`}
               title={moveUp.title}
             >
-              <svg viewBox="0 0 20 20" aria-hidden="true">
-                <path d="M5 12l5-5 5 5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-            <button
-              type="button"
+              <ChevronUpIcon />
+            </Button>
+            <Button variant="unstyled"
               className="glossary__move"
               disabled={moveDown.disabled}
               onClick={moveDown.onClick}
               aria-label={`Move ${label} down`}
               title={moveDown.title}
             >
-              <svg viewBox="0 0 20 20" aria-hidden="true">
-                <path d="M5 8l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
+              <ChevronDownIcon />
+            </Button>
           </div>
         )}
       </div>
@@ -216,7 +212,8 @@ export function GlossaryRow({
         <span className="glossary__shortcutSpacer" />
       )}
       {renaming !== null ? (
-        <input
+        <TextField
+          variant="rename"
           className="glossary__rename"
           autoFocus
           value={renaming}
@@ -248,29 +245,27 @@ export function GlossaryRow({
             />
           )}
         </span>
-        <button
-          type="button"
+        <Button variant="unstyled"
           className="glossary__arm"
           {...tapActivate(() => (armed ? onDisarm() : onArm()))}
           title={`Draw with ${label} ${shortcutNumber !== null ? `(${shortcutNumber}) ` : ""}- tap again to stop drawing`}
         >
           <span className="glossary__label">{label}</span>
           <span className="glossary__countText">({count})</span>
-        </button>
+        </Button>
       </div>
       )}
       {armed ? (
         disarmButton
       ) : removable ? (
-        <button
-          type="button"
+        <Button variant="unstyled"
           className="glossary__remove"
           onClick={onRemove}
           aria-label={`Remove ${label} from glossary`}
           title="Remove from glossary"
         >
           <CloseIcon />
-        </button>
+        </Button>
       ) : (
         <GlossaryRowMenu
           label={label}
@@ -303,9 +298,8 @@ function GlossaryRowMenu({ label, items }: { label: string; items: GlossaryRowMe
   useDismissOnOutsideOrEscape({ enabled: !!open, onDismiss: () => setOpen(null), containerRef: rootRef });
   return (
     <div ref={rootRef} className="glossary__menuRoot">
-      <button
+      <Button variant="unstyled"
         ref={buttonRef}
-        type="button"
         className="glossary__more"
         aria-label={`More actions for ${label}`}
         aria-haspopup="menu"
@@ -317,18 +311,13 @@ function GlossaryRowMenu({ label, items }: { label: string; items: GlossaryRowMe
           setOpen({ right: window.innerWidth - rect.right, top: rect.bottom + 4 });
         }}
       >
-        <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
-          <circle cx="5" cy="10" r="1.4" fill="currentColor" />
-          <circle cx="10" cy="10" r="1.4" fill="currentColor" />
-          <circle cx="15" cy="10" r="1.4" fill="currentColor" />
-        </svg>
-      </button>
+        <MoreIcon width="16" height="16" />
+      </Button>
       {open && (
-        <div className="glossary__menu" role="menu" style={{ position: "fixed", right: open.right, top: open.top }}>
+        <Popover className="glossary__menu" role="menu" style={{ position: "fixed", right: open.right, top: open.top }}>
           {items.map((item) => (
-            <button
+            <Button variant="unstyled"
               key={item.label}
-              type="button"
               role="menuitem"
               disabled={item.disabled}
               title={item.reason}
@@ -339,9 +328,9 @@ function GlossaryRowMenu({ label, items }: { label: string; items: GlossaryRowMe
             >
               <span>{item.label}</span>
               {item.disabled && item.reason && <small>{item.reason}</small>}
-            </button>
+            </Button>
           ))}
-        </div>
+        </Popover>
       )}
     </div>
   );

@@ -1,0 +1,44 @@
+.statusbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  height: 28px;
+  padding: 0 var(--space-5);
+  background: var(--chrome);
+  border-top: var(--border-width) solid var(--border);
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.statusbar__cell {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  min-width: 15ch;
+}
+
+.statusbar__spacer {
+  flex: 1;
+}
+
+.statusbar__hint {
+  opacity: 0.8;
+}
+
+.statusbar__zoom {
+  appearance: none;
+  border: var(--border-width) solid var(--border);
+  background: var(--bg);
+  color: var(--text-muted);
+  border-radius: var(--radius-xs);
+  padding: var(--space-1) var(--space-4);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  min-width: 6ch;
+}
+
+@media (hover: hover) {
+  .statusbar__zoom:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+}

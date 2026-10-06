@@ -1,0 +1,107 @@
+.patternSettings {
+  display: flex;
+}
+
+.patternSettings__trigger {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.patternSettings__trigger[aria-expanded="true"] {
+  border-color: var(--border);
+  background: var(--bg);
+}
+
+@media (hover: hover) {
+  .patternSettings__trigger:hover {
+    border-color: var(--border);
+    background: var(--bg);
+  }
+}
+
+.patternSettings__label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-muted);
+}
+
+.patternSettings__summary {
+  font-size: var(--font-size-sm);
+  color: var(--text);
+}
+
+.patternSettings__popover {
+  z-index: var(--z-popover);
+  width: 240px;
+  padding: var(--space-6);
+}
+
+.patternInfo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.patternInfo__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.patternInfo__label {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+.patternInfo__corners {
+  display: grid;
+  grid-template-columns: repeat(2, 28px);
+  grid-template-rows: repeat(2, 28px);
+  gap: var(--space-2);
+  width: fit-content;
+}
+
+.patternInfo__corners button {
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--bg);
+  cursor: pointer;
+}
+
+.patternInfo__corners button[data-on="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.patternInfo__colorNames {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.patternInfo__colorName {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.patternInfo__swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-circle);
+  border: var(--border-width) solid var(--border);
+  flex-shrink: 0;
+}
+
+.patternInfo__colorName input {
+  flex: 1;
+  min-width: 0;
+}

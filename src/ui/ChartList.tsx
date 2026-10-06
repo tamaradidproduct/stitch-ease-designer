@@ -6,6 +6,8 @@ import { chartStore } from "../storage/store";
 import { importChartIntoStore } from "../storage/exportImport";
 import { removeReferenceImageFile } from "../storage/referenceImages";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { Button } from "./Button";
+import { TextField } from "./Field";
 
 const formatWhen = (iso: string) => {
   const date = new Date(iso);
@@ -73,19 +75,19 @@ export function ChartList() {
       <header className="charts__head">
         <h1 className="charts__title">My charts</h1>
         <div className="charts__actions">
-          <button type="button" className="btn" onClick={() => fileInput.current?.click()}>
+          <Button onClick={() => fileInput.current?.click()}>
             Import
-          </button>
-          <button type="button" className="btn btn--primary" onClick={onNew}>
+          </Button>
+          <Button variant="primary" onClick={onNew}>
             New chart
-          </button>
+          </Button>
           {/* No real session to sign out of in dev-bypass mode - the button
               would be a visible no-op, so it's not shown at all rather than
               shown disabled or explained. */}
           {!DEV_SKIP_AUTH && (
-            <button type="button" className="btn btn--quiet" onClick={() => void signOut()}>
+            <Button variant="quiet" onClick={() => void signOut()}>
               Sign out
-            </button>
+            </Button>
           )}
         </div>
       </header>
@@ -133,7 +135,8 @@ export function ChartList() {
                   }
                 }}
               >
-                <input
+                <TextField
+                  variant="rename"
                   name="name"
                   className="chartrow__input"
                   aria-label="Chart name"
@@ -146,31 +149,29 @@ export function ChartList() {
                 />
               </form>
             ) : (
-              <button
-                type="button"
+              <Button variant="unstyled"
                 className="chartrow__open"
                 onClick={() => navigate(`/c/${chart.id}`)}
               >
                 <span className="chartrow__name">{chart.name}</span>
                 <span className="chartrow__when">{formatWhen(chart.updatedAt)}</span>
-              </button>
+              </Button>
             )}
 
             <div className="chartrow__tools">
-              <button
-                type="button"
-                className="btn btn--quiet"
+              <Button
+                variant="quiet"
                 onClick={() => setRenaming(chart.id)}
               >
                 Rename
-              </button>
-              <button
-                type="button"
-                className="btn btn--quiet btn--danger"
+              </Button>
+              <Button
+                variant="quiet"
+                danger
                 onClick={() => setDeleting(chart)}
               >
                 Delete
-              </button>
+              </Button>
             </div>
           </li>
         ))}

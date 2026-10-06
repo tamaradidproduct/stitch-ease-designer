@@ -1,3 +1,5 @@
+import { tokens } from "../design/tokens";
+
 /**
  * The colorwork swatch grid: 8 hue columns x 4 lightness steps, 32 fixed
  * presets. No native `<input type="color">`, no "more colors" escape hatch,
@@ -22,8 +24,8 @@ export type ColorSwatch = {
   step: number;
 };
 
-const DARK_INK = "#1e293b";
-const LIGHT_INK = "#f8fafc";
+const DARK_INK = tokens["colorwork-ink-dark"];
+const LIGHT_INK = tokens["colorwork-ink-light"];
 
 /**
  * [hex, ink] per lightness step (lightest first), one row per hue column.

@@ -1,0 +1,247 @@
+
+
+.toolDock {
+  position: absolute;
+  z-index: var(--z-dock);
+  /* env() falls back to the plain value when unsupported (or on a device
+     with no home-indicator gesture area to clear), so this is additive,
+     not risky. */
+  bottom: calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
+  /* Normally centered in the usable canvas. PanButton raises this custom
+     property only when the dock needs to clear its 16px safety gap. */
+  left: var(--tool-dock-center, calc((100% - var(--panel-width)) / 2));
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-glass);
+  box-shadow: var(--shadow-3);
+  transform: translateX(-50%);
+  backdrop-filter: var(--blur-glass);
+}
+
+.panDock {
+  position: absolute;
+  z-index: var(--z-dock);
+  bottom: calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
+  left: var(--space-9);
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-glass);
+  box-shadow: var(--shadow-3);
+  backdrop-filter: var(--blur-glass);
+}
+
+/* Deliberately shown on every platform, not just touch: (hover: hover) and
+   (pointer: fine) - tried here once to hide this on a mouse-and-keyboard
+   desktop, since Space+drag already covers it there - unreliably reports
+   true on iPadOS itself (a known quirk, worse still with a trackpad
+   connected), which made the button invisible on the exact device it was
+   built for. A persistent Pan tool button is a normal, unobjectionable
+   thing for a desktop app to have anyway. */
+
+/* This button's whole job is being held down - without opting out, iOS
+   reads a sustained touch as a request for its own callout/selection menu
+   instead of ever delivering it to us as a plain, held pointerdown.
+   touch-action deliberately stays at its default here, not "none" - that
+   implicitly makes this element capture the touch for its entire duration,
+   which stopped pointerleave/pointerup from ever firing once the finger
+   moved (read: stuck "always on", no way to release it). -webkit-touch-
+   callout alone is the correct, narrower fix for the system long-press menu. */
+.panDock button {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Pan has to stay discoverable on iPad, where hover does not exist, but it
+   should not permanently consume the lower-left canvas on a pointer device.
+   The dock-measurement used by the reference scale controls observes this
+   button, so their centre automatically follows this compact/expanded width. */
+@media (hover: hover) and (pointer: fine) {
+  .panDock .toolDock__button {
+    width: var(--control-xl);
+    min-width: var(--control-xl);
+    padding: 0;
+    gap: 0;
+    overflow: hidden;
+    transition:
+      width 150ms ease,
+      padding 150ms ease,
+      gap 150ms ease;
+  }
+
+  .panDock .toolDock__button span {
+    max-width: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition:
+      max-width 150ms ease,
+      opacity 100ms ease;
+  }
+
+  .panDock .toolDock__button:hover,
+  .panDock .toolDock__button:focus-visible {
+    width: 76px;
+    padding: 0 var(--space-5);
+    gap: var(--space-3);
+  }
+
+  .panDock .toolDock__button:hover span,
+  .panDock .toolDock__button:focus-visible span {
+    max-width: 28px;
+    opacity: 1;
+  }
+}
+
+.toolDock__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-width: 58px;
+  height: var(--control-xl);
+  padding: 0 var(--space-6);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.toolDock__button svg {
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.toolDock__button:focus-visible {
+  border-color: var(--accent-soft-border);
+  background: var(--accent-soft-bg);
+  color: var(--accent);
+}
+
+/* Hover only where hover is real - a touch tap has no exit event, so this
+   would otherwise stick "hovered" on whatever was tapped last (some of what
+   read as the Pan button's inconsistent state). */
+@media (hover: hover) {
+  .toolDock__button:hover {
+    border-color: var(--accent-soft-border);
+    background: var(--accent-soft-bg);
+    color: var(--accent);
+  }
+}
+
+.toolDock__drawGroup {
+  position: relative;
+  padding: 0;
+}
+
+.toolDock__drawMain {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: 100%;
+  padding: 0 var(--space-6);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.toolDock__drawMain svg {
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Overlaid on the Draw button's corner rather than living as its own dock
+   entry - the same "disengage the stitch" action the right panel's armed
+   row carries inline, kept next to the tool it actually affects. */
+.toolDock__drawStop {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  display: grid;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  place-items: center;
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-circle);
+  background: var(--bg);
+  color: var(--accent);
+  cursor: pointer;
+  box-shadow: var(--shadow-1);
+}
+
+.toolDock__drawStop svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+.toolDock__drawStop:focus-visible {
+  background: var(--accent-soft-bg);
+}
+
+@media (hover: hover) {
+  .toolDock__drawStop:hover {
+    background: var(--accent-soft-bg);
+  }
+}
+
+.toolDock__button[data-on="true"] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-solid);
+}
+
+/* Suggest's Confirm/Suggest/Dismiss trio shares the same purple used
+   elsewhere for Suggest (the glossary row, the review menu heading) rather
+   than the toolDock's default blue - all three read as one mode this way,
+   whichever is currently active (FR-6). */
+.toolDock--suggest .toolDock__button[data-on="true"] {
+  border-color: var(--suggest);
+  background: var(--suggest);
+  color: var(--on-solid);
+}
+
+.toolDock__separator {
+  width: var(--border-width);
+  height: 24px;
+  margin: 0 var(--space-3);
+  background: var(--border);
+}
+
+.toolDock__eraser:focus-visible {
+  border-color: var(--danger-soft-border);
+  background: var(--danger-soft-bg);
+  color: var(--danger);
+}
+
+@media (hover: hover) {
+  .toolDock__eraser:hover {
+    border-color: var(--danger-soft-border);
+    background: var(--danger-soft-bg);
+    color: var(--danger);
+  }
+}

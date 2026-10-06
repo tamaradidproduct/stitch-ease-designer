@@ -19,6 +19,10 @@ import { MotifDeleteDialog } from "./motifUi";
 import { SuggestReviewMenu } from "./SuggestReviewMenu";
 import { SelectionActions } from "./SelectionActions";
 import { Toolbar } from "./Toolbar";
+import { Button } from "./Button";
+import { buttonClassName } from "./buttonClassName";
+import { RedoIcon, UndoIcon } from "./icons";
+import { TextField } from "./Field";
 
 function SaveIndicator() {
   const status = useDocStore((s) => s.status);
@@ -112,7 +116,7 @@ export function ChartEditor() {
     return (
       <div className="app app--message">
         <p className="charts__error">{loadError}</p>
-        <Link className="btn" to="/">
+        <Link className={buttonClassName()} to="/">
           Back to my charts
         </Link>
       </div>
@@ -130,7 +134,8 @@ export function ChartEditor() {
           ←
         </Link>
         {openMeta ? (
-          <input
+          <TextField
+            variant="inline"
             className="topbar__name"
             defaultValue={openMeta.name}
             key={openMeta.id}
@@ -179,40 +184,34 @@ export function ChartEditor() {
         {openMeta && <PatternSettingsMenu />}
         <SaveIndicator />
         <span className="topbar__spacer" />
-        <button
-          type="button"
+        <Button variant="unstyled"
           className="topbar__historyButton"
           onClick={undoLatest}
           disabled={!canUndo}
           title="Undo (⌘Z)"
           aria-label="Undo"
         >
-          <svg viewBox="0 0 20 20" aria-hidden="true">
-            <path d="m8 5-4 4 4 4M4 9h7a5 5 0 0 1 5 5" />
-          </svg>
+          <UndoIcon />
           <span>Undo</span>
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button variant="unstyled"
           className="topbar__historyButton"
           onClick={redoLatest}
           disabled={!canRedo}
           title="Redo (⇧⌘Z)"
           aria-label="Redo"
         >
-          <svg viewBox="0 0 20 20" aria-hidden="true">
-            <path d="m12 5 4 4-4 4m4-4H9a5 5 0 0 0-5 5" />
-          </svg>
+          <RedoIcon />
           <span>Redo</span>
-        </button>
+        </Button>
       </header>
       {(status === "conflict" || status === "error") && statusDetail && (
         <div className="banner banner--bad">
           <span>{statusDetail}</span>
           {status === "conflict" && (
-            <button type="button" className="btn" onClick={() => window.location.reload()}>
+            <Button onClick={() => window.location.reload()}>
               Reload
-            </button>
+            </Button>
           )}
         </div>
       )}

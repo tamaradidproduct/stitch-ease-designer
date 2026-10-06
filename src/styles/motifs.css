@@ -1,0 +1,87 @@
+/* Motifs (FR-64): motif pens share the quick row and More drawer with stitches. */
+.motifGlyph {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.3;
+}
+
+.motifTile {
+  position: relative;
+}
+
+.motifTile__size {
+  position: absolute;
+  right: var(--space-1);
+  bottom: 1px;
+  color: var(--text-muted);
+  font-size: var(--font-size-3xs);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--leading-none);
+}
+
+.motifRow {
+  gap: var(--space-1);
+}
+
+.motifRow .picker__itemMain[data-active="true"] {
+  color: var(--accent);
+}
+
+.motifRow__rename {
+  flex: 1;
+  min-width: 0;
+  margin: var(--space-2);
+}
+
+.motifRow__actions {
+  display: flex;
+  flex: none;
+  gap: var(--space-px);
+  padding-right: var(--space-2);
+}
+
+.motifRow__actions button {
+  display: grid;
+  width: var(--control-sm);
+  height: var(--control-sm);
+  place-items: center;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.motifRow__actions button:focus-visible {
+  background: var(--accent-soft-bg);
+  color: var(--accent);
+}
+
+@media (hover: hover) {
+  .motifRow__actions button:hover {
+    background: var(--accent-soft-bg);
+    color: var(--accent);
+  }
+}
+
+.motifRow__actions svg {
+  width: var(--icon-md);
+  height: var(--icon-md);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.motifRow .picker__label {
+  min-width: 3.5em;
+}
+
+.motifCellGlyph {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}

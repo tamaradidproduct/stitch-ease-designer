@@ -1,0 +1,59 @@
+/*
+ * Shared color-chip affordance (FR-25/26/34): one chip, one rule
+ * (`applyChipColor`) wherever it appears - picker tiles, drawer rows, and
+ * glossary rows.
+ */
+.colorChip {
+  position: absolute;
+  right: calc(var(--space-2) * -1);
+  bottom: calc(var(--space-2) * -1);
+  z-index: 2;
+  display: grid;
+  width: var(--badge-size);
+  height: var(--badge-size);
+  place-items: center;
+  /* #265: a border/fill that both matched --bg was invisible against a
+     pale, uncolored tile. A solid --border ring plus a soft drop shadow
+     reads as a control regardless of the tile's own color. */
+  border: var(--border-width-thick) solid var(--border);
+  border-radius: var(--radius-circle);
+  padding: 0;
+  background: var(--bg);
+  color: var(--text-muted);
+  cursor: pointer;
+  box-shadow: var(--shadow-1);
+}
+
+.colorChip:focus-visible,
+.colorChip[aria-expanded="true"] {
+  color: var(--accent);
+}
+
+@media (hover: hover) {
+  .colorChip:hover {
+    color: var(--accent);
+  }
+}
+
+.colorPopover {
+  z-index: var(--z-popover);
+}
+
+.colorPopover__swatch {
+  border: var(--border-width) solid var(--hairline-ink);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  padding: 0;
+}
+
+.colorPopover__swatch:focus-visible {
+  outline: var(--focus-outline);
+  outline-offset: 1px;
+}
+
+@media (hover: hover) {
+  .colorPopover__swatch:hover {
+    outline: var(--focus-outline);
+    outline-offset: 1px;
+  }
+}

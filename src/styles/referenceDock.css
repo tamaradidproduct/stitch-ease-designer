@@ -1,0 +1,184 @@
+.referenceDockPositioner {
+  position: absolute;
+  z-index: var(--z-dock);
+  bottom: calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
+  /* The right panel reserves 304px of the stage, and .referenceImageQuickDock
+     floats another ~230px past that (see its own right: 328px). Reserving
+     both here, not just the panel, keeps this dock centered in space that's
+     actually empty instead of drifting under the quick dock on a narrow
+     (e.g. iPad-portrait) viewport, where there isn't 560px+ of slack to
+     absorb the overlap unnoticed. */
+  right: 560px;
+  left: 0;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.referenceDock {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  /* Bounded by the positioner's own (already-reserved) width, not the full
+     viewport - vw here would let this reach past the space actually left
+     for it and under the right panel. */
+  max-width: calc(100% - 32px);
+  padding: var(--space-4);
+  overflow-x: auto;
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-glass);
+  box-shadow: var(--shadow-3);
+  backdrop-filter: var(--blur-glass);
+  pointer-events: auto;
+}
+
+.referenceDock .toolDock__button:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: default;
+}
+
+/* Save changes is its own pill, unbundled from the scale-setup tools, and
+   pinned to the right edge of the same lane those tools are centered in -
+   a separate, always-in-the-same-place action rather than one more button
+   in a group of tools whose count/width changes as calibration proceeds. */
+.referenceDock--save {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+}
+
+.referenceImageQuickDockGroup {
+  position: absolute;
+  z-index: var(--z-dock);
+  bottom: calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-4);
+}
+
+/* Without this, the icon-only dock would stretch to match the wider Save
+   changes pill below it (align-items: stretch above) instead of staying a
+   compact column of its own - flex-end keeps both flush on their shared
+   right edge as the default, with the icon dock itself re-centered under
+   the (usually wider) Save button below. */
+.referenceImageQuickDockGroup--stacked {
+  align-items: flex-end;
+}
+
+.referenceImageQuickDock {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-glass);
+  box-shadow: var(--shadow-3);
+  backdrop-filter: var(--blur-glass);
+}
+
+/* Narrower canvases: the secondary actions (Hide / Bring to front)
+   collapse to icons that expand while the dock is hovered or focused, then,
+   when very narrow, stack in a column - with Save changes moved out into
+   its own full-width pill underneath (see .referenceDock--save-stacked).
+   Touch screens have no hover, so the icons keep their titles/aria-labels
+   there. */
+.referenceImageQuickDock--icons .toolDock__button,
+.referenceImageQuickDock--stacked .toolDock__button {
+  min-width: var(--control-xl);
+  overflow: hidden;
+  transition:
+    width 150ms ease,
+    padding 150ms ease,
+    gap 150ms ease;
+}
+
+.referenceImageQuickDock--icons .toolDock__button span,
+.referenceImageQuickDock--stacked .toolDock__button span {
+  max-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  white-space: nowrap;
+  transition:
+    max-width 150ms ease,
+    opacity 100ms ease;
+}
+
+.referenceImageQuickDock--icons .toolDock__button,
+.referenceImageQuickDock--stacked .toolDock__button {
+  padding: 0 var(--space-5);
+  gap: 0;
+}
+
+.referenceImageQuickDock--icons:focus-within .toolDock__button,
+.referenceImageQuickDock--stacked:focus-within .toolDock__button {
+  gap: var(--space-3);
+}
+
+@media (hover: hover) {
+  .referenceImageQuickDock--icons:hover .toolDock__button,
+  .referenceImageQuickDock--stacked:hover .toolDock__button {
+    gap: var(--space-3);
+  }
+}
+
+.referenceImageQuickDock--icons:focus-within .toolDock__button span,
+.referenceImageQuickDock--stacked:focus-within .toolDock__button span {
+  max-width: 120px;
+  opacity: 1;
+}
+
+@media (hover: hover) {
+  .referenceImageQuickDock--icons:hover .toolDock__button span,
+  .referenceImageQuickDock--stacked:hover .toolDock__button span {
+    max-width: 120px;
+    opacity: 1;
+  }
+}
+
+.referenceImageQuickDock--stacked {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.referenceImageQuickDockGroup--stacked .referenceImageQuickDock {
+  align-self: center;
+}
+
+/* Save changes, pulled out of the icons-only dock above it once things get
+   very narrow, so it stays a full, unambiguous tap target of its own rather
+   than one more button sharing that dock's box. */
+.referenceDock--save-stacked {
+  width: 100%;
+  box-sizing: border-box;
+  max-width: none;
+  overflow: visible;
+}
+
+.referenceDock--save-stacked .toolDock__button {
+  width: 100%;
+}
+
+.referenceDock__apply {
+  border-color: var(--accent) !important;
+  background: var(--accent) !important;
+  color: var(--on-solid) !important;
+}
+
+.referenceDock__apply:focus-visible {
+  border-color: var(--accent) !important;
+  background: var(--accent) !important;
+}
+
+@media (hover: hover) {
+  .referenceDock__apply:hover:not(:disabled) {
+    border-color: var(--accent) !important;
+    background: var(--accent) !important;
+  }
+}
+
+.referenceDock__cancel {
+  color: var(--text-muted);
+}

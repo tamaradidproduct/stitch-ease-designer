@@ -5,7 +5,8 @@ import { SUGGEST_SYMBOL_ID, useUiStore } from "../state/uiStore";
 import { SymbolGlyph } from "./SymbolGlyph";
 import { tapActivate } from "./tapActivate";
 import { DisarmDrawingButton } from "./DisarmDrawingButton";
-import { CheckIcon, CrossIcon } from "./icons";
+import { CheckIcon, CrossIcon, DrawIcon, EraseIcon, InsertIcon, SelectIcon, SuggestIcon } from "./icons";
+import { Button } from "./Button";
 
 export function Toolbar() {
   const referenceImagePanelOpen = useUiStore((s) => s.referenceImagePanelOpen);
@@ -48,8 +49,7 @@ export function Toolbar() {
   return (
     <div className={`toolDock${suggestArmed ? " toolDock--suggest" : ""}`} aria-label="Canvas tools">
       {suggestArmed ? (
-        <button
-          type="button"
+        <Button variant="unstyled"
           className="toolDock__button"
           data-on={effectiveSuggestAction === "confirm"}
           aria-pressed={effectiveSuggestAction === "confirm"}
@@ -58,44 +58,31 @@ export function Toolbar() {
         >
           <CheckIcon />
           <span>Confirm</span>
-        </button>
+        </Button>
       ) : (
-        <button
-          type="button"
+        <Button variant="unstyled"
           className="toolDock__button"
           data-on={!panEnabled && (tool === "select" || selectHeld)}
           aria-pressed={!panEnabled && (tool === "select" || selectHeld)}
           {...tapActivate(() => setTool("select"))}
           title="Select (S) — hold Cmd/Ctrl for temporary selection"
         >
-          <svg viewBox="0 0 20 20" aria-hidden="true">
-            <path d="m5 3 9 7-4.2 1.2L8 16 5 3Z" />
-          </svg>
+          <SelectIcon />
           <span>Select</span>
-        </button>
+        </Button>
       )}
       <div
         className="toolDock__button toolDock__drawGroup"
         data-on={suggestArmed ? effectiveSuggestAction === "suggest" : !panEnabled && !selectHeld && tool === "stitch"}
       >
-        <button
-          type="button"
+        <Button variant="unstyled"
           className="toolDock__drawMain"
           aria-pressed={suggestArmed ? effectiveSuggestAction === "suggest" : !panEnabled && !selectHeld && tool === "stitch"}
           {...tapActivate(() => (suggestArmed ? setSuggestAction("suggest") : setTool("stitch")))}
           title={suggestArmed ? "Suggest — tap to return to the plain sticky default" : "Draw (D)"}
         >
           {suggestArmed ? (
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path
-                d="M4 16 13 7m2.5-2.5L17 3M6 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1Z"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.4"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+            <SuggestIcon />
           ) : armedSymbol ? (
             <SymbolGlyph
               symbol={armedSymbol}
@@ -103,20 +90,16 @@ export function Toolbar() {
               colorId={activeColor ?? undefined}
             />
           ) : (
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path d="m4 14-.7 3 3-.7L15.5 7 13 4.5 4 14Z" />
-              <path d="m11.5 6 2.5 2.5" />
-            </svg>
+            <DrawIcon />
           )}
           <span>{suggestArmed ? "Suggest" : "Draw"}</span>
-        </button>
+        </Button>
         {armedSymbolId && (
           <DisarmDrawingButton className="toolDock__drawStop" onActivate={() => setArmedSymbolId(null)} />
         )}
       </div>
       {suggestArmed ? (
-        <button
-          type="button"
+        <Button variant="unstyled"
           className="toolDock__button"
           data-on={effectiveSuggestAction === "dismiss"}
           aria-pressed={effectiveSuggestAction === "dismiss"}
@@ -125,38 +108,30 @@ export function Toolbar() {
         >
           <CrossIcon />
           <span>Dismiss</span>
-        </button>
+        </Button>
       ) : (
-        <button
-          type="button"
+        <Button variant="unstyled"
           className="toolDock__button"
           data-on={!panEnabled && !selectHeld && tool === "insert"}
           aria-pressed={!panEnabled && !selectHeld && tool === "insert"}
           {...tapActivate(() => setTool("insert"))}
           title="Insert (I) — add a stitch and shift the rest of the row over"
         >
-          <svg viewBox="0 0 20 20" aria-hidden="true">
-            <path d="M10 3v14M4 10h4m4 0h4" />
-            <path d="m6 7 3 3-3 3m8-6-3 3 3 3" />
-          </svg>
+          <InsertIcon />
           <span>Insert</span>
-        </button>
+        </Button>
       )}
       <span className="toolDock__separator" aria-hidden="true" />
-      <button
-        type="button"
+      <Button variant="unstyled"
         className="toolDock__button toolDock__eraser"
         data-on={!panEnabled && !selectHeld && tool === "eraser"}
         aria-pressed={!panEnabled && !selectHeld && tool === "eraser"}
         {...tapActivate(() => setTool("eraser"))}
         title="Erase (E)"
       >
-        <svg viewBox="0 0 20 20" aria-hidden="true">
-          <path d="m5 13 6.8-8a2 2 0 0 1 2.8-.2l.6.5a2 2 0 0 1 .2 2.8L8.7 16H5.8L4 14.5 5 13Z" />
-          <path d="m8.5 9 4 3.4M9 16h7" />
-        </svg>
+        <EraseIcon />
         <span>Erase</span>
-      </button>
+      </Button>
     </div>
   );
 }

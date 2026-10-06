@@ -1,0 +1,78 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  /* dvh tracks the browser's actual visible viewport, shrinking and growing
+     with a mobile browser's address bar - plain % here inherits from the
+     layout viewport instead, which can stay taller than what's genuinely
+     on screen. With body's overflow hidden below, anything that overflowed
+     the real screen this way wasn't just clipped, it was unreachable -
+     nothing to scroll to reach it. Kept as a fallback for browsers that
+     don't know dvh; unsupported values are ignored, not applied as 0. */
+  height: 100%;
+  height: 100dvh;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+  background: var(--bg);
+  /* The canvas handles its own gestures; page-level bounce fights panning. */
+  overscroll-behavior: none;
+}
+
+/* Flex rather than fixed grid rows: banners appear and disappear above the
+   stage, and a fixed row count would put the canvas in the wrong row. */
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.app > *:not(.stage) {
+  flex: none;
+}
+
+.app--message {
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-6);
+}
+
+.stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  padding-right: var(--panel-width);
+}
+
+.canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* Suppress native pan/zoom so the wheel and pointer handlers own the gesture. */
+  touch-action: none;
+}
+
+/* One keyboard focus ring for every interactive element. :where() keeps it
+   at zero specificity, so a component can still restyle or offset it. */
+:where(a, button, input, select, textarea, summary, [tabindex], [role="button"]):focus-visible {
+  outline: var(--focus-outline);
+  outline-offset: var(--focus-offset);
+}
+
+/* Honour the OS "reduce motion" setting: keep state changes, drop the
+   movement. 0.01ms rather than 0 so transitionend/animationend still fire. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

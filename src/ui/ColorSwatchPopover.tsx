@@ -2,6 +2,8 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { COLOR_GRID } from "../model/colorPalette";
 import { handleColorSwatchClick, resolveColorPopoverPosition } from "./colorSwatchPopoverPosition";
 import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
+import { Popover } from "./Popover";
+import { Button } from "./Button";
 
 export type ColorSwatchPopoverProps = {
   /** The chip's own rect, measured live rather than relying on CSS containing-block luck (see the file's own doc comment). */
@@ -67,7 +69,7 @@ export function ColorSwatchPopover({
   });
 
   return (
-    <div
+    <Popover
       ref={rootRef}
       className="colorPopover"
       role="dialog"
@@ -84,9 +86,8 @@ export function ColorSwatchPopover({
       }}
     >
       {COLOR_GRID.map((swatch) => (
-        <button
+        <Button variant="unstyled"
           key={swatch.id}
-          type="button"
           className="colorPopover__swatch"
           style={{ width: SWATCH, height: SWATCH, background: swatch.hex }}
           aria-label={`${swatch.hue} ${swatch.step + 1}`}
@@ -94,6 +95,6 @@ export function ColorSwatchPopover({
           onClick={(event) => handleColorSwatchClick(event, onSelect, swatch.id)}
         />
       ))}
-    </div>
+    </Popover>
   );
 }

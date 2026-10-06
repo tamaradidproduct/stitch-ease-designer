@@ -10,6 +10,10 @@ import {
 } from "../model/types";
 import { useDocStore } from "../state/docStore";
 import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
+import { Popover } from "./Popover";
+import { Button } from "./Button";
+import { SegmentedControl } from "./SegmentedControl";
+import { TextField } from "./Field";
 
 /** Grid layout order (top row, then bottom row) for the first-stitch corner picker. */
 const CORNER_GRID_ORDER: Corner[] = ["tl", "tr", "bl", "br"];
@@ -102,9 +106,8 @@ export function PatternSettingsMenu() {
 
   return (
     <div className="patternSettings">
-      <button
+      <Button variant="unstyled"
         ref={triggerRef}
-        type="button"
         className="patternSettings__trigger"
         aria-expanded={open}
         aria-haspopup="dialog"
@@ -112,9 +115,9 @@ export function PatternSettingsMenu() {
       >
         <span className="patternSettings__label">Pattern settings</span>
         <span className="patternSettings__summary">{summarize(patternInfo, namedColorCount)}</span>
-      </button>
+      </Button>
       {open && (
-        <div
+        <Popover
           ref={popoverRef}
           className="patternSettings__popover"
           role="dialog"
@@ -124,56 +127,34 @@ export function PatternSettingsMenu() {
           <div className="patternInfo">
             <div className="patternInfo__field">
               <span className="patternInfo__label">Worked</span>
-              <div className="patternInfo__toggle" role="radiogroup" aria-label="Worked flat or in the round">
-                {WORKED_MODES.map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    role="radio"
-                    aria-checked={patternInfo.worked === mode}
-                    data-on={patternInfo.worked === mode}
-                    onClick={() => setPatternInfo({ worked: mode as Worked })}
-                  >
-                    {mode === "flat" ? "Flat" : "Round"}
-                  </button>
-                ))}
-              </div>
+              <SegmentedControl
+                label="Worked flat or in the round"
+                options={WORKED_MODES.map((mode) => ({ value: mode as Worked, children: mode === "flat" ? "Flat" : "Round" }))}
+                value={patternInfo.worked}
+                onChange={(worked) => setPatternInfo({ worked })}
+              />
             </div>
             {patternInfo.worked !== "round" && (
               <div className="patternInfo__field">
                 <span className="patternInfo__label">First row</span>
-                <div className="patternInfo__toggle" role="radiogroup" aria-label="First row RS or WS">
-                  {FIRST_ROW_SIDES.map((side) => (
-                    <button
-                      key={side}
-                      type="button"
-                      role="radio"
-                      aria-checked={patternInfo.firstRow === side}
-                      data-on={patternInfo.firstRow === side}
-                      onClick={() => setPatternInfo({ firstRow: side as FirstRowSide })}
-                    >
-                      {side}
-                    </button>
-                  ))}
-                </div>
+                <SegmentedControl
+                  label="First row RS or WS"
+                  options={FIRST_ROW_SIDES.map((side) => ({ value: side as FirstRowSide, children: side }))}
+                  value={patternInfo.firstRow}
+                  onChange={(firstRow) => setPatternInfo({ firstRow })}
+                />
               </div>
             )}
             <div className="patternInfo__field">
               <span className="patternInfo__label">First stitch</span>
-              <div className="patternInfo__corners" role="radiogroup" aria-label="Which corner the first stitch is at">
-                {CORNER_GRID_ORDER.map((corner) => (
-                  <button
-                    key={corner}
-                    type="button"
-                    role="radio"
-                    aria-checked={patternInfo.firstStitch === corner}
-                    data-on={patternInfo.firstStitch === corner}
-                    aria-label={CORNER_LABELS[corner]}
-                    title={CORNER_LABELS[corner]}
-                    onClick={() => setPatternInfo({ firstStitch: corner })}
-                  />
-                ))}
-              </div>
+              <SegmentedControl
+                label="Which corner the first stitch is at"
+                appearance="custom"
+                className="patternInfo__corners"
+                options={CORNER_GRID_ORDER.map((corner) => ({ value: corner, label: CORNER_LABELS[corner] }))}
+                value={patternInfo.firstStitch}
+                onChange={(firstStitch) => setPatternInfo({ firstStitch })}
+              />
             </div>
             {usedColorIds.length > 0 && (
               <div className="patternInfo__field">
@@ -188,15 +169,14 @@ export function PatternSettingsMenu() {
                           style={{ background: swatch?.hex ?? colorId }}
                           aria-hidden="true"
                         />
-                        <input
+                        <TextField
                           // Uncontrolled so typing doesn't push an undo step
                           // per keystroke, but that means React won't notice
                           // an external change (undo/redo) on its own - a
                           // key tied to the stored value forces a remount so
                           // the field doesn't silently drift from the store.
                           key={patternInfo.colorNames?.[colorId] ?? ""}
-                          type="text"
-                          defaultValue={patternInfo.colorNames?.[colorId] ?? ""}
+                                                    defaultValue={patternInfo.colorNames?.[colorId] ?? ""}
                           placeholder={swatch ? `${swatch.hue} ${swatch.step + 1}` : "Name"}
                           aria-label="Name for this color"
                           onBlur={(event) => setColorName(colorId, event.target.value)}
@@ -208,7 +188,7 @@ export function PatternSettingsMenu() {
               </div>
             )}
           </div>
-        </div>
+        </Popover>
       )}
     </div>
   );

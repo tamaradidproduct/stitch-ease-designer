@@ -1,6 +1,7 @@
 import { CELL, cellToWorld } from "./camera";
 import { calibratedImageBounds } from "../model/referenceCalibration";
 import type { ReferenceImage } from "../model/types";
+import { tokens as tk } from "../design/tokens";
 
 export const DEFAULT_CROP_SIZE = 32;
 
@@ -34,7 +35,7 @@ export function cropReferenceImageCell(
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext("2d")!;
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = tk.bg;
   ctx.fillRect(0, 0, size, size);
   ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, size, size);
   return canvas;

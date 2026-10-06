@@ -4,6 +4,9 @@ import { armMotifPen } from "./motifActions";
 import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { DetachIcon, MirrorIcon, PushToMotifIcon, RenameIcon, ResetIcon, TrashSmallIcon } from "./icons";
+import { Button } from "./Button";
+import { TextField } from "./Field";
 
 /**
  * Motifs are pens (FR-64): they share the quick row and the picker's More
@@ -34,8 +37,7 @@ export function MotifQuickTile({
   const title = `${motif.name} (${motif.width}×${motif.height} motif)`;
   return (
     <div className="picker__quickTile">
-      <button
-        type="button"
+      <Button variant="unstyled"
         className="picker__quickButton motifTile"
         data-active={armed}
         onClick={onChoose}
@@ -45,7 +47,7 @@ export function MotifQuickTile({
       >
         <MotifGlyph />
         <span className="motifTile__size">{motif.width}×{motif.height}</span>
-      </button>
+      </Button>
     </div>
   );
 }
@@ -74,7 +76,8 @@ export function MotifDrawerSection({ onArmed }: { onArmed: () => void }) {
           return (
             <div key={motif.id} className="picker__item motifRow">
               {renaming === motif.id ? (
-                <input
+                <TextField
+                  variant="rename"
                   className="motifRow__rename"
                   autoFocus
                   value={draft}
@@ -88,8 +91,7 @@ export function MotifDrawerSection({ onArmed }: { onArmed: () => void }) {
                   }}
                 />
               ) : (
-                <button
-                  type="button"
+                <Button variant="unstyled"
                   className="picker__itemMain"
                   data-active={armedMotif?.id === motif.id}
                   onClick={() => {
@@ -101,11 +103,10 @@ export function MotifDrawerSection({ onArmed }: { onArmed: () => void }) {
                   <span className="picker__glyph"><MotifGlyph /></span>
                   <span className="picker__label">{motif.name}</span>
                   <span className="picker__span">{motif.width}×{motif.height}</span>
-                </button>
+                </Button>
               )}
               <div className="motifRow__actions">
-                <button
-                  type="button"
+                <Button variant="unstyled"
                   onClick={() => {
                     setDraft(motif.name);
                     setRenaming(motif.id);
@@ -113,10 +114,9 @@ export function MotifDrawerSection({ onArmed }: { onArmed: () => void }) {
                   aria-label={`Rename ${motif.name}`}
                   title="Rename"
                 >
-                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 16h3l8.5-8.5-3-3L4 13v3zM11.5 5.5l3 3" /></svg>
-                </button>
-                <button
-                  type="button"
+                  <RenameIcon />
+                </Button>
+                <Button variant="unstyled"
                   onClick={() => {
                     armMotifPen(motif.id, true);
                     onArmed();
@@ -124,10 +124,9 @@ export function MotifDrawerSection({ onArmed }: { onArmed: () => void }) {
                   aria-label={`Stamp ${motif.name} mirrored`}
                   title="Stamp mirrored"
                 >
-                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v14M7 6 3 10l4 4V6zM13 6l4 4-4 4V6z" /></svg>
-                </button>
-                <button
-                  type="button"
+                  <MirrorIcon />
+                </Button>
+                <Button variant="unstyled"
                   onClick={() => {
                     requestDelete(motif.id);
                     onArmed();
@@ -135,8 +134,8 @@ export function MotifDrawerSection({ onArmed }: { onArmed: () => void }) {
                   aria-label={`Delete ${motif.name}`}
                   title="Delete motif"
                 >
-                  <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 5h9M6.5 5V3.5h3V5M4.5 5l.5 8h6l.5-8" /></svg>
-                </button>
+                  <TrashSmallIcon />
+                </Button>
               </div>
             </div>
           );
@@ -157,44 +156,40 @@ export function MotifCopyBubbles({ copyId, overridden, onDone }: { copyId: strin
     <>
       {overridden && (
         <>
-          <button
-            type="button"
+          <Button variant="unstyled"
             onClick={act(() => doc().pushMotifCopy(copyId))}
             title="Make this copy's changes the motif - every copy updates"
             aria-label="Push changes to motif"
             data-label="Push to motif"
           >
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 16V5M5.5 9.5 10 5l4.5 4.5M4 3h12" /></svg>
-          </button>
-          <button
-            type="button"
+            <PushToMotifIcon />
+          </Button>
+          <Button variant="unstyled"
             onClick={act(() => doc().resetMotifCopy(copyId))}
             title="Discard this copy's changes"
             aria-label="Reset copy to motif"
             data-label="Reset"
           >
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 8A6 6 0 1 1 4 11M4.5 3.5V8H9" /></svg>
-          </button>
+            <ResetIcon />
+          </Button>
         </>
       )}
-      <button
-        type="button"
+      <Button variant="unstyled"
         onClick={act(() => doc().mirrorMotifCopy(copyId))}
         title="Mirror this copy"
         aria-label="Mirror copy"
         data-label="Mirror"
       >
-        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v14M7 6 3 10l4 4V6zM13 6l4 4-4 4V6z" /></svg>
-      </button>
-      <button
-        type="button"
+        <MirrorIcon />
+      </Button>
+      <Button variant="unstyled"
         onClick={act(() => doc().detachMotifCopy(copyId))}
         title="Unlink this copy from its motif"
         aria-label="Detach copy"
         data-label="Detach"
       >
-        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8 12l-2 2a2.8 2.8 0 0 1-4-4l2-2M12 8l2-2a2.8 2.8 0 0 1 4 4l-2 2M3 3l14 14" /></svg>
-      </button>
+        <DetachIcon />
+      </Button>
     </>
   );
 }
