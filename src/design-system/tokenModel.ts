@@ -24,10 +24,23 @@ export const tokenByName = new Map(allTokens.map((t) => [t.name, t]));
 /** Token edits keyed by name; only names whose value differs from tokens.json. */
 export type Edits = Record<string, string>;
 
+/** `"{text}"` -> `"text"`: the token this value aliases, if it is an alias. */
+export function aliasOf(value: string): string | null {
+  return /^\{([a-z0-9-]+)\}$/.exec(value.trim())?.[1] ?? null;
+}
+
+/** What to hand CSS for a value: aliases become `var(--target)`. */
+export function cssValue(value: string): string {
+  const target = aliasOf(value);
+  return target ? `var(--${target})` : value;
+}
+
 /** Why a value can't be written to tokens.json, or null when it's fine. */
 export function invalidReason(value: string): string | null {
   if (!value.trim()) return "Enter a value.";
-  if (/[;{}]/.test(value)) return "Values can't contain ; { or }.";
+  const target = aliasOf(value);
+  if (target) return tokenByName.has(target) ? null : `There's no token called --${target}.`;
+  if (/[;{}]/.test(value)) return "Values can't contain ; { or }. To link to another token, write {token-name}.";
   if (value.length > 200) return "That value is too long.";
   return null;
 }

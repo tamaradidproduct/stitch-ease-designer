@@ -93,7 +93,7 @@
 }
 
 .save--bad {
-  color: var(--danger-strong);
+  color: var(--danger-text);
   font-weight: var(--font-weight-semibold);
 }
 
@@ -112,7 +112,7 @@
   gap: var(--space-6);
   background: var(--danger-soft-bg);
   border-bottom-color: var(--danger-soft-border);
-  color: var(--danger-ink);
+  color: var(--danger-text);
 }
 
 .banner--info {

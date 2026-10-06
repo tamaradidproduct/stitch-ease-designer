@@ -3,7 +3,9 @@ import { Button } from "../ui/Button";
 import { CloseIcon, SearchIcon } from "../ui/icons";
 import { getMcp, REMOTE_SERVER, REMOTE_TOOL, type McpError } from "./runtime";
 import {
+  aliasOf,
   changeRequestPrompt,
+  cssValue,
   cleanEdits,
   type Edits,
   groups,
@@ -74,7 +76,7 @@ function TokenInput({ token, value, onChange, onReset }: { token: TokenDef; valu
               onChange={(e) => onChange(e.target.value)}
             />
           ) : (
-            <span className="ds-edit__swatch" style={{ background: value }} aria-hidden="true" />
+            <span className="ds-edit__swatch" style={{ background: cssValue(value) }} aria-hidden="true" />
           )
         )}
         <input
@@ -89,6 +91,18 @@ function TokenInput({ token, value, onChange, onReset }: { token: TokenDef; valu
           Reset
         </Button>
       </div>
+      {aliasOf(value) && !problem && (
+        <p className="ds-edit__was">
+          Linked to <code>--{aliasOf(value)}</code>, so it changes with it.{" "}
+          <button
+            type="button"
+            className="ds-edit__link"
+            onClick={() => onChange(getComputedStyle(document.documentElement).getPropertyValue(`--${aliasOf(value)}`).trim())}
+          >
+            Unlink
+          </button>
+        </p>
+      )}
       {problem && <p className="ds-edit__error">{problem}</p>}
       {changed && !problem && <p className="ds-edit__was">Was <code>{token.value}</code></p>}
     </div>

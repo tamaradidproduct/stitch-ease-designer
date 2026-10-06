@@ -14,7 +14,7 @@
   border: var(--border-width) solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--bg);
-  box-shadow: var(--shadow-0);
+  box-shadow: var(--shadow-2);
 }
 
 .signIn__title {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getDb } from "./runtime";
-import { cleanEdits, type Edits, tokenByName } from "./tokenModel";
+import { cleanEdits, cssValue, type Edits, tokenByName } from "./tokenModel";
 
 const DRAFT_PATH = "drafts/current";
 const LOCAL_KEY = "stitch-ease-design-draft";
@@ -67,7 +67,7 @@ export function useTokenEdits() {
     for (const t of tokenByName.values()) {
       const value = edits[t.name];
       if (value === undefined) root.style.removeProperty(`--${t.name}`);
-      else root.style.setProperty(`--${t.name}`, value);
+      else root.style.setProperty(`--${t.name}`, cssValue(value));
     }
   }, [edits]);
 

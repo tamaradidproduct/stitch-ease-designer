@@ -23,8 +23,7 @@
   --danger-soft-bg: #fef2f2; /* Destructive hover and error banner background. */
   --danger-soft-border: #fecaca; /* Border that goes with the danger tint. */
   --danger-wash: rgba(220, 38, 38, 0.08); /* Unrecognized-cell preview fill. */
-  --danger-strong: #b91c1c; /* Error text on a tinted background. */
-  --danger-ink: #7f1d1d; /* Error banner text. */
+  --danger-text: #b91c1c; /* Error and failed-save text, on white or on the danger tint. */
 
   /* ---- Success ----------------------------------------------------------- */
   --success: #16a34a; /* Confirmed calibration marks, allowed-drop cursor badge. */
@@ -45,28 +44,28 @@
   --warning-bg: #fffbeb; /* Warning banner background. */
   --warning-border: #fde68a; /* Warning banner border. */
   --warning-text: #78350f; /* Warning banner text. */
-  --info-bg: #eff6ff; /* Info banner background. */
-  --info-border: #bfdbfe; /* Info banner border. */
-  --info-text: #1e3a8a; /* Info banner text. */
+  --info-bg: var(--accent-soft-bg); /* Info banner background (follows the accent tint). */
+  --info-border: var(--accent-soft-border); /* Info banner border (follows the accent tint). */
+  --info-text: var(--accent-ink); /* Info banner text (follows the accent ink). */
 
   /* ---- Surfaces ---------------------------------------------------------- */
   --surface-glass: rgb(255 255 255 / 96%); /* Floating docks over the canvas (paired with --blur-glass). */
   --overlay-light: rgb(255 255 255 / 60%); /* Lightens a selected or hovered row. */
-  --tooltip-bg: #0f172a; /* Dark tooltips. */
+  --tooltip-bg: var(--text); /* Dark tooltips (follows --text). */
   --scrim: rgba(15, 23, 42, 0.35); /* Dims the app behind a modal dialog. */
   --hairline-ink: rgb(15 23 42 / 10%); /* Hairline that reads on any colorwork fill. */
 
   /* ---- Chart canvas ------------------------------------------------------ */
   --canvas-bg: #f6f6f7; /* Empty canvas, a hair off white so a placed knit cell still reads. */
   --canvas-grid: #8f8f99; /* Grid dots and major crosses. */
-  --cell-stroke: #94a3b8; /* Chart cell border (canvas and glyph tiles). */
+  --cell-stroke: var(--text-subtle); /* Chart cell border, canvas and glyph tiles (follows --text-subtle). */
   --cell-ink: #334155; /* Stitch symbol ink. */
   --colorwork-ink-dark: #1e293b; /* Symbol ink on a light colorwork fill. */
   --colorwork-ink-light: #f8fafc; /* Symbol ink on a dark colorwork fill. */
-  --cursor-cell-fill: #f2f6fa; /* Stitch preview cell under the cursor. */
-  --cursor-cell-stroke: #b3bcc7; /* Stitch preview cell border. */
-  --cursor-ink: #475569; /* Stitch preview glyph ink. */
-  --cursor-outline: #000000; /* Dark outline around custom cursors. */
+  --cursor-cell-fill: var(--chrome); /* Stitch preview cell under the cursor (follows --chrome). */
+  --cursor-cell-stroke: var(--cell-stroke); /* Stitch preview cell border (follows --cell-stroke). */
+  --cursor-ink: var(--cell-ink); /* Stitch preview glyph ink (follows --cell-ink). */
+  --cursor-outline: var(--text); /* Dark outline around custom cursors (follows --text). */
 
   /* ---- Type -------------------------------------------------------------- */
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; /* The only UI family: the platform's system font. */
@@ -80,6 +79,13 @@
   --font-weight-medium: 500; /* Light emphasis. */
   --font-weight-semibold: 600; /* Headings, labels, active items. */
   --font-weight-bold: 700; /* Strong emphasis. */
+  --leading-none: 1; /* Single-line labels and badges. */
+  --leading-tight: 1.2; /* Compact multi-line labels. */
+  --leading-snug: 1.35; /* Dense UI text (glyph labels, hints). */
+  --leading-normal: 1.5; /* Running text. */
+  --tracking-tighter: -0.02em; /* Large titles. */
+  --tracking-tight: -0.01em; /* Headings. */
+  --tracking-wide: 0.04em; /* Uppercase labels and key badges. */
 
   /* ---- Spacing ----------------------------------------------------------- */
   --space-px: 1px; /* Hairline gaps. */
@@ -101,7 +107,6 @@
   --radius-sm: 6px; /* Buttons, inputs, menu items, tooltips. */
   --radius-md: 8px; /* Popovers, menus, tool buttons. */
   --radius-lg: 10px; /* Panels, docks, dialogs. */
-  --radius-xl: 12px; /* Large cards. */
   --radius-full: 999px; /* Pills. */
   --radius-circle: 50%; /* Round badges and dots. */
 
@@ -125,8 +130,12 @@
   --panel-width: 304px; /* Right panel width; the canvas and docks reserve this much. */
   --page-max-width: 760px; /* Chart list column. */
 
+  /* ---- Interaction state ------------------------------------------------- */
+  --opacity-disabled: 0.45; /* Every disabled control. */
+  --focus-outline: var(--border-width-focus) solid var(--accent); /* Keyboard focus ring on every interactive element. */
+  --focus-offset: 2px; /* Gap between a control and its focus ring. */
+
   /* ---- Elevation --------------------------------------------------------- */
-  --shadow-0: 0 1px 3px rgb(15 23 42 / 6%); /* Resting card. */
   --shadow-1: 0 1px 3px rgb(15 23 42 / 20%); /* Chips, small floating buttons. */
   --shadow-2: 0 2px 6px rgb(15 23 42 / 8%); /* Raised tiles. */
   --shadow-3: 0 8px 24px rgb(15 23 42 / 14%), 0 2px 6px rgb(15 23 42 / 8%); /* Popovers, menus, drawers, docks. */

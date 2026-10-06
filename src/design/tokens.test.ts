@@ -9,9 +9,15 @@ const stylesheets = import.meta.glob<string>("../styles/*.css", {
 });
 
 describe("design tokens", () => {
-  it("exposes the same values to TypeScript as to CSS", () => {
+  it("exposes the same values to TypeScript as to CSS, aliases resolved", () => {
+    const declared = new Map([...css.matchAll(/--([a-z0-9-]+): ([^;]+);/g)].map((m) => [m[1]!, m[2]!]));
+    const resolveCss = (name: string): string | undefined => {
+      const value = declared.get(name);
+      const alias = value?.match(/^var\(--([a-z0-9-]+)\)$/)?.[1];
+      return alias ? resolveCss(alias) : value;
+    };
     for (const [name, value] of Object.entries(tokens)) {
-      expect(css).toContain(`--${name}: ${value};`);
+      expect(resolveCss(name), name).toBe(value);
     }
   });
 

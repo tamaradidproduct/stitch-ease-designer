@@ -19,3 +19,13 @@ test("rejects duplicate names and values that could break out of the rule", () =
   assert.throws(() => flatten(group({ a: { value: "red; } body { display: none" } })), /contains/);
   assert.throws(() => flatten(group({ Bad: { value: "1" } })), /kebab-case/);
 });
+
+test("aliases emit var() in CSS, resolve in TS, and reject cycles or unknown targets", async () => {
+  const { renderTs } = await import("./build-tokens.mjs");
+  const src = { groups: [{ id: "g", label: "G", type: "color", tokens: { text: { value: "#000000" }, ink: { value: "{text}" }, deep: { value: "{ink}" } } }] };
+  assert.match(renderCss(src), /--ink: var\(--text\);/);
+  assert.match(renderTs(src), /"deep": "#000000"/);
+  const group = (tokens) => ({ groups: [{ id: "g", label: "G", type: "color", tokens }] });
+  assert.throws(() => flatten(group({ a: { value: "{b}" }, b: { value: "{a}" } })), /cycle/);
+  assert.throws(() => flatten(group({ a: { value: "{missing}" } })), /unknown token/);
+});

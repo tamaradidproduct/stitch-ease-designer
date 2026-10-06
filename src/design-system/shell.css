@@ -200,7 +200,7 @@ code, pre { font-family: var(--ds-mono); font-size: var(--font-size-sm); }
 .ds-edit__note { min-height: 72px; resize: vertical; font-size: var(--font-size-sm); }
 .ds-edit__applyBtn { width: 100%; }
 .ds-edit__ok { margin: 0; font-size: var(--font-size-sm); color: var(--text); }
-.ds-edit__error { margin: 0; font-size: var(--font-size-xs); color: var(--danger-strong); }
+.ds-edit__error { margin: 0; font-size: var(--font-size-xs); color: var(--danger-text); }
 .ds-edit__prompt summary { cursor: pointer; font-size: var(--font-size-xs); color: var(--text-muted); }
 .ds-edit__prompt textarea { width: 100%; min-height: 180px; margin: var(--space-4) 0; font: var(--font-size-xs)/1.5 var(--ds-mono); }
 .ds-edit__search { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: var(--space-4); padding: var(--space-6) var(--space-8); background: var(--bg); border-bottom: var(--border-width) solid var(--border); color: var(--text-muted); margin-top: var(--space-6); }
@@ -215,6 +215,7 @@ code, pre { font-family: var(--ds-mono); font-size: var(--font-size-sm); }
 .ds-edit__inputs input[type="color"] { flex: none; width: 32px; height: 30px; padding: 0; border: var(--border-width) solid var(--border); border-radius: var(--radius-sm); background: var(--bg); cursor: pointer; }
 .ds-edit__swatch { flex: none; width: 32px; height: 30px; border-radius: var(--radius-sm); box-shadow: inset 0 0 0 1px var(--hairline-ink); }
 .ds-edit__text { flex: 1; font-family: var(--ds-mono); font-size: var(--font-size-xs); }
+.ds-edit__link { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; }
 .ds-edit__was { margin: 0; font-size: var(--font-size-xs); color: var(--text-muted); }
 
 @media (max-width: 900px) {
