@@ -1,9 +1,9 @@
-import { colorTokens as t } from "../design/tokens";
+import { alpha, tokens as t } from "../design/tokens";
 
 /**
- * Canvas paint colours. Kept in one place so the renderer has no literals;
- * anything the chrome also uses comes from the shared design tokens, so the
- * rulers and hover outline follow a change to the CSS palette.
+ * Canvas paint colours, all from the shared design tokens
+ * (src/design/tokens.json), so the renderer has no literals and follows any
+ * change made to the palette.
  */
 export const theme = {
   // The empty canvas. Still a hair off pure white, not white itself — a
@@ -11,17 +11,17 @@ export const theme = {
   // and on a white canvas that would be indistinguishable from an empty one
   // — but now close enough to white that the grid marks (below) carry the
   // "this is a grid" cue rather than a visibly grey backdrop doing it.
-  background: "#f6f6f7",
+  background: t["canvas-bg"],
   // One colour for the whole grid: dotted minor lines and major crosses.
-  gridMajor: "#8f8f99",
+  gridMajor: t["canvas-grid"],
 
   rulerBackground: t.chrome,
   rulerBorder: t.border,
   rulerText: t["text-muted"],
-  rulerTextActive: "#0369a1",
+  rulerTextActive: t["accent-ink"],
   rulerHighlight: t["accent-soft-bg"],
 
-  hoverFill: "rgba(2, 132, 199, 0.10)",
+  hoverFill: alpha(t.accent, 0.1),
   hoverStroke: t.accent,
 
   cellFill: t.bg,

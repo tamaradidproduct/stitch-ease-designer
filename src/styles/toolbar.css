@@ -5,14 +5,14 @@
   align-items: center;
   gap: var(--space-4);
   height: 44px;
-  padding: 0 10px;
+  padding: 0 var(--space-5);
   background: var(--bg);
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--border-width) solid var(--border);
 }
 
 .toolbar__btn {
-  padding: 5px 10px;
-  border: 1px solid var(--border);
+  padding: var(--space-3) var(--space-5);
+  border: var(--border-width) solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg);
   font: inherit;
@@ -46,15 +46,15 @@
   /* env() falls back to the plain value when unsupported (or on a device
      with no home-indicator gesture area to clear), so this is additive,
      not risky. */
-  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
   /* Normally centered in the usable canvas. PanButton raises this custom
      property only when the dock needs to clear its 16px safety gap. */
-  left: var(--tool-dock-center, calc((100% - 304px) / 2));
+  left: var(--tool-dock-center, calc((100% - var(--panel-width)) / 2));
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 7px;
-  border: 1px solid var(--border);
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface-glass);
   box-shadow: var(--shadow-3);
@@ -65,10 +65,10 @@
 .panDock {
   position: absolute;
   z-index: var(--z-dock);
-  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-  left: 24px;
-  padding: 7px;
-  border: 1px solid var(--border);
+  bottom: calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
+  left: var(--space-9);
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface-glass);
   box-shadow: var(--shadow-3);
@@ -126,7 +126,7 @@
   .panDock .toolDock__button:hover,
   .panDock .toolDock__button:focus-visible {
     width: 76px;
-    padding: 0 10px;
+    padding: 0 var(--space-5);
     gap: var(--space-3);
   }
 
@@ -144,9 +144,9 @@
   gap: var(--space-3);
   min-width: 58px;
   height: 38px;
-  padding: 0 var(--space-5);
-  border: 1px solid transparent;
-  border-radius: 7px;
+  padding: 0 var(--space-6);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--text);
   font: inherit;
@@ -154,8 +154,8 @@
 }
 
 .toolDock__button svg {
-  width: 17px;
-  height: 17px;
+  width: var(--icon-lg);
+  height: var(--icon-lg);
   flex: none;
   fill: none;
   stroke: currentColor;
@@ -193,7 +193,7 @@
   align-items: center;
   gap: var(--space-3);
   height: 100%;
-  padding: 0 var(--space-5);
+  padding: 0 var(--space-6);
   border: 0;
   background: transparent;
   color: inherit;
@@ -202,8 +202,8 @@
 }
 
 .toolDock__drawMain svg {
-  width: 17px;
-  height: 17px;
+  width: var(--icon-lg);
+  height: var(--icon-lg);
   flex: none;
   fill: none;
   stroke: currentColor;
@@ -224,8 +224,8 @@
   height: 20px;
   padding: 0;
   place-items: center;
-  border: 1px solid var(--border);
-  border-radius: 50%;
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-circle);
   background: var(--bg);
   color: var(--accent);
   cursor: pointer;
@@ -233,8 +233,8 @@
 }
 
 .toolDock__drawStop svg {
-  width: 12px;
-  height: 12px;
+  width: var(--icon-xs);
+  height: var(--icon-xs);
   fill: none;
   stroke: currentColor;
   stroke-width: 1.8;
@@ -272,7 +272,7 @@
 .toolDock__separator {
   width: 1px;
   height: 24px;
-  margin: 0 5px;
+  margin: 0 var(--space-3);
   background: var(--border);
 }
 
@@ -294,8 +294,8 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding-left: 8px;
-  border-left: 1px solid var(--border);
+  padding-left: var(--space-4);
+  border-left: var(--border-width) solid var(--border);
   color: var(--text-muted);
   white-space: nowrap;
 }

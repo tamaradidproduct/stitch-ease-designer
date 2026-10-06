@@ -1,13 +1,13 @@
 .glossary {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  margin-top: 8px;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
 }
 
 .glossary__inlineSearch > svg {
-  width: 14px;
-  height: 14px;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
   flex: none;
   fill: none;
   stroke: var(--text-muted);
@@ -30,10 +30,10 @@
   display: flex;
   min-height: 36px;
   align-items: center;
-  gap: 7px;
-  padding: var(--space-2) 7px;
-  border: 1px solid var(--accent);
-  border-radius: 7px;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-4);
+  border: var(--border-width) solid var(--accent);
+  border-radius: var(--radius-md);
   background: var(--bg);
   box-shadow: 0 0 0 2px var(--accent-ring);
 }
@@ -65,7 +65,7 @@
   z-index: var(--z-popover);
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: var(--space-2);
   margin-top: 0;
   padding: var(--space-2);
   /* Without its own bounded, scrollable box, touch scrolling here walks
@@ -77,7 +77,7 @@
 }
 
 .glossarySearch__heading {
-  padding: var(--space-3) var(--space-4) 3px;
+  padding: var(--space-3) var(--space-4) var(--space-2);
   color: var(--text-muted);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
@@ -90,10 +90,10 @@
   width: 100%;
   min-height: 30px;
   align-items: center;
-  gap: 7px;
+  gap: var(--space-4);
   padding: var(--space-2) var(--space-3);
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text);
   font: inherit;
@@ -136,10 +136,12 @@
   width: 100%;
   align-items: center;
   min-height: 36px;
-  gap: 9px;
-  padding: 5px 7px;
-  border: 1px solid transparent;
-  border-radius: 7px;
+  gap: var(--space-5);
+  /* Vertical snapped down (5px -> 4px) rather than up: five rows of extra
+     height pushed the glossary past the panel at 800px tall. */
+  padding: var(--space-2) var(--space-4);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--text);
   /* iOS Safari treats a hover-styled, non-form element with no cursor as
@@ -165,20 +167,20 @@
 .glossary__item[data-insert-edge]::after {
   content: "";
   position: absolute;
-  left: 4px;
-  right: 4px;
+  left: var(--space-2);
+  right: var(--space-2);
   height: 3px;
-  border-radius: 2px;
+  border-radius: var(--radius-2xs);
   background: var(--accent-soft-border);
   pointer-events: none;
 }
 
 .glossary__item[data-insert-edge="before"]::after {
-  top: -4px;
+  top: calc(var(--space-2) * -1);
 }
 
 .glossary__item[data-insert-edge="after"]::after {
-  bottom: -4px;
+  bottom: calc(var(--space-2) * -1);
 }
 
 .glossary__arm {
@@ -187,7 +189,7 @@
   min-height: 34px;
   flex: 1;
   align-items: center;
-  gap: 9px;
+  gap: var(--space-5);
   padding: 0;
   border: 0;
   background: transparent;
@@ -200,7 +202,7 @@
 .glossary__arm:focus-visible,
 .glossary__remove:focus-visible,
 .glossary__dragHandle:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: var(--border-width-focus) solid var(--accent);
   outline-offset: -2px;
 }
 
@@ -224,12 +226,12 @@
 .glossary__shortcut {
   min-width: 19px;
   padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--border);
-  border-bottom-width: 2px;
+  border: var(--border-width) solid var(--border);
+  border-bottom-width: var(--border-width-focus);
   border-radius: var(--radius-xs);
   background: var(--bg);
   color: var(--text-muted);
-  font: 9px/1 system-ui, sans-serif;
+  font: var(--font-size-3xs)/1 var(--font-sans);
   text-align: center;
 }
 
@@ -271,7 +273,7 @@
   min-width: 0;
   flex: 1;
   flex-direction: column;
-  gap: 1px;
+  gap: var(--space-px);
 }
 
 .glossary__labelGroup .glossary__label {
@@ -300,7 +302,7 @@
 }
 
 .glossary__selectEntry {
-  padding: 0 5px;
+  padding: 0 var(--space-3);
   border: 0;
   font-family: inherit;
   cursor: pointer;
@@ -310,7 +312,7 @@
 .glossary__selectEntry:focus-visible {
   background: var(--accent-soft-bg);
   color: var(--accent);
-  outline: 2px solid var(--accent);
+  outline: var(--border-width-focus) solid var(--accent);
   outline-offset: 1px;
 }
 
@@ -334,7 +336,7 @@
   border: 0;
   background: transparent;
   color: var(--danger);
-  font: 600 10px/1 system-ui, sans-serif;
+  font: var(--font-weight-semibold) var(--font-size-2xs)/1 var(--font-sans);
   cursor: pointer;
 }
 
@@ -361,7 +363,7 @@
   place-items: center;
   flex: none;
   border: 0;
-  border-radius: 50%;
+  border-radius: var(--radius-circle);
   background: transparent;
   color: var(--accent);
   cursor: pointer;
@@ -374,8 +376,8 @@
 }
 
 .glossary__disarm svg {
-  width: 17px;
-  height: 17px;
+  width: var(--icon-lg);
+  height: var(--icon-lg);
   fill: none;
   stroke: currentColor;
   stroke-width: 1.6;
@@ -411,8 +413,8 @@
 }
 
 .glossary__dragHandle svg {
-  width: 13px;
-  height: 13px;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
   fill: currentColor;
 }
 
@@ -422,7 +424,7 @@
   display: flex;
   flex: none;
   flex-direction: column;
-  gap: 1px;
+  gap: var(--space-px);
 }
 
 .glossary__move {
@@ -432,7 +434,7 @@
   padding: 0;
   place-items: center;
   border: 0;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
@@ -451,13 +453,13 @@
 }
 
 .glossary__move svg {
-  width: 11px;
-  height: 11px;
+  width: var(--icon-xs);
+  height: var(--icon-xs);
 }
 
 .glossary__remove svg {
-  width: 15px;
-  height: 15px;
+  width: var(--icon-md);
+  height: var(--icon-md);
   fill: none;
   stroke: currentColor;
   stroke-width: 1.7;
@@ -478,12 +480,12 @@
 
 .glossary__reviewPreview--identified {
   background: var(--suggest-wash);
-  border: 1.5px solid var(--suggest);
+  border: var(--border-width-thick) solid var(--suggest);
 }
 
 .glossary__reviewPreview--unrecognized {
   background: var(--danger-wash);
-  border: 1.5px dashed var(--danger);
+  border: var(--border-width-thick) dashed var(--danger);
 }
 
 .glossary__reviewAction {
@@ -493,7 +495,7 @@
   padding: 0;
   place-items: center;
   flex: none;
-  border: 1px solid transparent;
+  border: var(--border-width) solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-muted);
@@ -514,8 +516,8 @@
 }
 
 .glossary__reviewAction svg {
-  width: 16px;
-  height: 16px;
+  width: var(--icon-md);
+  height: var(--icon-md);
   fill: none;
   stroke: currentColor;
   stroke-width: 1.6;
@@ -527,7 +529,7 @@
    remove button that can't act. */
 .glossary__countText {
   flex: none;
-  margin-left: -5px;
+  margin-left: calc(var(--space-3) * -1);
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
@@ -547,7 +549,7 @@
 /* The add-colored-variant chip sits on the glyph's bottom-right corner,
    matching the picker's quick tiles (.picker__quickColorChip). */
 .glossary__armWrap {
-  gap: 9px;
+  gap: var(--space-5);
   align-items: center;
 }
 
@@ -608,10 +610,10 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 1px;
-  padding: 7px 9px;
+  gap: var(--space-px);
+  padding: var(--space-4) var(--space-5);
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: none;
   color: var(--text);
   font: inherit;
@@ -639,9 +641,9 @@
 .glossary__rename {
   flex: 1;
   min-width: 0;
-  padding: 5px 7px;
-  border: 1px solid var(--accent);
-  border-radius: 5px;
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-width) solid var(--accent);
+  border-radius: var(--radius-sm);
   font: inherit;
 }
 
@@ -677,10 +679,10 @@
 
 .glossary__reorder .glossary__moveGroup {
   position: absolute;
-  left: calc(100% + 2px);
+  left: calc(100% + var(--space-1));
   z-index: 5;
   padding: var(--space-1);
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg);
   box-shadow: var(--shadow-3);

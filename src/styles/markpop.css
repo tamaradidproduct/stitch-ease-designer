@@ -16,7 +16,7 @@
 .markpop__fields {
   display: grid;
   grid-template-columns: repeat(2, max-content);
-  gap: 5px var(--space-4);
+  gap: var(--space-3) var(--space-4);
 }
 
 .markpop__field {
@@ -35,8 +35,8 @@
 .markpop__input {
   width: 54px;
   min-height: 28px;
-  padding: 3px var(--space-3);
-  border: 1px solid var(--border);
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg);
   color: var(--text);
@@ -57,15 +57,15 @@
   grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap;
-  gap: 3px;
+  gap: var(--space-2);
 }
 
 .markpop__shortcut {
   min-width: 22px;
   height: 22px;
-  padding: 0 5px;
-  border: 1px solid var(--border);
-  border-radius: 5px;
+  padding: 0 var(--space-3);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-sm);
   background: var(--bg);
   color: var(--text-muted);
   font: inherit;
@@ -93,7 +93,7 @@
 .markpop__keypad button {
   min-width: 32px;
   min-height: 30px;
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg);
   color: var(--text);
@@ -109,8 +109,8 @@
 }
 
 .markpop__keypad svg {
-  width: 16px;
-  height: 16px;
+  width: var(--icon-md);
+  height: var(--icon-md);
   fill: none;
   stroke: currentColor;
   stroke-width: 1.6;
@@ -132,8 +132,8 @@
 
 .markpop__confirm {
   min-height: 28px;
-  padding: 0 var(--space-5);
-  border: 1px solid var(--accent);
+  padding: 0 var(--space-6);
+  border: var(--border-width) solid var(--accent);
   border-radius: var(--radius-sm);
   background: var(--accent);
   color: var(--on-solid);
@@ -179,7 +179,7 @@
   place-items: center;
   width: 18px;
   height: 18px;
-  border-radius: 50%;
+  border-radius: var(--radius-circle);
   background: var(--accent);
   color: var(--on-solid);
   font-size: var(--font-size-xs);
@@ -194,7 +194,7 @@
   font-size: var(--font-size-lg);
   line-height: 1;
   padding: 0 var(--space-1);
-  margin-top: 1px;
+  margin-top: var(--space-px);
 }
 
 .markpop__remove:hover {

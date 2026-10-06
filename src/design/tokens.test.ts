@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import css from "../styles/tokens.css?raw";
-import { colorTokens } from "./tokens";
+import { alpha, tokens } from "./tokens";
 
 const stylesheets = import.meta.glob<string>("../styles/*.css", {
   query: "?raw",
@@ -8,13 +8,11 @@ const stylesheets = import.meta.glob<string>("../styles/*.css", {
   eager: true,
 });
 
-function cssToken(name: string): string | undefined {
-  return css.match(new RegExp(`--${name}:\\s*([^;]+);`))?.[1]?.trim();
-}
-
 describe("design tokens", () => {
-  it.each(Object.entries(colorTokens))("--%s matches tokens.css", (name, value) => {
-    expect(cssToken(name)).toBe(value);
+  it("exposes the same values to TypeScript as to CSS", () => {
+    for (const [name, value] of Object.entries(tokens)) {
+      expect(css).toContain(`--${name}: ${value};`);
+    }
   });
 
   it("declares every custom property the stylesheets reference", () => {
@@ -28,5 +26,11 @@ describe("design tokens", () => {
       }
     }
     expect(missing).toEqual([]);
+  });
+
+  it("converts hex tokens to rgba for canvas fills", () => {
+    expect(alpha("#0284c7", 0.14)).toBe("rgba(2, 132, 199, 0.14)");
+    expect(alpha("#fff", 0.5)).toBe("rgba(255, 255, 255, 0.5)");
+    expect(() => alpha("rgb(1 2 3)", 1)).toThrow();
   });
 });

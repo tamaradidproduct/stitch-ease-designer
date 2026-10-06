@@ -1,20 +1,17 @@
 /**
- * Color tokens for code that can't read CSS custom properties - chiefly the
- * canvas renderer, which paints with literal strings. Each value here mirrors
- * the same-named `--token` in src/styles/tokens.css; tokens.test.ts fails if
- * the two drift, so change both together.
+ * Design tokens for code that can't read CSS custom properties - chiefly the
+ * canvas renderer and cursor builder, which paint with literal strings.
+ * Values come from src/design/tokens.json via `npm run tokens`, the same
+ * source that generates src/styles/tokens.css, so the canvas and the chrome
+ * can't drift apart.
  */
-export const colorTokens = {
-  bg: "#ffffff",
-  chrome: "#f8fafc",
-  border: "#e2e8f0",
-  text: "#0f172a",
-  "text-muted": "#64748b",
-  "text-subtle": "#94a3b8",
-  accent: "#0284c7",
-  "accent-soft-bg": "#e0f2fe",
-  "cell-stroke": "#94a3b8",
-  "cell-ink": "#334155",
-} as const;
+export { tokens, type TokenName } from "./tokens.generated";
 
-export type ColorToken = keyof typeof colorTokens;
+/** `#rrggbb` (or `#rgb`) plus an alpha, as an `rgba()` string for canvas fills. */
+export function alpha(hex: string, a: number): string {
+  const h = hex.replace("#", "");
+  const full = h.length === 3 ? [...h].map((c) => c + c).join("") : h;
+  if (!/^[0-9a-f]{6}$/i.test(full)) throw new Error(`alpha() needs a hex color, got "${hex}"`);
+  const n = parseInt(full, 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+}

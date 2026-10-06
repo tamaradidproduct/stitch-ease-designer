@@ -6,8 +6,8 @@
 .btn {
   display: inline-flex;
   align-items: center;
-  padding: 5px 11px;
-  border: 1px solid var(--border);
+  padding: var(--space-3) var(--space-6);
+  border: var(--border-width) solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg);
   font: inherit;
@@ -73,5 +73,5 @@
 
 .btn--lg {
   min-height: var(--control-lg);
-  padding-inline: var(--space-5);
+  padding-inline: var(--space-6);
 }

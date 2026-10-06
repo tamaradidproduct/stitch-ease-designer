@@ -3,9 +3,9 @@
   width: max-content;
   flex-direction: row;
   align-items: center;
-  gap: 5px;
+  gap: var(--space-3);
   max-height: none;
-  padding: 7px;
+  padding: var(--space-4);
 }
 
 .selectionActions__count {
@@ -25,8 +25,8 @@
   justify-content: center;
   gap: var(--space-2);
   padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 7px;
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
   background: var(--bg);
   color: var(--text);
   font: inherit;
@@ -36,8 +36,8 @@
 }
 
 .selectionActions button svg {
-  width: 19px;
-  height: 19px;
+  width: var(--icon-xl);
+  height: var(--icon-xl);
   fill: none;
   stroke: currentColor;
   stroke-width: 1.5;

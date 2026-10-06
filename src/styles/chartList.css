@@ -1,15 +1,15 @@
 /* ---- chart list -------------------------------------------------------- */
 
 .charts {
-  max-width: 760px;
+  max-width: var(--page-max-width);
   margin: 0 auto;
-  padding: 32px var(--space-7) 64px;
+  padding: var(--space-10) var(--space-8) var(--space-11);
 }
 
 .charts__head {
   display: flex;
   align-items: center;
-  gap: var(--space-5);
+  gap: var(--space-6);
 }
 
 .charts__title {
@@ -25,21 +25,21 @@
 }
 
 .charts__note {
-  margin: 6px 0 20px;
+  margin: var(--space-3) 0 var(--space-8);
   color: var(--text-muted);
   font-size: var(--font-size-sm);
 }
 
 .charts__error {
-  margin: 0 0 16px;
-  padding: var(--space-4) 10px;
+  margin: 0 0 var(--space-7);
+  padding: var(--space-4) var(--space-5);
   border-radius: var(--radius-sm);
   background: var(--danger-soft-bg);
   color: var(--danger-ink);
 }
 
 .charts__empty {
-  padding: 28px 0;
+  padding: var(--space-10) 0;
   color: var(--text-muted);
 }
 
@@ -47,23 +47,23 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  border-top: 1px solid var(--border);
+  border-top: var(--border-width) solid var(--border);
 }
 
 .chartrow {
   display: flex;
   align-items: center;
   gap: var(--space-4);
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--border-width) solid var(--border);
 }
 
 .chartrow__open {
   display: flex;
   align-items: baseline;
-  gap: var(--space-5);
+  gap: var(--space-6);
   flex: 1;
   min-width: 0;
-  padding: var(--space-5) var(--space-2);
+  padding: var(--space-6) var(--space-2);
   border: none;
   background: none;
   font: inherit;
@@ -96,9 +96,9 @@
 
 .chartrow__input {
   width: 100%;
-  padding: 5px var(--space-4);
-  border: 1px solid var(--accent);
-  border-radius: 5px;
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-width) solid var(--accent);
+  border-radius: var(--radius-sm);
   font: inherit;
   color: var(--text);
   outline: none;

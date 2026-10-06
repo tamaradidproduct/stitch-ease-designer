@@ -1,7 +1,7 @@
 .referenceDockPositioner {
   position: absolute;
   z-index: var(--z-dock);
-  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
   /* The right panel reserves 304px of the stage, and .referenceImageQuickDock
      floats another ~230px past that (see its own right: 328px). Reserving
      both here, not just the panel, keeps this dock centered in space that's
@@ -18,14 +18,14 @@
 .referenceDock {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--space-3);
   /* Bounded by the positioner's own (already-reserved) width, not the full
      viewport - vw here would let this reach past the space actually left
      for it and under the right panel. */
   max-width: calc(100% - 32px);
-  padding: 7px;
+  padding: var(--space-4);
   overflow-x: auto;
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface-glass);
   box-shadow: var(--shadow-3);
@@ -51,7 +51,7 @@
 .referenceImageQuickDockGroup {
   position: absolute;
   z-index: var(--z-dock);
-  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -70,9 +70,9 @@
 .referenceImageQuickDock {
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 7px;
-  border: 1px solid var(--border);
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface-glass);
   box-shadow: var(--shadow-3);
@@ -108,7 +108,7 @@
 
 .referenceImageQuickDock--icons .toolDock__button,
 .referenceImageQuickDock--stacked .toolDock__button {
-  padding: 0 10px;
+  padding: 0 var(--space-5);
   gap: 0;
 }
 

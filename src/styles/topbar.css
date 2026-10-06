@@ -1,11 +1,11 @@
 .topbar {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-5);
   height: 40px;
-  padding: 0 var(--space-5);
+  padding: 0 var(--space-6);
   background: var(--chrome);
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--border-width) solid var(--border);
 }
 
 .topbar__title {
@@ -27,9 +27,9 @@
 .topbar__name {
   min-width: 8ch;
   max-width: 42ch;
-  padding: 3px var(--space-3);
-  border: 1px solid transparent;
-  border-radius: 5px;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-sm);
   background: none;
   font: inherit;
   font-weight: var(--font-weight-semibold);
@@ -53,10 +53,10 @@
 .topbar__historyButton {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--space-3);
   height: 30px;
   padding: 0 var(--space-4);
-  border: 1px solid transparent;
+  border: var(--border-width) solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-muted);
@@ -65,8 +65,8 @@
 }
 
 .topbar__historyButton svg {
-  width: 15px;
-  height: 15px;
+  width: var(--icon-md);
+  height: var(--icon-md);
   fill: none;
   stroke: currentColor;
   stroke-width: 1.5;
@@ -98,9 +98,9 @@
 }
 
 .banner {
-  padding: var(--space-4) var(--space-5);
+  padding: var(--space-4) var(--space-6);
   background: var(--warning-bg);
-  border-bottom: 1px solid var(--warning-border);
+  border-bottom: var(--border-width) solid var(--warning-border);
   color: var(--warning-text);
   font-size: var(--font-size-sm);
 }
@@ -109,7 +109,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-5);
+  gap: var(--space-6);
   background: var(--danger-soft-bg);
   border-bottom-color: var(--danger-soft-border);
   color: var(--danger-ink);
@@ -119,7 +119,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-5);
+  gap: var(--space-6);
   background: var(--info-bg);
   border-bottom-color: var(--info-border);
   color: var(--info-text);

@@ -3,7 +3,7 @@
    that sit in the page flow (refpanel help/opacity) are not popovers and
    keep their own chrome background. */
 .popover {
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
   border-radius: var(--radius-md);
   background: var(--bg);
   box-shadow: var(--shadow-3);

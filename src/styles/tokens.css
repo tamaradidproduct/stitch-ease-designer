@@ -1,143 +1,149 @@
-/*
- * Design tokens. Every color, type size, radius, shadow and layer the UI uses
- * should come from here. The color values are mirrored in
- * src/design/tokens.ts for the canvas renderer, and a unit test keeps the
- * two in sync - change both together.
- *
- * Off-scale spacing and radius values (3, 5, 7, 9px...) still appear as
- * literals in a few component files. They're optical adjustments that a
- * scale step would visibly change, so they stay until a design pass decides
- * whether to snap them.
- */
+/* GENERATED from src/design/tokens.json by scripts/build-tokens.mjs - do not edit by hand. */
 :root {
-  /* ---- color: neutrals ------------------------------------------------- */
-  --bg: #ffffff;
-  --chrome: #f8fafc;
-  --border: #e2e8f0;
-  /* Dashed placeholder outlines (empty quick slots, result tiles) - one
-     step lighter than --border would be too faint, --border too heavy. */
-  --border-subtle: #dbe3ec;
-  --text: #0f172a;
-  --text-muted: #64748b;
-  /* Placeholder icons and neutral badges - quieter than --text-muted. */
-  --text-subtle: #94a3b8;
+  /* ---- Neutrals ---------------------------------------------------------- */
+  --bg: #ffffff; /* Surfaces, inputs, dialogs, chart cells. */
+  --chrome: #f8fafc; /* Top bar, status bar, panel chrome, rulers. */
+  --border: #e2e8f0; /* Hairlines and control borders. */
+  --border-subtle: #dbe3ec; /* Dashed placeholder outlines (empty quick slots, result tiles). */
+  --text: #0f172a; /* Primary text. */
+  --text-muted: #64748b; /* Secondary text, quiet icons, ruler numbers. */
+  --text-subtle: #94a3b8; /* Placeholder icons and neutral badges. */
 
-  /* ---- color: accent --------------------------------------------------- */
-  --accent: #0284c7;
-  /* Soft tint of --accent used for hover/selected/focus backgrounds, plus
-     the border that goes with it - repeated identically across the toolbar,
-     stitch picker, glossary and selection controls. */
-  --accent-soft-bg: #e0f2fe;
-  --accent-soft-border: #bae6fd;
-  /* Drop-target and hover outline, between the soft border and --accent. */
-  --accent-mid: #7dd3fc;
-  /* Soft focus halo around a focused input. */
-  --accent-ring: rgb(2 132 199 / 10%);
-  /* White text/icon color on any solid, saturated button background
-     (accent, danger, the purple Suggest-mode toolDock, dark tooltips) -
-     not tied to one particular background color, just "light enough to
-     read on top of it". */
-  --on-solid: #fff;
+  /* ---- Accent ------------------------------------------------------------ */
+  --accent: #0284c7; /* Primary action, selection, focus, canvas hover outline. */
+  --accent-soft-bg: #e0f2fe; /* Hover / selected / focus tint. */
+  --accent-soft-border: #bae6fd; /* Border that goes with the soft tint. */
+  --accent-mid: #7dd3fc; /* Drop-target and hover outline. */
+  --accent-ring: rgb(2 132 199 / 10%); /* Soft focus halo around a focused input. */
+  --accent-ink: #0369a1; /* Accent text on a soft tint (active ruler number). */
+  --on-solid: #ffffff; /* Text and icons on any saturated fill (accent, danger, suggest, tooltips). */
 
-  /* ---- color: danger --------------------------------------------------- */
-  /* Destructive actions (delete, remove, error states) and their soft
-     hover/background tint, repeated identically across pickers, selection
-     actions and error banners. */
-  --danger: #dc2626;
-  --danger-soft-bg: #fef2f2;
-  --danger-soft-border: #fecaca;
-  --danger-wash: rgba(220, 38, 38, 0.08);
-  /* Error text sitting on a tinted background, where --danger is too light. */
-  --danger-strong: #b91c1c;
-  --danger-ink: #7f1d1d;
+  /* ---- Danger ------------------------------------------------------------ */
+  --danger: #dc2626; /* Delete, remove, errors, blocked placement. */
+  --danger-soft-bg: #fef2f2; /* Destructive hover and error banner background. */
+  --danger-soft-border: #fecaca; /* Border that goes with the danger tint. */
+  --danger-wash: rgba(220, 38, 38, 0.08); /* Unrecognized-cell preview fill. */
+  --danger-strong: #b91c1c; /* Error text on a tinted background. */
+  --danger-ink: #7f1d1d; /* Error banner text. */
 
-  /* ---- color: suggest mode --------------------------------------------- */
-  /* Suggest mode's identity color: the armed toolDock, "identified" review
-     states and labelled reference marks. */
-  --suggest: #9333ea;
-  --suggest-strong: #7c3aed;
-  --suggest-wash: rgba(147, 51, 234, 0.15);
+  /* ---- Success ----------------------------------------------------------- */
+  --success: #16a34a; /* Confirmed calibration marks, allowed-drop cursor badge. */
 
-  /* ---- color: banners -------------------------------------------------- */
-  --warning-bg: #fffbeb;
-  --warning-border: #fde68a;
-  --warning-text: #78350f;
-  --info-bg: #eff6ff;
-  --info-border: #bfdbfe;
-  --info-text: #1e3a8a;
+  /* ---- Suggest mode ------------------------------------------------------ */
+  --suggest: #9333ea; /* Suggest mode: armed dock, identified suggestions, suggest cursor. */
+  --suggest-strong: #7c3aed; /* Labelled reference marks. */
+  --suggest-wash: rgba(147, 51, 234, 0.15); /* Identified-suggestion preview fill. */
 
-  /* ---- color: surfaces ------------------------------------------------- */
-  /* Floating docks over the canvas, paired with --blur-glass. */
-  --surface-glass: rgb(255 255 255 / 96%);
-  /* Lightens whatever selected/hovered row it sits on. */
-  --overlay-light: rgb(255 255 255 / 60%);
-  --tooltip-bg: #0f172a;
-  /* Dims the app behind a modal dialog. */
-  --scrim: rgba(15, 23, 42, 0.35);
-  /* Hairline that reads on any colorwork fill, light or dark. */
-  --hairline-ink: rgb(15 23 42 / 10%);
-  --blur-glass: blur(8px);
+  /* ---- Motifs & trace ---------------------------------------------------- */
+  --motif-accent: #009cf0; /* Motif outlines, insert caret and picker target on the canvas. */
+  --highlight: #f59e0b; /* Default stitch-highlight color and motif override marker. */
+  --trace-pink: #ec4899; /* Trace color option. */
+  --trace-violet: #8b5cf6; /* Trace color option. */
+  --trace-green: #10b981; /* Trace color option. */
 
-  /* ---- color: chart cells (shared with the canvas renderer) ------------ */
-  --cell-stroke: #94a3b8;
-  --cell-ink: #334155;
+  /* ---- Banners ----------------------------------------------------------- */
+  --warning-bg: #fffbeb; /* Warning banner background. */
+  --warning-border: #fde68a; /* Warning banner border. */
+  --warning-text: #78350f; /* Warning banner text. */
+  --info-bg: #eff6ff; /* Info banner background. */
+  --info-border: #bfdbfe; /* Info banner border. */
+  --info-text: #1e3a8a; /* Info banner text. */
 
-  /* ---- type ------------------------------------------------------------ */
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-size-2xs: 10px;
-  --font-size-xs: 11px;
-  --font-size-sm: 12px;
-  --font-size-md: 13px;
-  --font-size-lg: 16px;
-  --font-size-xl: 22px;
-  --font-weight-medium: 500;
-  --font-weight-semibold: 600;
-  --font-weight-bold: 700;
+  /* ---- Surfaces ---------------------------------------------------------- */
+  --surface-glass: rgb(255 255 255 / 96%); /* Floating docks over the canvas (paired with --blur-glass). */
+  --overlay-light: rgb(255 255 255 / 60%); /* Lightens a selected or hovered row. */
+  --tooltip-bg: #0f172a; /* Dark tooltips. */
+  --scrim: rgba(15, 23, 42, 0.35); /* Dims the app behind a modal dialog. */
+  --hairline-ink: rgb(15 23 42 / 10%); /* Hairline that reads on any colorwork fill. */
 
-  /* ---- spacing (gap / padding) ------------------------------------------ */
+  /* ---- Chart canvas ------------------------------------------------------ */
+  --canvas-bg: #f6f6f7; /* Empty canvas, a hair off white so a placed knit cell still reads. */
+  --canvas-grid: #8f8f99; /* Grid dots and major crosses. */
+  --cell-stroke: #94a3b8; /* Chart cell border (canvas and glyph tiles). */
+  --cell-ink: #334155; /* Stitch symbol ink. */
+  --colorwork-ink-dark: #1e293b; /* Symbol ink on a light colorwork fill. */
+  --colorwork-ink-light: #f8fafc; /* Symbol ink on a dark colorwork fill. */
+  --cursor-cell-fill: #f2f6fa; /* Stitch preview cell under the cursor. */
+  --cursor-cell-stroke: #b3bcc7; /* Stitch preview cell border. */
+  --cursor-ink: #475569; /* Stitch preview glyph ink. */
+  --cursor-outline: #000000; /* Dark outline around custom cursors. */
+
+  /* ---- Type -------------------------------------------------------------- */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; /* The only UI family: the platform's system font. */
+  --font-size-3xs: 9px; /* Shortcut badges and counts inside tiny cells. */
+  --font-size-2xs: 10px; /* Section labels, shortcut keys. */
+  --font-size-xs: 11px; /* Panel subtitles, hints, tooltips. */
+  --font-size-sm: 12px; /* Panel headings, dense controls. */
+  --font-size-md: 13px; /* Base size: body copy, buttons, chart name. */
+  --font-size-lg: 16px; /* Icon-glyph text, back arrow. */
+  --font-size-xl: 22px; /* Page title (chart list). */
+  --font-weight-medium: 500; /* Light emphasis. */
+  --font-weight-semibold: 600; /* Headings, labels, active items. */
+  --font-weight-bold: 700; /* Strong emphasis. */
+
+  /* ---- Spacing ----------------------------------------------------------- */
+  --space-px: 1px; /* Hairline gaps. */
   --space-1: 2px;
   --space-2: 4px;
   --space-3: 6px;
   --space-4: 8px;
-  --space-5: 12px;
-  --space-6: 16px;
-  --space-7: 20px;
-  --space-8: 24px;
+  --space-5: 10px;
+  --space-6: 12px;
+  --space-7: 16px;
+  --space-8: 20px;
+  --space-9: 24px;
+  --space-10: 32px;
+  --space-11: 64px; /* Page-level breathing room. */
 
-  /* ---- radius ---------------------------------------------------------- */
-  --radius-xs: 4px;
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 10px;
-  --radius-xl: 12px;
-  --radius-full: 999px;
+  /* ---- Radius ------------------------------------------------------------ */
+  --radius-2xs: 2px; /* Indicator bars, tiny marks. */
+  --radius-xs: 4px; /* Glyph cells, chips, key badges. */
+  --radius-sm: 6px; /* Buttons, inputs, menu items, tooltips. */
+  --radius-md: 8px; /* Popovers, menus, tool buttons. */
+  --radius-lg: 10px; /* Panels, docks, dialogs. */
+  --radius-xl: 12px; /* Large cards. */
+  --radius-full: 999px; /* Pills. */
+  --radius-circle: 50%; /* Round badges and dots. */
 
-  /* ---- control heights (Button / IconButton sizes) --------------------- */
-  --control-sm: 24px;
-  --control-md: 28px;
-  --control-lg: 36px;
+  /* ---- Border width ------------------------------------------------------ */
+  --border-width: 1px; /* Default hairline. */
+  --border-width-thick: 1.5px; /* Chips and preview outlines that must read on color. */
+  --border-width-focus: 2px; /* Focus outlines and strong selection. */
 
-  /* ---- elevation ------------------------------------------------------- */
-  --shadow-0: 0 1px 3px rgb(15 23 42 / 6%);                                /* resting card */
-  --shadow-1: 0 1px 3px rgb(15 23 42 / 20%);                               /* chips, small floating buttons */
-  --shadow-2: 0 2px 6px rgb(15 23 42 / 8%);                                /* raised tiles */
-  --shadow-3: 0 8px 24px rgb(15 23 42 / 14%), 0 2px 6px rgb(15 23 42 / 8%); /* popovers, menus, drawers */
-  --shadow-4: 0 12px 32px rgb(15 23 42 / 25%);                             /* modal dialogs */
+  /* ---- Icon & control size ----------------------------------------------- */
+  --icon-xs: 12px;
+  --icon-sm: 14px;
+  --icon-md: 16px;
+  --icon-lg: 18px; /* Tool dock and panel icons. */
+  --icon-xl: 20px;
+  --icon-2xl: 28px;
+  --control-sm: 24px; /* Button size="sm". */
+  --control-md: 28px; /* Button size="md". */
+  --control-lg: 36px; /* Button size="lg". */
 
-  /* ---- app-level layers -------------------------------------------------
-     Small values (1-6) inside a component are local stacking and stay
-     literal. These are the layers components stack against each other on. */
-  --z-dock: 18;
-  --z-panel: 19;
-  --z-floating: 20;
-  --z-popover: 30;
-  /* Row menus open above any popover in the same panel. */
-  --z-menu: 40;
-  --z-modal: 1000;
+  /* ---- Layout ------------------------------------------------------------ */
+  --panel-width: 304px; /* Right panel width; the canvas and docks reserve this much. */
+  --page-max-width: 760px; /* Chart list column. */
 
-  /* ---- motion ---------------------------------------------------------- */
-  --duration-fast: 100ms;
-  --duration-base: 140ms;
+  /* ---- Elevation --------------------------------------------------------- */
+  --shadow-0: 0 1px 3px rgb(15 23 42 / 6%); /* Resting card. */
+  --shadow-1: 0 1px 3px rgb(15 23 42 / 20%); /* Chips, small floating buttons. */
+  --shadow-2: 0 2px 6px rgb(15 23 42 / 8%); /* Raised tiles. */
+  --shadow-3: 0 8px 24px rgb(15 23 42 / 14%), 0 2px 6px rgb(15 23 42 / 8%); /* Popovers, menus, drawers, docks. */
+  --shadow-4: 0 12px 32px rgb(15 23 42 / 25%); /* Modal dialogs. */
+  --blur-glass: blur(8px); /* Backdrop blur behind --surface-glass. */
+
+  /* ---- Layers ------------------------------------------------------------ */
+  --z-dock: 18; /* Tool dock, pan dock, reference image docks. */
+  --z-panel: 19; /* Right panel. */
+  --z-floating: 20; /* Stitch picker, suggest review menu. */
+  --z-popover: 30; /* Popovers and the mark editor. */
+  --z-menu: 40; /* Row menus, above any popover in the same panel. */
+  --z-modal: 1000; /* ConfirmDialog overlay. */
+
+  /* ---- Motion ------------------------------------------------------------ */
+  --duration-fast: 100ms; /* Tooltips, quick tiles. */
+  --duration-base: 140ms; /* Drawers, search morph. */
   --ease-standard: ease;
 
   font-family: var(--font-sans);

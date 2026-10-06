@@ -6,11 +6,11 @@
   right: 0;
   bottom: 0;
   z-index: var(--z-panel);
-  width: 304px;
+  width: var(--panel-width);
   display: flex;
   flex-direction: column;
-  padding: 10px;
-  border-left: 1px solid var(--border);
+  padding: var(--space-5);
+  border-left: var(--border-width) solid var(--border);
   background: var(--chrome);
   overflow-y: auto;
 }
@@ -45,9 +45,9 @@
 
 .sideModule {
   flex: none;
-  margin-bottom: 10px;
-  border: 1px solid var(--border);
-  border-radius: 9px;
+  margin-bottom: var(--space-5);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-lg);
   background: var(--bg);
   overflow: hidden;
 }
@@ -58,9 +58,9 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
-  padding: 10px var(--space-5);
+  padding: var(--space-5) var(--space-6);
   border: 0;
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--border-width) solid var(--border);
   background: var(--bg);
   color: var(--text);
   text-align: left;
@@ -74,7 +74,7 @@
 
 .sideModule__header span {
   display: block;
-  margin-top: 2px;
+  margin-top: var(--space-1);
   color: var(--text-muted);
   font-size: var(--font-size-2xs);
 }
@@ -85,7 +85,7 @@
 }
 
 .sideModule__toggle[aria-expanded="true"] {
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--border-width) solid var(--border);
 }
 
 .sideModule__toggle svg {
@@ -97,7 +97,7 @@
 }
 
 .sideModule__body {
-  padding: 10px;
+  padding: var(--space-5);
 }
 
 .sideModule__empty {
@@ -117,8 +117,8 @@
   display: grid;
   grid-template-columns: 34px 1fr 34px;
   height: 32px;
-  border: 1px solid var(--border);
-  border-radius: 7px;
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
   overflow: hidden;
 }
 
@@ -126,7 +126,7 @@
   border: 0;
   background: var(--bg);
   color: var(--text);
-  font: 16px/1 system-ui, sans-serif;
+  font: var(--font-size-lg)/1 var(--font-sans);
   cursor: pointer;
 }
 
@@ -140,8 +140,8 @@
 .navigator__zoom output {
   display: grid;
   place-items: center;
-  border-right: 1px solid var(--border);
-  border-left: 1px solid var(--border);
+  border-right: var(--border-width) solid var(--border);
+  border-left: var(--border-width) solid var(--border);
   color: var(--text-muted);
   font-size: var(--font-size-sm);
   font-variant-numeric: tabular-nums;
@@ -155,7 +155,7 @@
 .shortcutList {
   display: grid;
   grid-template-columns: minmax(84px, auto) 1fr;
-  gap: 7px 9px;
+  gap: var(--space-4) var(--space-5);
   margin: 0;
   font-size: var(--font-size-2xs);
 }
@@ -173,11 +173,11 @@
 .shortcutList kbd {
   display: inline-block;
   padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--border);
-  border-bottom-width: 2px;
+  border: var(--border-width) solid var(--border);
+  border-bottom-width: var(--border-width-focus);
   border-radius: var(--radius-xs);
   background: var(--chrome);
   color: var(--text);
-  font: 9px/1.2 system-ui, sans-serif;
+  font: var(--font-size-3xs)/1.2 var(--font-sans);
   white-space: nowrap;
 }

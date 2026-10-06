@@ -9,14 +9,14 @@
   z-index: var(--z-floating);
   display: flex;
   align-items: flex-start;
-  gap: var(--space-7);
-  padding: var(--space-6) var(--space-7);
+  gap: var(--space-8);
+  padding: var(--space-7) var(--space-8);
 }
 
 .suggestReview__group {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--space-7);
 }
 
 .suggestReview__heading {
@@ -35,13 +35,13 @@
 
 .suggestReview__row {
   display: flex;
-  gap: var(--space-8);
+  gap: var(--space-9);
 }
 
 .suggestReview__divider {
   align-self: stretch;
   width: 1px;
-  margin-top: 4px;
+  margin-top: var(--space-2);
   background: var(--border);
 }
 

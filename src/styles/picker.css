@@ -6,7 +6,7 @@
   display: flex;
   flex-direction: column;
   background: var(--bg);
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-3);
   overflow: visible;
@@ -14,7 +14,7 @@
 
 /* FR-31: a persistent label naming what the picker is currently editing. */
 .picker__context {
-  padding: var(--space-3) 10px 0;
+  padding: var(--space-3) var(--space-5) 0;
   color: var(--text-muted);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
@@ -26,17 +26,17 @@
 .picker__quick {
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 7px;
+  gap: var(--space-3);
+  padding: var(--space-4);
   background: var(--bg);
-  border-radius: 9px;
+  border-radius: var(--radius-lg);
 }
 
 /* FR-30: separates the dynamic sixth tile from the five real, persisted slots. */
 .picker__quickDivider {
   width: 1px;
   align-self: stretch;
-  margin: 4px 1px;
+  margin: var(--space-2) var(--space-px);
   background: var(--border);
 }
 
@@ -63,7 +63,7 @@
   width: 40px;
   height: 40px;
   place-items: center;
-  border-radius: 7px;
+  border-radius: var(--radius-md);
 }
 
 .picker__quickTile {
@@ -74,7 +74,7 @@
 .picker__quickButton {
   position: relative;
   padding: 0;
-  border: 1px solid transparent;
+  border: var(--border-width) solid transparent;
   background: transparent;
   color: var(--text);
   cursor: pointer;
@@ -86,8 +86,8 @@
   top: calc(100% + 7px);
   left: 50%;
   z-index: 3;
-  padding: var(--space-2) 7px;
-  border-radius: 5px;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
   background: var(--tooltip-bg);
   color: var(--on-solid);
   font-size: var(--font-size-xs);
@@ -125,7 +125,7 @@
 }
 
 .picker__quickSlot {
-  border: 1px dashed var(--border-subtle);
+  border: var(--border-width) dashed var(--border-subtle);
   background: var(--chrome);
   color: var(--text-subtle);
 }
@@ -161,19 +161,19 @@
 .picker__moreDrawer {
   position: absolute;
   right: 0;
-  bottom: calc(100% + 8px);
+  bottom: calc(100% + var(--space-4));
   width: 250px;
   overflow: hidden;
 }
 
 .picker[data-drawer-below="true"] .picker__moreDrawer {
-  top: calc(100% + 8px);
+  top: calc(100% + var(--space-4));
   bottom: auto;
 }
 
 .picker__moreHeader {
-  padding: 9px 10px 7px;
-  border-bottom: 1px solid var(--border);
+  padding: var(--space-5) var(--space-5) var(--space-4);
+  border-bottom: var(--border-width) solid var(--border);
   color: var(--text-muted);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
@@ -186,7 +186,7 @@
   max-height: 248px;
   flex-direction: column;
   gap: var(--space-1);
-  padding: 5px;
+  padding: var(--space-3);
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
@@ -210,12 +210,12 @@
 .picker__itemMain {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-5);
   flex: 1;
   min-width: 0;
   padding: var(--space-3) var(--space-4);
   border: none;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: none;
   font: inherit;
   color: var(--text);
@@ -226,7 +226,7 @@
 .picker__selectionBubbles {
   position: absolute;
   top: 0;
-  left: calc(100% + 8px);
+  left: calc(100% + var(--space-4));
   display: flex;
   gap: var(--space-3);
 }
@@ -238,7 +238,7 @@
   height: 56px;
   place-items: center;
   padding: 0;
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--bg);
   color: var(--text);
@@ -249,11 +249,11 @@
 .picker__selectionBubbles button::after {
   content: attr(data-label);
   position: absolute;
-  top: calc(100% + 6px);
+  top: calc(100% + var(--space-3));
   left: 50%;
   z-index: 2;
-  padding: var(--space-2) 7px;
-  border-radius: 5px;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
   background: var(--tooltip-bg);
   color: var(--on-solid);
   font-size: var(--font-size-xs);
@@ -280,8 +280,8 @@
 }
 
 .picker__selectionBubbles svg {
-  width: 18px;
-  height: 18px;
+  width: var(--icon-lg);
+  height: var(--icon-lg);
   fill: none;
   stroke: currentColor;
   stroke-width: 1.5;
@@ -291,7 +291,7 @@
 
 .picker__searchButton {
   border-left-color: var(--border);
-  border-radius: 0 7px 7px 0;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
 }
 
 .picker__morphSearch {
@@ -301,8 +301,8 @@
   flex: none;
   align-items: stretch;
   overflow: hidden;
-  border: 1px solid var(--accent-mid);
-  border-radius: 7px;
+  border: var(--border-width) solid var(--accent-mid);
+  border-radius: var(--radius-md);
   background: var(--bg);
   animation: picker-search-morph 140ms ease-out;
 }
@@ -328,7 +328,7 @@
 .picker__searchIcon {
   align-self: center;
   flex: none;
-  margin-left: 9px;
+  margin-left: var(--space-5);
   color: var(--accent);
 }
 
@@ -359,13 +359,13 @@
   display: flex;
   align-items: stretch;
   flex: none;
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--border-width) solid var(--border);
 }
 
 .picker__search {
   flex: 1;
   min-width: 0;
-  padding: 9px 10px;
+  padding: var(--space-5) var(--space-5);
   border: none;
   font: inherit;
   color: var(--text);
@@ -384,7 +384,7 @@
   flex: none;
   width: 34px;
   border: none;
-  border-left: 1px solid var(--border);
+  border-left: var(--border-width) solid var(--border);
   background: none;
   color: var(--text-muted);
   cursor: pointer;
@@ -417,18 +417,18 @@
 }
 
 .picker__empty {
-  padding: var(--space-6) 10px;
+  padding: var(--space-7) var(--space-5);
   color: var(--text-muted);
 }
 
 .picker__item {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-5);
   width: 100%;
   padding: var(--space-2) var(--space-3);
   border: none;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: none;
   font: inherit;
   color: var(--text);
@@ -439,8 +439,8 @@
 .picker__results .picker__item {
   width: 100%;
   flex: none;
-  padding: var(--space-3) 9px;
-  border: 1px solid var(--border-subtle);
+  padding: var(--space-3) var(--space-5);
+  border: var(--border-width) solid var(--border-subtle);
   border-radius: var(--radius-md);
   background: var(--surface-glass);
   box-shadow: var(--shadow-2);
@@ -468,7 +468,7 @@
   width: 28px;
   height: 24px;
   flex: none;
-  border: 1px dashed var(--accent);
+  border: var(--border-width) dashed var(--accent);
   border-radius: var(--radius-xs);
   color: var(--accent);
   font-size: var(--font-size-lg);
@@ -497,7 +497,7 @@
 
 .picker__current {
   flex: none;
-  padding: 1px var(--space-3);
+  padding: var(--space-px) var(--space-3);
   border-radius: var(--radius-full);
   background: var(--accent);
   color: var(--on-solid);

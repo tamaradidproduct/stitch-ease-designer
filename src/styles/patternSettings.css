@@ -6,8 +6,8 @@
   display: flex;
   align-items: baseline;
   gap: var(--space-3);
-  padding: 3px var(--space-4);
-  border: 1px solid transparent;
+  padding: var(--space-2) var(--space-4);
+  border: var(--border-width) solid transparent;
   border-radius: var(--radius-sm);
   background: none;
   font: inherit;
@@ -35,13 +35,13 @@
 .patternSettings__popover {
   z-index: var(--z-popover);
   width: 240px;
-  padding: var(--space-5);
+  padding: var(--space-6);
 }
 
 .patternInfo {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-6);
 }
 
 .patternInfo__field {
@@ -62,9 +62,9 @@
 
 .patternInfo__toggle button {
   flex: 1;
-  padding: var(--space-3) 10px;
+  padding: var(--space-3) var(--space-5);
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
   background: var(--bg);
   color: var(--text);
   font-size: var(--font-size-md);
@@ -86,7 +86,7 @@
 }
 
 .patternInfo__corners button {
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
   border-radius: var(--radius-xs);
   background: var(--bg);
   cursor: pointer;
@@ -112,8 +112,8 @@
 .patternInfo__swatch {
   width: 16px;
   height: 16px;
-  border-radius: 50%;
-  border: 1px solid var(--border);
+  border-radius: var(--radius-circle);
+  border: var(--border-width) solid var(--border);
   flex-shrink: 0;
 }
 
@@ -122,7 +122,7 @@
   min-width: 0;
   padding: var(--space-2) var(--space-4);
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
   background: var(--bg);
   color: var(--text);
   font-size: var(--font-size-md);

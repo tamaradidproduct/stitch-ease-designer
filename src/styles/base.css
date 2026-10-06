@@ -39,14 +39,14 @@ body {
 .app--message {
   align-items: center;
   justify-content: center;
-  gap: var(--space-5);
+  gap: var(--space-6);
 }
 
 .stage {
   position: relative;
   flex: 1;
   min-height: 0;
-  padding-right: 304px;
+  padding-right: var(--panel-width);
 }
 
 .canvas {
