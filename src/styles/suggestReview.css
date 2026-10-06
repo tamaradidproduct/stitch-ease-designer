@@ -72,6 +72,6 @@
 }
 
 .suggestReview__action:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
+  opacity: var(--opacity-disabled);
+  cursor: default;
 }

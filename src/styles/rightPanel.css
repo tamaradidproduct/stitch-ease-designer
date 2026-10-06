@@ -100,13 +100,6 @@
   padding: var(--space-5);
 }
 
-.sideModule__empty {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: var(--font-size-xs);
-  line-height: 1.4;
-}
-
 .navigator {
   display: flex;
   flex-direction: column;

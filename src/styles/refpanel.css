@@ -248,11 +248,6 @@
   stroke-width: 1.6;
 }
 
-.refpanel__setScale {
-  justify-content: center;
-  width: 100%;
-}
-
 .refpanel__dockHint {
   margin: 0;
   color: var(--text-muted);
@@ -398,7 +393,7 @@
 }
 
 .refpanel__imageAction:disabled {
-  opacity: 0.45;
+  opacity: var(--opacity-disabled);
   cursor: default;
 }
 
@@ -424,7 +419,7 @@
 }
 
 .refpanel__addImage:disabled {
-  opacity: 0.5;
+  opacity: var(--opacity-disabled);
   cursor: default;
 }
 
@@ -456,11 +451,6 @@
   padding: var(--space-4);
   border: var(--border-width) solid var(--border);
   border-radius: var(--radius-md);
-}
-
-.refpanel__markActions {
-  display: flex;
-  gap: var(--space-3);
 }
 
 .refpanel__markList {

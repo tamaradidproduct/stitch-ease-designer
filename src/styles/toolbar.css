@@ -1,44 +1,4 @@
-/* ---- toolbar ----------------------------------------------------------- */
 
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  height: 44px;
-  padding: 0 var(--space-5);
-  background: var(--bg);
-  border-bottom: var(--border-width) solid var(--border);
-}
-
-.toolbar__btn {
-  padding: var(--space-3) var(--space-5);
-  border: var(--border-width) solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--bg);
-  font: inherit;
-  color: var(--text);
-  cursor: pointer;
-}
-
-.toolbar__btn:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.toolbar__btn:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-.toolbar__btn[data-on="true"] {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-solid);
-}
-
-.toolbar__spacer {
-  flex: 1;
-}
 
 .toolDock {
   position: absolute;
@@ -288,14 +248,4 @@
     background: var(--danger-soft-bg);
     color: var(--danger);
   }
-}
-
-.toolbar__selection {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding-left: var(--space-4);
-  border-left: var(--border-width) solid var(--border);
-  color: var(--text-muted);
-  white-space: nowrap;
 }

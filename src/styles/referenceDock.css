@@ -34,7 +34,7 @@
 }
 
 .referenceDock .toolDock__button:disabled {
-  opacity: 0.42;
+  opacity: var(--opacity-disabled);
   cursor: default;
 }
 

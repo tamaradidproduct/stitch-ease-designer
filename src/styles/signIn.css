@@ -47,7 +47,7 @@
 }
 
 .signIn__google:disabled {
-  opacity: 0.5;
+  opacity: var(--opacity-disabled);
   cursor: default;
 }
 
@@ -112,7 +112,7 @@
 }
 
 .signIn__form button:disabled {
-  opacity: 0.5;
+  opacity: var(--opacity-disabled);
   cursor: default;
 }
 
