@@ -1,25 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { CELL } from "../canvas/camera";
 import { resizeMark, scaleFromCalibrationMarks, snapImageToGrid } from "./referenceCalibration";
-import { stitchBoxRect, type ReferenceImage } from "./types";
-
-function image(overrides: Partial<ReferenceImage> = {}): ReferenceImage {
-  return {
-    id: "image-1",
-    number: 1,
-    ref: "data:image/png;base64,x",
-    x: 0,
-    y: 0,
-    width: 480,
-    height: 360,
-    naturalWidth: 480,
-    naturalHeight: 360,
-    opacity: 0.5,
-    visible: true,
-    locked: false,
-    ...overrides,
-  };
-}
+import { makeReferenceImage } from "./testFixtures";
+import { stitchBoxRect } from "./types";
 
 describe("snapImageToGrid", () => {
   const size = { width: 480, height: 360 };
@@ -56,7 +39,7 @@ describe("snapImageToGrid", () => {
   });
 
   it("makes the stitch box coincide with a real chart cell", () => {
-    const img = { ...image(), ...size, stitchPin: pin };
+    const img = { ...makeReferenceImage(), ...size, stitchPin: pin };
     const snapped = { ...img, ...snapImageToGrid(11, 7, size, pin) };
     const box = stitchBoxRect(snapped)!;
     // Same size as a cell and on a cell boundary: it *is* a cell.
@@ -68,7 +51,7 @@ describe("snapImageToGrid", () => {
 });
 
 describe("scaleFromCalibrationMarks", () => {
-  const base = image({ x: 0, y: 0, width: 480, height: 360 });
+  const base = makeReferenceImage({ x: 0, y: 0, width: 480, height: 360 });
 
   // A box a twentieth of the image across, centred on (u, v) - the marks
   // are boxes drawn around a stitch, and the fit reads their centres.
