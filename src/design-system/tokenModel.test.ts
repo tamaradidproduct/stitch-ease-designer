@@ -19,6 +19,12 @@ describe("design-system token model", () => {
     expect(invalidReason("1px } body { display: none")).not.toBeNull();
   });
 
+  it("rejects invalid color values for color tokens", () => {
+    expect(invalidReason("#0284c7", "color")).toBeNull();
+    expect(invalidReason("red", "color")).not.toBeNull();
+    expect(invalidReason("rgb(255,0,0)", "color")).not.toBeNull();
+  });
+
   it("expands short hex for the native color input", () => {
     expect(toHex6("#fff")).toBe("#ffffff");
     expect(toHex6("#0284c7")).toBe("#0284c7");

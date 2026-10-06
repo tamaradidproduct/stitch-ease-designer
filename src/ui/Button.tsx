@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, Ref } from "react";
+import { forwardRef, type ButtonHTMLAttributes } from "react";
 import { buttonClassName, type ButtonStyleProps } from "./buttonClassName";
 
 export type ButtonProps = ButtonStyleProps &
@@ -7,20 +7,22 @@ export type ButtonProps = ButtonStyleProps &
     on?: boolean | undefined;
     /** Defaults to "button" - a bare <button> inside a form would submit it. */
     type?: "button" | "submit" | "reset";
-    ref?: Ref<HTMLButtonElement>;
   };
 
 /** The app's standard text button. */
-export function Button({ variant, danger, size, className, on, type = "button", ...rest }: ButtonProps) {
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(({ variant, danger, size, className, on, type = "button", ...rest }, ref) => {
   return (
     <button
+      ref={ref}
       type={type}
       className={buttonClassName({ variant, danger, size, className }) || undefined}
       data-on={on === undefined ? undefined : on}
       {...rest}
     />
   );
-}
+});
+
+Button.displayName = "Button";
 
 export type IconButtonProps = Omit<ButtonProps, "aria-label" | "title"> & {
   /** Accessible name - required, since the visible content is only an icon. */
@@ -30,6 +32,8 @@ export type IconButtonProps = Omit<ButtonProps, "aria-label" | "title"> & {
 };
 
 /** A button whose only visible content is an icon, so it must carry a label. */
-export function IconButton({ label, tooltip, ...rest }: IconButtonProps) {
-  return <Button aria-label={label} title={tooltip} {...rest} />;
-}
+export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(({ label, tooltip, ...rest }, ref) => {
+  return <Button ref={ref} aria-label={label} title={tooltip} {...rest} />;
+});
+
+IconButton.displayName = "IconButton";

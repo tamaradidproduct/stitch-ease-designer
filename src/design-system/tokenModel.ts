@@ -36,12 +36,13 @@ export function cssValue(value: string): string {
 }
 
 /** Why a value can't be written to tokens.json, or null when it's fine. */
-export function invalidReason(value: string): string | null {
+export function invalidReason(value: string, type?: TokenType): string | null {
   if (!value.trim()) return "Enter a value.";
   const target = aliasOf(value);
   if (target) return tokenByName.has(target) ? null : `There's no token called --${target}.`;
   if (/[;{}]/.test(value)) return "Values can't contain ; { or }. To link to another token, write {token-name}.";
   if (value.length > 200) return "That value is too long.";
+  if (type === "color" && !isHex(value)) return "Colors must be valid hex values (e.g. #0284c7 or #fff).";
   return null;
 }
 
@@ -60,7 +61,7 @@ export function cleanEdits(edits: Edits): Edits {
   const out: Edits = {};
   for (const [name, value] of Object.entries(edits)) {
     const base = tokenByName.get(name);
-    if (base && value !== base.value && !invalidReason(value)) out[name] = value;
+    if (base && value !== base.value && !invalidReason(value, base.type)) out[name] = value;
   }
   return out;
 }
