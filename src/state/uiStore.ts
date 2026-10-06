@@ -13,6 +13,7 @@ import type { BoxHandle, Placement } from "../model/types";
 import { quickSlotKey } from "../model/quickSlots";
 import { useDocStore } from "./docStore";
 import { nextHistorySequence } from "./historySequence";
+import { tokens } from "../design/tokens";
 
 export { cellKey } from "../model/cellKey";
 
@@ -401,7 +402,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   shiftHeld: false,
   altHeld: false,
   keyboardSelectionActive: false,
-  stitchHighlightColor: "#f59e0b",
+  stitchHighlightColor: tokens.highlight,
   stitchHighlightOpacity: 0,
   isPanning: false,
 

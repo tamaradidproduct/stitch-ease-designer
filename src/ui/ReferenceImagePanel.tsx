@@ -16,6 +16,10 @@ import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
 import { Button, IconButton } from "./Button";
 import { Popover } from "./Popover";
 import { BringFrontSmallIcon, EditIcon, EyeOffSmallIcon, EyeSmallIcon, OpacityIcon, PaletteDotsIcon, PlusIcon, ReplaceImageIcon, SendBehindSmallIcon, TrashIcon } from "./icons";
+import { tokens } from "../design/tokens";
+
+/** Stitch-highlight presets offered in the trace-colors popover. */
+const TRACE_COLORS = [tokens.highlight, tokens["trace-pink"], tokens["trace-violet"], tokens["trace-green"], tokens.accent];
 
 /**
  * Upload + transform controls for the chart's reference images. A chart can
@@ -323,7 +327,7 @@ export function ReferenceImagePanel() {
             <button type="button" onClick={() => setStitchHighlightOpacity(0)}>Off</button>
           </div>
           <div className="traceColors__presets" aria-label="Stitch highlight color">
-            {["#f59e0b", "#ec4899", "#8b5cf6", "#10b981", "#0284c7"].map((color) => (
+            {TRACE_COLORS.map((color) => (
               <button
                 key={color}
                 type="button"

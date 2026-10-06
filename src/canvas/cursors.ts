@@ -8,6 +8,7 @@ import grabCursor from "./assets/cursors/grab.png";
 import grabbingCursor from "./assets/cursors/grabbing.svg";
 import insertAddCursor from "./assets/cursors/insert-add.png";
 import insertBlockedCursor from "./assets/cursors/insert-blocked.png";
+import { tokens as tk } from "../design/tokens";
 
 /** Cursor artwork exported from the Cursor states frame in Figma. */
 const cursor = (url: string, x: number, y: number, fallback: string) =>
@@ -17,8 +18,8 @@ export const ADD_CURSOR = cursor(addCursor, 0, 0, "default");
 export const ERASE_CURSOR = cursor(eraseCursor, 0, 0, "default");
 export const STRAIGHT_DRAW_CURSOR = cursor(
   svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28" fill="none">
-    <path d="M2 14h24M14 2v24" stroke="#0284c7" stroke-width="1.5" stroke-linecap="round"/>
-    <circle cx="14" cy="14" r="3" fill="white" stroke="#0284c7" stroke-width="1.5"/>
+    <path d="M2 14h24M14 2v24" stroke="${tk.accent}" stroke-width="1.5" stroke-linecap="round"/>
+    <circle cx="14" cy="14" r="3" fill="${tk["on-solid"]}" stroke="${tk.accent}" stroke-width="1.5"/>
   </svg>`),
   14,
   14,
@@ -33,8 +34,8 @@ export const DUPLICATE_CURSOR = cursor(duplicateCursor, 12, 8, "copy");
 export const INSERT_BLOCKED_CURSOR = cursor(insertBlockedCursor, 3, 0, "not-allowed");
 export const INSERT_ADD_CURSOR = cursor(insertAddCursor, 3, 0, "default");
 const ARROW_BASE_SVG = `
-    <path fill-rule="evenodd" clip-rule="evenodd" d="M0 16V0L11.6 11.6081H4.55353L4.40242 11.732L0 16Z" fill="#fff"/>
-    <path fill-rule="evenodd" clip-rule="evenodd" d="M1 2.3V13.5L3.969 10.6309L4.129 10.4918L9.165 10.5L1 2.3Z" fill="#000"/>`;
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M0 16V0L11.6 11.6081H4.55353L4.40242 11.732L0 16Z" fill="${tk["on-solid"]}"/>
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M1 2.3V13.5L3.969 10.6309L4.129 10.4918L9.165 10.5L1 2.3Z" fill="${tk["cursor-outline"]}"/>`;
 
 /**
  * Shown while Cmd/Ctrl hovers a pending suggestion - confirming it is what
@@ -48,8 +49,8 @@ const ARROW_BASE_SVG = `
 export const CONFIRM_SUGGESTION_CURSOR = cursor(
   svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
 ${ARROW_BASE_SVG}
-    <circle cx="17.5" cy="15.5" r="6.5" fill="#16a34a" stroke="#fff" stroke-width="1.5"/>
-    <path d="M14.6 15.6l1.8 1.8 3.4-3.8" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <circle cx="17.5" cy="15.5" r="6.5" fill="${tk.success}" stroke="${tk["on-solid"]}" stroke-width="1.5"/>
+    <path d="M14.6 15.6l1.8 1.8 3.4-3.8" stroke="${tk["on-solid"]}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
   </svg>`),
   0,
   0,
@@ -65,8 +66,8 @@ ${ARROW_BASE_SVG}
 export const DISMISS_SUGGESTION_CURSOR = cursor(
   svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
 ${ARROW_BASE_SVG}
-    <circle cx="17.5" cy="15.5" r="6.5" fill="#dc2626" stroke="#fff" stroke-width="1.5"/>
-    <path d="M15.2 13.2l4.6 4.6m0-4.6-4.6 4.6" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>
+    <circle cx="17.5" cy="15.5" r="6.5" fill="${tk.danger}" stroke="${tk["on-solid"]}" stroke-width="1.5"/>
+    <path d="M15.2 13.2l4.6 4.6m0-4.6-4.6 4.6" stroke="${tk["on-solid"]}" stroke-width="1.6" stroke-linecap="round"/>
   </svg>`),
   0,
   0,
@@ -82,8 +83,8 @@ ${ARROW_BASE_SVG}
 export const SUGGEST_CURSOR = cursor(
   svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
 ${ARROW_BASE_SVG}
-    <circle cx="17.5" cy="15.5" r="6.5" fill="#9333ea" stroke="#fff" stroke-width="1.5"/>
-    <path d="M14.7 18.3l4.6-4.6M18.2 13l.7 1.5 1.5.7-1.5.7-.7 1.5-.7-1.5-1.5-.7 1.5-.7Z" stroke="#fff" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" fill="#fff"/>
+    <circle cx="17.5" cy="15.5" r="6.5" fill="${tk.suggest}" stroke="${tk["on-solid"]}" stroke-width="1.5"/>
+    <path d="M14.7 18.3l4.6-4.6M18.2 13l.7 1.5 1.5.7-1.5.7-.7 1.5-.7-1.5-1.5-.7 1.5-.7Z" stroke="${tk["on-solid"]}" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" fill="${tk["on-solid"]}"/>
   </svg>`),
   0,
   0,
@@ -108,17 +109,17 @@ function symbolPreview(symbolId: string, colorId?: string | null): { width: numb
   const width = Math.min(64, 18 * symbol.span);
   const cellWidth = width / symbol.span;
   const cells = Array.from({ length: symbol.span }, (_, index) => {
-    const fill = symbol.cellFills?.[index] ?? colorFill ?? "#f2f6fa";
+    const fill = symbol.cellFills?.[index] ?? colorFill ?? tk["cursor-cell-fill"];
     return `<rect x="${index * cellWidth}" width="${cellWidth}" height="18" fill="${fill}"/>`;
   }).join("");
-  const ink = glyphInkFor(colorId ?? undefined, "#475569");
+  const ink = glyphInkFor(colorId ?? undefined, tk["cursor-ink"]);
   const glyph = symbol.hasGlyph
     ? `<image href="${svgDataUrl(symbol.glyph.replaceAll("currentColor", ink))}" width="${width}" height="18"/>`
     : "";
 
   return {
     width,
-    markup: `<g>${cells}<rect x="0.25" y="0.25" width="${width - 0.5}" height="17.5" fill="none" stroke="#b3bcc7" stroke-width="0.5"/>${glyph}</g>`,
+    markup: `<g>${cells}<rect x="0.25" y="0.25" width="${width - 0.5}" height="17.5" fill="none" stroke="${tk["cursor-cell-stroke"]}" stroke-width="0.5"/>${glyph}</g>`,
   };
 }
 
@@ -155,7 +156,7 @@ export function insertStitchCursor(symbolId: string, colorId?: string | null): s
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="33" viewBox="0 0 ${width} 33" fill="none">
     <defs><filter id="s" x="-20%" y="-20%" width="150%" height="150%"><feDropShadow dy="1" stdDeviation="0.9" flood-opacity="0.65"/></filter></defs>
     <g filter="url(#s)">
-      <path d="M3 0L6.594 3.594L4 6.188V13L6.594 15.594L3 19.188L-0.594 15.594L2 13V6.188L-0.594 3.594L3 0Z" fill="#0284c7" stroke="#fff"/>
+      <path d="M3 0L6.594 3.594L4 6.188V13L6.594 15.594L3 19.188L-0.594 15.594L2 13V6.188L-0.594 3.594L3 0Z" fill="${tk.accent}" stroke="${tk["on-solid"]}"/>
       <g transform="translate(5 15)">${preview.markup}</g>
     </g>
   </svg>`;
