@@ -16,6 +16,7 @@ import { Toolbar } from "../ui/Toolbar";
 import { useDismissOnOutsideOrEscape } from "../ui/useDismissOnOutsideOrEscape";
 import type { ButtonSize, ButtonVariant } from "../ui/buttonClassName";
 import { EditorPanel } from "./EditorPanel";
+import { backlog, type BacklogItem } from "./audit";
 import { geometry } from "./geometry";
 import { groups, type TokenGroup } from "./tokenModel";
 import { useTokenEdits } from "./useTokenEdits";
@@ -538,10 +539,63 @@ function IconGallery({ copy }: { copy: (t: string) => void }) {
   );
 }
 
+
+/* ----------------------------------------------------------------- backlog */
+
+const AREAS = ["All", "Components", "Tokens", "Structure", "Platform"] as const;
+
+function Backlog({ requested, onRequest }: { requested: string; onRequest: (item: BacklogItem) => void }) {
+  const [area, setArea] = useState<(typeof AREAS)[number]>("All");
+  const items = backlog.filter((i) => area === "All" || i.area === area);
+  return (
+    <>
+      <div className="ds-controls ds-panel">
+        <Seg label="Area" options={AREAS} value={area} onChange={setArea} />
+        <span className="ds-note">
+          Counts come from the source each time this page is rebuilt, so items shrink as they're fixed. Add items to the request, then use Apply in the editor.
+        </span>
+      </div>
+      <div className="ds-backlog">
+        {items.map((item) => {
+          const added = requested.includes(item.request);
+          return (
+            <article key={item.id} className="ds-backlog__item">
+              <header>
+                <span className="ds-pill ds-pill--no">{item.area}</span>
+                <span className="ds-pill ds-pill--todo">Effort {item.effort}</span>
+              </header>
+              <h3>{item.title}</h3>
+              {item.count !== null && (
+                <p className="ds-backlog__count">
+                  <b>{item.count}</b> {item.unit}
+                </p>
+              )}
+              <p className="ds-note">{item.detail}</p>
+              {item.where.length > 0 && (
+                <details>
+                  <summary>Where ({item.where.length})</summary>
+                  <ul>
+                    {item.where.map((w) => (
+                      <li key={w}><code>{w}</code></li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+              <Button size="sm" variant={added ? "default" : "primary"} disabled={added} onClick={() => onRequest(item)}>
+                {added ? "In the request" : "Add to request"}
+              </Button>
+            </article>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
 /* --------------------------------------------------------------------- app */
 
 const NAV: [string, [string, string][]][] = [
-  ["Overview", [["inventory", "Inventory"]]],
+  ["Overview", [["inventory", "Inventory"], ["backlog", "Consolidation backlog"]]],
   ["Tokens", [["color", "Color"], ["type", "Typography"], ["spacing", "Spacing"], ["radius", "Radius & border"], ["size", "Sizes"], ["elevation", "Elevation"], ["layers", "Layers"], ["motion", "Motion"]]],
   ["Components", [["button", "Button"], ["iconbutton", "IconButton"], ["popover", "Popover"], ["dialog", "ConfirmDialog"], ["colorchip", "ColorChip"], ["quicktile", "QuickTile"], ["tooldock", "Tool dock"], ["rightpanel", "Right panel"], ["statusbar", "Status bar"], ["banners", "Banners"]]],
   ["Assets", [["glyphs", "Stitch symbols"], ["colorwork", "Colorwork palette"], ["icons", "Icons"], ["cursors", "Cursors"], ["geometry", "Component geometry"]]],
@@ -613,6 +667,18 @@ export function App() {
                 </tbody>
               </table>
             </div>
+          </Section>
+
+          <Section id="backlog" title="Consolidation backlog" lede="What still sidesteps the design system, and what to do about it. Each item can be added to the change request that Apply sends to Claude Code.">
+            <Backlog
+              requested={editing.note}
+              onRequest={(item) => {
+                const line = `- ${item.title}: ${item.request}`;
+                editing.setNote(editing.note.trim() ? `${editing.note.trim()}\n${line}` : line);
+                setFocus(null);
+                setOpen(true);
+              }}
+            />
           </Section>
 
           <TokenSections edits={editing.edits} onEdit={editToken} />
