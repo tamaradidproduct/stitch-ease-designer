@@ -127,6 +127,9 @@
   --control-md: 32px; /* Default icon and text controls; Button size="md". */
   --control-lg: 36px; /* Glossary row actions; Button size="lg". */
   --control-xl: 40px; /* Tool dock and picker tiles, comfortable touch targets. */
+  --badge-size: 18px; /* Round index badges and the color chip. */
+  --kbd-size: 22px; /* Shortcut key badges and count pills. */
+  --glyph-box: 38px; /* The glyph column in glossary rows and previews. */
 
   /* ---- Layout ------------------------------------------------------------ */
   --panel-width: 304px; /* Right panel width; the canvas and docks reserve this much. */

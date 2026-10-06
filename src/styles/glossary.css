@@ -227,7 +227,7 @@
 
 .glossary__emptyGlyph {
   display: grid;
-  width: 38px;
+  width: var(--glyph-box);
   place-items: center;
   flex: none;
   font-size: var(--font-size-lg);
@@ -252,7 +252,7 @@
 
 .glossary__glyph {
   display: grid;
-  width: 38px;
+  width: var(--glyph-box);
   min-height: 24px;
   place-items: center;
   flex: none;
@@ -300,7 +300,7 @@
 
 .glossary__count {
   display: grid;
-  min-width: 22px;
+  min-width: var(--kbd-size);
   height: 20px;
   place-items: center;
   flex: none;
@@ -432,7 +432,7 @@
 
 .glossary__move {
   display: grid;
-  width: 18px;
+  width: var(--icon-lg);
   height: 15px;
   padding: 0;
   place-items: center;
@@ -479,7 +479,7 @@
    than a large explanatory card. */
 .glossary__reviewPreview {
   display: grid;
-  width: 38px;
+  width: var(--glyph-box);
   min-height: 24px;
   place-items: center;
   flex: none;

@@ -447,7 +447,7 @@ export function ReferenceImagePanel() {
             </IconButton>
           </div>
           {opacityOpen && (
-            <div className="refpanel__quickOpacityPopover">
+            <div className="inset refpanel__quickOpacity">
               <label className="refpanel__row">
                 <span>Opacity</span>
                 <Slider
@@ -594,7 +594,7 @@ export function ReferenceImagePanel() {
               </Button>
             </div>
             {helpOpen && (
-              <div className="refpanel__helpPopover">
+              <div className="inset refpanel__help">
                 {!marking && (
                   <p className="refpanel__hint">
                     {image.stitchPin

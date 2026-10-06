@@ -9,8 +9,8 @@
   bottom: calc(var(--space-2) * -1);
   z-index: 2;
   display: grid;
-  width: 18px;
-  height: 18px;
+  width: var(--badge-size);
+  height: var(--badge-size);
   place-items: center;
   /* #265: a border/fill that both matched --bg was invisible against a
      pale, uncolored tile. A solid --border ring plus a soft drop shadow

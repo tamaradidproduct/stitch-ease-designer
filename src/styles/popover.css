@@ -1,10 +1,17 @@
 /* Shared floating surface, rendered by <Popover> (ui/Popover.tsx). Each
-   overlay's own rule adds position, layer and padding on top. Inline panels
-   that sit in the page flow (refpanel help/opacity) are not popovers and
-   keep their own chrome background. */
+   overlay's own rule adds position, layer and padding on top. */
 .popover {
   border: var(--border-width) solid var(--border);
   border-radius: var(--radius-md);
   background: var(--bg);
   box-shadow: var(--shadow-3);
+}
+
+/* Inset panel: a quiet box in the page flow (reference image help and
+   opacity), not floating, so no shadow. */
+.inset {
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--chrome);
 }

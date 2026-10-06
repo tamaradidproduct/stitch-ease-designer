@@ -191,12 +191,7 @@
   gap: var(--space-4);
 }
 
-.refpanel__quickOpacityPopover {
-  padding: var(--space-4);
-  border: var(--border-width) solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--chrome);
-}
+
 
 .refpanel__quickBottomRow .refpanel__layerButton {
   margin-left: auto;
@@ -440,14 +435,10 @@
   font-weight: var(--font-weight-bold);
 }
 
-.refpanel__helpPopover {
+.refpanel__help {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  padding: var(--space-4);
-  border: var(--border-width) solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--chrome);
 }
 
 /* The calibration marks panel section: a status line plus its actions. */
@@ -509,8 +500,8 @@
 .refpanel__markIndex {
   display: grid;
   place-items: center;
-  width: 18px;
-  height: 18px;
+  width: var(--badge-size);
+  height: var(--badge-size);
   flex: none;
   border-radius: var(--radius-circle);
   background: var(--text-subtle);

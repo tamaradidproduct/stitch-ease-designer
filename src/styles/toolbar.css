@@ -63,8 +63,8 @@
    button, so their centre automatically follows this compact/expanded width. */
 @media (hover: hover) and (pointer: fine) {
   .panDock .toolDock__button {
-    width: 38px;
-    min-width: 38px;
+    width: var(--control-xl);
+    min-width: var(--control-xl);
     padding: 0;
     gap: 0;
     overflow: hidden;
@@ -226,7 +226,7 @@
 }
 
 .toolDock__separator {
-  width: 1px;
+  width: var(--border-width);
   height: 24px;
   margin: 0 var(--space-3);
   background: var(--border);

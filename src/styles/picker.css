@@ -34,7 +34,7 @@
 
 /* FR-30: separates the dynamic sixth tile from the five real, persisted slots. */
 .picker__quickDivider {
-  width: 1px;
+  width: var(--border-width);
   align-self: stretch;
   margin: var(--space-2) var(--space-px);
   background: var(--border);

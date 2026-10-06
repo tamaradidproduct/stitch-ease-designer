@@ -34,7 +34,7 @@
 
 .markpop__input {
   width: 54px;
-  min-height: 28px;
+  min-height: var(--control-sm);
   padding: var(--space-2) var(--space-3);
   border: var(--border-width) solid var(--border);
   border-radius: var(--radius-sm);
@@ -60,8 +60,8 @@
 }
 
 .markpop__shortcut {
-  min-width: 22px;
-  height: 22px;
+  min-width: var(--kbd-size);
+  height: var(--kbd-size);
   padding: 0 var(--space-3);
   border: var(--border-width) solid var(--border);
   border-radius: var(--radius-sm);
@@ -138,7 +138,7 @@
 }
 
 .markpop__confirm {
-  min-height: 28px;
+  min-height: var(--control-sm);
   padding: 0 var(--space-6);
   border: var(--border-width) solid var(--accent);
   border-radius: var(--radius-sm);
@@ -165,7 +165,7 @@
 }
 
 .markpop__clear {
-  min-height: 28px;
+  min-height: var(--control-sm);
   padding: 0 var(--space-4);
   border: 0;
   border-radius: var(--radius-sm);
@@ -190,8 +190,8 @@
 .markpop__index {
   display: grid;
   place-items: center;
-  width: 18px;
-  height: 18px;
+  width: var(--badge-size);
+  height: var(--badge-size);
   border-radius: var(--radius-circle);
   background: var(--accent);
   color: var(--on-solid);
