@@ -42,3 +42,14 @@ export const getMcp = () => capability<Mcp>("mcp");
 /** The connector the "Apply to app" button calls, and the tool on it. */
 export const REMOTE_SERVER = "Claude Code Remote";
 export const REMOTE_TOOL = "create_session";
+
+/** The Claude Code session link in a create_session result, if there is one. */
+export function sessionUrlFrom(payload: unknown): string | null {
+  try {
+    const text = typeof payload === "string" ? payload : JSON.stringify(payload ?? "");
+    const match = text.match(/session_[A-Za-z0-9]+/);
+    return match ? `https://claude.ai/code/${match[0]}` : null;
+  } catch {
+    return null;
+  }
+}

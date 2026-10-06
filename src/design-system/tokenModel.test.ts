@@ -25,6 +25,13 @@ describe("design-system token model", () => {
     expect(invalidReason("rgb(255,0,0)", "color")).not.toBeNull();
   });
 
+  it("lets translucent color tokens keep rgb()/rgba() values", () => {
+    const scrim = tokenByName.get("scrim")!;
+    expect(invalidReason(scrim.value, "color", scrim.value)).toBeNull();
+    expect(invalidReason("rgba(0, 0, 0, 0.5)", "color", scrim.value)).toBeNull();
+    expect(invalidReason("red", "color", scrim.value)).not.toBeNull();
+  });
+
   it("expands short hex for the native color input", () => {
     expect(toHex6("#fff")).toBe("#ffffff");
     expect(toHex6("#0284c7")).toBe("#0284c7");

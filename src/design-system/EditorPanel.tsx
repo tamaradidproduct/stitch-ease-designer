@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Button } from "../ui/Button";
 import { CloseIcon, SearchIcon } from "../ui/icons";
-import { getMcp, REMOTE_SERVER, REMOTE_TOOL, type McpError } from "./runtime";
+import { getMcp, REMOTE_SERVER, REMOTE_TOOL, sessionUrlFrom, type McpError } from "./runtime";
 import {
   aliasOf,
   changeRequestPrompt,
@@ -50,19 +50,9 @@ function errorCopy(e: McpError | undefined): string {
   }
 }
 
-export function sessionUrlFrom(payload: unknown): string | null {
-  try {
-    const text = typeof payload === "string" ? payload : JSON.stringify(payload ?? "");
-    const match = text.match(/session_[A-Za-z0-9]+/);
-    return match ? `https://claude.ai/code/${match[0]}` : null;
-  } catch {
-    return null;
-  }
-}
-
 function TokenInput({ token, value, onChange, onReset }: { token: TokenDef; value: string; onChange: (v: string) => void; onReset: () => void }) {
   const changed = value !== token.value;
-  const problem = invalidReason(value, token.type);
+  const problem = invalidReason(value, token.type, token.value);
   const id = `tok-${token.name}`;
   return (
     <div className="ds-edit__row" data-changed={changed}>
@@ -138,7 +128,10 @@ export function EditorPanel({
   const [apply, setApply] = useState<ApplyState>({ kind: "idle" });
   const valid = useMemo(() => cleanEdits(edits), [edits]);
   const changedCount = Object.keys(valid).length;
-  const hasInvalid = Object.values(edits).some((v) => invalidReason(v));
+  const hasInvalid = Object.entries(edits).some(([name, v]) => {
+    const t = tokenByName.get(name);
+    return invalidReason(v, t?.type, t?.value) !== null;
+  });
   const prompt = changeRequestPrompt(valid, note, ARTIFACT_URL);
   const q = query.trim().toLowerCase();
 

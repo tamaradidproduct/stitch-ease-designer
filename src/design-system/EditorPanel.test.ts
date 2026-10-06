@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sessionUrlFrom } from "./EditorPanel";
+import { sessionUrlFrom } from "./runtime";
 
 describe("EditorPanel session url parsing", () => {
   it("extracts a session url from string payloads", () => {

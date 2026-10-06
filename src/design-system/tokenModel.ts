@@ -36,13 +36,23 @@ export function cssValue(value: string): string {
 }
 
 /** Why a value can't be written to tokens.json, or null when it's fine. */
-export function invalidReason(value: string, type?: TokenType): string | null {
+export function invalidReason(value: string, type?: TokenType, base?: string): string | null {
   if (!value.trim()) return "Enter a value.";
   const target = aliasOf(value);
   if (target) return tokenByName.has(target) ? null : `There's no token called --${target}.`;
   if (/[;{}]/.test(value)) return "Values can't contain ; { or }. To link to another token, write {token-name}.";
   if (value.length > 200) return "That value is too long.";
-  if (type === "color" && !isHex(value)) return "Colors must be valid hex values (e.g. #0284c7 or #fff).";
+  if (type === "color" && !isHex(value)) {
+    // Translucent tokens (scrims, washes, rings) are authored as rgb()/rgba();
+    // they may stay that way. Every other color token is hex, so the native
+    // color picker can edit it.
+    const translucentToken = base !== undefined && /^rgba?\(/i.test(base.trim());
+    if (!(translucentToken && /^rgba?\([^()]*\)$/i.test(value.trim()))) {
+      return translucentToken
+        ? "Use a hex color or rgb()/rgba(), e.g. rgba(15, 23, 42, 0.35)."
+        : "Colors must be valid hex values (e.g. #0284c7 or #fff).";
+    }
+  }
   return null;
 }
 
@@ -61,7 +71,7 @@ export function cleanEdits(edits: Edits): Edits {
   const out: Edits = {};
   for (const [name, value] of Object.entries(edits)) {
     const base = tokenByName.get(name);
-    if (base && value !== base.value && !invalidReason(value, base.type)) out[name] = value;
+    if (base && value !== base.value && !invalidReason(value, base.type, base.value)) out[name] = value;
   }
   return out;
 }
