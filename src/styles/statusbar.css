@@ -36,7 +36,9 @@
   min-width: 6ch;
 }
 
-.statusbar__zoom:hover {
-  color: var(--accent);
-  border-color: var(--accent);
+@media (hover: hover) {
+  .statusbar__zoom:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
 }

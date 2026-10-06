@@ -39,11 +39,16 @@
   cursor: pointer;
 }
 
-.signIn__google:hover,
 .signIn__google:focus-visible {
   border-color: var(--accent-soft-border);
   background: var(--chrome);
-  outline: none;
+}
+
+@media (hover: hover) {
+  .signIn__google:hover {
+    border-color: var(--accent-soft-border);
+    background: var(--chrome);
+  }
 }
 
 .signIn__google:disabled {
@@ -95,7 +100,7 @@
 }
 
 .signIn__form input:focus {
-  outline: var(--border-width-focus) solid var(--accent);
+  outline: var(--focus-outline);
   outline-offset: -1px;
 }
 
@@ -125,7 +130,7 @@
 .signIn__sent {
   margin: 0;
   font-size: var(--font-size-md);
-  line-height: 1.5;
+  line-height: var(--leading-normal);
 }
 
 .signIn__hint {

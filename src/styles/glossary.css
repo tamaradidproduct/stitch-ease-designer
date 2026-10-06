@@ -82,13 +82,13 @@
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--tracking-wide);
 }
 
 .glossarySearch__results button {
   display: flex;
   width: 100%;
-  min-height: 30px;
+  min-height: var(--control-md);
   align-items: center;
   gap: var(--space-4);
   padding: var(--space-2) var(--space-3);
@@ -101,11 +101,15 @@
   cursor: pointer;
 }
 
-.glossarySearch__results button:hover,
 .glossarySearch__results button:focus-visible,
 .glossarySearch__results button[data-active="true"] {
   background: var(--accent-soft-bg);
-  outline: none;
+}
+
+@media (hover: hover) {
+  .glossarySearch__results button:hover {
+    background: var(--accent-soft-bg);
+  }
 }
 
 .glossarySearch__glyph {
@@ -150,13 +154,19 @@
   cursor: default;
 }
 
-.glossary__item:hover,
 .glossary__item:focus-within,
 .glossary__item[data-on="true"],
 .glossary__item[data-drag-over="true"] {
   border-color: var(--accent-soft-border);
   background: var(--accent-soft-bg);
   outline: none;
+}
+
+@media (hover: hover) {
+  .glossary__item:hover {
+    border-color: var(--accent-soft-border);
+    background: var(--accent-soft-bg);
+  }
 }
 
 /* #271: dropping a quick slot onto an already-occupied one pushes the
@@ -202,7 +212,7 @@
 .glossary__arm:focus-visible,
 .glossary__remove:focus-visible,
 .glossary__dragHandle:focus-visible {
-  outline: var(--border-width-focus) solid var(--accent);
+  outline: var(--focus-outline);
   outline-offset: -2px;
 }
 
@@ -231,7 +241,7 @@
   border-radius: var(--radius-xs);
   background: var(--bg);
   color: var(--text-muted);
-  font: var(--font-size-3xs)/1 var(--font-sans);
+  font: var(--font-size-3xs)/var(--leading-none) var(--font-sans);
   text-align: center;
 }
 
@@ -301,23 +311,29 @@
   font-variant-numeric: tabular-nums;
 }
 
-.glossary__item:hover .glossary__count,
 .glossary__item:focus-within .glossary__count {
   background: var(--bg);
   color: var(--accent);
 }
 
+@media (hover: hover) {
+  .glossary__item:hover .glossary__count {
+    background: var(--bg);
+    color: var(--accent);
+  }
+}
+
 .glossary__remove {
   display: grid;
-  width: 36px;
-  height: 36px;
+  width: var(--control-lg);
+  height: var(--control-lg);
   padding: 0;
   place-items: center;
   flex: none;
   border: 0;
   background: transparent;
   color: var(--danger);
-  font: var(--font-weight-semibold) var(--font-size-2xs)/1 var(--font-sans);
+  font: var(--font-weight-semibold) var(--font-size-2xs)/var(--leading-none) var(--font-sans);
   cursor: pointer;
 }
 
@@ -331,15 +347,15 @@
 }
 
 .glossary__removeSlot {
-  width: 34px;
-  height: 34px;
+  width: var(--control-md);
+  height: var(--control-md);
   flex: none;
 }
 
 .glossary__disarm {
   display: grid;
-  width: 36px;
-  height: 36px;
+  width: var(--control-lg);
+  height: var(--control-lg);
   padding: 0;
   place-items: center;
   flex: none;
@@ -350,10 +366,14 @@
   cursor: pointer;
 }
 
-.glossary__disarm:hover,
 .glossary__disarm:focus-visible {
   background: var(--overlay-light);
-  outline: none;
+}
+
+@media (hover: hover) {
+  .glossary__disarm:hover {
+    background: var(--overlay-light);
+  }
 }
 
 .glossary__disarm svg {
@@ -379,9 +399,11 @@
   flex: none;
 }
 
-.glossary__dragHandle:hover {
-  background: var(--bg);
-  color: var(--accent);
+@media (hover: hover) {
+  .glossary__dragHandle:hover {
+    background: var(--bg);
+    color: var(--accent);
+  }
 }
 
 .glossary__dragHandle:active {
@@ -421,11 +443,16 @@
   cursor: pointer;
 }
 
-.glossary__move:hover:not(:disabled),
 .glossary__move:focus-visible {
   background: var(--bg);
   color: var(--accent);
-  outline: none;
+}
+
+@media (hover: hover) {
+  .glossary__move:hover:not(:disabled) {
+    background: var(--bg);
+    color: var(--accent);
+  }
 }
 
 .glossary__move:disabled {
@@ -471,8 +498,8 @@
 
 .glossary__reviewAction {
   display: grid;
-  width: 36px;
-  height: 36px;
+  width: var(--control-lg);
+  height: var(--control-lg);
   padding: 0;
   place-items: center;
   flex: none;
@@ -483,12 +510,18 @@
   cursor: pointer;
 }
 
-.glossary__reviewAction:hover:not(:disabled),
 .glossary__reviewAction:focus-visible {
   border-color: var(--accent-soft-border);
   background: var(--accent-soft-bg);
   color: var(--accent);
-  outline: none;
+}
+
+@media (hover: hover) {
+  .glossary__reviewAction:hover:not(:disabled) {
+    border-color: var(--accent-soft-border);
+    background: var(--accent-soft-bg);
+    color: var(--accent);
+  }
 }
 
 .glossary__reviewAction:disabled {
@@ -515,9 +548,14 @@
   font-variant-numeric: tabular-nums;
 }
 
-.glossary__arm:hover .glossary__label,
 .glossary__arm:focus-visible .glossary__label {
   color: var(--accent);
+}
+
+@media (hover: hover) {
+  .glossary__arm:hover .glossary__label {
+    color: var(--accent);
+  }
 }
 
 .glossary__armWrap {
@@ -559,8 +597,8 @@
 
 .glossary__more {
   display: grid;
-  width: 36px;
-  height: 36px;
+  width: var(--control-lg);
+  height: var(--control-lg);
   padding: 0;
   place-items: center;
   flex: none;
@@ -571,12 +609,17 @@
   cursor: pointer;
 }
 
-.glossary__more:hover,
 .glossary__more:focus-visible,
 .glossary__more[aria-expanded="true"] {
   background: var(--bg);
   color: var(--accent);
-  outline: none;
+}
+
+@media (hover: hover) {
+  .glossary__more:hover {
+    background: var(--bg);
+    color: var(--accent);
+  }
 }
 
 .glossary__menu {
@@ -603,11 +646,16 @@
   cursor: pointer;
 }
 
-.glossary__menu button:hover:not(:disabled),
 .glossary__menu button:focus-visible {
   background: var(--accent-soft-bg);
   color: var(--accent);
-  outline: none;
+}
+
+@media (hover: hover) {
+  .glossary__menu button:hover:not(:disabled) {
+    background: var(--accent-soft-bg);
+    color: var(--accent);
+  }
 }
 
 .glossary__menu button:disabled {
@@ -646,7 +694,7 @@
 .glossary__item .glossary__remove,
 .glossary__item .glossary__more,
 .glossary__item .glossary__disarm {
-  width: 28px;
+  width: var(--control-sm);
 }
 
 /* The grip is the row's one reorder control; its ↑↓ stepper only shows

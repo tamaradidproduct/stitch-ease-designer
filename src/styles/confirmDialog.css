@@ -40,7 +40,9 @@
   color: var(--on-solid);
 }
 
-.confirmDialog__confirm:hover:not(:disabled) {
-  filter: brightness(1.08);
-  color: var(--on-solid);
+@media (hover: hover) {
+  .confirmDialog__confirm:hover:not(:disabled) {
+    filter: brightness(1.08);
+    color: var(--on-solid);
+  }
 }

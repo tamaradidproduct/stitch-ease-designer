@@ -24,11 +24,15 @@
   box-shadow: var(--shadow-1);
 }
 
-.colorChip:hover,
 .colorChip:focus-visible,
 .colorChip[aria-expanded="true"] {
   color: var(--accent);
-  outline: none;
+}
+
+@media (hover: hover) {
+  .colorChip:hover {
+    color: var(--accent);
+  }
 }
 
 .colorPopover {
@@ -42,8 +46,14 @@
   padding: 0;
 }
 
-.colorPopover__swatch:hover,
 .colorPopover__swatch:focus-visible {
-  outline: var(--border-width-focus) solid var(--accent);
+  outline: var(--focus-outline);
   outline-offset: 1px;
+}
+
+@media (hover: hover) {
+  .colorPopover__swatch:hover {
+    outline: var(--focus-outline);
+    outline-offset: 1px;
+  }
 }

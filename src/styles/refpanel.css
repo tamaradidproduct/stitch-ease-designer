@@ -14,8 +14,8 @@
 
 .refpanel__paletteButton {
   display: grid;
-  width: 28px;
-  height: 28px;
+  width: var(--control-sm);
+  height: var(--control-sm);
   place-items: center;
   flex: none;
   padding: 0;
@@ -26,13 +26,19 @@
   cursor: pointer;
 }
 
-.refpanel__paletteButton:hover,
 .refpanel__paletteButton:focus-visible,
 .refpanel__paletteButton[data-on="true"] {
   border-color: var(--accent-soft-border);
   background: var(--accent-soft-bg);
   color: var(--accent);
-  outline: none;
+}
+
+@media (hover: hover) {
+  .refpanel__paletteButton:hover {
+    border-color: var(--accent-soft-border);
+    background: var(--accent-soft-bg);
+    color: var(--accent);
+  }
 }
 
 .refpanel__paletteButton svg {
@@ -82,8 +88,8 @@
 
 .traceColors__presets > button,
 .traceColors__custom {
-  width: 24px;
-  height: 24px;
+  width: var(--control-xs);
+  height: var(--control-xs);
   padding: 0;
   border: var(--border-width-focus) solid var(--bg);
   border-radius: var(--radius-circle);
@@ -130,7 +136,7 @@
 
 .refpanel__headerAction {
   justify-content: center;
-  min-height: 28px;
+  min-height: var(--control-sm);
   flex: none;
 }
 
@@ -199,8 +205,8 @@
 .btn.refpanel__iconButton {
   display: grid;
   flex: none;
-  width: 40px;
-  height: 40px;
+  width: var(--control-xl);
+  height: var(--control-xl);
   place-items: center;
   padding: 0;
   color: var(--text-muted);
@@ -252,7 +258,7 @@
   margin: 0;
   color: var(--text-muted);
   font-size: var(--font-size-xs);
-  line-height: 1.35;
+  line-height: var(--leading-snug);
 }
 
 .refpanel__body {
@@ -266,7 +272,7 @@
   margin: 0;
   color: var(--text-muted);
   font-size: var(--font-size-sm);
-  line-height: 1.4;
+  line-height: var(--leading-snug);
 }
 
 /* A hint that's reporting a failed attempt, not just describing the mode. */
@@ -350,8 +356,10 @@
   text-align: left;
 }
 
-.refpanel__imageRow:hover {
-  background: var(--chrome);
+@media (hover: hover) {
+  .refpanel__imageRow:hover {
+    background: var(--chrome);
+  }
 }
 
 .refpanel__imageRow[data-active="true"] {
@@ -377,8 +385,8 @@
 .refpanel__imageAction {
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  width: var(--control-sm);
+  height: var(--control-sm);
   flex: none;
   border: 0;
   border-radius: var(--radius-sm);
@@ -387,9 +395,11 @@
   cursor: pointer;
 }
 
-.refpanel__imageAction:hover:not(:disabled) {
-  background: var(--chrome);
-  color: var(--text);
+@media (hover: hover) {
+  .refpanel__imageAction:hover:not(:disabled) {
+    background: var(--chrome);
+    color: var(--text);
+  }
 }
 
 .refpanel__imageAction:disabled {
@@ -397,8 +407,10 @@
   cursor: default;
 }
 
-.refpanel__imageAction--danger:hover:not(:disabled) {
-  color: var(--danger);
+@media (hover: hover) {
+  .refpanel__imageAction--danger:hover:not(:disabled) {
+    color: var(--danger);
+  }
 }
 
 .refpanel__imageAction svg {
@@ -484,8 +496,10 @@
   text-align: left;
 }
 
-.refpanel__markRow:hover {
-  background: var(--chrome);
+@media (hover: hover) {
+  .refpanel__markRow:hover {
+    background: var(--chrome);
+  }
 }
 
 .refpanel__markRow[data-active="true"] {
@@ -520,10 +534,12 @@
   cursor: pointer;
   color: var(--text-muted);
   font-size: var(--font-size-lg);
-  line-height: 1;
+  line-height: var(--leading-none);
   padding: 0 var(--space-2);
 }
 
-.refpanel__markRemove:hover {
-  color: var(--text);
+@media (hover: hover) {
+  .refpanel__markRemove:hover {
+    color: var(--text);
+  }
 }

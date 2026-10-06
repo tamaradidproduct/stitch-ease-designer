@@ -57,6 +57,13 @@ body {
   touch-action: none;
 }
 
+/* One keyboard focus ring for every interactive element. :where() keeps it
+   at zero specificity, so a component can still restyle or offset it. */
+:where(a, button, input, select, textarea, summary, [tabindex], [role="button"]):focus-visible {
+  outline: var(--focus-outline);
+  outline-offset: var(--focus-offset);
+}
+
 /* Honour the OS "reduce motion" setting: keep state changes, drop the
    movement. 0.01ms rather than 0 so transitionend/animationend still fire. */
 @media (prefers-reduced-motion: reduce) {

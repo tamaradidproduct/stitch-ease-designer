@@ -65,10 +65,14 @@
   stroke: currentColor;
 }
 
-.suggestReview__action:hover:not(:disabled),
 .suggestReview__action:focus-visible {
   color: var(--accent);
-  outline: none;
+}
+
+@media (hover: hover) {
+  .suggestReview__action:hover:not(:disabled) {
+    color: var(--accent);
+  }
 }
 
 .suggestReview__action:disabled {

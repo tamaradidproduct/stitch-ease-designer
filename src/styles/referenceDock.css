@@ -87,7 +87,7 @@
    there. */
 .referenceImageQuickDock--icons .toolDock__button,
 .referenceImageQuickDock--stacked .toolDock__button {
-  min-width: 38px;
+  min-width: var(--control-xl);
   overflow: hidden;
   transition:
     width 150ms ease,
@@ -112,19 +112,30 @@
   gap: 0;
 }
 
-.referenceImageQuickDock--icons:hover .toolDock__button,
 .referenceImageQuickDock--icons:focus-within .toolDock__button,
-.referenceImageQuickDock--stacked:hover .toolDock__button,
 .referenceImageQuickDock--stacked:focus-within .toolDock__button {
   gap: var(--space-3);
 }
 
-.referenceImageQuickDock--icons:hover .toolDock__button span,
+@media (hover: hover) {
+  .referenceImageQuickDock--icons:hover .toolDock__button,
+  .referenceImageQuickDock--stacked:hover .toolDock__button {
+    gap: var(--space-3);
+  }
+}
+
 .referenceImageQuickDock--icons:focus-within .toolDock__button span,
-.referenceImageQuickDock--stacked:hover .toolDock__button span,
 .referenceImageQuickDock--stacked:focus-within .toolDock__button span {
   max-width: 120px;
   opacity: 1;
+}
+
+@media (hover: hover) {
+  .referenceImageQuickDock--icons:hover .toolDock__button span,
+  .referenceImageQuickDock--stacked:hover .toolDock__button span {
+    max-width: 120px;
+    opacity: 1;
+  }
 }
 
 .referenceImageQuickDock--stacked {
@@ -156,10 +167,16 @@
   color: var(--on-solid) !important;
 }
 
-.referenceDock__apply:hover:not(:disabled),
 .referenceDock__apply:focus-visible {
   border-color: var(--accent) !important;
   background: var(--accent) !important;
+}
+
+@media (hover: hover) {
+  .referenceDock__apply:hover:not(:disabled) {
+    border-color: var(--accent) !important;
+    background: var(--accent) !important;
+  }
 }
 
 .referenceDock__cancel {

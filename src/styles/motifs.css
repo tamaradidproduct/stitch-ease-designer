@@ -16,7 +16,7 @@
   color: var(--text-muted);
   font-size: var(--font-size-3xs);
   font-weight: var(--font-weight-semibold);
-  line-height: 1;
+  line-height: var(--leading-none);
 }
 
 .motifRow {
@@ -46,8 +46,8 @@
 
 .motifRow__actions button {
   display: grid;
-  width: 26px;
-  height: 26px;
+  width: var(--control-sm);
+  height: var(--control-sm);
   place-items: center;
   padding: 0;
   border: none;
@@ -57,11 +57,16 @@
   cursor: pointer;
 }
 
-.motifRow__actions button:hover,
 .motifRow__actions button:focus-visible {
   background: var(--accent-soft-bg);
   color: var(--accent);
-  outline: none;
+}
+
+@media (hover: hover) {
+  .motifRow__actions button:hover {
+    background: var(--accent-soft-bg);
+    color: var(--accent);
+  }
 }
 
 .motifRow__actions svg {

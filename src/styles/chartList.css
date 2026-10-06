@@ -16,7 +16,7 @@
   flex: 1;
   margin: 0;
   font-size: var(--font-size-xl);
-  letter-spacing: -0.02em;
+  letter-spacing: var(--tracking-tighter);
 }
 
 .charts__actions {
@@ -72,8 +72,10 @@
   cursor: pointer;
 }
 
-.chartrow__open:hover .chartrow__name {
-  color: var(--accent);
+@media (hover: hover) {
+  .chartrow__open:hover .chartrow__name {
+    color: var(--accent);
+  }
 }
 
 .chartrow__name {

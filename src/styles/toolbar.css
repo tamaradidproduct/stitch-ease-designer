@@ -103,7 +103,7 @@
   justify-content: center;
   gap: var(--space-3);
   min-width: 58px;
-  height: 38px;
+  height: var(--control-xl);
   padding: 0 var(--space-6);
   border: var(--border-width) solid transparent;
   border-radius: var(--radius-md);
@@ -128,7 +128,6 @@
   border-color: var(--accent-soft-border);
   background: var(--accent-soft-bg);
   color: var(--accent);
-  outline: none;
 }
 
 /* Hover only where hover is real - a touch tap has no exit event, so this
@@ -139,7 +138,6 @@
     border-color: var(--accent-soft-border);
     background: var(--accent-soft-bg);
     color: var(--accent);
-    outline: none;
   }
 }
 
@@ -203,13 +201,11 @@
 
 .toolDock__drawStop:focus-visible {
   background: var(--accent-soft-bg);
-  outline: none;
 }
 
 @media (hover: hover) {
   .toolDock__drawStop:hover {
     background: var(--accent-soft-bg);
-    outline: none;
   }
 }
 

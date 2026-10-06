@@ -10,7 +10,7 @@
 
 .topbar__title {
   font-weight: var(--font-weight-semibold);
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tracking-tight);
 }
 
 .topbar__back {
@@ -20,8 +20,10 @@
   padding: 0 var(--space-2);
 }
 
-.topbar__back:hover {
-  color: var(--text);
+@media (hover: hover) {
+  .topbar__back:hover {
+    color: var(--text);
+  }
 }
 
 .topbar__name {
@@ -36,8 +38,10 @@
   color: var(--text);
 }
 
-.topbar__name:hover {
-  border-color: var(--border);
+@media (hover: hover) {
+  .topbar__name:hover {
+    border-color: var(--border);
+  }
 }
 
 .topbar__name:focus {
@@ -54,7 +58,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-3);
-  height: 30px;
+  height: var(--control-md);
   padding: 0 var(--space-4);
   border: var(--border-width) solid transparent;
   border-radius: var(--radius-sm);
@@ -74,11 +78,16 @@
   stroke-linejoin: round;
 }
 
-.topbar__historyButton:hover:not(:disabled),
 .topbar__historyButton:focus-visible {
   background: var(--bg);
   color: var(--accent);
-  outline: none;
+}
+
+@media (hover: hover) {
+  .topbar__historyButton:hover:not(:disabled) {
+    background: var(--bg);
+    color: var(--accent);
+  }
 }
 
 .topbar__historyButton:disabled {

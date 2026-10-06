@@ -122,9 +122,11 @@
   --icon-lg: 18px; /* Tool dock and panel icons. */
   --icon-xl: 20px;
   --icon-2xl: 28px;
-  --control-sm: 24px; /* Button size="sm". */
-  --control-md: 28px; /* Button size="md". */
-  --control-lg: 36px; /* Button size="lg". */
+  --control-xs: 24px; /* Tiny inline controls (trace swatches, motif row actions). */
+  --control-sm: 28px; /* Compact controls; Button size="sm". */
+  --control-md: 32px; /* Default icon and text controls; Button size="md". */
+  --control-lg: 36px; /* Glossary row actions; Button size="lg". */
+  --control-xl: 40px; /* Tool dock and picker tiles, comfortable touch targets. */
 
   /* ---- Layout ------------------------------------------------------------ */
   --panel-width: 304px; /* Right panel width; the canvas and docks reserve this much. */

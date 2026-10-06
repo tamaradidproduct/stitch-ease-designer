@@ -29,9 +29,14 @@
   touch-action: none;
 }
 
-.rightPanel__resizeHandle:hover,
 .rightPanel__resizeHandle:active {
   background: var(--accent-soft-bg);
+}
+
+@media (hover: hover) {
+  .rightPanel__resizeHandle:hover {
+    background: var(--accent-soft-bg);
+  }
 }
 
 .rightPanel__bottom {
@@ -109,7 +114,7 @@
 .navigator__zoom {
   display: grid;
   grid-template-columns: 34px 1fr 34px;
-  height: 32px;
+  height: var(--control-md);
   border: var(--border-width) solid var(--border);
   border-radius: var(--radius-md);
   overflow: hidden;
@@ -119,15 +124,20 @@
   border: 0;
   background: var(--bg);
   color: var(--text);
-  font: var(--font-size-lg)/1 var(--font-sans);
+  font: var(--font-size-lg)/var(--leading-none) var(--font-sans);
   cursor: pointer;
 }
 
-.navigator__zoom button:hover,
 .navigator__zoom button:focus-visible {
   background: var(--accent-soft-bg);
   color: var(--accent);
-  outline: none;
+}
+
+@media (hover: hover) {
+  .navigator__zoom button:hover {
+    background: var(--accent-soft-bg);
+    color: var(--accent);
+  }
 }
 
 .navigator__zoom output {
@@ -160,7 +170,7 @@
 
 .shortcutList dd {
   color: var(--text-muted);
-  line-height: 1.3;
+  line-height: var(--leading-snug);
 }
 
 .shortcutList kbd {
@@ -171,6 +181,6 @@
   border-radius: var(--radius-xs);
   background: var(--chrome);
   color: var(--text);
-  font: var(--font-size-3xs)/1.2 var(--font-sans);
+  font: var(--font-size-3xs)/var(--leading-tight) var(--font-sans);
   white-space: nowrap;
 }

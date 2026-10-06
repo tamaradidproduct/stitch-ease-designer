@@ -203,7 +203,13 @@ function TokenSections({ edits, onEdit }: { edits: Record<string, string>; onEdi
                 <Icons.DrawIcon />
               </span>
             ) : (
-              <Button size={n.replace("control-", "") as ButtonSize}>Button</Button>
+              <span className="ds-control-demo" style={{ height: `var(--${n})` }}>
+                {["control-sm", "control-md", "control-lg"].includes(n) ? (
+                  <Button size={n.replace("control-", "") as ButtonSize}>Button size="{n.replace("control-", "")}"</Button>
+                ) : (
+                  <span className="ds-control-box" style={{ height: `var(--${n})`, minWidth: `var(--${n})` }} />
+                )}
+              </span>
             )
           }
         />

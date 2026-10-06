@@ -50,7 +50,6 @@
 .markpop__input:focus-visible {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent);
-  outline: 0;
 }
 
 .markpop__shortcuts {
@@ -73,10 +72,16 @@
   cursor: pointer;
 }
 
-.markpop__shortcut:hover,
 .markpop__shortcut[data-active="true"] {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+@media (hover: hover) {
+  .markpop__shortcut:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
 }
 
 .markpop__shortcut[data-active="true"] {
@@ -91,8 +96,8 @@
 }
 
 .markpop__keypad button {
-  min-width: 32px;
-  min-height: 30px;
+  min-width: var(--control-md);
+  min-height: var(--control-md);
   border: var(--border-width) solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg);
@@ -103,9 +108,11 @@
   cursor: pointer;
 }
 
-.markpop__keypad button:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+@media (hover: hover) {
+  .markpop__keypad button:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
 }
 
 .markpop__keypad svg {
@@ -143,8 +150,10 @@
   cursor: pointer;
 }
 
-.markpop__confirm:hover:not(:disabled) {
-  filter: brightness(0.94);
+@media (hover: hover) {
+  .markpop__confirm:hover:not(:disabled) {
+    filter: brightness(0.94);
+  }
 }
 
 .markpop__confirm:disabled {
@@ -167,10 +176,14 @@
   cursor: pointer;
 }
 
-.markpop__clear:hover,
 .markpop__clear:focus-visible {
   background: var(--danger-soft-bg);
-  outline: none;
+}
+
+@media (hover: hover) {
+  .markpop__clear:hover {
+    background: var(--danger-soft-bg);
+  }
 }
 
 /* Matches the badge drawn beside the mark on the canvas. */
@@ -192,11 +205,13 @@
   cursor: pointer;
   color: var(--text-muted);
   font-size: var(--font-size-lg);
-  line-height: 1;
+  line-height: var(--leading-none);
   padding: 0 var(--space-1);
   margin-top: var(--space-px);
 }
 
-.markpop__remove:hover {
-  color: var(--text);
+@media (hover: hover) {
+  .markpop__remove:hover {
+    color: var(--text);
+  }
 }

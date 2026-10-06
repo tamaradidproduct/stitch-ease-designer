@@ -16,9 +16,11 @@
   cursor: pointer;
 }
 
-.btn:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
+@media (hover: hover) {
+  .btn:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
 }
 
 .btn:disabled {
@@ -32,9 +34,11 @@
   color: var(--on-solid);
 }
 
-.btn--primary:hover:not(:disabled) {
-  filter: brightness(1.08);
-  color: var(--on-solid);
+@media (hover: hover) {
+  .btn--primary:hover:not(:disabled) {
+    filter: brightness(1.08);
+    color: var(--on-solid);
+  }
 }
 
 .btn--quiet {
@@ -43,9 +47,11 @@
   color: var(--text-muted);
 }
 
-.btn--danger:hover:not(:disabled) {
-  border-color: var(--danger);
-  color: var(--danger);
+@media (hover: hover) {
+  .btn--danger:hover:not(:disabled) {
+    border-color: var(--danger);
+    color: var(--danger);
+  }
 }
 
 .btn[data-on="true"] {

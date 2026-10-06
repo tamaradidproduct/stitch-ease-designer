@@ -50,6 +50,42 @@ describe("design tokens", () => {
         if (/^(gap|row-gap|column-gap|padding(-[a-z]+)?|margin(-[a-z]+)?|border-radius|font-size|font)$/.test(prop) && /(^|[\s(/])\d*\.?\d+px/.test(value)) {
           offenders.push(`${file}: ${line.trim()}`);
         }
+        if (/^(line-height|letter-spacing)$/.test(prop) && /^-?\d/.test(value)) offenders.push(`${file}: ${line.trim()}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("keeps hover styles behind @media (hover: hover) so they don't stick on touch", () => {
+    const offenders: string[] = [];
+    for (const [file, text] of Object.entries(stylesheets)) {
+      const code = text.replace(/\/\*[\s\S]*?\*\//g, "");
+      const stack: string[] = [];
+      let start = 0;
+      for (let i = 0; i < code.length; i++) {
+        if (code[i] === "{") {
+          const head = code.slice(start, i).trim();
+          if (head.includes(":hover") && !head.startsWith("@") && !stack.some((h) => /@media[^{]*hover:\s*hover/.test(h))) {
+            offenders.push(`${file}: ${head.split("\n").join(" ")}`);
+          }
+          stack.push(head);
+          start = i + 1;
+        } else if (code[i] === "}") {
+          stack.pop();
+          start = i + 1;
+        } else if (code[i] === ";") {
+          start = i + 1;
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("uses one disabled style everywhere", () => {
+    const offenders: string[] = [];
+    for (const [file, text] of Object.entries(stylesheets)) {
+      for (const m of text.matchAll(/([^{}]*:disabled[^{}]*)\{([^{}]*)\}/g)) {
+        if (/opacity:\s*0?\.\d/.test(m[2]!)) offenders.push(`${file}: ${m[1]!.trim()}`);
       }
     }
     expect(offenders).toEqual([]);
