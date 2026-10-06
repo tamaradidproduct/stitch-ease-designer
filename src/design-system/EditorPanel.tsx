@@ -50,15 +50,19 @@ function errorCopy(e: McpError | undefined): string {
   }
 }
 
-function sessionUrlFrom(payload: unknown): string | null {
-  const text = typeof payload === "string" ? payload : JSON.stringify(payload ?? "");
-  const match = text.match(/session_[A-Za-z0-9]+/);
-  return match ? `https://claude.ai/code/${match[0]}` : null;
+export function sessionUrlFrom(payload: unknown): string | null {
+  try {
+    const text = typeof payload === "string" ? payload : JSON.stringify(payload ?? "");
+    const match = text.match(/session_[A-Za-z0-9]+/);
+    return match ? `https://claude.ai/code/${match[0]}` : null;
+  } catch {
+    return null;
+  }
 }
 
 function TokenInput({ token, value, onChange, onReset }: { token: TokenDef; value: string; onChange: (v: string) => void; onReset: () => void }) {
   const changed = value !== token.value;
-  const problem = invalidReason(value);
+  const problem = invalidReason(value, token.type);
   const id = `tok-${token.name}`;
   return (
     <div className="ds-edit__row" data-changed={changed}>

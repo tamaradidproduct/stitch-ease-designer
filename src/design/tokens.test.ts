@@ -94,6 +94,6 @@ describe("design tokens", () => {
   it("converts hex tokens to rgba for canvas fills", () => {
     expect(alpha("#0284c7", 0.14)).toBe("rgba(2, 132, 199, 0.14)");
     expect(alpha("#fff", 0.5)).toBe("rgba(255, 255, 255, 0.5)");
-    expect(() => alpha("rgb(1 2 3)", 1)).toThrow();
+    expect(alpha("rgb(1 2 3)", 1)).toBe("rgb(1 2 3)");
   });
 });

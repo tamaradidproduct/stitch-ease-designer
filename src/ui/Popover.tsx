@@ -1,6 +1,6 @@
-import type { HTMLAttributes, Ref } from "react";
+import { forwardRef, type HTMLAttributes } from "react";
 
-export type PopoverProps = HTMLAttributes<HTMLDivElement> & { ref?: Ref<HTMLDivElement> };
+export type PopoverProps = HTMLAttributes<HTMLDivElement>;
 
 /**
  * The shared floating surface for popovers, menus and drawers: background,
@@ -9,6 +9,8 @@ export type PopoverProps = HTMLAttributes<HTMLDivElement> & { ref?: Ref<HTMLDivE
  * since every overlay anchors and closes differently. Dismissal goes through
  * useDismissOnOutsideOrEscape.
  */
-export function Popover({ className, ...rest }: PopoverProps) {
-  return <div className={className ? `popover ${className}` : "popover"} {...rest} />;
-}
+export const Popover = forwardRef<HTMLDivElement, PopoverProps>(({ className, ...rest }, ref) => {
+  return <div ref={ref} className={className ? `popover ${className}` : "popover"} {...rest} />;
+});
+
+Popover.displayName = "Popover";
