@@ -22,6 +22,7 @@ import { Toolbar } from "./Toolbar";
 import { Button } from "./Button";
 import { buttonClassName } from "./buttonClassName";
 import { RedoIcon, UndoIcon } from "./icons";
+import { TextField } from "./Field";
 
 function SaveIndicator() {
   const status = useDocStore((s) => s.status);
@@ -133,7 +134,8 @@ export function ChartEditor() {
           ←
         </Link>
         {openMeta ? (
-          <input
+          <TextField
+            variant="inline"
             className="topbar__name"
             defaultValue={openMeta.name}
             key={openMeta.id}

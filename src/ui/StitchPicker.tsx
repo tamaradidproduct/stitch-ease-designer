@@ -24,6 +24,7 @@ import { QuickTile } from "./QuickTile";
 import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
 import { Popover } from "./Popover";
 import { Button } from "./Button";
+import { TextField } from "./Field";
 
 const MENU_WIDTH = 284;
 const SEARCH_SLOT_WIDTH = 200;
@@ -550,7 +551,8 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
   const renderSearchField = (key: string) => (
     <div key={key} className="picker__morphSearch" data-origin={searchOrigin}>
       <SearchIcon className="picker__searchIcon" width={17} height={17} strokeWidth={1.6} />
-      <input
+      <TextField
+        variant="unstyled"
         ref={inputRef}
         className="picker__search"
         placeholder={placeholder}

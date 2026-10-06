@@ -17,6 +17,7 @@ import { Button, IconButton } from "./Button";
 import { Popover } from "./Popover";
 import { BringFrontSmallIcon, EditIcon, EyeOffSmallIcon, EyeSmallIcon, OpacityIcon, PaletteDotsIcon, PlusIcon, ReplaceImageIcon, SendBehindSmallIcon, TrashIcon } from "./icons";
 import { tokens } from "../design/tokens";
+import { Checkbox, Slider } from "./Field";
 
 /** Stitch-highlight presets offered in the trace-colors popover. */
 const TRACE_COLORS = [tokens.highlight, tokens["trace-pink"], tokens["trace-violet"], tokens["trace-green"], tokens.accent];
@@ -345,8 +346,7 @@ export function ReferenceImagePanel() {
           </div>
           <label className="traceColors__intensity">
             <span>Intensity</span>
-            <input
-              type="range"
+            <Slider
               min="0"
               max="0.5"
               step="0.05"
@@ -450,8 +450,7 @@ export function ReferenceImagePanel() {
             <div className="refpanel__quickOpacityPopover">
               <label className="refpanel__row">
                 <span>Opacity</span>
-                <input
-                  type="range"
+                <Slider
                   min={0.1}
                   max={1}
                   step={0.05}
@@ -538,8 +537,7 @@ export function ReferenceImagePanel() {
         {image && (
           <label className="refpanel__row">
             <span>Opacity</span>
-            <input
-              type="range"
+            <Slider
               min={0.1}
               max={1}
               step={0.05}
@@ -552,8 +550,7 @@ export function ReferenceImagePanel() {
           <>
             <label className="refpanel__row">
               <span>Contrast</span>
-              <input
-                type="range"
+              <Slider
                 min={MIN_CONTRAST}
                 max={MAX_CONTRAST}
                 step={0.05}
@@ -686,14 +683,14 @@ export function ReferenceImagePanel() {
                 </p>
               </div>
             )}
-            <label className="refpanel__checkbox" title="Hide the parts of this image outside the stitches you've boxed and named on it, and exclude that same region from Suggest's matching. Fully reversible - never trims the image itself, and does nothing until at least one mark is named. On by default for new images.">
-              <input
-                type="checkbox"
-                checked={!!image.cropToCalibration}
-                onChange={(e) => updateReferenceImage(image.id, { cropToCalibration: e.target.checked })}
-              />
+            <Checkbox
+              labelClassName="refpanel__checkbox"
+              title="Hide the parts of this image outside the stitches you've boxed and named on it, and exclude that same region from Suggest's matching. Fully reversible - never trims the image itself, and does nothing until at least one mark is named. On by default for new images."
+              checked={!!image.cropToCalibration}
+              onChange={(e) => updateReferenceImage(image.id, { cropToCalibration: e.target.checked })}
+            >
               Crop to calibrated stitches
-            </label>
+            </Checkbox>
           </>
         )}
 

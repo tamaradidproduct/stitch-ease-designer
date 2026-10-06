@@ -2,6 +2,7 @@ import { useState } from "react";
 import { sendMagicLink, signInWithGoogle } from "../auth/useSession";
 import { GoogleLogo } from "./icons";
 import { Button } from "./Button";
+import { TextField } from "./Field";
 
 export function SignIn() {
   const [email, setEmail] = useState("");
@@ -64,7 +65,7 @@ export function SignIn() {
               <label className="signIn__label" htmlFor="email">
                 Email
               </label>
-              <input
+              <TextField
                 id="email"
                 type="email"
                 required

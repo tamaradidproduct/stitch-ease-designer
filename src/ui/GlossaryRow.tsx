@@ -5,6 +5,7 @@ import { tapActivate } from "./tapActivate";
 import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
 import { Popover } from "./Popover";
 import { Button } from "./Button";
+import { TextField } from "./Field";
 
 /** One entry in a glossary row's "more" menu. */
 export type GlossaryRowMenuItem = {
@@ -211,7 +212,8 @@ export function GlossaryRow({
         <span className="glossary__shortcutSpacer" />
       )}
       {renaming !== null ? (
-        <input
+        <TextField
+          variant="rename"
           className="glossary__rename"
           autoFocus
           value={renaming}

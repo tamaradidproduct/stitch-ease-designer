@@ -670,10 +670,6 @@
 .glossary__rename {
   flex: 1;
   min-width: 0;
-  padding: var(--space-3) var(--space-4);
-  border: var(--border-width) solid var(--accent);
-  border-radius: var(--radius-sm);
-  font: inherit;
 }
 
 /* Room for "Name (n)" in the unified row: the fixed 38px glyph box and

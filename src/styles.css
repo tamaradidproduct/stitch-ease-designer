@@ -7,6 +7,8 @@
 @import "./styles/base.css";
 @import "./styles/buttons.css";
 @import "./styles/popover.css";
+@import "./styles/segmented.css";
+@import "./styles/forms.css";
 @import "./styles/glyph.css";
 @import "./styles/color.css";
 @import "./styles/topbar.css";

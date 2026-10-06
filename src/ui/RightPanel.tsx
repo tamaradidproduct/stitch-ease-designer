@@ -33,6 +33,7 @@ import { GlossaryRow } from "./GlossaryRow";
 import { glyphCellSize } from "./glyphSize";
 import { Button } from "./Button";
 import { Popover } from "./Popover";
+import { Checkbox, TextField } from "./Field";
 
 type GlossaryResult = { kind: "motif"; id: string } | { kind: "stitch"; id: string };
 
@@ -418,7 +419,8 @@ export function RightPanel() {
                 >
                   {slot < 5 ? <kbd className="glossary__shortcut">{slot + 1}</kbd> : <span className="glossary__shortcutSpacer" />}
                   <SearchIcon />
-                  <input
+                  <TextField
+                    variant="unstyled"
                     ref={glossarySearchRef}
                     type="search"
                     value={glossaryQuery}
@@ -893,14 +895,13 @@ export function RightPanel() {
         {exportOpen && (
           <div className="sideModule__body">
             {referenceImages.length > 0 && (
-              <label className="refpanel__checkbox">
-                <input
-                  type="checkbox"
-                  checked={includeReferenceImage}
-                  onChange={(event) => setIncludeReferenceImage(event.target.checked)}
-                />
+              <Checkbox
+                labelClassName="refpanel__checkbox"
+                checked={includeReferenceImage}
+                onChange={(event) => setIncludeReferenceImage(event.target.checked)}
+              >
                 Include reference image{referenceImages.length > 1 ? "s" : ""}
-              </label>
+              </Checkbox>
             )}
             <div className="refpanel__actions">
               <Button

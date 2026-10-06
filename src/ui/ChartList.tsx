@@ -7,6 +7,7 @@ import { importChartIntoStore } from "../storage/exportImport";
 import { removeReferenceImageFile } from "../storage/referenceImages";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { Button } from "./Button";
+import { TextField } from "./Field";
 
 const formatWhen = (iso: string) => {
   const date = new Date(iso);
@@ -134,7 +135,8 @@ export function ChartList() {
                   }
                 }}
               >
-                <input
+                <TextField
+                  variant="rename"
                   name="name"
                   className="chartrow__input"
                   aria-label="Chart name"

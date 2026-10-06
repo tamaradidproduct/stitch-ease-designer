@@ -98,12 +98,6 @@
 
 .chartrow__input {
   width: 100%;
-  padding: var(--space-3) var(--space-4);
-  border: var(--border-width) solid var(--accent);
-  border-radius: var(--radius-sm);
-  font: inherit;
-  color: var(--text);
-  outline: none;
 }
 
 .chartrow__tools {

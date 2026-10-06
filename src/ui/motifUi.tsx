@@ -6,6 +6,7 @@ import { useUiStore } from "../state/uiStore";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { DetachIcon, MirrorIcon, PushToMotifIcon, RenameIcon, ResetIcon, TrashSmallIcon } from "./icons";
 import { Button } from "./Button";
+import { TextField } from "./Field";
 
 /**
  * Motifs are pens (FR-64): they share the quick row and the picker's More
@@ -75,7 +76,8 @@ export function MotifDrawerSection({ onArmed }: { onArmed: () => void }) {
           return (
             <div key={motif.id} className="picker__item motifRow">
               {renaming === motif.id ? (
-                <input
+                <TextField
+                  variant="rename"
                   className="motifRow__rename"
                   autoFocus
                   value={draft}
