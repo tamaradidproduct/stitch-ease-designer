@@ -40,8 +40,15 @@ export type BacklogItem = {
   effort: "S" | "M" | "L";
 };
 
-const bespokeButtons = perFile(/<button\b/g);
-const inputs = perFile(/<input\b/g);
+const rawButtons = perFile(/<button\b/g).filter((r) => r.file !== "Button.tsx");
+const ownLookButtons = perFile(/variant="unstyled"/g);
+// Hidden file inputs and the native custom-color picker are meant to stay raw.
+const inputs = source
+  .map(([p, text]) => ({
+    file: shortName(p),
+    n: (text.match(/<input\b[^>]*>/gs) ?? []).filter((tag) => !/type="(file|color)"/.test(tag)).length,
+  }))
+  .filter((r) => r.n > 0 && !["Field.tsx"].includes(r.file));
 const inlineStyles = perFile(/style=\{\{/g);
 // MotifGlyph/MotifCellGlyph draw the motif mark inline on purpose.
 const inlineSvgs = perFile(/<svg\b/g).filter((r) => r.file !== "motifUi.tsx");
@@ -64,56 +71,62 @@ const localZ = Object.entries(sheets).flatMap(([p, text]) =>
   (text.match(/z-index:\s*\d+/g) ?? []).map(() => shortName(p)),
 );
 
-const nonPopoverOverlays = ["refpanel__helpPopover", "refpanel__quickOpacityPopover", "picker__selectionBubbles", "suggestReview__menu"]
-  .filter((cls) => Object.values(sheets).some((t) => t.includes(`.${cls}`)));
+// Floating surfaces that draw their own popover-level shadow instead of
+// using <Popover>. The glass docks are deliberate and excluded.
+const nonPopoverOverlays = Object.entries(sheets).flatMap(([, text]) =>
+  [...text.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{[^{}]*box-shadow:\s*var\(--shadow-3\)[^{}]*\}/g)]
+    .map((m) => m[1]!.trim().split(/\s*,\s*/)[0]!)
+    .filter((sel) => !/^\.(popover|toolDock|panDock|referenceDock|referenceImageQuickDock)/.test(sel)),
+);
 
-const segmented = Object.values(sheets).reduce((n, t) => n + count(t, /\.[a-zA-Z]+__toggle\b[^{]*\{/g), 0);
+// Radio groups built by hand rather than with SegmentedControl.
+const handRadioGroups = perFile(/role="radiogroup"/g).filter((r) => r.file !== "SegmentedControl.tsx");
 
 const fmt = (rows: { file: string; n: number }[]) => rows.map((r) => `${r.file} (${r.n})`);
 
 export const backlog: BacklogItem[] = [
   {
-    id: "bespoke-buttons",
+    id: "own-look-buttons",
     area: "Components",
-    title: "Move bespoke buttons onto Button / IconButton",
-    count: bespokeButtons.reduce((n, r) => n + r.n, 0),
-    unit: "raw <button>",
-    detail: "Tool dock, picker quick slots, glossary row actions and panel headers still render their own <button> with block-specific styles. Moving them to Button/IconButton gives consistent sizes, focus rings, labels and type=\"button\".",
-    where: fmt(bespokeButtons),
-    request: "Migrate the raw <button> elements in the files with the most of them (start with RightPanel.tsx and ReferenceImagePanel.tsx) onto Button/IconButton from src/ui/Button.tsx. Keep each block's class for layout, remove style declarations that duplicate .btn, and confirm no visual change beyond token snapping.",
+    title: "Unify buttons that still have their own look",
+    count: ownLookButtons.reduce((n, r) => n + r.n, 0) + rawButtons.reduce((n, r) => n + r.n, 0),
+    unit: "custom-styled buttons",
+    detail: "Every button now goes through Button, but these use variant=\"unstyled\" and keep a component-specific look (tool dock, quick slots, glossary row actions, menus). Many could share a small set of shared looks: icon button, toolbar button, menu item.",
+    where: fmt([...ownLookButtons, ...rawButtons]),
+    request: "Group the variant=\"unstyled\" buttons in src/ui by look (icon buttons, toolbar/dock buttons, menu items, list rows). Add shared Button variants or classes for the groups that are visually the same, and move them over. Leave genuinely one-off controls alone, and keep the visual result within 1-2px.",
     effort: "L",
   },
   {
     id: "form-controls",
     area: "Components",
-    title: "Add shared form controls (TextField, Slider, Checkbox)",
+    title: "Move remaining inputs onto TextField / Slider / Checkbox",
     count: inputs.reduce((n, r) => n + r.n, 0),
     unit: "raw <input>",
-    detail: "Text inputs, range sliders, checkboxes and file inputs are styled per block. No shared component sets their height, border, focus ring or label pattern.",
+    detail: "Inputs not yet using the shared form controls in ui/Field.tsx. Hidden file inputs and the native color picker are excluded on purpose.",
     where: fmt(inputs),
-    request: "Create TextField, Slider and Checkbox components in src/ui (styled only with tokens; focus ring via --accent-ring), add them to the style guide, and migrate the existing <input> elements to them.",
+    request: "Migrate any remaining raw <input> elements in src/ui to TextField, Slider or Checkbox from src/ui/Field.tsx.",
     effort: "M",
   },
   {
     id: "segmented",
     area: "Components",
-    title: "Extract a SegmentedControl",
-    count: segmented,
-    unit: "toggle groups",
-    detail: "Pattern settings (flat/round, RS/WS, corner) and the trace-color presets each build their own radio-style toggle row.",
-    where: ["patternSettings.css", "PatternSettingsMenu.tsx"],
-    request: "Extract a SegmentedControl component (role=radiogroup, arrow-key navigation) from the pattern settings toggles, use it there, and add it to the style guide.",
+    title: "Move hand-built radio groups onto SegmentedControl",
+    count: handRadioGroups.reduce((n, r) => n + r.n, 0),
+    unit: "radio groups",
+    detail: "Single-choice groups built by hand instead of with SegmentedControl, which brings arrow-key navigation and one tab stop. The tool dock is a toolbar of toggles, not a radio group, so it's excluded.",
+    where: fmt(handRadioGroups),
+    request: "Move hand-built role=radiogroup groups in src/ui onto SegmentedControl (appearance=\"custom\" where they need their own look).",
     effort: "S",
   },
   {
     id: "overlays",
     area: "Components",
-    title: "Bring the remaining overlays onto Popover",
+    title: "Floating surfaces outside Popover",
     count: nonPopoverOverlays.length,
-    unit: "overlays",
-    detail: "These floating or inline panels still set their own surface (background, border, radius, shadow) instead of the shared Popover surface.",
+    unit: "surfaces",
+    detail: "Rules that draw a popover-level shadow (--shadow-3) without the shared Popover surface. Glass docks are excluded on purpose.",
     where: nonPopoverOverlays,
-    request: `Move ${nonPopoverOverlays.join(", ")} onto the shared Popover surface where they float, or document why they're inline panels, and make sure each one closes through useDismissOnOutsideOrEscape.`,
+    request: "Review the floating surfaces in src/styles that draw --shadow-3 without .popover (listed on the style guide) and move true popovers onto <Popover>; leave floating action buttons as they are.",
     effort: "S",
   },
   {
@@ -179,7 +192,7 @@ export const backlog: BacklogItem[] = [
     unit: "files over 500 lines",
     detail: "Large components mix several sub-surfaces, which makes them hard to reuse in the style guide and slow to review.",
     where: fmt(large),
-    request: "Split the largest components in src/ui (RightPanel.tsx, StitchPicker.tsx, ReferenceImagePanel.tsx) into one file per sub-surface (e.g. GlossarySection, ExportSection, NavigatorSection), with no behavior change, and add the extracted pieces to the style guide.",
+    request: "Split the largest components in src/ui further (GlossarySection: inline search and results; StitchPicker: search results list; ReferenceImagePanel: calibration editor) into one file per sub-surface, with no behavior change. Split their stylesheets the same way.",
     effort: "L",
   },
   {

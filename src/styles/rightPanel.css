@@ -163,6 +163,10 @@
   font-size: var(--font-size-2xs);
 }
 
+.shortcutList__row {
+  display: contents;
+}
+
 .shortcutList dt,
 .shortcutList dd {
   margin: 0;

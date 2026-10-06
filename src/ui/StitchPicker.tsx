@@ -9,32 +9,29 @@ import { type PickerTarget, useUiStore } from "../state/uiStore";
 import { insertTargetCol } from "../model/ops";
 import { SymbolGlyph } from "./SymbolGlyph";
 import { browseSymbols, searchMotifs } from "./symbolSearch";
-import { CloseIcon, DuplicateIcon, MakeMotifIcon, MoreIcon, QuickAddIcon, SearchIcon, TrashSmallIcon } from "./icons";
+import { CloseIcon, MoreIcon, QuickAddIcon, SearchIcon, TrashSmallIcon } from "./icons";
 import { collectColoredGlossaryEntries, useGlossaryIds } from "./chartGlossary";
 import { clamp } from "./utils";
 import { parseQuickSlotId } from "../model/quickSlots";
 import { motifIdFromKey, stampOrigin } from "../model/motifs";
 import { rowDirectionAt } from "../model/rowDirection";
 import { effectiveBase, isBaseStitch } from "../model/cableComposition";
-import { MotifCopyBubbles, MotifDrawerSection, MotifGlyph, MotifQuickTile } from "./motifUi";
+import { MotifGlyph, MotifQuickTile } from "./motifUi";
 import { armMotifPen, eraseKeepingMotifStitches, selectedMotifCopy } from "./motifActions";
 import { applyChipColor, currentSlotForPicker } from "./colorwork";
-import { ColorChip } from "./ColorChip";
 import { QuickTile } from "./QuickTile";
 import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
-import { Popover } from "./Popover";
 import { Button } from "./Button";
 import { TextField } from "./Field";
+import { PickerSelectionActions } from "./PickerSelectionActions";
+import { PickerMoreDrawer } from "./PickerMoreDrawer";
+import { cellSizeFor } from "./pickerLayout";
 
 const MENU_WIDTH = 284;
 const SEARCH_SLOT_WIDTH = 200;
 const MAX_HEIGHT = 380;
 const MAX_HEIGHT_RESULTS = 326;
-const GLYPH_BUDGET = 210;
 
-/** Cables are up to 12 cells wide; shrink the cell so the whole span fits. */
-const cellSizeFor = (symbol: StitchSymbol) =>
-  Math.max(9, Math.min(22, Math.floor(GLYPH_BUDGET / symbol.span)));
 
 export function StitchPicker() {
   const target = useUiStore((s) => s.picker);
@@ -62,10 +59,8 @@ export function StitchPicker() {
 
 function StitchPickerBody({ target }: { target: PickerTarget }) {
   const closePicker = useUiStore((s) => s.closePicker);
-  const openPicker = useUiStore((s) => s.openPicker);
   const chooseSymbol = useUiStore((s) => s.chooseSymbol);
   const clearSelection = useUiStore((s) => s.clearSelection);
-  const setSelectedPlacementIds = useUiStore((s) => s.setSelectedPlacementIds);
   const setInsertAnimation = useUiStore((s) => s.setInsertAnimation);
   const quickIds = useDocStore((s) => s.quickSymbolIds);
   const armedSymbolId = useUiStore((s) => s.armedSymbolId);
@@ -74,8 +69,6 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
   const viewport = useUiStore((s) => s.viewport);
   const place = useDocStore((s) => s.place);
   const erase = useDocStore((s) => s.erase);
-  const createRepeat = useDocStore((s) => s.createRepeat);
-  const duplicateSelection = useDocStore((s) => s.duplicatePlacementsInRow);
   const insertPlacement = useDocStore((s) => s.insertPlacement);
   const replacePlacements = useDocStore((s) => s.replacePlacements);
   const beginStroke = useDocStore((s) => s.beginStroke);
@@ -703,84 +696,28 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
         </div>
 
         {moreOpen && (
-          <Popover id="picker-more-stitches" className="picker__moreDrawer" aria-label="More stitches in this chart">
-            {moreEntries.length > 0 && <div className="picker__moreHeader">This chart</div>}
-            <div className="picker__moreList" hidden={!moreEntries.length}>
-              {moreEntries.map((entry) => (
-                <div key={entry.key} className="picker__item">
-                  <Button variant="unstyled"
-                    className="picker__itemMain"
-                    data-colored={!!entry.colorId}
-                    onClick={() => choose(entry.symbol, entry.colorId)}
-                    title={entry.symbol.label}
-                  >
-                    <span className="picker__glyph">
-                      <SymbolGlyph symbol={entry.symbol} cell={cellSizeFor(entry.symbol)} colorId={entry.colorId} />
-                    </span>
-                    <span className="picker__label">{entry.symbol.label}</span>
-                    {isCurrent(entry) && <span className="picker__current">current</span>}
-                    {entry.symbol.span > 1 && <span className="picker__span">{entry.symbol.span} sts</span>}
-                  </Button>
-                  {!entry.colorId && !baseCell && (
-                    <ColorChip
-                      label={`Color ${entry.symbol.label}`}
-                      className="picker__itemColorChip"
-                      onSelect={(colorId) => {
-                        applyChipColor(entry.symbol.id, colorId, chipTargetIds);
-                        closePicker();
-                      }}
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-            <MotifDrawerSection onArmed={closePicker} />
-          </Popover>
+          <PickerMoreDrawer
+            entries={moreEntries}
+            isCurrent={isCurrent}
+            canColor={!baseCell}
+            onChoose={choose}
+            onChipColor={(symbolId, colorId) => {
+              applyChipColor(symbolId, colorId, chipTargetIds);
+              closePicker();
+            }}
+            onClose={closePicker}
+          />
         )}
 
         {target.selectionIds && (target.selectionIds.length > 1 || copyInfo) && (
-          <div className="picker__selectionBubbles" aria-label="Selection actions">
-            {copyInfo ? (
-              <MotifCopyBubbles copyId={copyInfo.copy.id} overridden={copyInfo.overridden} onDone={() => {
-                clearSelection();
-                closePicker();
-              }} />
-            ) : (
-            <Button variant="unstyled"
-              onClick={() => {
-                createRepeat(target.selectionIds!);
-                clearSelection();
-                closePicker();
-              }}
-              title="Make a motif from these stitches (⌘G)"
-              aria-label="Make motif"
-              data-label="Motif"
-            >
-              <MakeMotifIcon />
-            </Button>
-            )}
-            <Button variant="unstyled"
-              onClick={() => {
-                const ids = duplicateSelection(target.selectionIds!);
-                const first = ids.length ? index.placements.get(ids[0]!) : undefined;
-                if (!ids.length || !first) return;
-                setSelectedPlacementIds(ids, false);
-                openPicker({
-                  col: first.col,
-                  row: first.row,
-                  x: 0,
-                  y: 0,
-                  selectionIds: ids,
-                  selectionSpan: index.spanOf(first),
-                });
-              }}
-              title="Duplicate selected stitches"
-              aria-label="Duplicate selection"
-              data-label="Duplicate"
-            >
-              <DuplicateIcon />
-            </Button>
-          </div>
+          <PickerSelectionActions
+            selectionIds={target.selectionIds}
+            copyInfo={copyInfo}
+            onDone={() => {
+              clearSelection();
+              closePicker();
+            }}
+          />
         )}
 
           {searchOpen && (

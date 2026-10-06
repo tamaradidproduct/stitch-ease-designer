@@ -13,14 +13,11 @@ import { resolveReferenceImageUrl, uploadReferenceImage } from "../storage/refer
 import { newUuid } from "../uuid";
 import { tapActivate } from "./tapActivate";
 import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
-import { Button, IconButton } from "./Button";
-import { Popover } from "./Popover";
-import { BringFrontSmallIcon, EditIcon, EyeOffSmallIcon, EyeSmallIcon, OpacityIcon, PaletteDotsIcon, PlusIcon, ReplaceImageIcon, SendBehindSmallIcon, TrashIcon } from "./icons";
-import { tokens } from "../design/tokens";
+import { Button } from "./Button";
+import { PaletteDotsIcon, PlusIcon, ReplaceImageIcon, TrashIcon } from "./icons";
 import { Checkbox, Slider } from "./Field";
-
-/** Stitch-highlight presets offered in the trace-colors popover. */
-const TRACE_COLORS = [tokens.highlight, tokens["trace-pink"], tokens["trace-violet"], tokens["trace-green"], tokens.accent];
+import { TraceColorsPopover } from "./TraceColorsPopover";
+import { ReferenceImageQuickControls } from "./ReferenceImageQuickControls";
 
 /**
  * Upload + transform controls for the chart's reference images. A chart can
@@ -37,7 +34,6 @@ const TRACE_COLORS = [tokens.highlight, tokens["trace-pink"], tokens["trace-viol
 export function ReferenceImagePanel() {
   const [traceMenuOpen, setTraceMenuOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
-  const [opacityOpen, setOpacityOpen] = useState(false);
   const referenceImagePanelRef = useRef<HTMLElement | null>(null);
   const isAdmin = useUiStore((s) => s.role === "admin");
   const open = useUiStore((s) => s.referenceImagePanelOpen);
@@ -53,10 +49,7 @@ export function ReferenceImagePanel() {
   const marking = useUiStore((s) => s.referenceImageMarking);
   const setActiveMark = useUiStore((s) => s.setReferenceImageActiveMark);
   const activeMark = useUiStore((s) => s.referenceImageActiveMark);
-  const stitchHighlightColor = useUiStore((s) => s.stitchHighlightColor);
   const stitchHighlightOpacity = useUiStore((s) => s.stitchHighlightOpacity);
-  const setStitchHighlight = useUiStore((s) => s.setStitchHighlight);
-  const setStitchHighlightOpacity = useUiStore((s) => s.setStitchHighlightOpacity);
   const activeImageId = useUiStore((s) => s.activeReferenceImageId);
   const setActiveImageId = useUiStore((s) => s.setActiveReferenceImageId);
   const centerCameraAt = useUiStore((s) => s.centerCameraAt);
@@ -113,13 +106,6 @@ export function ReferenceImagePanel() {
   const hasSpread =
     new Set(labelled.map((point) => point.stitch)).size >= 2 &&
     new Set(labelled.map((point) => point.row)).size >= 2;
-  // The shared front/behind toggle reads as "on" only once every image
-  // actually is in front - otherwise it offers "Bring to front" for the
-  // ones that aren't, rather than claiming a mixed state is already done.
-  const allInFront = images.length > 0 && images.every((img) => img.inFront);
-  // Same "reads as on only once it's uniformly true" logic as allInFront,
-  // for the shared hide/show-all toggle.
-  const allHidden = images.length > 0 && images.every((img) => !img.visible);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -139,13 +125,6 @@ export function ReferenceImagePanel() {
     enabled: helpOpen,
     containerRef: referenceImagePanelRef,
     onDismiss: () => setHelpOpen(false),
-    captureOutsidePointerdown: false,
-    stopEscapePropagation: true,
-  });
-  useDismissOnOutsideOrEscape({
-    enabled: opacityOpen,
-    containerRef: referenceImagePanelRef,
-    onDismiss: () => setOpacityOpen(false),
     captureOutsidePointerdown: false,
     stopEscapePropagation: true,
   });
@@ -319,151 +298,16 @@ export function ReferenceImagePanel() {
           </Button>
         </div>
       </div>
-      {traceMenuOpen && (
-        <Popover className="traceColors refpanel__traceColors">
-          <div className="traceColors__label">
-            <span>Canvas stitch color</span>
-            <Button variant="unstyled" onClick={() => setStitchHighlightOpacity(0)}>Off</Button>
-          </div>
-          <div className="traceColors__presets" aria-label="Stitch highlight color">
-            {TRACE_COLORS.map((color) => (
-              <Button variant="unstyled"
-                key={color}
-                style={{ background: color }}
-                data-on={stitchHighlightColor === color && stitchHighlightOpacity > 0}
-                onClick={() => setStitchHighlight(color, stitchHighlightOpacity || 0.22)}
-                aria-label={`Use ${color} stitch highlight`}
-              />
-            ))}
-            <label className="traceColors__custom" title="Choose a custom color">
-              <input
-                type="color"
-                value={stitchHighlightColor}
-                onChange={(event) => setStitchHighlight(event.target.value, stitchHighlightOpacity || 0.22)}
-                aria-label="Custom stitch highlight color"
-              />
-            </label>
-          </div>
-          <label className="traceColors__intensity">
-            <span>Intensity</span>
-            <Slider
-              min="0"
-              max="0.5"
-              step="0.05"
-              value={stitchHighlightOpacity}
-              onChange={(event) => setStitchHighlightOpacity(Number(event.target.value))}
-            />
-          </label>
-        </Popover>
-      )}
+      {traceMenuOpen && <TraceColorsPopover />}
 
       {images.length > 0 && !open && (
-        <div className="refpanel__quickControls" role="group" aria-label="Reference image quick controls">
-          <ul className="refpanel__quickList">
-            {images.map((img) => (
-              <li key={img.id} className="refpanel__quickRow">
-                {/* Identification only, not a control - editing and
-                    visibility each get their own explicit button to the
-                    right, rather than overloading a click on the label. */}
-                <span className="refpanel__quickLabel">
-                  {thumbUrls[img.id] ? (
-                    <img className="refpanel__imageThumb" src={thumbUrls[img.id]} alt="" />
-                  ) : (
-                    <span className="refpanel__imageThumb refpanel__imageThumb--empty" aria-hidden="true" />
-                  )}
-                  <span>Image {img.number}</span>
-                </span>
-                <IconButton
-                  className="refpanel__iconButton"
-                  label={`Edit image ${img.number}`}
-                  tooltip="Edit"
-                  onClick={() => {
-                    setActiveImageId(img.id);
-                    setOpen(true);
-                  }}
-                >
-                  <EditIcon />
-                </IconButton>
-                <IconButton
-                  className="refpanel__iconButton"
-                  label={img.visible ? `Hide image ${img.number}` : `Show image ${img.number}`}
-                  aria-pressed={img.visible}
-                  tooltip={img.visible ? "Hide" : "Show"}
-                  onClick={() => updateReferenceImage(img.id, { visible: !img.visible })}
-                >
-                  {img.visible ? (
-                    <EyeSmallIcon />
-                  ) : (
-                    <EyeOffSmallIcon />
-                  )}
-                </IconButton>
-              </li>
-            ))}
-          </ul>
-          <div className="refpanel__quickBottomRow">
-            {/* One shared hide/show-all toggle, same "reads as on only once
-                uniform" logic as the front/behind toggle below - per-image
-                visibility stays reachable on each row for the common single-
-                image tweak. */}
-            <IconButton
-              className="refpanel__iconButton"
-              label={allHidden ? "Show all reference images" : "Hide all reference images"}
-              aria-pressed={allHidden}
-              tooltip={allHidden ? "Show all" : "Hide all"}
-              onClick={() => images.forEach((img) => updateReferenceImage(img.id, { visible: allHidden }))}
-            >
-              {allHidden ? (
-                <EyeOffSmallIcon />
-              ) : (
-                <EyeSmallIcon />
-              )}
-            </IconButton>
-            <IconButton
-              className="refpanel__iconButton"
-              label="Adjust opacity"
-              aria-expanded={opacityOpen}
-              tooltip="Opacity"
-              onClick={() => setOpacityOpen((isOpen) => !isOpen)}
-            >
-              <OpacityIcon />
-            </IconButton>
-            {/* One shared front/behind toggle for every image at once - unlike
-                visibility and editing, which stay per-image, stacking order
-                relative to the chart is a single yes/no the designer thinks
-                about for the whole reference photo set, not image by image. */}
-            <IconButton
-              className="refpanel__iconButton refpanel__layerButton"
-              label={allInFront ? "Send reference images behind stitches" : "Bring reference images in front of stitches"}
-              aria-pressed={allInFront}
-              tooltip={allInFront ? "Send behind stitches" : "Bring in front of stitches"}
-              onClick={() => images.forEach((img) => updateReferenceImage(img.id, { inFront: !allInFront }))}
-            >
-              {allInFront ? (
-                <SendBehindSmallIcon />
-              ) : (
-                <BringFrontSmallIcon />
-              )}
-              <span>{allInFront ? "Send behind" : "Bring to front"}</span>
-            </IconButton>
-          </div>
-          {opacityOpen && (
-            <div className="inset refpanel__quickOpacity">
-              <label className="refpanel__row">
-                <span>Opacity</span>
-                <Slider
-                  min={0.1}
-                  max={1}
-                  step={0.05}
-                  value={images[0]?.opacity ?? 0.5}
-                  onChange={(e) => {
-                    const opacity = Number(e.target.value);
-                    images.forEach((img) => updateReferenceImage(img.id, { opacity }));
-                  }}
-                />
-              </label>
-            </div>
-          )}
-        </div>
+        <ReferenceImageQuickControls
+          thumbUrls={thumbUrls}
+          onEdit={(id) => {
+            setActiveImageId(id);
+            setOpen(true);
+          }}
+        />
       )}
 
       <input
