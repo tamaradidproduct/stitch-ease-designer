@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { sendMagicLink, signInWithGoogle } from "../auth/useSession";
 import { GoogleLogo } from "./icons";
+import { Button } from "./Button";
 
 export function SignIn() {
   const [email, setEmail] = useState("");
@@ -48,15 +49,14 @@ export function SignIn() {
           </p>
         ) : (
           <>
-            <button
-              type="button"
+            <Button variant="unstyled"
               className="signIn__google"
               onClick={onGoogleClick}
               disabled={googleBusy || status === "sending"}
             >
               <GoogleLogo width="16" height="16" />
               {googleBusy ? "Redirecting…" : "Continue with Google"}
-            </button>
+            </Button>
 
             <div className="signIn__divider">or</div>
 
@@ -74,9 +74,9 @@ export function SignIn() {
                 placeholder="you@example.com"
                 disabled={status === "sending" || googleBusy}
               />
-              <button type="submit" disabled={status === "sending" || googleBusy || !email.trim()}>
+              <Button variant="unstyled" type="submit" disabled={status === "sending" || googleBusy || !email.trim()}>
                 {status === "sending" ? "Sending…" : "Send sign-in link"}
-              </button>
+              </Button>
             </form>
 
             {error && <p className="signIn__error">{error}</p>}

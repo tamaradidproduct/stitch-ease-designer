@@ -6,6 +6,7 @@ import { SymbolGlyph } from "./SymbolGlyph";
 import { tapActivate } from "./tapActivate";
 import { DisarmDrawingButton } from "./DisarmDrawingButton";
 import { CheckIcon, CrossIcon, DrawIcon, EraseIcon, InsertIcon, SelectIcon, SuggestIcon } from "./icons";
+import { Button } from "./Button";
 
 export function Toolbar() {
   const referenceImagePanelOpen = useUiStore((s) => s.referenceImagePanelOpen);
@@ -48,8 +49,7 @@ export function Toolbar() {
   return (
     <div className={`toolDock${suggestArmed ? " toolDock--suggest" : ""}`} aria-label="Canvas tools">
       {suggestArmed ? (
-        <button
-          type="button"
+        <Button variant="unstyled"
           className="toolDock__button"
           data-on={effectiveSuggestAction === "confirm"}
           aria-pressed={effectiveSuggestAction === "confirm"}
@@ -58,10 +58,9 @@ export function Toolbar() {
         >
           <CheckIcon />
           <span>Confirm</span>
-        </button>
+        </Button>
       ) : (
-        <button
-          type="button"
+        <Button variant="unstyled"
           className="toolDock__button"
           data-on={!panEnabled && (tool === "select" || selectHeld)}
           aria-pressed={!panEnabled && (tool === "select" || selectHeld)}
@@ -70,14 +69,13 @@ export function Toolbar() {
         >
           <SelectIcon />
           <span>Select</span>
-        </button>
+        </Button>
       )}
       <div
         className="toolDock__button toolDock__drawGroup"
         data-on={suggestArmed ? effectiveSuggestAction === "suggest" : !panEnabled && !selectHeld && tool === "stitch"}
       >
-        <button
-          type="button"
+        <Button variant="unstyled"
           className="toolDock__drawMain"
           aria-pressed={suggestArmed ? effectiveSuggestAction === "suggest" : !panEnabled && !selectHeld && tool === "stitch"}
           {...tapActivate(() => (suggestArmed ? setSuggestAction("suggest") : setTool("stitch")))}
@@ -95,14 +93,13 @@ export function Toolbar() {
             <DrawIcon />
           )}
           <span>{suggestArmed ? "Suggest" : "Draw"}</span>
-        </button>
+        </Button>
         {armedSymbolId && (
           <DisarmDrawingButton className="toolDock__drawStop" onActivate={() => setArmedSymbolId(null)} />
         )}
       </div>
       {suggestArmed ? (
-        <button
-          type="button"
+        <Button variant="unstyled"
           className="toolDock__button"
           data-on={effectiveSuggestAction === "dismiss"}
           aria-pressed={effectiveSuggestAction === "dismiss"}
@@ -111,10 +108,9 @@ export function Toolbar() {
         >
           <CrossIcon />
           <span>Dismiss</span>
-        </button>
+        </Button>
       ) : (
-        <button
-          type="button"
+        <Button variant="unstyled"
           className="toolDock__button"
           data-on={!panEnabled && !selectHeld && tool === "insert"}
           aria-pressed={!panEnabled && !selectHeld && tool === "insert"}
@@ -123,11 +119,10 @@ export function Toolbar() {
         >
           <InsertIcon />
           <span>Insert</span>
-        </button>
+        </Button>
       )}
       <span className="toolDock__separator" aria-hidden="true" />
-      <button
-        type="button"
+      <Button variant="unstyled"
         className="toolDock__button toolDock__eraser"
         data-on={!panEnabled && !selectHeld && tool === "eraser"}
         aria-pressed={!panEnabled && !selectHeld && tool === "eraser"}
@@ -136,7 +131,7 @@ export function Toolbar() {
       >
         <EraseIcon />
         <span>Erase</span>
-      </button>
+      </Button>
     </div>
   );
 }

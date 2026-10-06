@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { ColorSwatchPopover } from "./ColorSwatchPopover";
 import { PaletteIcon } from "./icons";
+import { Button } from "./Button";
 
 export type ColorChipProps = {
   /**
@@ -36,9 +37,8 @@ export function ColorChip({
 
   return (
     <>
-      <button
+      <Button variant="unstyled"
         ref={buttonRef}
-        type="button"
         className={`colorChip${className ? ` ${className}` : ""}`}
         aria-label={label}
         aria-haspopup="dialog"
@@ -51,7 +51,7 @@ export function ColorChip({
         }}
       >
         <PaletteIcon width="14" height="14" />
-      </button>
+      </Button>
       {open && anchorRect && (
         <ColorSwatchPopover
           anchorRect={anchorRect}

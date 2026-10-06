@@ -5,6 +5,7 @@ import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { DetachIcon, MirrorIcon, PushToMotifIcon, RenameIcon, ResetIcon, TrashSmallIcon } from "./icons";
+import { Button } from "./Button";
 
 /**
  * Motifs are pens (FR-64): they share the quick row and the picker's More
@@ -35,8 +36,7 @@ export function MotifQuickTile({
   const title = `${motif.name} (${motif.width}×${motif.height} motif)`;
   return (
     <div className="picker__quickTile">
-      <button
-        type="button"
+      <Button variant="unstyled"
         className="picker__quickButton motifTile"
         data-active={armed}
         onClick={onChoose}
@@ -46,7 +46,7 @@ export function MotifQuickTile({
       >
         <MotifGlyph />
         <span className="motifTile__size">{motif.width}×{motif.height}</span>
-      </button>
+      </Button>
     </div>
   );
 }
@@ -89,8 +89,7 @@ export function MotifDrawerSection({ onArmed }: { onArmed: () => void }) {
                   }}
                 />
               ) : (
-                <button
-                  type="button"
+                <Button variant="unstyled"
                   className="picker__itemMain"
                   data-active={armedMotif?.id === motif.id}
                   onClick={() => {
@@ -102,11 +101,10 @@ export function MotifDrawerSection({ onArmed }: { onArmed: () => void }) {
                   <span className="picker__glyph"><MotifGlyph /></span>
                   <span className="picker__label">{motif.name}</span>
                   <span className="picker__span">{motif.width}×{motif.height}</span>
-                </button>
+                </Button>
               )}
               <div className="motifRow__actions">
-                <button
-                  type="button"
+                <Button variant="unstyled"
                   onClick={() => {
                     setDraft(motif.name);
                     setRenaming(motif.id);
@@ -115,9 +113,8 @@ export function MotifDrawerSection({ onArmed }: { onArmed: () => void }) {
                   title="Rename"
                 >
                   <RenameIcon />
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button variant="unstyled"
                   onClick={() => {
                     armMotifPen(motif.id, true);
                     onArmed();
@@ -126,9 +123,8 @@ export function MotifDrawerSection({ onArmed }: { onArmed: () => void }) {
                   title="Stamp mirrored"
                 >
                   <MirrorIcon />
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button variant="unstyled"
                   onClick={() => {
                     requestDelete(motif.id);
                     onArmed();
@@ -137,7 +133,7 @@ export function MotifDrawerSection({ onArmed }: { onArmed: () => void }) {
                   title="Delete motif"
                 >
                   <TrashSmallIcon />
-                </button>
+                </Button>
               </div>
             </div>
           );
@@ -158,44 +154,40 @@ export function MotifCopyBubbles({ copyId, overridden, onDone }: { copyId: strin
     <>
       {overridden && (
         <>
-          <button
-            type="button"
+          <Button variant="unstyled"
             onClick={act(() => doc().pushMotifCopy(copyId))}
             title="Make this copy's changes the motif - every copy updates"
             aria-label="Push changes to motif"
             data-label="Push to motif"
           >
             <PushToMotifIcon />
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button variant="unstyled"
             onClick={act(() => doc().resetMotifCopy(copyId))}
             title="Discard this copy's changes"
             aria-label="Reset copy to motif"
             data-label="Reset"
           >
             <ResetIcon />
-          </button>
+          </Button>
         </>
       )}
-      <button
-        type="button"
+      <Button variant="unstyled"
         onClick={act(() => doc().mirrorMotifCopy(copyId))}
         title="Mirror this copy"
         aria-label="Mirror copy"
         data-label="Mirror"
       >
         <MirrorIcon />
-      </button>
-      <button
-        type="button"
+      </Button>
+      <Button variant="unstyled"
         onClick={act(() => doc().detachMotifCopy(copyId))}
         title="Unlink this copy from its motif"
         aria-label="Detach copy"
         data-label="Detach"
       >
         <DetachIcon />
-      </button>
+      </Button>
     </>
   );
 }

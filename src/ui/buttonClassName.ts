@@ -1,4 +1,10 @@
-export type ButtonVariant = "default" | "primary" | "quiet";
+/**
+ * `unstyled` drops the shared `.btn` look entirely and keeps only the
+ * caller's own block class - for buttons whose look belongs to their
+ * component (tool dock, quick slots, glossary row actions) but should still
+ * go through Button for type="button", toggle state and labelling.
+ */
+export type ButtonVariant = "default" | "primary" | "quiet" | "unstyled";
 export type ButtonSize = "sm" | "md" | "lg";
 
 export type ButtonStyleProps = {
@@ -15,6 +21,7 @@ export type ButtonStyleProps = {
  * element that should look like one (e.g. a router `<Link>`).
  */
 export function buttonClassName({ variant = "default", danger, size, className }: ButtonStyleProps = {}): string {
+  if (variant === "unstyled") return className ?? "";
   return [
     "btn",
     variant !== "default" && `btn--${variant}`,

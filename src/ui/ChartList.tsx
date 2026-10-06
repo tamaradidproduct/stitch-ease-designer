@@ -147,14 +147,13 @@ export function ChartList() {
                 />
               </form>
             ) : (
-              <button
-                type="button"
+              <Button variant="unstyled"
                 className="chartrow__open"
                 onClick={() => navigate(`/c/${chart.id}`)}
               >
                 <span className="chartrow__name">{chart.name}</span>
                 <span className="chartrow__when">{formatWhen(chart.updatedAt)}</span>
-              </button>
+              </Button>
             )}
 
             <div className="chartrow__tools">

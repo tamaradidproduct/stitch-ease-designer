@@ -182,8 +182,7 @@ export function ChartEditor() {
         {openMeta && <PatternSettingsMenu />}
         <SaveIndicator />
         <span className="topbar__spacer" />
-        <button
-          type="button"
+        <Button variant="unstyled"
           className="topbar__historyButton"
           onClick={undoLatest}
           disabled={!canUndo}
@@ -192,9 +191,8 @@ export function ChartEditor() {
         >
           <UndoIcon />
           <span>Undo</span>
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button variant="unstyled"
           className="topbar__historyButton"
           onClick={redoLatest}
           disabled={!canRedo}
@@ -203,7 +201,7 @@ export function ChartEditor() {
         >
           <RedoIcon />
           <span>Redo</span>
-        </button>
+        </Button>
       </header>
       {(status === "conflict" || status === "error") && statusDetail && (
         <div className="banner banner--bad">

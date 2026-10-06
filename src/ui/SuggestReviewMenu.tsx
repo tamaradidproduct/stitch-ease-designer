@@ -7,6 +7,7 @@ import { CheckIcon, CrossIcon, ReplaceAllIcon } from "./icons";
 import { clamp } from "./utils";
 import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
 import { Popover } from "./Popover";
+import { Button } from "./Button";
 
 /**
  * The compact menu that appears once after a Suggest stroke finishes,
@@ -130,8 +131,7 @@ export function SuggestReviewMenu() {
           {identified.length} identified
         </p>
         <div className="suggestReview__row">
-          <button
-            type="button"
+          <Button variant="unstyled"
             className="suggestReview__action"
             onClick={acceptAllIdentified}
             disabled={!identifiedIds.length}
@@ -140,9 +140,8 @@ export function SuggestReviewMenu() {
           >
             <CheckIcon width={19} height={19} strokeWidth={1.7} />
             <span>Accept all</span>
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button variant="unstyled"
             className="suggestReview__action"
             onClick={dismissAllIdentified}
             disabled={!identifiedIds.length}
@@ -151,7 +150,7 @@ export function SuggestReviewMenu() {
           >
             <CrossIcon width={17} height={17} strokeWidth={1.7} />
             <span>Dismiss all</span>
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -162,8 +161,7 @@ export function SuggestReviewMenu() {
           {unrecognizedCells.length} unidentified
         </p>
         <div className="suggestReview__row">
-          <button
-            type="button"
+          <Button variant="unstyled"
             className="suggestReview__action"
             onClick={dismissAllUnrecognized}
             disabled={!unrecognizedCells.length}
@@ -172,9 +170,8 @@ export function SuggestReviewMenu() {
           >
             <CrossIcon width={17} height={17} strokeWidth={1.7} />
             <span>Dismiss all</span>
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button variant="unstyled"
             className="suggestReview__action"
             onClick={replaceAllUnrecognized}
             disabled={!unrecognizedCells.length}
@@ -183,7 +180,7 @@ export function SuggestReviewMenu() {
           >
             <ReplaceAllIcon width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             <span>Replace all</span>
-          </button>
+          </Button>
         </div>
       </div>
     </Popover>

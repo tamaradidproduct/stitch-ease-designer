@@ -4,6 +4,7 @@ import { useDocStore } from "../state/docStore";
 import { useUiStore } from "../state/uiStore";
 import { tapActivate } from "./tapActivate";
 import { BringFrontIcon, ClearMarksIcon, ConfirmIcon, EyeIcon, EyeOffIcon, MarkPointsIcon, SendBehindIcon } from "./icons";
+import { Button } from "./Button";
 
 /**
  * The small, canvas-adjacent toolset used while a reference image is being
@@ -113,15 +114,14 @@ export function ReferenceImageDock() {
   // "Apply scale" is the action that matters.
   const showSave = !marking;
   const saveButton = (
-    <button
-      type="button"
+    <Button variant="unstyled"
       className="toolDock__button referenceDock__save"
       {...tapActivate(() => setPanelOpen(false))}
       title="Save reference image changes"
     >
       <ConfirmIcon />
       <span>Save changes</span>
-    </button>
+    </Button>
   );
 
   return (
@@ -138,8 +138,7 @@ export function ReferenceImageDock() {
           onPointerDown={stopCanvasGesture}
           onClick={stopCanvasGesture}
         >
-      <button
-        type="button"
+      <Button variant="unstyled"
         className={marking ? "toolDock__button referenceDock__cancel" : "toolDock__button"}
         aria-pressed={marking}
         {...tapActivate(toggleMarking)}
@@ -147,11 +146,10 @@ export function ReferenceImageDock() {
       >
         <MarkPointsIcon />
         <span>{marking ? "Cancel" : "Set scale"}</span>
-      </button>
+      </Button>
       {marking && (
         <>
-          <button
-            type="button"
+          <Button variant="unstyled"
             className="toolDock__button referenceDock__apply"
             disabled={!canApply}
             {...tapActivate(refine)}
@@ -163,9 +161,8 @@ export function ReferenceImageDock() {
           >
             <ConfirmIcon />
             <span>Apply scale</span>
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button variant="unstyled"
             className="toolDock__button"
             disabled={points.length === 0}
             {...tapActivate(() => {
@@ -176,7 +173,7 @@ export function ReferenceImageDock() {
           >
             <ClearMarksIcon />
             <span>Clear points</span>
-          </button>
+          </Button>
         </>
       )}
         </div>
@@ -207,8 +204,7 @@ export function ReferenceImageDock() {
           className={`referenceImageQuickDock referenceImageQuickDock--${layout}`}
           aria-label="Reference image visibility and layer controls"
         >
-          <button
-            type="button"
+          <Button variant="unstyled"
             className="toolDock__button"
             aria-pressed={image.visible}
             {...tapActivate(() => updateReferenceImage(image.id, { visible: !image.visible }))}
@@ -220,9 +216,8 @@ export function ReferenceImageDock() {
               <EyeOffIcon />
             )}
             <span>{image.visible ? "Hide" : "Show"}</span>
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button variant="unstyled"
             className="toolDock__button"
             aria-pressed={!!image.inFront}
             {...tapActivate(() => updateReferenceImage(image.id, { inFront: !image.inFront }))}
@@ -230,7 +225,7 @@ export function ReferenceImageDock() {
           >
             {image.inFront ? <SendBehindIcon /> : <BringFrontIcon />}
             <span>{image.inFront ? "Send behind" : "Bring to front"}</span>
-          </button>
+          </Button>
         </div>
         {showSave && layout === "stacked" && (
           // A separate, full-width pill underneath the visibility/layering

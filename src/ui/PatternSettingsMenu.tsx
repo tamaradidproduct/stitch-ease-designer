@@ -11,6 +11,7 @@ import {
 import { useDocStore } from "../state/docStore";
 import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
 import { Popover } from "./Popover";
+import { Button } from "./Button";
 
 /** Grid layout order (top row, then bottom row) for the first-stitch corner picker. */
 const CORNER_GRID_ORDER: Corner[] = ["tl", "tr", "bl", "br"];
@@ -103,9 +104,8 @@ export function PatternSettingsMenu() {
 
   return (
     <div className="patternSettings">
-      <button
+      <Button variant="unstyled"
         ref={triggerRef}
-        type="button"
         className="patternSettings__trigger"
         aria-expanded={open}
         aria-haspopup="dialog"
@@ -113,7 +113,7 @@ export function PatternSettingsMenu() {
       >
         <span className="patternSettings__label">Pattern settings</span>
         <span className="patternSettings__summary">{summarize(patternInfo, namedColorCount)}</span>
-      </button>
+      </Button>
       {open && (
         <Popover
           ref={popoverRef}
@@ -127,16 +127,15 @@ export function PatternSettingsMenu() {
               <span className="patternInfo__label">Worked</span>
               <div className="patternInfo__toggle" role="radiogroup" aria-label="Worked flat or in the round">
                 {WORKED_MODES.map((mode) => (
-                  <button
+                  <Button variant="unstyled"
                     key={mode}
-                    type="button"
                     role="radio"
                     aria-checked={patternInfo.worked === mode}
                     data-on={patternInfo.worked === mode}
                     onClick={() => setPatternInfo({ worked: mode as Worked })}
                   >
                     {mode === "flat" ? "Flat" : "Round"}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
@@ -145,16 +144,15 @@ export function PatternSettingsMenu() {
                 <span className="patternInfo__label">First row</span>
                 <div className="patternInfo__toggle" role="radiogroup" aria-label="First row RS or WS">
                   {FIRST_ROW_SIDES.map((side) => (
-                    <button
+                    <Button variant="unstyled"
                       key={side}
-                      type="button"
                       role="radio"
                       aria-checked={patternInfo.firstRow === side}
                       data-on={patternInfo.firstRow === side}
                       onClick={() => setPatternInfo({ firstRow: side as FirstRowSide })}
                     >
                       {side}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               </div>
@@ -163,9 +161,8 @@ export function PatternSettingsMenu() {
               <span className="patternInfo__label">First stitch</span>
               <div className="patternInfo__corners" role="radiogroup" aria-label="Which corner the first stitch is at">
                 {CORNER_GRID_ORDER.map((corner) => (
-                  <button
+                  <Button variant="unstyled"
                     key={corner}
-                    type="button"
                     role="radio"
                     aria-checked={patternInfo.firstStitch === corner}
                     data-on={patternInfo.firstStitch === corner}

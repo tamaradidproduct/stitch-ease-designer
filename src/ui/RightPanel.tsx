@@ -454,10 +454,9 @@ export function RightPanel() {
                               resultIndex += 1;
                               const at = resultIndex;
                               return (
-                                <button
+                                <Button variant="unstyled"
                                   id={`glossary-search-result-motif-${motif.id}`}
                                   key={motif.id}
-                                  type="button"
                                   role="option"
                                   aria-selected={at === activeGlossaryResult}
                                   data-active={at === activeGlossaryResult}
@@ -469,7 +468,7 @@ export function RightPanel() {
                                   </span>
                                   <span>{motif.name}</span>
                                   <strong>Added</strong>
-                                </button>
+                                </Button>
                               );
                             })}
                           </div>
@@ -481,10 +480,9 @@ export function RightPanel() {
                               resultIndex += 1;
                               const at = resultIndex;
                               return (
-                                <button
+                                <Button variant="unstyled"
                                   id={`glossary-search-result-stitch-${result.id}`}
                                   key={result.id}
-                                  type="button"
                                   role="option"
                                   aria-selected={at === activeGlossaryResult}
                                   data-active={at === activeGlossaryResult}
@@ -496,7 +494,7 @@ export function RightPanel() {
                                   </span>
                                   <span>{result.label}</span>
                                   <strong>{plainGlossaryIds.has(result.id) ? "Added" : "Select"}</strong>
-                                </button>
+                                </Button>
                               );
                             })}
                           </div>
@@ -506,9 +504,8 @@ export function RightPanel() {
                   })()}
                 </div>
               ) : (
-                <button
+                <Button variant="unstyled"
                   key={`empty:${slot}`}
-                  type="button"
                   className="glossary__item glossary__item--empty"
                   data-drag-over={dragOverQuickSlot === slot}
                   {...forEmptySlot(slot)}
@@ -521,7 +518,7 @@ export function RightPanel() {
                   {slot < 5 ? <kbd className="glossary__shortcut">{slot + 1}</kbd> : <span className="glossary__shortcutSpacer" />}
                   <span className="glossary__emptyGlyph" aria-hidden="true">+</span>
                   <span className="glossary__label">Add stitch</span>
-                </button>
+                </Button>
               )
   );
 
@@ -554,8 +551,7 @@ export function RightPanel() {
               <div className="glossary__item" data-on={armedSymbolId === SUGGEST_SYMBOL_ID && tool === "stitch"}>
                 <span className="glossary__dragHandle glossary__dragHandle--empty" aria-hidden="true" />
                 <kbd className="glossary__shortcut" aria-label="Shortcut G">G</kbd>
-                <button
-                  type="button"
+                <Button variant="unstyled"
                   className="glossary__arm"
                   {...tapActivate(() =>
                     setArmedSymbolId(
@@ -575,7 +571,7 @@ export function RightPanel() {
                         : "Confirm a stitch to enable Suggest"}
                     </span>
                   </span>
-                </button>
+                </Button>
                 {armedSymbolId === SUGGEST_SYMBOL_ID && tool === "stitch" ? (
                   disarmButton
                 ) : (
@@ -593,24 +589,22 @@ export function RightPanel() {
                 <span className="glossary__label">
                   {suggestedCount} identified
                 </span>
-                <button
-                  type="button"
+                <Button variant="unstyled"
                   className="glossary__reviewAction"
                   onClick={() => acceptSuggestions()}
                   aria-label="Accept all identified suggestions"
                   title="Accept all"
                 >
                   <CheckIcon />
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button variant="unstyled"
                   className="glossary__reviewAction"
                   onClick={() => dismissSuggestions()}
                   aria-label="Dismiss all identified suggestions"
                   title="Dismiss all"
                 >
                   <CrossIcon />
-                </button>
+                </Button>
               </div>
             )}
             {isAdmin && unrecognizedCount > 0 && (
@@ -623,17 +617,15 @@ export function RightPanel() {
                 <span className="glossary__label">
                   {unrecognizedCount} unidentified
                 </span>
-                <button
-                  type="button"
+                <Button variant="unstyled"
                   className="glossary__reviewAction"
                   onClick={clearReferenceImageUnrecognized}
                   aria-label="Dismiss all unidentified markers"
                   title="Dismiss all"
                 >
                   <CrossIcon />
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button variant="unstyled"
                   className="glossary__reviewAction"
                   onClick={() => {
                     const first = unrecognizedCells[0];
@@ -651,7 +643,7 @@ export function RightPanel() {
                   title="Replace all"
                 >
                   <ReplaceAllIcon />
-                </button>
+                </Button>
               </div>
             )}
             {Array.from({ length: slotCount }, (_, slot) => {
@@ -887,8 +879,7 @@ export function RightPanel() {
 
       <div className="rightPanel__bottom">
       <section className="sideModule">
-        <button
-          type="button"
+        <Button variant="unstyled"
           className="sideModule__header sideModule__toggle"
           onClick={() => setExportOpen((open) => !open)}
           aria-expanded={exportOpen}
@@ -898,7 +889,7 @@ export function RightPanel() {
             <span>Share or save this pattern</span>
           </div>
           <DisclosureIcon width="14" height="14" data-open={exportOpen} />
-        </button>
+        </Button>
         {exportOpen && (
           <div className="sideModule__body">
             {referenceImages.length > 0 && (
@@ -964,8 +955,7 @@ export function RightPanel() {
       </section>
 
       <section className="sideModule">
-        <button
-          type="button"
+        <Button variant="unstyled"
           className="sideModule__header sideModule__toggle"
           onClick={() => setHelpOpen((open) => !open)}
           aria-expanded={helpOpen}
@@ -975,7 +965,7 @@ export function RightPanel() {
             <span>Keyboard shortcuts</span>
           </div>
           <DisclosureIcon width="14" height="14" data-open={helpOpen} />
-        </button>
+        </Button>
         {helpOpen && (
           <div className="sideModule__body">
             <dl className="shortcutList">
@@ -1009,9 +999,9 @@ export function RightPanel() {
         </div>
         <div className="sideModule__body navigator">
           <div className="navigator__zoom" aria-label="Canvas zoom">
-            <button type="button" onClick={() => zoomFromCenter(1 / 1.2)} aria-label="Zoom out">−</button>
+            <Button variant="unstyled" onClick={() => zoomFromCenter(1 / 1.2)} aria-label="Zoom out">−</Button>
             <output aria-live="polite">{Math.round(zoom * 100)}%</output>
-            <button type="button" onClick={() => zoomFromCenter(1.2)} aria-label="Zoom in">+</button>
+            <Button variant="unstyled" onClick={() => zoomFromCenter(1.2)} aria-label="Zoom in">+</Button>
           </div>
           <Button className="navigator__center" onClick={centerChart}>
             Center chart at 100%

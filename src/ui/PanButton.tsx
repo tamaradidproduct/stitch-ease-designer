@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef } from "react";
 import { useUiStore } from "../state/uiStore";
 import { tapActivate } from "./tapActivate";
 import { PanIcon } from "./icons";
+import { Button } from "./Button";
 
 /**
  * Touch/Pencil equivalent of holding Space - a tap-toggled modifier, not a
@@ -58,8 +59,8 @@ export function PanButton() {
 
   return (
     <div className="panDock" ref={dockRef}>
-      <button
-        type="button"
+      <Button
+        variant="unstyled"
         className="toolDock__button"
         data-on={panEnabled}
         aria-pressed={panEnabled}
@@ -69,7 +70,7 @@ export function PanButton() {
       >
         <PanIcon />
         <span>Pan</span>
-      </button>
+      </Button>
     </div>
   );
 }

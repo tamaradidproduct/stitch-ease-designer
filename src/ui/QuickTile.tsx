@@ -2,6 +2,7 @@ import type { StitchSymbol } from "../symbols/types";
 import { SymbolGlyph } from "./SymbolGlyph";
 import { ColorChip } from "./ColorChip";
 import { glyphCellSize } from "./glyphSize";
+import { Button } from "./Button";
 
 export type QuickTileEntry = {
   key: string;
@@ -39,8 +40,7 @@ export function QuickTile({ entry, active, canColor = true, onChoose, onChooseCo
   const title = entry.disabled ? `${entry.symbol.label} does not fit this selection` : entry.symbol.label;
   return (
     <div className="picker__quickTile">
-      <button
-        type="button"
+      <Button variant="unstyled"
         className="picker__quickButton"
         data-colored={!!entry.colorId}
         data-active={active}
@@ -51,7 +51,7 @@ export function QuickTile({ entry, active, canColor = true, onChoose, onChooseCo
         data-label={entry.symbol.label}
       >
         <SymbolGlyph symbol={entry.symbol} cell={glyphCellSize(entry.symbol.span, 58, 22)} colorId={entry.colorId} />
-      </button>
+      </Button>
       {/* FR-25: a colored slot's color is fixed - no chip. Only the current, uncolored slot gets one. */}
       {!entry.colorId && active && canColor && (
         <ColorChip

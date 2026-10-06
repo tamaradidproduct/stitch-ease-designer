@@ -15,7 +15,7 @@ export function Button({ variant, danger, size, className, on, type = "button", 
   return (
     <button
       type={type}
-      className={buttonClassName({ variant, danger, size, className })}
+      className={buttonClassName({ variant, danger, size, className }) || undefined}
       data-on={on === undefined ? undefined : on}
       {...rest}
     />

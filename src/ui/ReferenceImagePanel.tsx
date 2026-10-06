@@ -280,8 +280,7 @@ export function ReferenceImagePanel() {
                 Save changes
               </Button>
             ) : (
-              <button
-                type="button"
+              <Button variant="unstyled"
                 className="refpanel__paletteButton"
                 disabled={busy || !meta}
                 aria-label="Add another reference image"
@@ -292,7 +291,7 @@ export function ReferenceImagePanel() {
                 }}
               >
                 <PlusIcon />
-              </button>
+              </Button>
             ))
           ) : (
             <Button
@@ -307,8 +306,7 @@ export function ReferenceImagePanel() {
               {busy ? "Uploading…" : "Upload image"}
             </Button>
           )}
-          <button
-            type="button"
+          <Button variant="unstyled"
             className="refpanel__paletteButton"
             data-on={traceMenuOpen || stitchHighlightOpacity > 0}
             {...tapActivate(() => setTraceMenuOpen((isOpen) => !isOpen))}
@@ -317,20 +315,19 @@ export function ReferenceImagePanel() {
             title="Canvas stitch colors"
           >
             <PaletteDotsIcon />
-          </button>
+          </Button>
         </div>
       </div>
       {traceMenuOpen && (
         <Popover className="traceColors refpanel__traceColors">
           <div className="traceColors__label">
             <span>Canvas stitch color</span>
-            <button type="button" onClick={() => setStitchHighlightOpacity(0)}>Off</button>
+            <Button variant="unstyled" onClick={() => setStitchHighlightOpacity(0)}>Off</Button>
           </div>
           <div className="traceColors__presets" aria-label="Stitch highlight color">
             {TRACE_COLORS.map((color) => (
-              <button
+              <Button variant="unstyled"
                 key={color}
-                type="button"
                 style={{ background: color }}
                 data-on={stitchHighlightColor === color && stitchHighlightOpacity > 0}
                 onClick={() => setStitchHighlight(color, stitchHighlightOpacity || 0.22)}
@@ -489,8 +486,7 @@ export function ReferenceImagePanel() {
             <ul className="refpanel__imageList">
               {images.map((img) => (
                 <li key={img.id}>
-                  <button
-                    type="button"
+                  <Button variant="unstyled"
                     className="refpanel__imageRow"
                     data-active={img.id === activeImageId}
                     onClick={() => setActiveImageId(img.id)}
@@ -501,9 +497,8 @@ export function ReferenceImagePanel() {
                       <span className="refpanel__imageThumb refpanel__imageThumb--empty" aria-hidden="true" />
                     )}
                     <span>Image {img.number}</span>
-                  </button>
-                  <button
-                    type="button"
+                  </Button>
+                  <Button variant="unstyled"
                     className="refpanel__imageAction"
                     title="Replace this image"
                     disabled={busy}
@@ -514,21 +509,19 @@ export function ReferenceImagePanel() {
                     }}
                   >
                     <ReplaceImageIcon />
-                  </button>
-                  <button
-                    type="button"
+                  </Button>
+                  <Button variant="unstyled"
                     className="refpanel__imageAction refpanel__imageAction--danger"
                     title="Remove this image"
                     disabled={busy}
                     onClick={() => removeImage(img)}
                   >
                     <TrashIcon />
-                  </button>
+                  </Button>
                 </li>
               ))}
             </ul>
-            <button
-              type="button"
+            <Button variant="unstyled"
               className="glossary__item glossary__item--empty refpanel__addImage"
               disabled={busy || !meta}
               title="Add another reference image"
@@ -539,7 +532,7 @@ export function ReferenceImagePanel() {
             >
               <span className="glossary__emptyGlyph" aria-hidden="true">+</span>
               <span className="glossary__label">{busy ? "Uploading…" : "Add image"}</span>
-            </button>
+            </Button>
           </div>
         )}
         {image && (
@@ -592,8 +585,7 @@ export function ReferenceImagePanel() {
             </p>
             )}
             <div className="refpanel__helpRow">
-              <button
-                type="button"
+              <Button variant="unstyled"
                 className="refpanel__paletteButton refpanel__helpButton"
                 data-on={helpOpen}
                 aria-expanded={helpOpen}
@@ -602,7 +594,7 @@ export function ReferenceImagePanel() {
                 {...tapActivate(() => setHelpOpen((isOpen) => !isOpen))}
               >
                 ?
-              </button>
+              </Button>
             </div>
             {helpOpen && (
               <div className="refpanel__helpPopover">
@@ -635,8 +627,7 @@ export function ReferenceImagePanel() {
                               point on a large reference image is often
                               scrolled well out of view by the time it's
                               picked from this list. */}
-                          <button
-                            type="button"
+                          <Button variant="unstyled"
                             className="refpanel__markRow"
                             data-active={point.id === activeMark}
                             onClick={() => {
@@ -660,9 +651,8 @@ export function ReferenceImagePanel() {
                                 ? "not numbered"
                                 : `st ${point.stitch ?? "?"} · row ${point.row ?? "?"}`}
                             </span>
-                          </button>
-                          <button
-                            type="button"
+                          </Button>
+                          <Button variant="unstyled"
                             className="refpanel__markRemove"
                             title="Remove this box"
                             aria-label="Remove this box"
@@ -677,7 +667,7 @@ export function ReferenceImagePanel() {
                             }}
                           >
                             &times;
-                          </button>
+                          </Button>
                         </li>
                       );
                     })}

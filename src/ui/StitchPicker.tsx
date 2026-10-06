@@ -23,6 +23,7 @@ import { ColorChip } from "./ColorChip";
 import { QuickTile } from "./QuickTile";
 import { useDismissOnOutsideOrEscape } from "./useDismissOnOutsideOrEscape";
 import { Popover } from "./Popover";
+import { Button } from "./Button";
 
 const MENU_WIDTH = 284;
 const SEARCH_SLOT_WIDTH = 200;
@@ -560,15 +561,14 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
         }}
         spellCheck={false}
       />
-      <button
-        type="button"
+      <Button variant="unstyled"
         className="picker__close"
         onClick={closePicker}
         aria-label="Close"
         title="Close (Esc)"
       >
         <CloseIcon width={14} height={14} strokeWidth={1.6} />
-      </button>
+      </Button>
     </div>
   );
 
@@ -628,9 +628,8 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
                 getPopoverBoundaryRect={() => rootRef.current?.getBoundingClientRect() ?? null}
               />
             ) : (
-              <button
+              <Button variant="unstyled"
                 key={`empty:${slot}`}
-                type="button"
                 className="picker__quickButton picker__quickSlot"
                 onClick={() => openSearch("", slot)}
                 title={`Choose a quick stitch (${slot + 1})`}
@@ -638,7 +637,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
                 data-label="Choose stitch"
               >
                 <QuickAddIcon width="14" height="14" />
-              </button>
+              </Button>
             );
           })}
           {dynamicSlot && !(searchOpen && searchOrigin !== 5) && (
@@ -660,9 +659,8 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
             </>
           )}
           {searchOpen && searchOrigin === 5 ? renderSearchField("search:5") : (
-            <button
+            <Button variant="unstyled"
               ref={searchButtonRef}
-              type="button"
               className="picker__quickButton picker__searchButton"
               onClick={() => openSearch("", 5)}
               title="Search all stitches"
@@ -670,11 +668,10 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
               data-label="Search stitches"
             >
               <SearchIcon width={18} height={18} strokeWidth={1.6} />
-            </button>
+            </Button>
           )}
           {hasMore && (
-            <button
-              type="button"
+            <Button variant="unstyled"
               className="picker__quickButton picker__moreButton"
               data-active={moreOpen}
               onClick={() => {
@@ -688,11 +685,10 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
               data-label="More stitches"
             >
               <MoreIcon width="18" height="18" />
-            </button>
+            </Button>
           )}
           {canDelete && (
-            <button
-              type="button"
+            <Button variant="unstyled"
               className="picker__quickButton picker__deleteButton"
               onClick={clear}
               aria-label="Clear stitch"
@@ -700,7 +696,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
               data-label="Clear"
             >
               <TrashSmallIcon width="14" height="14" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-            </button>
+            </Button>
           )}
         </div>
 
@@ -710,8 +706,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
             <div className="picker__moreList" hidden={!moreEntries.length}>
               {moreEntries.map((entry) => (
                 <div key={entry.key} className="picker__item">
-                  <button
-                    type="button"
+                  <Button variant="unstyled"
                     className="picker__itemMain"
                     data-colored={!!entry.colorId}
                     onClick={() => choose(entry.symbol, entry.colorId)}
@@ -723,7 +718,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
                     <span className="picker__label">{entry.symbol.label}</span>
                     {isCurrent(entry) && <span className="picker__current">current</span>}
                     {entry.symbol.span > 1 && <span className="picker__span">{entry.symbol.span} sts</span>}
-                  </button>
+                  </Button>
                   {!entry.colorId && !baseCell && (
                     <ColorChip
                       label={`Color ${entry.symbol.label}`}
@@ -749,8 +744,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
                 closePicker();
               }} />
             ) : (
-            <button
-              type="button"
+            <Button variant="unstyled"
               onClick={() => {
                 createRepeat(target.selectionIds!);
                 clearSelection();
@@ -761,10 +755,9 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
               data-label="Motif"
             >
               <MakeMotifIcon />
-            </button>
+            </Button>
             )}
-            <button
-              type="button"
+            <Button variant="unstyled"
               onClick={() => {
                 const ids = duplicateSelection(target.selectionIds!);
                 const first = ids.length ? index.placements.get(ids[0]!) : undefined;
@@ -784,7 +777,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
               data-label="Duplicate"
             >
               <DuplicateIcon />
-            </button>
+            </Button>
           </div>
         )}
 
@@ -804,9 +797,8 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
               <div>
                 <div className="picker__heading">Motifs</div>
                 {matchingRepeats.map((repeat) => (
-                  <button
+                  <Button variant="unstyled"
                     key={repeat.id}
-                    type="button"
                     className="picker__item"
                     onClick={() => {
                       chooseMotif(repeat.id);
@@ -817,7 +809,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
                     <span className="picker__label">{repeat.name}</span>
                     <span className="picker__span">{repeat.width} × {repeat.height}</span>
                     <span className="picker__added">Added</span>
-                  </button>
+                  </Button>
                 ))}
               </div>
             )}
@@ -830,9 +822,8 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
                   const isActive = resultIndex === active;
                   const at = resultIndex;
                   return (
-                    <button
+                    <Button variant="unstyled"
                       key={`${section.key}:${symbol.id}`}
-                      type="button"
                       className="picker__item"
                       data-active={isActive}
                       onPointerEnter={() => setActive(at)}
@@ -845,7 +836,7 @@ function StitchPickerBody({ target }: { target: PickerTarget }) {
                       {isCurrent({ key: symbol.id, symbol }) && <span className="picker__current">current</span>}
                       {symbol.span > 1 && <span className="picker__span">{symbol.span} sts</span>}
                       {plainGlossaryIds.has(symbol.id) && <span className="picker__added">Added</span>}
-                    </button>
+                    </Button>
                   );
                 })}
               </div>
