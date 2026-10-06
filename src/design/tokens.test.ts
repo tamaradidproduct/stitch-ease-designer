@@ -36,7 +36,8 @@ describe("design tokens", () => {
       for (const line of code.split("\n")) {
         const decl = line.match(/^\s*([a-z-]+):\s*(.+);/);
         if (!decl) continue;
-        const [, prop, value] = decl;
+        const prop = decl[1]!;
+        const value = decl[2]!;
         // The trace-colors button paints a literal hue wheel on purpose.
         if (/conic-gradient/.test(value)) continue;
         if (/#[0-9a-f]{3,8}\b|rgba?\(/i.test(value)) offenders.push(`${file}: ${line.trim()}`);

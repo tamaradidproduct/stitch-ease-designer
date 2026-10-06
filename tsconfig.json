@@ -22,5 +22,5 @@
 
     "types": ["vitest/globals", "vite/client"]
   },
-  "include": ["src"]
+  "include": ["src", "vite.design-system.config.ts"]
 }

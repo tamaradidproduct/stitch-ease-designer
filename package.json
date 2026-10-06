@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc -b --noEmit",
     "lint": "eslint .",
-    "tokens": "node scripts/build-tokens.mjs"
+    "tokens": "node scripts/build-tokens.mjs",
+    "design-system": "node scripts/build-design-system.mjs"
   },
   "dependencies": {
     "@fasterfixes/react": "^0.0.11",
