@@ -6,24 +6,18 @@ import {
   stitchBoxRect,
   type ReferenceImage,
 } from "./types";
+import { makeReferenceImage } from "./testFixtures";
 
-function image(overrides: Partial<ReferenceImage> = {}): ReferenceImage {
-  return {
-    id: "image-1",
-    number: 1,
-    ref: "data:image/png;base64,x",
+const image = (overrides: Partial<ReferenceImage> = {}) =>
+  makeReferenceImage({
     x: 100,
     y: 50,
     width: 800,
     height: 600,
     naturalWidth: 800,
     naturalHeight: 600,
-    opacity: 0.5,
-    visible: true,
-    locked: false,
     ...overrides,
-  };
-}
+  });
 
 /** A stitch pinned a quarter in from the image's bottom-left. */
 const CALIBRATED = { u: 0.25, v: 0.25 };
