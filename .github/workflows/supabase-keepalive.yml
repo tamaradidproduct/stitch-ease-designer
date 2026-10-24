@@ -32,15 +32,15 @@ jobs:
               echo "::notice::$name: not configured, skipping"
               return
             fi
-            # A table read, not just /auth/v1/health, so it reaches Postgres.
-            # RLS may return [] or a 401/403; any non-5xx response means the
-            # project is awake and answered.
+            # A real table read (public.keepalive), not just /auth/v1/health, so it reaches Postgres.
+            # The table is public-read, so only a 2xx counts. A 404 means the
+            # migration hasn't been applied to that project yet.
             code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 \
               -H "apikey: $key" \
-              "$url/rest/v1/qa_test_cases?select=id&limit=1" || true)
+              "$url/rest/v1/keepalive?select=id&limit=1" || true)
             echo "$name: HTTP $code"
             case "$code" in
-              2*|3*|4*) ;;
+              2*) ;;
               *) echo "::error::$name did not respond healthily (HTTP $code)"; fail=1 ;;
             esac
           }
