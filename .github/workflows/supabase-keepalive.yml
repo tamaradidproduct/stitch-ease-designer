@@ -1,0 +1,49 @@
+name: Supabase keep-alive
+
+# Free-tier Supabase projects pause after ~7 days without activity. A cheap
+# read against each project's REST API keeps them counted as active.
+
+on:
+  schedule:
+    - cron: "17 14 */3 * *" # every 3 days, 14:17 UTC
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping each configured project
+        env:
+          # The designer project reuses the vars the deploy workflows already
+          # read. Add the *_APP_* pair in repo Settings -> Variables to cover
+          # stitch-ease-app too; unset pairs are skipped.
+          DESIGNER_URL: ${{ vars.VITE_SUPABASE_URL }}
+          DESIGNER_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          APP_URL: ${{ vars.KEEPALIVE_APP_SUPABASE_URL }}
+          APP_KEY: ${{ vars.KEEPALIVE_APP_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          fail=0
+          ping_project() {
+            name="$1"; url="$2"; key="$3"
+            if [ -z "$url" ] || [ -z "$key" ]; then
+              echo "::notice::$name: not configured, skipping"
+              return
+            fi
+            # A table read, not just /auth/v1/health, so it reaches Postgres.
+            # RLS may return [] or a 401/403; any non-5xx response means the
+            # project is awake and answered.
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 \
+              -H "apikey: $key" \
+              "$url/rest/v1/qa_test_cases?select=id&limit=1" || true)
+            echo "$name: HTTP $code"
+            case "$code" in
+              2*|3*|4*) ;;
+              *) echo "::error::$name did not respond healthily (HTTP $code)"; fail=1 ;;
+            esac
+          }
+          ping_project "stitch-ease-designer" "$DESIGNER_URL" "$DESIGNER_KEY"
+          ping_project "stitch-ease-app" "$APP_URL" "$APP_KEY"
+          exit $fail
