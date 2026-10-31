@@ -32,12 +32,15 @@ jobs:
               echo "::notice::$name: not configured, skipping"
               return
             fi
-            # A real table read (public.keepalive), not just /auth/v1/health, so it reaches Postgres.
-            # The table is public-read, so only a 2xx counts. A 404 means the
-            # migration hasn't been applied to that project yet.
+            # A write (public.keepalive_touch updates one timestamp), not just
+            # a read, so it counts as real database activity. Only a 2xx
+            # passes; a 404 means the migration isn't applied to that project.
             code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 \
+              -X POST \
               -H "apikey: $key" \
-              "$url/rest/v1/keepalive?select=id&limit=1" || true)
+              -H "Content-Type: application/json" \
+              -d '{}' \
+              "$url/rest/v1/rpc/keepalive_touch" || true)
             echo "$name: HTTP $code"
             case "$code" in
               2*) ;;
