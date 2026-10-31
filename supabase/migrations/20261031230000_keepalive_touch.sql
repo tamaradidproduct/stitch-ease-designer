@@ -10,7 +10,11 @@ language sql
 security definer
 set search_path = ''
 as $$
-  update public.keepalive set last_ping = now() where id = 1 returning last_ping;
+  insert into public.keepalive (id, last_ping)
+  values (1, pg_catalog.now())
+  on conflict (id) do update
+  set last_ping = pg_catalog.now()
+  returning last_ping;
 $$;
 
 revoke all on function public.keepalive_touch() from public;
